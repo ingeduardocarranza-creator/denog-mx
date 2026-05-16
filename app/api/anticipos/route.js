@@ -7,13 +7,16 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 )
 
-export async function GET() {
-  const { data, error } = await supabase
-    .from('clientes')
-    .select('id, nombre, usuario, telefono, activo')
-    .eq('activo', true)
-    .order('nombre')
+export async function POST(req) {
+  const { cliente_id, monto, metodo } = await req.json()
+
+  const { error } = await supabase.from('pagos').insert({
+    cliente_id,
+    monto,
+    metodo,
+    tipo: 'anticipo'
+  })
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
-  return NextResponse.json({ ok: true, clientes: data })
-}   
+  return NextResponse.json({ ok: true })
+}

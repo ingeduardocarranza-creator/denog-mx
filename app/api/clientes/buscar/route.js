@@ -9,13 +9,14 @@ const supabase = createClient(
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url)
-  const cliente_id = searchParams.get('cliente_id')
+  const q = searchParams.get('q')
 
   const { data, error } = await supabase
-    .from('pedidos')
-    .select('*, entregas(fecha_entrega, estado)')
-    .eq('cliente_id', cliente_id)
+    .from('clientes')
+    .select('id, nombre, usuario')
+    .ilike('nombre', `%${q}%`)
+    .limit(5)
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
-  return NextResponse.json({ ok: true, pedidos: data })
+  return NextResponse.json({ clientes: data })
 }

@@ -15,6 +15,7 @@ export async function GET(req) {
     .from('pedidos')
     .select('*, entregas(fecha_entrega, estado)')
     .eq('cliente_id', cliente_id)
+    .neq('estado', 'entregado')
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true, pedidos: data })

@@ -23,9 +23,11 @@ export default function Login() {
     const data = await res.json()
 
     if (data.ok) {
-      if (data.rol === 'admin') router.push('/admin')
-      else if (data.rol === 'vendedor') router.push('/pos')
-      else router.push('/cliente')
+  localStorage.setItem('cliente', JSON.stringify({ id: data.id, nombre: data.nombre, rol: data.rol }))
+  if (data.rol === 'admin') router.push('/admin')
+  else if (data.rol === 'vendedor') router.push('/pos')
+  else router.push('/cliente')
+
     } else {
       setError(data.mensaje || 'Usuario o contraseña incorrectos')
       setCargando(false)

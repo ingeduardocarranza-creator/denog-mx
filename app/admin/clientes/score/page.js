@@ -1,213 +1,209 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-// Conexión directa y segura con tus variables de entorno
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+'use client'
+import { useState, useEffect } from 'react'
 
 export default function ScoreClientes() {
-  const [clientesCalificados, setClientesCalificados] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [clientes, setClientes] = useState([])
+  const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
-    async function cargarYCalcularScore() {
-      setLoading(true);
+    cargarScores()
+  }, [])
 
-      // 1. Descargar datos de tus tablas de Supabase
-      const { data: dataClientes } = await supabase.from('clientes').select('*');
-      const { data: dataPedidos } = await supabase.from('pedidos').select('*');
-      const { data: dataPagos } = await supabase.from('pagos').select('*');
-      const { data: dataEntregas } = await supabase.from('entregas').select('*');
+  const cargarScores = async () => {
+    const [clientesRes, pedidosRes, pagosRes, entregasRes] = await Promise.all([
+      fetch('/api/clientes/listar').then(r => r.json()),
+      fetch('/api/score/pedidos').then(r => r.json()),
+      fetch('/api/score/pagos').then(r => r.json()),
+      fetch('/api/entregas').then(r => r.json()),
+    ])
 
-      const dbClientes = dataClientes || [];
-      const dbPedidos = dataPedidos || [];
-      const dbPagos = dataPagos || [];
-      const dbEntregas = dataEntregas || [];
+    if (!clientesRes.ok) return
 
-      const hoy = new Date();
+    const pedidos = pedidosRes.pedidos || []
+    const pagos = pagosRes.pagos || []
+    const entregas = entregasRes.entregas || []
 
-      // 2. Aplicar las matemáticas del negocio a cada cliente
-      const resultado = dbClientes.map(cliente => {
-        const pedidosCliente = dbPedidos.filter(p => p.cliente_id === cliente.id);
-        const pagosCliente = dbPagos.filter(p => p.cliente_id === cliente.id);
+    const clientesConScore = clientesRes.clientes.map(c => {
+      const pedidosCliente = pedidos.filter(p => p.cliente_id === c.id)
+      const pagosCliente = pagos.filter(p => p.cliente_id === c.id)
+      const entregasCliente = [...new Set(pedidosCliente.map(p => p.entrega_id))].filter(Boolean)
 
-        // --- FRECUENCIA DE COMPRA (25%) ---
-        const viajesComprados = new Set(pedidosCliente.map(p => p.entrega_id)).size;
-        let puntosFrecuencia = 0;
-        if (viajesComprados >= 5) puntosFrecuencia = 25;
-        else if (viajesComprados >= 3) puntosFrecuencia = 18;
-        else if (viajesComprados >= 1) puntosFrecuencia = 10;
+      // Frecuencia (25 pts)
+      const totalEntregas = entregas.length || 1
+      const participacion = entregasCliente.length / totalEntregas
+      const puntsFrecuencia = Math.min(25, Math.round(participacion * 25 + entregasCliente.length * 2))
 
-        // --- VOLUMEN DE COMPRA (25%) ---
-        const totalDineroComprado = pedidosCliente.reduce((acc, p) => acc + (Number(p.precio_venta) || 0), 0);
-        let puntosVolumen = 0;
-        if (totalDineroComprado >= 20000) puntosVolumen = 25;
-        else if (totalDineroComprado >= 10000) puntosVolumen = 18;
-        else if (totalDineroComprado >= 3000) puntosVolumen = 10;
-        else if (totalDineroComprado > 0) puntosVolumen = 5;
+      // Volumen (25 pts)
+      const totalGastado = pedidosCliente.reduce((s, p) => s + (p.precio_venta || 0), 0)
+      const promedioEntrega = entregasCliente.length > 0 ? totalGastado / entregasCliente.length : 0
+      const puntsVolumen = Math.min(25, Math.round((promedioEntrega / 2000) * 25))
 
-        // --- HISTORIAL DE DEUDAS (10%) ---
-        const totalPagado = pagosCliente.reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
-        const deudaActual = totalDineroComprado - totalPagado;
-        let puntosDeuda = 10;
-        if (deudaActual > (Number(cliente.limite_credito) || 0)) {
-          puntosDeuda = 0; 
-        } else if (deudaActual > 0) {
-          puntosDeuda = 7; 
+      // Puntualidad (40 pts)
+      const totalPagado = pagosCliente.reduce((s, p) => s + (p.monto || 0), 0)
+      const totalDebe = pedidosCliente.reduce((s, p) => s + (p.precio_venta || 0), 0)
+      const porcentajePagado = totalDebe > 0 ? totalPagado / totalDebe : 1
+      const puntsPuntualidad = Math.min(40, Math.round(porcentajePagado * 40))
+
+      // Deudas (10 pts)
+      const tieneDeuda = totalDebe > totalPagado
+      const puntsDeuda = tieneDeuda ? Math.max(0, 10 - Math.round(((totalDebe - totalPagado) / totalDebe) * 10)) : 10
+
+      const score = Math.min(100, puntsFrecuencia + puntsVolumen + puntsPuntualidad + puntsDeuda)
+
+      let categoria = ''
+      let color = ''
+      let badge = ''
+      if (score >= 80) { categoria = 'VIP'; color = '#f59e0b'; badge = '⭐' }
+      else if (score >= 60) { categoria = 'Buen cliente'; color = '#4ade80'; badge = '✅' }
+      else if (score >= 40) { categoria = 'Vigilar'; color = '#fb923c'; badge = '⚠️' }
+      else { categoria = 'Riesgo'; color = '#f87171'; badge = '🔴' }
+
+      return {
+        ...c,
+        score,
+        categoria,
+        color,
+        badge,
+        totalGastado,
+        totalPagado,
+        totalDebe,
+        entregasCount: entregasCliente.length,
+        detalles: {
+          frecuencia: puntsFrecuencia,
+          volumen: puntsVolumen,
+          puntualidad: puntsPuntualidad,
+          deuda: puntsDeuda
         }
+      }
+    })
 
-        // --- PUNTUALIDAD DE PAGO (40%) ---
-        let pedidosEvaluados = 0;
-        let pedidosPagadosATiempo = 0;
-
-        pedidosCliente.forEach(pedido => {
-          const entregaAsociada = dbEntregas.find(e => e.id === pedido.entrega_id);
-          if (!entregaAsociada) return;
-
-          const fechaEntrega = new Date(entregaAsociada.fecha_entrega);
-          const fechaLimite = new Date(fechaEntrega);
-          fechaLimite.setDate(fechaLimite.getDate() + 7); // Los 7 días de tolerancia en Hermosillo
-
-          if (hoy > fechaLimite) {
-            pedidosEvaluados++;
-            if (pedido.estado === 'Entregado' || pedido.estado === 'Pagado') {
-              pedidosPagadosATiempo++;
-            }
-          }
-        });
-
-        let puntosPuntualidad = 40; 
-        if (pedidosEvaluados > 0) {
-          puntosPuntualidad = (pedidosPagadosATiempo / pedidosEvaluados) * 40;
-        }
-
-        // Cálculo Final del Score
-        const scoreFinal = Math.round(puntosPuntualidad + puntosFrecuencia + puntosVolumen + puntosDeuda);
-
-        // Clasificación Visual
-        let categoria = 'Riesgo';
-        let colorBadge = 'bg-red-100 text-red-800 border-red-200';
-        
-        if (scoreFinal >= 85) {
-          categoria = 'VIP ⭐';
-          colorBadge = 'bg-purple-100 text-purple-800 border-purple-200';
-        } else if (scoreFinal >= 70) {
-          categoria = 'Buen cliente';
-          colorBadge = 'bg-green-100 text-green-800 border-green-200';
-        } else if (scoreFinal >= 50) {
-          categoria = 'Vigilar';
-          colorBadge = 'bg-amber-100 text-amber-800 border-amber-200';
-        }
-
-        return {
-          id: cliente.id,
-          nombre: cliente.nombre,
-          telefono: cliente.telefono,
-          score: scoreFinal,
-          categoria,
-          colorBadge,
-          totalComprado: totalDineroComprado,
-          deuda: deudaActual > 0 ? deudaActual : 0
-        };
-      });
-
-      // Ordenar del cliente más confiable al menos confiable
-      resultado.sort((a, b) => b.score - a.score);
-      setClientesCalificados(resultado);
-      setLoading(false);
-    }
-
-    cargarYCalcularScore();
-  }, []);
-
-  if (loading) {
-    return <div className="p-8 text-center text-gray-600 font-sans">Analizando comportamiento de clientes...</div>;
+    setClientes(clientesConScore.sort((a, b) => b.score - a.score))
+    setCargando(false)
   }
 
-  return (
-    <div className="p-6 max-w-6xl mx-auto bg-gray-50 min-h-screen font-sans">
-      
-      {/* Encabezado */}
-      <div className="mb-8 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h1 className="text-2xl font-bold text-gray-800">Score de Confianza de Clientes</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Algoritmo automatizado de Denog: Puntualidad (40%), Frecuencia (25%), Volumen (25%) e Historial Crediticio (10%).
-        </p>
-      </div>
+  const fmt = (n) => `$${(n || 0).toLocaleString('es-MX')}`
 
-      {/* Tabla */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 font-semibold uppercase text-xs">
-                <th className="p-4">Cliente</th>
-                <th className="p-4 text-center">Score / 100</th>
-                <th className="p-4 text-center">Clasificación</th>
-                <th className="p-4 text-right">Total Histórico</th>
-                <th className="p-4 text-right">Deuda Actual</th>
-                <th className="p-4 text-center">Contacto</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-gray-700">
-              {clientesCalificados.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="p-4 font-semibold text-gray-800">{c.nombre}</td>
-                  
-                  {/* Score en número y barra */}
-                  <td className="p-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <span className={`font-bold text-base ${c.score >= 70 ? 'text-green-600' : c.score >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {c.score}
+  const [expandido, setExpandido] = useState(null)
+
+  return (
+    <div className="min-h-screen bg-gray-950 p-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-6">
+          <div className="text-white text-2xl font-semibold">Score de clientes</div>
+          <div className="text-gray-400 text-sm mt-1">Calificación automática basada en historial de compras y pagos</div>
+        </div>
+
+        {/* Leyenda */}
+        <div className="grid grid-cols-4 gap-3 mb-6">
+          {[
+            { badge: '⭐', label: 'VIP', rango: '80-100', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)' },
+            { badge: '✅', label: 'Buen cliente', rango: '60-79', color: '#4ade80', bg: 'rgba(74,222,128,0.1)', border: 'rgba(74,222,128,0.2)' },
+            { badge: '⚠️', label: 'Vigilar', rango: '40-59', color: '#fb923c', bg: 'rgba(251,146,60,0.1)', border: 'rgba(251,146,60,0.2)' },
+            { badge: '🔴', label: 'Riesgo', rango: '0-39', color: '#f87171', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)' },
+          ].map((cat, i) => (
+            <div key={i} style={{ background: cat.bg, border: `1px solid ${cat.border}` }} className="rounded-2xl p-3 text-center">
+              <div className="text-lg mb-1">{cat.badge}</div>
+              <div style={{ color: cat.color }} className="text-xs font-semibold">{cat.label}</div>
+              <div className="text-gray-500 text-xs">{cat.rango} pts</div>
+            </div>
+          ))}
+        </div>
+
+        {cargando ? (
+          <div className="text-center text-gray-400 py-12">Calculando scores...</div>
+        ) : (
+          <div className="space-y-3">
+            {clientes.filter(c => c.rol !== 'admin').map((c, i) => (
+              <div key={c.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                <div
+                  className="px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-gray-800 transition-colors"
+                  onClick={() => setExpandido(expandido === c.id ? null : c.id)}
+                >
+                  {/* Posición */}
+                  <div className="text-gray-600 text-sm w-5 text-center font-mono">#{i + 1}</div>
+
+                  {/* Nombre y badge */}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-medium">{c.nombre}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: `${c.color}20`, color: c.color }}>
+                        {c.badge} {c.categoria}
                       </span>
-                      <div className="w-16 bg-gray-200 h-2 rounded-full overflow-hidden hidden sm:block">
-                        <div 
-                          className={`h-full ${c.score >= 85 ? 'bg-purple-500' : c.score >= 70 ? 'bg-green-500' : c.score >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
-                          style={{ width: `${c.score}%` }}
-                        />
+                    </div>
+                    <div className="text-gray-500 text-xs mt-0.5">{c.usuario} · {c.entregasCount} entregas</div>
+                  </div>
+
+                  {/* Barra de score */}
+                  <div className="w-32">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-xs text-gray-500">Score</span>
+                      <span className="text-xs font-bold" style={{ color: c.color }}>{c.score}</span>
+                    </div>
+                    <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${c.score}%`, background: c.color }}/>
+                    </div>
+                  </div>
+
+                  {/* Flecha */}
+                  <div className="text-gray-600 text-sm">{expandido === c.id ? '▲' : '▼'}</div>
+                </div>
+
+                {/* Detalle expandido */}
+                {expandido === c.id && (
+                  <div className="px-5 pb-5 border-t border-gray-800 pt-4">
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <div className="text-gray-500 text-xs mb-3">Desglose del score</div>
+                        {[
+                          { label: 'Puntualidad de pago', pts: c.detalles.puntualidad, max: 40 },
+                          { label: 'Frecuencia de compra', pts: c.detalles.frecuencia, max: 25 },
+                          { label: 'Volumen de compra', pts: c.detalles.volumen, max: 25 },
+                          { label: 'Sin deudas vencidas', pts: c.detalles.deuda, max: 10 },
+                        ].map((d, j) => (
+                          <div key={j} className="mb-2">
+                            <div className="flex justify-between mb-1">
+                              <span className="text-gray-400 text-xs">{d.label}</span>
+                              <span className="text-white text-xs font-medium">{d.pts}/{d.max}</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${(d.pts / d.max) * 100}%`, background: c.color }}/>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div>
+                        <div className="text-gray-500 text-xs mb-3">Resumen financiero</div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 text-xs">Total comprado</span>
+                            <span className="text-white text-xs font-medium">{fmt(c.totalDebe)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 text-xs">Total pagado</span>
+                            <span className="text-green-400 text-xs font-medium">{fmt(c.totalPagado)}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-gray-800 pt-2">
+                            <span className="text-gray-400 text-xs">Saldo pendiente</span>
+                            <span className={`text-xs font-medium ${c.totalDebe - c.totalPagado > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                              {fmt(Math.max(0, c.totalDebe - c.totalPagado))}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 text-xs">Entregas activas</span>
+                            <span className="text-white text-xs font-medium">{c.entregasCount}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </td>
-
-                  {/* Insignia de categoría */}
-                  <td className="p-4 text-center">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${c.colorBadge}`}>
-                      {c.categoria}
-                    </span>
-                  </td>
-
-                  <td className="p-4 text-right text-gray-600">${c.totalComprado.toLocaleString('es-MX', {minimumFractionDigits: 2})}</td>
-                  
-                  <td className="p-4 text-right font-medium">
-                    {c.deuda > 0 ? (
-                      <span className="text-red-600 font-bold">${c.deuda.toLocaleString('es-MX', {minimumFractionDigits: 2})}</span>
-                    ) : (
-                      <span className="text-gray-400">$0.00</span>
-                    )}
-                  </td>
-
-                  {/* Acceso directo a WhatsApp */}
-                  <td className="p-4 text-center">
-                    <a 
-                      href={`https://wa.me/52${c.telefono}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors"
-                    >
-                      WhatsApp
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-
     </div>
-  );
+  )
 }

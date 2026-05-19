@@ -7,16 +7,11 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 )
 
-export async function GET(req) {
-  const { searchParams } = new URL(req.url)
-  const cliente_id = searchParams.get('cliente_id')
-
+export async function GET() {
   const { data, error } = await supabase
-    .from('pedidos')
-    .select('*, entregas(fecha_entrega, estado)')
-    .eq('cliente_id', cliente_id)
-    .neq('estado', 'entregado')
+    .from('pagos')
+    .select('id, cliente_id, entrega_id, monto, metodo, tipo, creado_en')
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
-  return NextResponse.json({ ok: true, pedidos: data })
+  return NextResponse.json({ ok: true, pagos: data })
 }

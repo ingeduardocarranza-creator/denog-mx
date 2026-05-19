@@ -9,14 +9,14 @@ const supabase = createClient(
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url)
-  const cliente_id = searchParams.get('cliente_id')
+  const entrega_id = searchParams.get('entrega_id')
 
   const { data, error } = await supabase
-    .from('pedidos')
-    .select('*, entregas(fecha_entrega, estado)')
-    .eq('cliente_id', cliente_id)
-    .neq('estado', 'entregado')
+    .from('pagos')
+    .select('*, clientes(nombre)')
+    .eq('entrega_id', entrega_id)
+    .order('creado_en')
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
-  return NextResponse.json({ ok: true, pedidos: data })
+  return NextResponse.json({ ok: true, pagos: data })
 }

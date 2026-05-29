@@ -9,12 +9,6 @@ const supabase = createClient(
 );
 
 export default function PuntoDeVenta() {
-  const formatearFecha = (fecha) => {
-  if (!fecha) return ''
-  const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
-  const d = new Date(fecha + 'T12:00:00')
-  return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
-}
 const formatearFecha = (fecha) => {
   if (!fecha) return ''
   const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']

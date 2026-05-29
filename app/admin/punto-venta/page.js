@@ -9,6 +9,19 @@ const supabase = createClient(
 );
 
 export default function PuntoDeVenta() {
+  const formatearFecha = (fecha) => {
+  if (!fecha) return ''
+  const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
+  const d = new Date(fecha + 'T12:00:00')
+  return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
+}
+
+const formatearFechaCorta = (fecha) => {
+  if (!fecha) return ''
+  const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
+  const d = new Date(fecha)
+  return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
+}
   const [modo, setModo] = useState('modo1');
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
@@ -107,19 +120,7 @@ export default function PuntoDeVenta() {
       const pedidosDeEstaEntrega = historialPedidos.filter(p => p.entrega_id === eId);
       
       if (datosEntrega) {
-        const formatearFecha = (fecha) => {
-  if (!fecha) return ''
-  const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
-  const d = new Date(fecha + 'T12:00:00')
-  return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
-}
-
-const formatearFechaCorta = (fecha) => {
-  if (!fecha) return ''
-  const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
-  const d = new Date(fecha)
-  return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
-}
+        
         const hoy = new Date();
         const fechaE = new Date(datosEntrega.fecha_entrega);
         const diasDiferencia = (hoy - fechaE) / (1000 * 60 * 60 * 24);

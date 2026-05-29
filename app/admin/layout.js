@@ -1,9 +1,26 @@
 'use client'
+import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 
 export default function AdminLayout({ children }) {
   const router = useRouter()
   const pathname = usePathname()
+  const [domiciliosPendientes, setDomiciliosPendientes] = useState(0)
+
+  useEffect(() => {
+    const verificar = async () => {
+      const hoy = new Date().toISOString().split('T')[0]
+      const res = await fetch(`/api/domicilios/listar?fecha=${hoy}`)
+      const data = await res.json()
+      if (data.ok) {
+        const pendientes = data.domicilios.filter(d => ['pendiente', 'confirmado', 'en_camino'].includes(d.estado)).length
+        setDomiciliosPendientes(pendientes)
+      }
+    }
+    verificar()
+    const intervalo = setInterval(verificar, 60000)
+    return () => clearInterval(intervalo)
+  }, [])
 
   const salir = () => {
     localStorage.removeItem('cliente')
@@ -12,7 +29,7 @@ export default function AdminLayout({ children }) {
 
  const menu = [
     { label: 'Punto de venta', icon: '🏪', href: '/admin/punto-venta' },
-    { label: 'Domicilios', icon: '🚚', href: '/admin/domicilios' },
+    { label: 'Domicilios', icon: '🚚', href: '/admin/domicilios', badge: domiciliosPendientes },
     { label: 'Catálogo', icon: '🏷️', href: '/admin/catalogo' },
     { label: 'Clientes', icon: '👥', href: '/admin/clientes' },
     { label: 'Entregas', icon: '📅', href: '/admin/entregas' },
@@ -59,7 +76,12 @@ export default function AdminLayout({ children }) {
               }}
             >
               <span style={{ fontSize: 14 }}>{item.icon}</span>
-              <span style={{ color: activo ? '#818cf8' : 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: activo ? 600 : 400 }}>{item.label}</span>
+<span style={{ color: activo ? '#818cf8' : 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: activo ? 600 : 400, flex: 1 }}>{item.label}</span>
+{item.badge > 0 && (
+  <span style={{ background: '#ef4444', color: 'white', fontSize: 9, fontWeight: 700, borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+    {item.badge}
+  </span>
+)}
             </button>
           )
         })}

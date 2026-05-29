@@ -8,23 +8,14 @@ const supabase = createClient(
 )
 
 export async function POST(req) {
-  const { id, estado } = await req.json()
-  
+  const { cliente_id, entrega_id, estado } = await req.json()
+
   const { error } = await supabase
-    .from('entregas')
+    .from('pedidos')
     .update({ estado })
-    .eq('id', id)
+    .eq('cliente_id', cliente_id)
+    .eq('entrega_id', entrega_id)
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true })
-}
-
-export async function GET() {
-  const { data, error } = await supabase
-    .from('entregas')
-    .select('*')
-    .order('fecha_entrega')
-
-  if (error) return NextResponse.json({ ok: false, mensaje: error.message })
-  return NextResponse.json({ ok: true, entregas: data })
 }

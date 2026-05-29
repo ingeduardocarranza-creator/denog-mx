@@ -8,23 +8,17 @@ const supabase = createClient(
 )
 
 export async function POST(req) {
-  const { id, estado } = await req.json()
-  
+  const { id, estado, costo_envio, total } = await req.json()
+
+  const actualizacion = { estado }
+  if (costo_envio !== undefined) actualizacion.costo_envio = costo_envio
+  if (total !== undefined) actualizacion.total = total
+
   const { error } = await supabase
-    .from('entregas')
-    .update({ estado })
+    .from('domicilios')
+    .update(actualizacion)
     .eq('id', id)
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true })
-}
-
-export async function GET() {
-  const { data, error } = await supabase
-    .from('entregas')
-    .select('*')
-    .order('fecha_entrega')
-
-  if (error) return NextResponse.json({ ok: false, mensaje: error.message })
-  return NextResponse.json({ ok: true, entregas: data })
 }

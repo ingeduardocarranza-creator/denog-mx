@@ -7,16 +7,18 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 )
 
-export async function POST(req) {
-  const { cliente_id, monto, metodo } = await req.json()
+export async function GET(req) {
+  const { searchParams } = new URL(req.url)
+  const cliente_id = searchParams.get('cliente_id')
 
-  const { error } = await supabase.from('pagos').insert({
-    cliente_id,
-    monto,
-    metodo,
-    tipo: 'anticipo'
-  })
+  let query = supabase
+    .from('pagos')
+    .select('id, cliente_id, entrega_id, monto, metodo, tipo, creado_en')
+    .order('creado_en', { ascending: true })
 
+  if (cliente_id) query = query.eq('cliente_id', cliente_id)
+
+  const { data, error } = await query
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, anticipos: data })
 }

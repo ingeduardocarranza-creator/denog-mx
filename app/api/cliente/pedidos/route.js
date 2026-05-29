@@ -17,5 +17,13 @@ export async function GET(req) {
     .eq('cliente_id', cliente_id)
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
-  return NextResponse.json({ ok: true, pedidos: data })
+
+  // Traer domicilios entregados del cliente
+  const { data: domicilios } = await supabase
+    .from('domicilios')
+    .select('entrega_ids, costo_envio, estado')
+    .eq('cliente_id', cliente_id)
+    .eq('estado', 'entregado')
+
+  return NextResponse.json({ ok: true, pedidos: data, domicilios: domicilios || [] })
 }

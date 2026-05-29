@@ -107,6 +107,19 @@ export default function PuntoDeVenta() {
       const pedidosDeEstaEntrega = historialPedidos.filter(p => p.entrega_id === eId);
       
       if (datosEntrega) {
+        const formatearFecha = (fecha) => {
+  if (!fecha) return ''
+  const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
+  const d = new Date(fecha + 'T12:00:00')
+  return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
+}
+
+const formatearFechaCorta = (fecha) => {
+  if (!fecha) return ''
+  const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
+  const d = new Date(fecha)
+  return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
+}
         const hoy = new Date();
         const fechaE = new Date(datosEntrega.fecha_entrega);
         const diasDiferencia = (hoy - fechaE) / (1000 * 60 * 60 * 24);
@@ -371,7 +384,7 @@ if (valorAutocompletado2 > 0) {
               return (
                 <div key={idx} className={`border rounded-xl overflow-hidden ${bloque.atrasada ? 'border-red-900 bg-red-950/10' : 'border-gray-800'}`}>
                   <div className={`p-3 font-bold text-xs flex justify-between items-center ${bloque.atrasada ? 'bg-red-900/40 text-red-400' : 'bg-gray-800'}`}>
-                    <span>ENTREGA: {new Date(bloque.entrega.fecha_entrega).toLocaleDateString('es-MX')}</span>
+                    <span>ENTREGA: {formatearFecha(bloque.entrega.fecha_entrega)}</span>
                     {bloque.atrasada && <span className="bg-red-700 text-white font-black px-2 py-0.5 rounded text-[10px]">ATRASADA</span>}
                   </div>
                   <div className="divide-y divide-gray-800">
@@ -387,7 +400,7 @@ if (valorAutocompletado2 > 0) {
                     
                     {anticiposDeEsteBloque.map((anticipo, aIdx) => {
                       const fechaTxt = anticipo.creado_en 
-                        ? new Date(anticipo.creado_en).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
+                        ? formatearFechaCorta(anticipo.creado_en) 
                         : 'Fecha reciente';
                       return (
                         <div key={anticipo.id || aIdx} className="p-3 bg-green-950/20 border-t border-gray-800/40 flex justify-between text-xs text-green-400 font-medium">
@@ -442,7 +455,7 @@ if (valorAutocompletado2 > 0) {
           <div className="text-xs space-y-2 font-medium">
             {modo === 'modo1' && desgloseTicketEncargos.map((item, idx) => (
               <div key={idx} className="flex justify-between text-gray-300">
-                <span>Entrega {new Date(item.fecha).toLocaleDateString('es-MX', {day:'numeric', month:'short'})}:</span>
+                <span>Entrega {formatearFecha(item.fecha)}:</span>
                 <span className="font-mono text-white">${item.montoNeto.toLocaleString()}</span>
               </div>
             ))}

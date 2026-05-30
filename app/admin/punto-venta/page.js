@@ -8,19 +8,21 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-export default function PuntoDeVenta() {
+
 const formatearFecha = (fecha) => {
   if (!fecha) return ''
   const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
   const d = new Date(fecha + 'T12:00:00')
   return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
 }
+
 const formatearFechaCorta = (fecha) => {
   if (!fecha) return ''
   const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
   const d = new Date(fecha)
   return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
 }
+export default function PuntoDeVenta() {
   const [modo, setModo] = useState('modo1');
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });

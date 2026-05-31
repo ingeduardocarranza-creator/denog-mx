@@ -333,6 +333,10 @@ if (valorAutocompletado2 > 0) {
             </h1>
           </div>
         </div>
+        <button onClick={() => window.location.href = '/pos/caja'}
+          style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '6px 14px', color: '#f59e0b', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          💰 Caja
+        </button>
         {/* ========================================================= */}
 
         {/* CONTROLES DE PESTAÑAS */}

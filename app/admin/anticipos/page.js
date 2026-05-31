@@ -42,6 +42,24 @@ export default function Anticipos() {
     if (!clienteSeleccionado || !monto || Number(monto) <= 0) {
       setMensaje({ tipo: 'error', texto: 'Llena los campos obligatorios' }); return
     }
+
+    // Validar que la entrega no esté completamente entregada
+    if (entregaSeleccionada) {
+      const { data: pedidosEntrega } = await supabase
+        .from('pedidos')
+        .select('estado')
+        .eq('cliente_id', clienteSeleccionado)
+        .eq('entrega_id', entregaSeleccionada)
+
+      if (pedidosEntrega && pedidosEntrega.length > 0) {
+        const todosEntregados = pedidosEntrega.every(p => p.estado?.toLowerCase() === 'entregado')
+        if (todosEntregados) {
+          setMensaje({ tipo: 'error', texto: '⚠️ No se puede registrar — todos los pedidos de esta entrega ya fueron entregados y pagados.' })
+          return
+        }
+      }
+    }
+
     setLoading(true)
     const horaActual = new Date().toLocaleTimeString('es-MX', { hour12: false })
     const { error } = await supabase.from('pagos').insert({
@@ -72,24 +90,25 @@ export default function Anticipos() {
     setEditando(null)
     cargarDatos()
   }
+
   const formatearFecha = (fecha) => {
-  if (!fecha) return ''
-  const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
-  const d = new Date(fecha)
-  return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
-}
+    if (!fecha) return ''
+    const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
+    const d = new Date(fecha)
+    return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
+  }
 
   const formatearFechaEntrega = (fecha) => {
-  if (!fecha) return ''
-  const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
-  const d = new Date(fecha + 'T12:00:00')
-  return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
-}
+    if (!fecha) return ''
+    const meses = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
+    const d = new Date(fecha + 'T12:00:00')
+    return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
+  }
 
   const getNombreEntrega = (entrega_id) => {
-  const e = entregas.find(e => e.id === entrega_id)
-  return e ? formatearFechaEntrega(e.fecha_entrega) : 'Sin entrega'
-}
+    const e = entregas.find(e => e.id === entrega_id)
+    return e ? formatearFechaEntrega(e.fecha_entrega) : 'Sin entrega'
+  }
 
   const anticiposFiltrados = anticipos.filter(a => {
     if (filtroCliente && a.cliente_id !== filtroCliente) return false

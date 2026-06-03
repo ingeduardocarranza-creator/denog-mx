@@ -77,8 +77,8 @@ export default function AdminLayout({ children }) {
       }}>
 
         {/* Logo + nombre */}
-        <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, textAlign: 'center' }}>
-          <img src={LOGO_SRC} alt="Denog" style={{ height: 80, width: 'auto', display: 'block', margin: '0 auto 10px' }} />
+        <div style={{ padding: '24px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, textAlign: 'center', minHeight: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <img src={LOGO_SRC} alt="Denog" style={{ height: 120, width: 'auto', display: 'block', marginBottom: 12 }} />
           <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>Denog USA Compras</div>
         </div>
 

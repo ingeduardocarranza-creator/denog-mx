@@ -38,6 +38,7 @@ export default function AdminLayout({ children }) {
     { label: 'Anticipos', icon: '💰', href: '/admin/anticipos' },
     { label: 'Caja', icon: '💰', href: '/admin/caja' },
     { label: 'Colaboradores', icon: '🏆', href: '/admin/colaboradores' },
+    { label: 'Equipo', icon: '👥', href: '/admin/colaboradores-admin' },
     { label: 'Reportes', icon: '📊', href: '/admin/reportes' },
     { label: 'Estados de cuenta', icon: '📋', href: '/admin/estados-cuenta' },
     { label: 'Score clientes', icon: '⭐', href: '/admin/clientes/score' },

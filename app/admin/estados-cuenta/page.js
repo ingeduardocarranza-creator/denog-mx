@@ -347,16 +347,18 @@ export default function EstadosCuenta() {
     setDatos([])
     const cl = clientes.find(c => String(c.id) === String(clienteId))
 
-    let pedsUrl = entregaId ? `/api/reportes/pedidos?entrega_id=${entregaId}` : '/api/reportes/pedidos'
-    let pagsUrl = entregaId ? `/api/reportes/pagos?entrega_id=${entregaId}` : '/api/reportes/pagos'
-
+    // Siempre traer todos los pedidos y pagos sin filtrar por entrega
     const [pedsRes, pagsRes] = await Promise.all([
-      fetch(pedsUrl).then(r => r.json()),
-      fetch(pagsUrl).then(r => r.json())
+      fetch('/api/reportes/pedidos').then(r => r.json()),
+      fetch('/api/reportes/pagos').then(r => r.json())
     ])
 
-    const pedidos = (pedsRes.pedidos || []).filter(p => String(p.cliente_id) === String(clienteId) && p.estado !== 'Entregado')
-    const pagos = (pagsRes.pagos || []).filter(p => String(p.cliente_id) === String(clienteId))
+    const pedidos = (pedsRes.pedidos || []).filter(p =>
+      String(p.cliente_id) === String(clienteId) && p.estado !== 'Entregado'
+    )
+    const pagos = (pagsRes.pagos || []).filter(p =>
+      String(p.cliente_id) === String(clienteId)
+    )
 
     const porEntrega = {}
     pedidos.forEach(p => {

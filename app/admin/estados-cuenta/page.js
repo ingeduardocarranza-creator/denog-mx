@@ -325,21 +325,32 @@ export default function EstadosCuenta() {
   }
 
   const copiarAlPortapapeles = async (item) => {
-    if (!item) return
+    if (!item) { console.warn('[Copia] item es null/undefined'); return }
     try {
+      console.log('[Copia] Generando canvas para:', item.cliente?.nombre)
       const canvas = await dibujarEstadoCuenta(item)
+      console.log('[Copia] Canvas generado:', canvas?.width, 'x', canvas?.height)
+      console.log('[Copia] ClipboardItem disponible:', typeof ClipboardItem !== 'undefined')
+      console.log('[Copia] navigator.clipboard disponible:', !!navigator?.clipboard?.write)
+
       await new Promise((resolve, reject) => {
         canvas.toBlob(async blob => {
+          console.log('[Copia] Blob generado:', blob?.size, 'bytes, tipo:', blob?.type)
           try {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+            console.log('[Copia] ✅ Copiado exitosamente')
             resolve()
-          } catch (e) { reject(e) }
+          } catch (e) {
+            console.error('[Copia] ❌ Error en clipboard.write:', e.name, e.message)
+            reject(e)
+          }
         }, 'image/png')
       })
       setCopiado(true)
       setErrorClip(false)
       setTimeout(() => setCopiado(false), 2500)
-    } catch {
+    } catch (e) {
+      console.error('[Copia] ❌ Error general:', e.name, e.message, e)
       setErrorClip(true)
       setTimeout(() => setErrorClip(false), 3000)
     }

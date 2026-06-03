@@ -232,6 +232,7 @@ export default function EstadosCuenta() {
   const [indice, setIndice] = useState(0)
   const [cargando, setCargando] = useState(false)
   const [copiado, setCopiado] = useState(false)
+  const [errorClip, setErrorClip] = useState(false)
   const [imagenURL, setImagenURL] = useState(null)
 
   useEffect(() => {

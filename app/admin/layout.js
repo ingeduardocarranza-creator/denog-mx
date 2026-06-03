@@ -33,8 +33,11 @@ export default function AdminLayout({ children }) {
     { label: 'Catálogo', icon: '🏷️', href: '/admin/catalogo' },
     { label: 'Clientes', icon: '👥', href: '/admin/clientes' },
     { label: 'Entregas', icon: '📅', href: '/admin/entregas' },
+    { label: 'Cotizador', icon: '🧮', href: '/admin/cotizador' },
     { label: 'Pedidos', icon: '📝', href: '/admin/pedidos' },
     { label: 'Anticipos', icon: '💰', href: '/admin/anticipos' },
+    { label: 'Caja', icon: '💰', href: '/admin/caja' },
+    { label: 'Colaboradores', icon: '🏆', href: '/admin/colaboradores' },
     { label: 'Reportes', icon: '📊', href: '/admin/reportes' },
     { label: 'Score clientes', icon: '⭐', href: '/admin/clientes/score' },
 

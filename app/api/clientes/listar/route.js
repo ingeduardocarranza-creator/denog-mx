@@ -10,10 +10,10 @@ const supabase = createClient(
 export async function GET() {
   const { data, error } = await supabase
     .from('clientes')
-    .select('id, nombre, usuario, telefono, activo')
+    .select('id, nombre, usuario, telefono, activo, rol, direccion, colonia, referencias, celular_contacto, limite_credito, requiere_anticipo')
     .eq('activo', true)
     .order('nombre')
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true, clientes: data })
-}   
+}

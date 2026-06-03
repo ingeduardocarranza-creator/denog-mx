@@ -21,7 +21,9 @@ export default function CajaPage() {
     b1000: 0, b500: 0, b200: 0, b100: 0, b50: 0, b20: 0,
     m20: 0, m10: 0, m5: 0, m2: 0, m1: 0, m50c: 0
   })
-  const [resumenTurno, setResumenTurno] = useState({ efectivo: 0, transferencia: 0, terminal: 0 })
+  const [resumenTurno, setResumenTurno] = useState({
+    efectivo: 0, transferencia: 0, terminal: 0, totalRetiros: 0
+  })
   const [justificacion, setJustificacion] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
@@ -36,25 +38,27 @@ export default function CajaPage() {
 
   const cargarEstado = async (colaborador_id) => {
     const ahora = new Date()
-const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
+    const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
     const res = await fetch(`/api/caja?fecha=${hoy}`)
     const data = await res.json()
 
     if (data.ok && data.cortes.length > 0) {
-      const misCortes = data.cortes.filter(c => c.colaborador_id === colaborador_id)
-      const ultimaApertura = misCortes.find(c => c.tipo === 'apertura')
-      const ultimoCorteFinal = misCortes.find(c => c.tipo === 'corte')
+      const misCortes = data.cortes
+        .filter(c => c.colaborador_id === colaborador_id)
+        .sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en))
 
-      if (ultimoCorteFinal) {
-        setUltimoCorte(ultimoCorteFinal)
-        setPaso('corte_hecho')
-      } else if (ultimaApertura) {
-        setTurnoActual(ultimaApertura)
-        await cargarResumenTurno()
-        setPaso('turno')
-      } else {
+      const masReciente = misCortes[0]
+
+      if (!masReciente) {
         await cargarUltimoCorteGlobal()
         setPaso('apertura')
+      } else if (masReciente.tipo === 'corte') {
+        setUltimoCorte(masReciente)
+        setPaso('corte_hecho')
+      } else if (masReciente.tipo === 'apertura') {
+        setTurnoActual(masReciente)
+        await cargarResumenTurno(masReciente)
+        setPaso('turno')
       }
     } else {
       await cargarUltimoCorteGlobal()
@@ -70,13 +74,20 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
     }
   }
 
-  const cargarResumenTurno = async () => {
+  const cargarResumenTurno = async (apertura) => {
     const ahora = new Date()
     const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
-    const res = await fetch(`/api/caja?resumen=true&fecha=${hoy}`)
+    const ref = apertura ?? turnoActual
+    const desde = ref?.creado_en ? `&desde=${encodeURIComponent(ref.creado_en)}` : ''
+    const res = await fetch(`/api/caja?resumen=true&fecha=${hoy}${desde}`)
     const data = await res.json()
     if (data.ok) {
-      setResumenTurno({ efectivo: data.efectivo, transferencia: data.transferencia, terminal: data.terminal })
+      setResumenTurno({
+        efectivo: data.efectivo,
+        transferencia: data.transferencia,
+        terminal: data.terminal,
+        totalRetiros: data.totalRetiros || 0
+      })
     }
   }
 
@@ -92,7 +103,7 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
   const diferencia = totalContado - fondoEsperado
   const hayDiferencia = ultimoCorte ? Math.abs(diferencia) > 0.01 : false
 
-  const totalEsperadoCorte = (turnoActual?.total_contado || 0) + resumenTurno.efectivo
+  const totalEsperadoCorte = (turnoActual?.total_contado || 0) + resumenTurno.efectivo - resumenTurno.totalRetiros
   const diferenciaCorte = totalContado - totalEsperadoCorte
   const hayDiferenciaCorte = Math.abs(diferenciaCorte) > 0.01
 
@@ -127,7 +138,7 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
     })
     const data = await res.json()
     setGuardando(false)
-    if (data.ok) cargarEstado(colaborador.id)
+    if (data.ok) window.location.href = '/pos/punto-venta'
     else setError(data.mensaje)
   }
 
@@ -160,6 +171,7 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
         total_efectivo: resumenTurno.efectivo,
         total_transferencia: resumenTurno.transferencia,
         total_terminal: resumenTurno.terminal,
+        total_retiros: resumenTurno.totalRetiros,
         justificacion: hayDiferenciaCorte ? justificacion : null
       })
     })
@@ -167,6 +179,14 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
     setGuardando(false)
     if (data.ok) cargarEstado(colaborador.id)
     else setError(data.mensaje)
+  }
+
+  const abrirNuevoTurno = async () => {
+    await cargarUltimoCorteGlobal()
+    setDenominaciones({ b1000: 0, b500: 0, b200: 0, b100: 0, b50: 0, b20: 0, m20: 0, m10: 0, m5: 0, m2: 0, m1: 0, m50c: 0 })
+    setJustificacion('')
+    setError('')
+    setPaso('apertura')
   }
 
   const setDen = (campo, valor) => {
@@ -221,7 +241,6 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
     <div style={{ minHeight: '100vh', background: '#050508', padding: '24px 16px' }}>
       <div style={{ maxWidth: 600, margin: '0 auto' }}>
 
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <button onClick={() => router.back()}
             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '6px 12px', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer' }}>
@@ -245,17 +264,13 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
                 <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>Corte de {ultimoCorte.clientes?.nombre} — {formatearFecha(ultimoCorte.creado_en)}</div>
               </div>
             )}
-
             {!ultimoCorte && (
               <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
                 <div style={{ color: '#f59e0b', fontSize: 12 }}>⚠️ Primera apertura del sistema — cuenta el efectivo en caja</div>
               </div>
             )}
-
             <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 10 }}>Cuenta el efectivo en caja</div>
-
             <GridDenominaciones />
-
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Total contado</span>
@@ -268,7 +283,6 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
                 </div>
               )}
             </div>
-
             {ultimoCorte && hayDiferencia && (
               <div style={{ background: diferencia > 0 ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${diferencia > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)'}`, borderRadius: 12, padding: 12, marginBottom: 12 }}>
                 <div style={{ color: diferencia > 0 ? '#f59e0b' : '#f87171', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
@@ -281,15 +295,12 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
                   style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', color: 'white', fontSize: 12, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
               </div>
             )}
-
             {ultimoCorte && !hayDiferencia && totalContado > 0 && (
               <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 12, padding: 10, marginBottom: 12 }}>
                 <span style={{ color: '#10b981', fontSize: 13 }}>✅ Fondo correcto — coincide con el turno anterior</span>
               </div>
             )}
-
             {error && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 8 }}>{error}</div>}
-
             <button onClick={registrarApertura} disabled={guardando || totalContado === 0}
               style={{ width: '100%', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 12, padding: 13, color: '#818cf8', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: guardando || totalContado === 0 ? 0.5 : 1 }}>
               {guardando ? 'Registrando...' : '🔓 Abrir turno'}
@@ -304,7 +315,6 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Fondo inicial de tu turno</div>
               <div style={{ color: '#10b981', fontSize: 24, fontWeight: 800 }}>{fmt(turnoActual?.total_contado)}</div>
             </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
                 <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginBottom: 4 }}>Efectivo cobrado</div>
@@ -319,15 +329,30 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
                 <div style={{ color: 'white', fontSize: 16, fontWeight: 700 }}>{fmt(resumenTurno.terminal)}</div>
               </div>
             </div>
-
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Debería haber en caja</span>
-                <span style={{ color: 'white', fontSize: 16, fontWeight: 700 }}>{fmt(totalEsperadoCorte)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Fondo inicial</span>
+                <span style={{ color: 'white', fontSize: 12 }}>{fmt(turnoActual?.total_contado)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>+ Efectivo cobrado</span>
+                <span style={{ color: 'white', fontSize: 12 }}>{fmt(resumenTurno.efectivo)}</span>
+              </div>
+              {resumenTurno.totalRetiros > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>- Retiros confirmados</span>
+                  <span style={{ color: '#f87171', fontSize: 12 }}>-{fmt(resumenTurno.totalRetiros)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6, marginTop: 4 }}>
+                <span style={{ color: 'white', fontSize: 13, fontWeight: 600 }}>Debería haber en caja</span>
+                <span style={{ color: '#10b981', fontSize: 16, fontWeight: 700 }}>{fmt(totalEsperadoCorte)}</span>
               </div>
             </div>
-
-            <button onClick={() => { setPaso('haciendo_corte'); setDenominaciones({ b1000: 0, b500: 0, b200: 0, b100: 0, b50: 0, b20: 0, m20: 0, m10: 0, m5: 0, m2: 0, m1: 0, m50c: 0 }) }}
+            <button onClick={() => {
+              setPaso('haciendo_corte')
+              setDenominaciones({ b1000: 0, b500: 0, b200: 0, b100: 0, b50: 0, b20: 0, m20: 0, m10: 0, m5: 0, m2: 0, m1: 0, m50c: 0 })
+            }}
               style={{ width: '100%', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: 13, color: '#f59e0b', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               🔒 Hacer corte de turno
             </button>
@@ -346,16 +371,19 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
                 <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>+ Efectivo cobrado</span>
                 <span style={{ color: 'white', fontSize: 13 }}>{fmt(resumenTurno.efectivo)}</span>
               </div>
+              {resumenTurno.totalRetiros > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>- Retiros confirmados</span>
+                  <span style={{ color: '#f87171', fontSize: 13 }}>-{fmt(resumenTurno.totalRetiros)}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, marginTop: 4 }}>
                 <span style={{ color: 'white', fontSize: 13, fontWeight: 600 }}>Debería haber</span>
                 <span style={{ color: '#10b981', fontSize: 15, fontWeight: 800 }}>{fmt(totalEsperadoCorte)}</span>
               </div>
             </div>
-
             <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 10 }}>Cuenta el efectivo físico en caja</div>
-
             <GridDenominaciones />
-
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Total contado</span>
@@ -366,7 +394,6 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
                 <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>{fmt(totalEsperadoCorte)}</span>
               </div>
             </div>
-
             {hayDiferenciaCorte && (
               <div style={{ background: diferenciaCorte > 0 ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${diferenciaCorte > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)'}`, borderRadius: 12, padding: 12, marginBottom: 12 }}>
                 <div style={{ color: diferenciaCorte > 0 ? '#f59e0b' : '#f87171', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
@@ -379,15 +406,12 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
                   style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', color: 'white', fontSize: 12, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
               </div>
             )}
-
             {!hayDiferenciaCorte && totalContado > 0 && (
               <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 12, padding: 10, marginBottom: 12 }}>
                 <span style={{ color: '#10b981', fontSize: 13 }}>✅ Todo correcto — el efectivo coincide</span>
               </div>
             )}
-
             {error && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 8 }}>{error}</div>}
-
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={registrarCorte} disabled={guardando || totalContado === 0}
                 style={{ flex: 1, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: 13, color: '#f59e0b', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: guardando || totalContado === 0 ? 0.5 : 1 }}>
@@ -422,8 +446,12 @@ const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')
               </div>
             </div>
             <button onClick={() => router.back()}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 12, color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer' }}>
-              ← Regresar al punto de venta
+              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 12, color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
+              ← Regresar
+            </button>
+            <button onClick={abrirNuevoTurno}
+              style={{ width: '100%', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: 12, color: '#818cf8', fontSize: 13, cursor: 'pointer' }}>
+              🔓 Abrir nuevo turno
             </button>
           </div>
         )}

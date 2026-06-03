@@ -1,221 +1,455 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function Reportes() {
+  const [seccion, setSeccion] = useState('entregas')
+  const [periodoEntrega, setPeriodoEntrega] = useState('hoy')
+  const [periodoTienda, setPeriodoTienda] = useState('hoy')
+
   const [entregas, setEntregas] = useState([])
   const [entregaSeleccionada, setEntregaSeleccionada] = useState('')
-  const [metricas, setMetricas] = useState(null)
-  const [pedidos, setPedidos] = useState([])
-  const [pagos, setPagos] = useState([])
   const [cargando, setCargando] = useState(false)
 
+  // Datos entregas período
+  const [metricasE, setMetricasE] = useState(null)
+  const [porClienteE, setPorClienteE] = useState([])
+  const [datosGraficaE, setDatosGraficaE] = useState([])
+
+  // Datos estado de cuenta
+  const [metricasEC, setMetricasEC] = useState(null)
+  const [porClienteEC, setPorClienteEC] = useState([])
+
+  // Datos tienda
+  const [metricasT, setMetricasT] = useState(null)
+  const [topProductos, setTopProductos] = useState([])
+  const [datosGraficaT, setDatosGraficaT] = useState([])
+
+  const chartERef = useRef(null)
+  const chartTRef = useRef(null)
+  const chartEInstance = useRef(null)
+  const chartTInstance = useRef(null)
+
+  const fmt = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+
+  const getRango = (periodo) => {
+    const ahora = new Date()
+    const hoy = ahora.toISOString().split('T')[0]
+    if (periodo === 'hoy') return { desde: hoy, hasta: hoy }
+    if (periodo === 'semana') {
+      const d = new Date(ahora); d.setDate(d.getDate() - 7)
+      return { desde: d.toISOString().split('T')[0], hasta: hoy }
+    }
+    if (periodo === 'mes') {
+      const d = new Date(ahora.getFullYear(), ahora.getMonth(), 1)
+      return { desde: d.toISOString().split('T')[0], hasta: hoy }
+    }
+    return { desde: hoy, hasta: hoy }
+  }
+
   useEffect(() => {
-    fetch('/api/entregas')
-      .then(r => r.json())
-      .then(d => { if (d.ok) setEntregas(d.entregas) })
+    fetch('/api/entregas').then(r => r.json()).then(d => { if (d.ok) setEntregas(d.entregas) })
   }, [])
 
   useEffect(() => {
-    if (!entregaSeleccionada) return
-    setCargando(true)
-    Promise.all([
-      fetch(`/api/reportes/pedidos?entrega_id=${entregaSeleccionada}`).then(r => r.json()),
-      fetch(`/api/reportes/pagos?entrega_id=${entregaSeleccionada}`).then(r => r.json())
-    ]).then(([pedidosData, pagosData]) => {
-      if (pedidosData.ok) setPedidos(pedidosData.pedidos)
-      if (pagosData.ok) setPagos(pagosData.pagos)
-      calcularMetricas(pedidosData.pedidos || [], pagosData.pagos || [])
-      setCargando(false)
-    })
+    if (seccion === 'entregas' && periodoEntrega !== 'estado') cargarDatosEntregas()
+  }, [periodoEntrega, seccion])
+
+  useEffect(() => {
+    if (seccion === 'tienda') cargarDatosTienda()
+  }, [periodoTienda, seccion])
+
+  useEffect(() => {
+    if (entregaSeleccionada && periodoEntrega === 'estado') cargarEstadoCuenta()
   }, [entregaSeleccionada])
 
-  const calcularMetricas = (peds, pays) => {
+  const cargarDatosEntregas = async () => {
+    setCargando(true)
+    const { desde, hasta } = getRango(periodoEntrega)
+    const [pedidosRes, pagosRes] = await Promise.all([
+      fetch(`/api/reportes/pedidos?desde=${desde}&hasta=${hasta}`).then(r => r.json()),
+      fetch(`/api/reportes/pagos?desde=${desde}&hasta=${hasta}`).then(r => r.json())
+    ])
+    const peds = pedidosRes.ok ? pedidosRes.pedidos || [] : []
+    const pays = pagosRes.ok ? pagosRes.pagos || [] : []
+
+    // Solo pedidos de encargos (con cliente_id)
+    const pedsEncargos = peds.filter(p => p.cliente_id)
+    const paysEncargos = pays.filter(p => p.cliente_id && p.tipo !== 'Venta Liquidación' || (p.cliente_id && p.tipo === 'Venta Liquidación'))
+
+    const ventaTotal = pedsEncargos.reduce((s, p) => s + (p.precio_venta || 0), 0)
+    const costoTotal = pedsEncargos.reduce((s, p) => s + (p.costo_mxn || 0), 0)
+    const utilidadTotal = pedsEncargos.reduce((s, p) => s + (p.utilidad || 0), 0)
+    const margen = ventaTotal > 0 ? (utilidadTotal / ventaTotal) * 100 : 0
+
+    const anticipos = pays.filter(p => p.tipo?.toLowerCase() === 'anticipo')
+    const liquidaciones = pays.filter(p => p.tipo === 'Venta Liquidación' && p.cliente_id)
+
+    const totalAnticipos = anticipos.reduce((s, p) => s + (p.monto || 0), 0)
+    const totalLiquidado = liquidaciones.reduce((s, p) => s + (p.monto || 0), 0)
+    const cobradoTotal = totalAnticipos + totalLiquidado
+
+    const anticiposEfectivo = anticipos.filter(p => p.metodo?.toLowerCase() === 'efectivo').reduce((s, p) => s + p.monto, 0)
+    const anticiposTransferencia = anticipos.filter(p => p.metodo?.toLowerCase() === 'transferencia').reduce((s, p) => s + p.monto, 0)
+    const anticiposTerminal = anticipos.filter(p => p.metodo?.toLowerCase() === 'terminal').reduce((s, p) => s + p.monto, 0)
+    const liquidEfectivo = liquidaciones.filter(p => p.metodo?.toLowerCase() === 'efectivo').reduce((s, p) => s + p.monto, 0)
+    const liquidTransferencia = liquidaciones.filter(p => p.metodo?.toLowerCase() === 'transferencia').reduce((s, p) => s + p.monto, 0)
+    const liquidTerminal = liquidaciones.filter(p => p.metodo?.toLowerCase() === 'terminal').reduce((s, p) => s + p.monto, 0)
+
+    const clientesUnicos = [...new Set(pedsEncargos.map(p => p.cliente_id))].length
+    const ticketPromedio = clientesUnicos > 0 ? ventaTotal / clientesUnicos : 0
+
+    const clientesPagaron = [...new Set(liquidaciones.map(p => p.cliente_id))].length
+    const tasaCobranza = clientesUnicos > 0 ? (clientesPagaron / clientesUnicos) * 100 : 0
+
+    const metodosTotal = [
+      { nombre: 'Efectivo', monto: anticiposEfectivo + liquidEfectivo },
+      { nombre: 'Transferencia', monto: anticiposTransferencia + liquidTransferencia },
+      { nombre: 'Terminal', monto: anticiposTerminal + liquidTerminal }
+    ]
+    const topMetodo = metodosTotal.sort((a, b) => b.monto - a.monto)[0]?.nombre || 'N/A'
+
+    // Clientes con deuda
+    const porCliente = pedsEncargos.reduce((acc, p) => {
+      if (!acc[p.cliente_id]) acc[p.cliente_id] = { nombre: p.clientes?.nombre || 'Sin nombre', venta: 0, costo: 0, utilidad: 0, cobrado: 0 }
+      acc[p.cliente_id].venta += p.precio_venta || 0
+      acc[p.cliente_id].costo += p.costo_mxn || 0
+      acc[p.cliente_id].utilidad += p.utilidad || 0
+      return acc
+    }, {})
+    liquidaciones.forEach(p => { if (porCliente[p.cliente_id]) porCliente[p.cliente_id].cobrado += p.monto || 0 })
+    anticipos.forEach(p => { if (porCliente[p.cliente_id]) porCliente[p.cliente_id].cobrado += p.monto || 0 })
+
+    const clientesConDeuda = Object.values(porCliente).filter(c => c.venta - c.cobrado > 0).length
+
+    setMetricasE({
+      ventaTotal, costoTotal, utilidadTotal, margen, cobradoTotal,
+      pendiente: ventaTotal - cobradoTotal,
+      totalAnticipos, totalLiquidado,
+      anticiposEfectivo, anticiposTransferencia, anticiposTerminal,
+      liquidEfectivo, liquidTransferencia, liquidTerminal,
+      totalPedidos: pedsEncargos.length, clientesUnicos,
+      ticketPromedio, tasaCobranza, topMetodo, clientesConDeuda,
+      metodosTotal: metodosTotal.sort((a, b) => b.monto - a.monto)
+    })
+    setPorClienteE(Object.values(porCliente).sort((a, b) => (b.venta - b.cobrado) - (a.venta - a.cobrado)))
+    setCargando(false)
+  }
+
+  const cargarEstadoCuenta = async () => {
+    setCargando(true)
+    const [pedidosRes, pagosRes] = await Promise.all([
+      fetch(`/api/reportes/pedidos?entrega_id=${entregaSeleccionada}`).then(r => r.json()),
+      fetch(`/api/reportes/pagos?entrega_id=${entregaSeleccionada}`).then(r => r.json())
+    ])
+    const peds = pedidosRes.ok ? pedidosRes.pedidos || [] : []
+    const pays = pagosRes.ok ? pagosRes.pagos || [] : []
+
     const ventaTotal = peds.reduce((s, p) => s + (p.precio_venta || 0), 0)
     const costoTotal = peds.reduce((s, p) => s + (p.costo_mxn || 0), 0)
     const utilidadTotal = peds.reduce((s, p) => s + (p.utilidad || 0), 0)
     const margen = ventaTotal > 0 ? (utilidadTotal / ventaTotal) * 100 : 0
-    const cobrado = pays.reduce((s, p) => s + (p.monto || 0), 0)
-    const pendiente = ventaTotal - cobrado
-    const anticipos = pays.filter(p => p.tipo === 'anticipo').reduce((s, p) => s + (p.monto || 0), 0)
+    const anticipos = pays.filter(p => p.tipo?.toLowerCase() === 'anticipo')
+    const liquidaciones = pays.filter(p => p.tipo === 'Venta Liquidación')
+    const totalAnticipos = anticipos.reduce((s, p) => s + (p.monto || 0), 0)
+    const totalLiquidado = liquidaciones.reduce((s, p) => s + (p.monto || 0), 0)
+    const cobradoTotal = totalAnticipos + totalLiquidado
 
-    const porEfectivo = pays.filter(p => p.metodo?.toLowerCase() === 'efectivo').reduce((s, p) => s + p.monto, 0)
-const porTransferencia = pays.filter(p => p.metodo?.toLowerCase() === 'transferencia').reduce((s, p) => s + p.monto, 0)
-const porTerminal = pays.filter(p => p.metodo?.toLowerCase() === 'terminal').reduce((s, p) => s + p.monto, 0)
+    const porCliente = peds.reduce((acc, p) => {
+      if (!acc[p.cliente_id]) acc[p.cliente_id] = { nombre: p.clientes?.nombre || 'Sin nombre', venta: 0, costo: 0, utilidad: 0, cobrado: 0 }
+      acc[p.cliente_id].venta += p.precio_venta || 0
+      acc[p.cliente_id].costo += p.costo_mxn || 0
+      acc[p.cliente_id].utilidad += p.utilidad || 0
+      return acc
+    }, {})
+    liquidaciones.forEach(p => { if (porCliente[p.cliente_id]) porCliente[p.cliente_id].cobrado += p.monto || 0 })
+    anticipos.forEach(p => { if (porCliente[p.cliente_id]) porCliente[p.cliente_id].cobrado += p.monto || 0 })
 
-    setMetricas({
-      ventaTotal, costoTotal, utilidadTotal, margen,
-      cobrado, pendiente, anticipos,
-      porEfectivo, porTransferencia, porTerminal,
-      totalPedidos: peds.length,
-      totalClientes: [...new Set(peds.map(p => p.cliente_id))].length
-    })
+    setMetricasEC({ ventaTotal, costoTotal, utilidadTotal, margen, cobradoTotal, pendiente: ventaTotal - cobradoTotal, totalAnticipos, totalPedidos: peds.length, clientesUnicos: [...new Set(peds.map(p => p.cliente_id))].length })
+    setPorClienteEC(Object.values(porCliente).sort((a, b) => (b.venta - b.cobrado) - (a.venta - a.cobrado)))
+    setCargando(false)
   }
 
-  const fmt = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const cargarDatosTienda = async () => {
+    setCargando(true)
+    const { desde, hasta } = getRango(periodoTienda)
+    const pagosRes = await fetch(`/api/reportes/pagos?desde=${desde}&hasta=${hasta}`).then(r => r.json())
+    const pays = pagosRes.ok ? pagosRes.pagos || [] : []
 
-  const porCliente = pedidos.reduce((acc, p) => {
-    const key = p.cliente_id
-    if (!acc[key]) acc[key] = { nombre: p.clientes?.nombre || 'Sin nombre', pedidos: [], venta: 0, costo: 0, utilidad: 0, cobrado: 0 }
-    acc[key].pedidos.push(p)
-    acc[key].venta += p.precio_venta || 0
-    acc[key].costo += p.costo_mxn || 0
-    acc[key].utilidad += p.utilidad || 0
-    return acc
-  }, {})
+    const ventasTienda = pays.filter(p => !p.cliente_id && p.tipo === 'Venta Liquidación')
+    const totalVentas = ventasTienda.reduce((s, p) => s + (p.monto || 0), 0)
+    const numTransacciones = ventasTienda.length
+    const ticketPromedio = numTransacciones > 0 ? totalVentas / numTransacciones : 0
 
-  pagos.forEach(pago => {
-    const cliente = Object.values(porCliente).find(c => 
-      porCliente[pago.cliente_id] && pago.cliente_id in porCliente
+    const efectivo = ventasTienda.filter(p => p.metodo?.toLowerCase() === 'efectivo').reduce((s, p) => s + p.monto, 0)
+    const transferencia = ventasTienda.filter(p => p.metodo?.toLowerCase() === 'transferencia').reduce((s, p) => s + p.monto, 0)
+    const terminal = ventasTienda.filter(p => p.metodo?.toLowerCase() === 'terminal').reduce((s, p) => s + p.monto, 0)
+
+    const metodosTotal = [
+      { nombre: 'Efectivo', monto: efectivo },
+      { nombre: 'Transferencia', monto: transferencia },
+      { nombre: 'Terminal', monto: terminal }
+    ]
+    const topMetodo = metodosTotal.sort((a, b) => b.monto - a.monto)[0]?.nombre || 'N/A'
+
+    setMetricasT({ totalVentas, numTransacciones, ticketPromedio, efectivo, transferencia, terminal, topMetodo })
+    setCargando(false)
+  }
+
+  const TabBtn = ({ id, label, active, onClick }) => (
+    <button onClick={onClick}
+      style={{ background: active ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, padding: '9px 22px', color: active ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
+      {label}
+    </button>
+  )
+
+  const PeriodBtn = ({ label, active, onClick }) => (
+    <button onClick={onClick}
+      style={{ background: active ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 8, padding: '4px 12px', color: active ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
+      {label}
+    </button>
+  )
+
+  const MetricCard = ({ label, value, sub, color }) => (
+    <div style={{ background: color ? `rgba(${color},0.08)` : 'rgba(255,255,255,0.03)', border: `1px solid ${color ? `rgba(${color},0.15)` : 'rgba(255,255,255,0.07)'}`, borderRadius: 12, padding: 14 }}>
+      <div style={{ color: color ? `rgba(${color},0.7)` : 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 4 }}>{label}</div>
+      <div style={{ color: color ? `rgb(${color})` : 'white', fontSize: 22, fontWeight: 700 }}>{value}</div>
+      {sub && <div style={{ color: color ? `rgba(${color},0.5)` : 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>{sub}</div>}
+    </div>
+  )
+
+  const AlertItem = ({ texto, tipo }) => {
+    const colores = { rojo: '#f87171', amarillo: '#f59e0b', verde: '#10b981' }
+    const bgs = { rojo: 'rgba(239,68,68,0.08)', amarillo: 'rgba(245,158,11,0.08)', verde: 'rgba(16,185,129,0.08)' }
+    const borders = { rojo: 'rgba(239,68,68,0.2)', amarillo: 'rgba(245,158,11,0.2)', verde: 'rgba(16,185,129,0.2)' }
+    return (
+      <div style={{ background: bgs[tipo], border: `1px solid ${borders[tipo]}`, borderRadius: 10, padding: '10px 14px', marginBottom: 6, fontSize: 12, color: colores[tipo] }}>
+        {tipo === 'rojo' ? '🔴' : tipo === 'amarillo' ? '⚠️' : '✅'} {texto}
+      </div>
     )
-    if (porCliente[pago.cliente_id]) {
-      porCliente[pago.cliente_id].cobrado += pago.monto || 0
-    }
-  })
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 p-6">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-white text-2xl font-semibold mb-6">Reportes financieros</div>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
 
-        {/* Selector de entrega */}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-6">
-          <label className="text-gray-400 text-sm block mb-2">Selecciona una entrega para ver sus números</label>
-          <select value={entregaSeleccionada} onChange={e => setEntregaSeleccionada(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm">
-            <option value="">— Selecciona entrega —</option>
-            {entregas.map(e => (
-              <option key={e.id} value={e.id}>{e.fecha_entrega} {e.nota ? `· ${e.nota}` : ''}</option>
-            ))}
-          </select>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ color: 'white', fontSize: 22, fontWeight: 700 }}>📊 Reportes financieros</div>
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 2 }}>Por modelo de negocio</div>
         </div>
 
-        {cargando && (
-          <div className="text-center text-gray-400 py-12">Cargando datos...</div>
-        )}
+        {/* Tabs principales */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <TabBtn label="📦 Entregas" active={seccion === 'entregas'} onClick={() => setSeccion('entregas')} />
+          <TabBtn label="⚡ Tienda" active={seccion === 'tienda'} onClick={() => setSeccion('tienda')} />
+        </div>
 
-        {metricas && !cargando && (
-          <>
-            {/* Métricas principales */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-                <div className="text-gray-400 text-xs mb-1">Venta total</div>
-                <div className="text-white text-2xl font-semibold">{fmt(metricas.ventaTotal)}</div>
-                <div className="text-gray-500 text-xs mt-1">{metricas.totalPedidos} pedidos · {metricas.totalClientes} clientes</div>
-              </div>
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-                <div className="text-gray-400 text-xs mb-1">Costo total</div>
-                <div className="text-white text-2xl font-semibold">{fmt(metricas.costoTotal)}</div>
-                <div className="text-gray-500 text-xs mt-1">Lo que pagaste en EUA</div>
-              </div>
-              <div className="bg-gray-900 border border-green-900 rounded-2xl p-5">
-                <div className="text-gray-400 text-xs mb-1">Utilidad neta</div>
-                <div className="text-green-400 text-2xl font-semibold">{fmt(metricas.utilidadTotal)}</div>
-                <div className="text-green-700 text-xs mt-1">Margen {metricas.margen.toFixed(1)}%</div>
-              </div>
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-                <div className="text-gray-400 text-xs mb-1">Por cobrar</div>
-                <div className="text-red-400 text-2xl font-semibold">{fmt(metricas.pendiente)}</div>
-                <div className="text-gray-500 text-xs mt-1">Cobrado: {fmt(metricas.cobrado)}</div>
-              </div>
+        {/* ===================== SECCIÓN ENTREGAS ===================== */}
+        {seccion === 'entregas' && (
+          <div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+              <PeriodBtn label="Hoy" active={periodoEntrega === 'hoy'} onClick={() => setPeriodoEntrega('hoy')} />
+              <PeriodBtn label="Semana" active={periodoEntrega === 'semana'} onClick={() => setPeriodoEntrega('semana')} />
+              <PeriodBtn label="Mes" active={periodoEntrega === 'mes'} onClick={() => setPeriodoEntrega('mes')} />
+              <PeriodBtn label="📋 Estado de cuenta" active={periodoEntrega === 'estado'} onClick={() => setPeriodoEntrega('estado')} />
             </div>
 
-            {/* Desglose de cobranza */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6">
-              <div className="text-white font-medium mb-4">Desglose de cobranza</div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Cobrado en efectivo</span>
-                  <span className="text-white font-medium">{fmt(metricas.porEfectivo)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Cobrado por transferencia</span>
-                  <span className="text-white font-medium">{fmt(metricas.porTransferencia)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Cobrado por terminal</span>
-                  <span className="text-white font-medium">{fmt(metricas.porTerminal)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Anticipos registrados</span>
-                  <span className="text-purple-400 font-medium">-{fmt(metricas.anticipos)}</span>
-                </div>
-                <div className="border-t border-gray-800 pt-3 flex justify-between items-center">
-                  <span className="text-white font-medium">Total cobrado</span>
-                  <span className="text-white font-semibold text-lg">{fmt(metricas.cobrado)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-red-400 font-medium">Pendiente por cobrar</span>
-                  <span className="text-red-400 font-semibold text-lg">{fmt(metricas.pendiente)}</span>
-                </div>
-              </div>
-            </div>
+            {cargando && <div style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
 
-            {/* Desglose por cliente */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mb-6">
-              <div className="px-5 py-4 border-b border-gray-800">
-                <div className="text-white font-medium">Desglose por cliente</div>
-              </div>
-              <div className="grid grid-cols-5 gap-3 px-5 py-3 text-gray-500 text-xs uppercase border-b border-gray-800">
-                <span>Cliente</span>
-                <span className="text-right">Venta</span>
-                <span className="text-right">Costo</span>
-                <span className="text-right">Utilidad</span>
-                <span className="text-right">Estado</span>
-              </div>
-              {Object.values(porCliente)
-                .sort((a, b) => (b.venta - b.cobrado) - (a.venta - a.cobrado))
-                .map((c, i) => {
-                  const pendiente = c.venta - c.cobrado
-                  return (
-                    <div key={i} className="grid grid-cols-5 gap-3 px-5 py-4 border-b border-gray-800 last:border-0 text-sm">
-                      <div className="text-white font-medium">{c.nombre}</div>
-                      <div className="text-right text-white">{fmt(c.venta)}</div>
-                      <div className="text-right text-gray-400">{fmt(c.costo)}</div>
-                      <div className="text-right text-green-400">{fmt(c.utilidad)}</div>
-                      <div className="text-right">
-                        {pendiente <= 0
-                          ? <span className="text-xs px-2 py-1 rounded-full bg-green-900 text-green-400">Liquidado</span>
-                          : <span className="text-xs px-2 py-1 rounded-full bg-red-900 text-red-400">{fmt(pendiente)}</span>
-                        }
-                      </div>
+            {/* Vista período */}
+            {periodoEntrega !== 'estado' && !cargando && metricasE && (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 12 }}>
+                  <MetricCard label="Venta total" value={fmt(metricasE.ventaTotal)} sub={`${metricasE.totalPedidos} pedidos · ${metricasE.clientesUnicos} clientes`} />
+                  <MetricCard label="Utilidad" value={fmt(metricasE.utilidadTotal)} sub={`Margen ${metricasE.margen.toFixed(1)}%`} color="16,185,129" />
+                  <MetricCard label="Total cobrado" value={fmt(metricasE.cobradoTotal)} sub={`Anticipos: ${fmt(metricasE.totalAnticipos)}`} />
+                  <MetricCard label="Por cobrar" value={fmt(metricasE.pendiente)} sub={`${metricasE.clientesConDeuda} clientes pendientes`} color="239,68,68" />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
+                  <MetricCard label="Tasa de cobranza" value={`${metricasE.tasaCobranza.toFixed(0)}%`} sub="Pagan el mismo día" />
+                  <MetricCard label="Ticket promedio" value={fmt(metricasE.ticketPromedio)} sub="Por cliente" />
+                  <MetricCard label="Método más usado" value={metricasE.topMetodo} sub="En cobros de este período" />
+                </div>
+
+                {/* Desglose cobranza separado */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
+                  <div style={{ color: 'white', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Desglose de cobranza</div>
+
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 8, fontWeight: 600 }}>Anticipos recibidos</div>
+                  {[
+                    { label: '💵 Efectivo', valor: metricasE.anticiposEfectivo },
+                    { label: '📱 Transferencia', valor: metricasE.anticiposTransferencia },
+                    { label: '💳 Terminal', valor: metricasE.anticiposTerminal },
+                  ].map((r, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+                      <span>{r.label}</span><span style={{ color: 'white', fontWeight: 600 }}>{fmt(r.valor)}</span>
                     </div>
-                  )
-                })}
-            </div>
-
-            {/* Lista de pedidos */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-800">
-                <div className="text-white font-medium">Todos los pedidos</div>
-              </div>
-              <div className="grid grid-cols-4 gap-3 px-5 py-3 text-gray-500 text-xs uppercase border-b border-gray-800">
-                <span>Producto</span>
-                <span className="text-right">Costo MXN</span>
-                <span className="text-right">Venta</span>
-                <span className="text-right">Utilidad</span>
-              </div>
-              {pedidos.map((p, i) => (
-                <div key={i} className="grid grid-cols-4 gap-3 px-5 py-4 border-b border-gray-800 last:border-0 text-sm">
-                  <div>
-                    <div className="text-white">{p.descripcion}</div>
-                    <div className="text-gray-500 text-xs">{p.clientes?.nombre} · {p.cantidad} pz</div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 12px', fontSize: 13, color: '#a78bfa', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span>Total anticipos</span><span>{fmt(metricasE.totalAnticipos)}</span>
                   </div>
-                  <div className="text-right text-gray-400">{fmt(p.costo_mxn)}</div>
-                  <div className="text-right text-white">{fmt(p.precio_venta)}</div>
-                  <div className={`text-right font-medium ${(p.utilidad || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {fmt(p.utilidad)}
+
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, margin: '12px 0 8px', fontWeight: 600 }}>Cobro en tienda (liquidación)</div>
+                  {[
+                    { label: '💵 Efectivo', valor: metricasE.liquidEfectivo },
+                    { label: '📱 Transferencia', valor: metricasE.liquidTransferencia },
+                    { label: '💳 Terminal', valor: metricasE.liquidTerminal },
+                  ].map((r, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+                      <span>{r.label}</span><span style={{ color: 'white', fontWeight: 600 }}>{fmt(r.valor)}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', fontSize: 14, color: '#10b981', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 4 }}>
+                    <span>Total cobrado</span><span>{fmt(metricasE.cobradoTotal)}</span>
                   </div>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
 
-        {!entregaSeleccionada && !cargando && (
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-12 text-center text-gray-500">
-            Selecciona una entrega para ver sus reportes
+                {/* Por cliente */}
+                {porClienteE.length > 0 && (
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'white', fontSize: 13, fontWeight: 600 }}>Por cliente</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '8px 16px', background: 'rgba(255,255,255,0.02)' }}>
+                      {['Cliente','Venta','Utilidad','Estado'].map((h, i) => (
+                        <span key={i} style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
+                      ))}
+                    </div>
+                    {porClienteE.map((c, i) => {
+                      const pendiente = c.venta - c.cobrado
+                      return (
+                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.04)', alignItems: 'center' }}>
+                          <span style={{ color: 'white', fontSize: 13 }}>{c.nombre}</span>
+                          <span style={{ color: 'white', fontSize: 13, textAlign: 'right' }}>{fmt(c.venta)}</span>
+                          <span style={{ color: '#10b981', fontSize: 13, textAlign: 'right' }}>{fmt(c.utilidad)}</span>
+                          <div style={{ textAlign: 'right' }}>
+                            {pendiente <= 0
+                              ? <span style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px', color: '#4ade80', fontSize: 10 }}>✓ Liquidado</span>
+                              : <span style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 20, padding: '2px 8px', color: '#f87171', fontSize: 10 }}>{fmt(pendiente)}</span>
+                            }
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Alertas */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Alertas</div>
+                  {porClienteE.filter(c => c.venta - c.cobrado > 0).map((c, i) => (
+                    <AlertItem key={i} tipo={c.venta - c.cobrado > 3000 ? 'rojo' : 'amarillo'} texto={`${c.nombre} — ${fmt(c.venta - c.cobrado)} pendiente`} />
+                  ))}
+                  {metricasE.cobradoTotal >= metricasE.ventaTotal && metricasE.ventaTotal > 0 && (
+                    <AlertItem tipo="verde" texto="Todo liquidado en este período" />
+                  )}
+                  {porClienteE.filter(c => c.venta - c.cobrado > 0).length === 0 && metricasE.ventaTotal === 0 && (
+                    <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textAlign: 'center', padding: 10 }}>Sin datos en este período</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Vista estado de cuenta */}
+            {periodoEntrega === 'estado' && (
+              <div>
+                <select value={entregaSeleccionada} onChange={e => setEntregaSeleccionada(e.target.value)}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', color: 'white', fontSize: 13, outline: 'none', marginBottom: 16 }}>
+                  <option value="">— Selecciona estado de cuenta —</option>
+                  {entregas.map(e => <option key={e.id} value={e.id}>{e.fecha_entrega}{e.nota ? ` · ${e.nota}` : ''}</option>)}
+                </select>
+
+                {!cargando && metricasEC && (
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 12 }}>
+                      <MetricCard label="Venta total" value={fmt(metricasEC.ventaTotal)} sub={`${metricasEC.totalPedidos} pedidos · ${metricasEC.clientesUnicos} clientes`} />
+                      <MetricCard label="Utilidad" value={fmt(metricasEC.utilidadTotal)} sub={`Margen ${metricasEC.margen.toFixed(1)}%`} color="16,185,129" />
+                      <MetricCard label="Total cobrado" value={fmt(metricasEC.cobradoTotal)} sub={`Anticipos: ${fmt(metricasEC.totalAnticipos)}`} />
+                      <MetricCard label="Por cobrar" value={fmt(metricasEC.pendiente)} color="239,68,68" />
+                    </div>
+
+                    {porClienteEC.length > 0 && (
+                      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+                        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'white', fontSize: 13, fontWeight: 600 }}>Por cliente</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '8px 16px', background: 'rgba(255,255,255,0.02)' }}>
+                          {['Cliente','Venta','Utilidad','Estado'].map((h, i) => (
+                            <span key={i} style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
+                          ))}
+                        </div>
+                        {porClienteEC.map((c, i) => {
+                          const pendiente = c.venta - c.cobrado
+                          return (
+                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.04)', alignItems: 'center' }}>
+                              <span style={{ color: 'white', fontSize: 13 }}>{c.nombre}</span>
+                              <span style={{ color: 'white', fontSize: 13, textAlign: 'right' }}>{fmt(c.venta)}</span>
+                              <span style={{ color: '#10b981', fontSize: 13, textAlign: 'right' }}>{fmt(c.utilidad)}</span>
+                              <div style={{ textAlign: 'right' }}>
+                                {pendiente <= 0
+                                  ? <span style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px', color: '#4ade80', fontSize: 10 }}>✓ Liquidado</span>
+                                  : <span style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 20, padding: '2px 8px', color: '#f87171', fontSize: 10 }}>{fmt(pendiente)}</span>
+                                }
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!entregaSeleccionada && (
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>
+                    Selecciona un estado de cuenta para ver sus números
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
+
+        {/* ===================== SECCIÓN TIENDA ===================== */}
+        {seccion === 'tienda' && (
+          <div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+              <PeriodBtn label="Hoy" active={periodoTienda === 'hoy'} onClick={() => setPeriodoTienda('hoy')} />
+              <PeriodBtn label="Semana" active={periodoTienda === 'semana'} onClick={() => setPeriodoTienda('semana')} />
+              <PeriodBtn label="Mes" active={periodoTienda === 'mes'} onClick={() => setPeriodoTienda('mes')} />
+            </div>
+
+            {cargando && <div style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
+
+            {!cargando && metricasT && (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
+                  <MetricCard label="Ventas tienda" value={fmt(metricasT.totalVentas)} sub={`${metricasT.numTransacciones} transacciones`} />
+                  <MetricCard label="Ticket promedio" value={fmt(metricasT.ticketPromedio)} sub="Por venta" />
+                  <MetricCard label="Método más usado" value={metricasT.topMetodo} sub="En ventas de tienda" />
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
+                  <div style={{ color: 'white', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Desglose de cobranza — Tienda</div>
+                  {[
+                    { label: '💵 Efectivo', valor: metricasT.efectivo },
+                    { label: '📱 Transferencia', valor: metricasT.transferencia },
+                    { label: '💳 Terminal', valor: metricasT.terminal },
+                  ].map((r, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.04)' : 'none', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+                      <span>{r.label}</span><span style={{ color: 'white', fontWeight: 600 }}>{fmt(r.valor)}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', fontSize: 14, color: '#10b981', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 8 }}>
+                    <span>Total</span><span>{fmt(metricasT.totalVentas)}</span>
+                  </div>
+                </div>
+
+                {metricasT.totalVentas === 0 && (
+                  <AlertItem tipo="amarillo" texto="Sin ventas de tienda en este período" />
+                )}
+                {metricasT.totalVentas > 0 && (
+                  <AlertItem tipo="verde" texto={`${metricasT.numTransacciones} ventas registradas en tienda este período`} />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   )

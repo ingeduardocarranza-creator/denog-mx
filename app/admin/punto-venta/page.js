@@ -49,6 +49,10 @@ export default function PuntoDeVenta() {
   const [mostrarMetodo2, setMostrarMetodo2] = useState(false);
   const [metodo2, setMetodo2] = useState('Transferencia');
 
+  const [turnoEstado, setTurnoEstado] = useState('cargando');
+  const [turnoOcupado, setTurnoOcupado] = useState(null);
+  const [colaborador, setColaborador] = useState(null);
+
   useEffect(() => {
     async function cargarDatosPOS() {
       const { data: cl } = await supabase.from('clientes').select('*');
@@ -66,6 +70,49 @@ export default function PuntoDeVenta() {
     }
     cargarDatosPOS();
   }, []);
+
+  useEffect(() => {
+    const datos = localStorage.getItem('cliente')
+    if (datos) {
+      const c = JSON.parse(datos)
+      setColaborador(c)
+      verificarTurno(c.id)
+    } else {
+      setTurnoEstado('sin_turno')
+    }
+  }, [])
+
+  const verificarTurno = async (colaborador_id) => {
+    const ahora = new Date()
+    const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
+    const res = await fetch(`/api/caja?fecha=${hoy}`)
+    const data = await res.json()
+    if (data.ok) {
+      const porColaborador = (data.cortes || []).reduce((acc, c) => {
+        if (!acc[c.colaborador_id]) acc[c.colaborador_id] = { nombre: c.clientes?.nombre || 'Colaborador', registros: [] }
+        acc[c.colaborador_id].registros.push(c)
+        return acc
+      }, {})
+
+      const turnoActivoSistema = Object.entries(porColaborador)
+        .map(([id, info]) => {
+          const masReciente = info.registros.sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en))[0]
+          return { colaborador_id: id, nombre: info.nombre, masReciente }
+        })
+        .find(t => t.masReciente?.tipo === 'apertura')
+
+      if (!turnoActivoSistema) {
+        setTurnoEstado('sin_turno')
+      } else if (turnoActivoSistema.colaborador_id === String(colaborador_id)) {
+        setTurnoEstado('activo')
+      } else {
+        setTurnoEstado('caja_ocupada')
+        setTurnoOcupado({ nombre: turnoActivoSistema.nombre, desde: turnoActivoSistema.masReciente.creado_en })
+      }
+    } else {
+      setTurnoEstado('sin_turno')
+    }
+  }
 
   const cambiarDeModoLimpiandoTodo = (nuevoModo) => {
     setModo(nuevoModo);
@@ -310,8 +357,41 @@ if (valorAutocompletado2 > 0) {
   ) : [];
 
   return (
+    <>
+      {turnoEstado === 'cargando' && (
+        <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Cargando...</div>
+        </div>
+      )}
+      {turnoEstado === 'sin_turno' && (
+        <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
+            <div style={{ fontSize: 50, marginBottom: 16 }}>💰</div>
+            <div style={{ color: 'white', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>No hay turno activo</div>
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 24 }}>Abre un turno en caja antes de cobrar.</div>
+            <a href="/admin/caja" style={{ display: 'inline-block', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '11px 24px', color: '#f59e0b', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Abrir turno →</a>
+          </div>
+        </div>
+      )}
+      {turnoEstado === 'caja_ocupada' && (
+        <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
+            <div style={{ fontSize: 50, marginBottom: 16 }}>🔒</div>
+            <div style={{ color: 'white', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Caja ocupada</div>
+            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 24 }}>
+              <span style={{ color: '#f59e0b', fontWeight: 600 }}>{turnoOcupado?.nombre}</span> tiene un turno activo.<br />
+              Espera a que cierre su turno para poder cobrar.
+            </div>
+            <button onClick={() => verificarTurno(colaborador?.id)}
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '11px 24px', color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer' }}>
+              Verificar de nuevo
+            </button>
+          </div>
+        </div>
+      )}
+      {turnoEstado === 'activo' && (
     <div className="min-h-screen bg-gray-950 text-white p-6 font-sans">
-      
+
       {/* SECCIÓN DE CABECERA UNIFICADA */}
       <div className="max-w-4xl mx-auto mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         
@@ -511,6 +591,8 @@ if (valorAutocompletado2 > 0) {
         </div>
       </div>
     </div>
+      )}
+    </>
   );
-} 
+}
 // rebuild viernes, 29 de mayo de 2026, 23:49:57 MST

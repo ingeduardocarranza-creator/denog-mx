@@ -30,7 +30,7 @@ export default function Login() {
           rol: data.rol
         }))
         if (data.rol === 'admin') router.push('/admin/reportes')
-        else if (data.rol === 'vendedor' || data.rol === 'colaborador') router.push('/pos')
+        else if (data.rol === 'vendedor' || data.rol === 'colaborador') router.push('/pos/punto-venta')
         else router.push('/cliente')
       } else {
         setError(data.mensaje || 'Usuario o contraseña incorrectos')

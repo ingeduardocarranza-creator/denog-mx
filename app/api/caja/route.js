@@ -14,7 +14,8 @@ export async function GET(req) {
   const resumen = searchParams.get('resumen')
 
   if (resumen === 'true') {
-    const inicio = `${fecha}T00:00:00`
+    const desde = searchParams.get('desde')
+    const inicio = desde || `${fecha}T00:00:00`
     const fin = `${fecha}T23:59:59`
     const { data, error } = await supabase
       .from('pagos')
@@ -28,7 +29,16 @@ export async function GET(req) {
     const transferencia = data.filter(p => p.metodo?.toLowerCase() === 'transferencia').reduce((s, p) => s + p.monto, 0)
     const terminal = data.filter(p => p.metodo?.toLowerCase() === 'terminal').reduce((s, p) => s + p.monto, 0)
 
-    return NextResponse.json({ ok: true, efectivo, transferencia, terminal })
+    const { data: retiros } = await supabase
+      .from('retiros_caja')
+      .select('monto')
+      .eq('estado', 'confirmado')
+      .gte('confirmado_en', inicio)
+      .lte('confirmado_en', fin)
+
+    const totalRetiros = (retiros || []).reduce((s, r) => s + r.monto, 0)
+
+    return NextResponse.json({ ok: true, efectivo, transferencia, terminal, totalRetiros })
   }
 
   let query = supabase

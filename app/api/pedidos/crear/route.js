@@ -38,6 +38,7 @@ export async function POST(req) {
     const { data, error } = await supabase
       .from('pedidos')
       .insert([{
+        vendedor_id: body.vendedor_id || null,
         cliente_id, entrega_id, descripcion, lugar_compra,
         cantidad, fecha_compra, precio_usd, tipo_cambio,
         impuesto_pct, costo_mxn, precio_venta, utilidad,

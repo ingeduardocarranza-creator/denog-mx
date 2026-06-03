@@ -10,16 +10,27 @@ const supabase = createClient(
 export async function GET(req) {
   const { searchParams } = new URL(req.url)
   const fecha = searchParams.get('fecha')
+  const estado = searchParams.get('estado')
 
   let query = supabase
     .from('retiros_caja')
-    .select('*, clientes(nombre)')
+    .select('*, clientes!pagos_cliente_id_fkey(nombre)')
     .order('creado_en', { ascending: false })
 
   if (fecha) {
     const inicio = `${fecha}T00:00:00`
     const fin = `${fecha}T23:59:59`
     query = query.gte('creado_en', inicio).lte('creado_en', fin)
+  }
+
+  if (estado) {
+    query = query.eq('estado', estado)
+    // Solo retiros pendientes del día actual
+    if (estado === 'pendiente') {
+      const ahora = new Date()
+      const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
+      query = query.gte('creado_en', `${hoy}T00:00:00`).lte('creado_en', `${hoy}T23:59:59`)
+    }
   }
 
   const { data, error } = await query
@@ -31,7 +42,11 @@ export async function POST(req) {
   const body = await req.json()
   const { data, error } = await supabase
     .from('retiros_caja')
-    .insert([body])
+    .insert([{
+      monto: body.monto,
+      motivo: body.motivo,
+      estado: body.estado || 'pendiente'
+    }])
     .select()
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true, retiro: data[0] })

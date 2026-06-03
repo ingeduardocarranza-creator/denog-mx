@@ -31,7 +31,8 @@ export default function Anticipos() {
   const cargarDatos = async () => {
     const { data: cl } = await supabase.from('clientes').select('*').order('nombre')
     const { data: en } = await supabase.from('entregas').select('*').order('fecha_entrega', { ascending: false })
-    const { data: an } = await supabase.from('pagos').select('*, clientes(nombre)').ilike('tipo', 'anticipo').order('creado_en', { ascending: false })
+    const { data: an, error: anError } = await supabase.from('pagos').select('*, clientes!pagos_cliente_id_fkey(nombre)').eq('tipo', 'Anticipo').order('creado_en', { ascending: false })
+    console.log('Anticipos:', an, 'Error:', anError)
     setClientes(cl || [])
     setEntregas(en || [])
     setAnticipos(an || [])
@@ -74,7 +75,7 @@ export default function Anticipos() {
     if (error) { setMensaje({ tipo: 'error', texto: 'Error al registrar' }); return }
     setMensaje({ tipo: 'exito', texto: '✓ Anticipo registrado' })
     setClienteSeleccionado(''); setEntregaSeleccionada(''); setMonto('')
-    cargarDatos()
+    await cargarDatos()
     setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000)
   }
 
@@ -261,4 +262,4 @@ export default function Anticipos() {
       </div>
     </div>
   )
-}
+} 

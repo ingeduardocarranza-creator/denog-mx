@@ -19,29 +19,36 @@ const fmtFechaCorta = (f) => {
 }
 
 async function dibujarEstadoCuenta({ cliente, grupos }) {
-  const S   = 2          // escala 2x — canvas interno 1200px, se muestra a 600px
-  const W   = 600 * S    // 1200px
+  const S   = 2
+  const W   = 600 * S
   const PAD = 25 * S
 
-  // Alturas en puntos lógicos × S
   const hdrH   = 120 * S
-  const stripe = 60  * S
+  const stripe = 72  * S   // expandido para nombre + artículos
   const gap    = 8   * S
   const entLblH = 40 * S
   const tbHdrH  = 34 * S
   const rowH    = 38 * S
   const subH    = 46 * S
-  const pgHdrH  = 38 * S
-  const pgRowH  = 34 * S
+  const pgHdrH  = 38 * S   // línea resumen de anticipos
+  const netoH   = 42 * S   // línea neto por entrega
+  const sepH    = 6  * S   // separador antes del total
   const totalH  = 90 * S
   const footH   = 50 * S
 
+  // Total de artículos del estado de cuenta completo
+  const totalArticulos = grupos.reduce(
+    (s, g) => s + g.pedidos.reduce((ss, p) => ss + (p.cantidad || 1), 0), 0
+  )
+
+  // Calcular alto dinámico
   let height = hdrH + stripe + gap
   for (const g of grupos) {
-    height += entLblH + tbHdrH + g.pedidos.length * rowH + subH + gap
-    if (g.pagos.length > 0) height += pgHdrH + g.pagos.length * pgRowH + gap
+    height += entLblH + tbHdrH + g.pedidos.length * rowH + subH
+    if (g.pagos.length > 0) height += pgHdrH
+    height += netoH + gap
   }
-  height += totalH + footH
+  height += sepH + totalH + footH
 
   const canvas = document.createElement('canvas')
   canvas.width  = W
@@ -64,7 +71,6 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
   const lw = logoImg.naturalWidth > 0 ? lh * logoImg.naturalWidth / logoImg.naturalHeight : lh
   ctx.drawImage(logoImg, PAD, y + (hdrH - lh) / 2, lw, lh)
 
-  // Texto a la derecha del logo
   const textX = PAD + lw + 20 * S
   ctx.textAlign = 'left'
   ctx.fillStyle = '#ffffff'
@@ -74,18 +80,26 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
   ctx.font = `${13 * S}px -apple-system,system-ui,sans-serif`
   ctx.fillText('Estado de cuenta', textX, y + hdrH / 2 + 12 * S)
 
-  // Línea dorada inferior del header
   ctx.fillStyle = '#f59e0b'
   ctx.fillRect(0, y + hdrH - 3 * S, W, 3 * S)
   y += hdrH
 
-  // ── CLIENT STRIPE ────────────────────────────────────────────────
+  // ── CLIENT STRIPE (nombre + artículos / fecha) ───────────────────
   ctx.fillStyle = '#1e3a5f'
   ctx.fillRect(0, y, W, stripe)
+
+  // Nombre del cliente
   ctx.fillStyle = '#ffffff'
   ctx.font = `bold ${16 * S}px -apple-system,system-ui,sans-serif`
   ctx.textAlign = 'left'
-  ctx.fillText((cliente.nombre || '').toUpperCase(), PAD, y + stripe / 2)
+  ctx.fillText((cliente.nombre || '').toUpperCase(), PAD, y + stripe / 2 - 11 * S)
+
+  // X artículos debajo del nombre
+  ctx.fillStyle = '#93c5fd'
+  ctx.font = `${11 * S}px -apple-system,system-ui,sans-serif`
+  ctx.fillText(totalArticulos + ' artículo' + (totalArticulos !== 1 ? 's' : ''), PAD, y + stripe / 2 + 11 * S)
+
+  // Fecha a la derecha (centrada verticalmente)
   if (grupos.length === 1 && grupos[0].entrega) {
     ctx.fillStyle = '#93c5fd'
     ctx.font = `${12 * S}px -apple-system,system-ui,sans-serif`
@@ -95,16 +109,16 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
   }
   y += stripe + gap
 
-  let totalGeneral = 0
-  let totalPagado  = 0
+  // ── GRUPOS POR ENTREGA ──────────────────────────────────────────
+  const netos = []
 
   for (const g of grupos) {
     const subtotal    = g.pedidos.reduce((s, p) => s + (p.precio_venta || 0), 0)
     const pagadoGrupo = g.pagos.reduce((s, p) => s + (p.monto || 0), 0)
-    totalGeneral += subtotal
-    totalPagado  += pagadoGrupo
+    const neto        = Math.max(0, subtotal - pagadoGrupo)
+    netos.push(neto)
 
-    // Entrega label con borde dorado izquierdo
+    // Label entrega
     ctx.fillStyle = '#f8fafc'
     ctx.fillRect(0, y, W, entLblH)
     ctx.fillStyle = '#f59e0b'
@@ -118,7 +132,7 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
     )
     y += entLblH
 
-    // Header tabla
+    // Header tabla productos
     ctx.fillStyle = '#374151'
     ctx.fillRect(0, y, W, tbHdrH)
     ctx.fillStyle = '#ffffff'
@@ -160,7 +174,7 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
       y += rowH
     })
 
-    // Subtotal amarillo
+    // Subtotal entrega (amarillo)
     ctx.fillStyle = '#fef9c3'
     ctx.fillRect(0, y, W, subH)
     ctx.fillStyle = '#92400e'
@@ -171,45 +185,45 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
     ctx.textAlign = 'right'
     ctx.fillText(fmt(subtotal), W - PAD, y + subH / 2)
     ctx.textAlign = 'left'
-    y += subH + gap
+    y += subH
 
-    // Anticipos
+    // Resumen anticipos (una sola línea, si existen)
     if (g.pagos.length > 0) {
       ctx.fillStyle = '#dcfce7'
       ctx.fillRect(0, y, W, pgHdrH)
       ctx.fillStyle = '#166534'
       ctx.font = `bold ${12 * S}px -apple-system,system-ui,sans-serif`
       ctx.textAlign = 'left'
-      ctx.fillText('✓ Anticipos aplicados', PAD, y + pgHdrH / 2)
+      ctx.fillText('✓ Anticipos aplicados:', PAD, y + pgHdrH / 2)
       ctx.textAlign = 'right'
-      ctx.fillText(fmt(pagadoGrupo), W - PAD, y + pgHdrH / 2)
+      ctx.fillText('−' + fmt(pagadoGrupo), W - PAD, y + pgHdrH / 2)
       ctx.textAlign = 'left'
       y += pgHdrH
-
-      g.pagos.forEach((p) => {
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, y, W, pgRowH)
-        ctx.fillStyle = '#f3f4f6'
-        ctx.fillRect(0, y + pgRowH - 1, W, 1)
-        ctx.fillStyle = '#374151'
-        ctx.font = `${11 * S}px -apple-system,system-ui,sans-serif`
-        ctx.textAlign = 'left'
-        ctx.fillText(fmtFechaCorta(p.creado_en), PAD, y + pgRowH / 2)
-        ctx.textAlign = 'center'
-        ctx.fillText(p.metodo || p.tipo || '', W / 2, y + pgRowH / 2)
-        ctx.fillStyle = '#15803d'
-        ctx.font = `bold ${12 * S}px -apple-system,system-ui,sans-serif`
-        ctx.textAlign = 'right'
-        ctx.fillText(fmt(p.monto), W - PAD, y + pgRowH / 2)
-        ctx.textAlign = 'left'
-        y += pgRowH
-      })
-      y += gap
     }
+
+    // Neto de esta entrega (azul)
+    ctx.fillStyle = '#e0f2fe'
+    ctx.fillRect(0, y, W, netoH)
+    ctx.fillStyle = '#0ea5e9'
+    ctx.fillRect(0, y, 4 * S, netoH)
+    ctx.fillStyle = '#0c4a6e'
+    ctx.font = `bold ${12 * S}px -apple-system,system-ui,sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText('Neto entrega:', PAD + 6 * S, y + netoH / 2)
+    ctx.font = `bold ${15 * S}px -apple-system,system-ui,sans-serif`
+    ctx.textAlign = 'right'
+    ctx.fillText(fmt(neto), W - PAD, y + netoH / 2)
+    ctx.textAlign = 'left'
+    y += netoH + gap
   }
 
-  // ── TOTAL A PAGAR ────────────────────────────────────────────────
-  const saldo = Math.max(0, totalGeneral - totalPagado)
+  // ── SEPARADOR ────────────────────────────────────────────────────
+  ctx.fillStyle = '#374151'
+  ctx.fillRect(0, y, W, sepH)
+  y += sepH
+
+  // ── TOTAL A PAGAR (suma de todos los netos) ──────────────────────
+  const totalFinal = netos.reduce((s, n) => s + n, 0)
   ctx.fillStyle = '#111827'
   ctx.fillRect(0, y, W, totalH)
   ctx.fillStyle = '#9ca3af'
@@ -219,7 +233,7 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
   ctx.fillStyle = '#f59e0b'
   ctx.font = `bold ${32 * S}px -apple-system,system-ui,sans-serif`
   ctx.textAlign = 'right'
-  ctx.fillText(fmt(saldo), W - PAD, y + totalH / 2 + 10 * S)
+  ctx.fillText(fmt(totalFinal), W - PAD, y + totalH / 2 + 10 * S)
   ctx.textAlign = 'left'
   y += totalH
 

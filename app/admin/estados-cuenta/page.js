@@ -232,7 +232,7 @@ export default function EstadosCuenta() {
   const [indice, setIndice] = useState(0)
   const [cargando, setCargando] = useState(false)
   const [copiado, setCopiado] = useState(false)
-  const [errorClip, setErrorClip] = useState(false)
+  const [imagenURL, setImagenURL] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -345,7 +345,10 @@ export default function EstadosCuenta() {
   }
 
   useEffect(() => {
-    if (datos.length > 0 && datos[indice]) copiarAlPortapapeles(datos[indice])
+    if (datos.length > 0 && datos[indice]) {
+      setImagenURL(null)
+      dibujarEstadoCuenta(datos[indice]).then(canvas => setImagenURL(canvas.toDataURL('image/png')))
+    }
   }, [indice, datos])
 
   const siguiente = () => { if (indice < datos.length - 1) setIndice(i => i + 1) }
@@ -365,7 +368,7 @@ export default function EstadosCuenta() {
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>📋 Estados de cuenta</div>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4 }}>Genera y comparte por WhatsApp — la imagen se copia sola al portapapeles</div>
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4 }}>Genera y comparte por WhatsApp — copia la imagen y pégala en el chat</div>
         </div>
 
         {/* Mode tabs */}
@@ -457,9 +460,7 @@ export default function EstadosCuenta() {
                     <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 3 }}>📱 {clienteActual.cliente.telefono}</div>
                   )}
                 </div>
-                <div style={{ padding: '5px 12px', borderRadius: 8, background: copiado ? 'rgba(74,222,128,0.1)' : errorClip ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.05)', border: `1px solid ${copiado ? 'rgba(74,222,128,0.2)' : errorClip ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.08)'}`, color: copiado ? '#4ade80' : errorClip ? '#f87171' : 'rgba(255,255,255,0.3)', fontSize: 11, transition: 'all 0.3s' }}>
-                  {copiado ? '✓ Imagen copiada' : errorClip ? '⚠ Requiere permiso' : '📋 Auto-copiando...'}
-                </div>
+
               </div>
 
               {clienteActual.grupos.map((g, gi) => {
@@ -501,27 +502,39 @@ export default function EstadosCuenta() {
               })()}
             </div>
 
-            {/* Action buttons */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-              <button onClick={() => copiarAlPortapapeles(clienteActual)}
-                style={{ padding: '11px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                📋 Copiar imagen
+            {/* Imagen del estado de cuenta */}
+            {imagenURL && (
+              <div style={{ marginBottom: 14, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <img src={imagenURL} alt="Estado de cuenta" style={{ width: '100%', display: 'block' }} />
+              </div>
+            )}
+            {!imagenURL && (
+              <div style={{ marginBottom: 14, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>
+                Generando imagen...
+              </div>
+            )}
+
+            {/* Botones principales */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+              <button onClick={() => copiarAlPortapapeles(clienteActual)} disabled={!imagenURL}
+                style={{ flex: 2, padding: '14px', borderRadius: 12, background: copiado ? 'rgba(74,222,128,0.15)' : 'rgba(99,102,241,0.2)', border: `1px solid ${copiado ? 'rgba(74,222,128,0.35)' : 'rgba(99,102,241,0.4)'}`, color: copiado ? '#4ade80' : '#818cf8', fontSize: 15, fontWeight: 700, cursor: imagenURL ? 'pointer' : 'default', opacity: imagenURL ? 1 : 0.4, transition: 'all 0.25s', letterSpacing: 0.3 }}>
+                {copiado ? '✅ ¡Copiada!' : '📋 Copiar imagen'}
               </button>
               {clienteActual.cliente.telefono ? (
                 <a href={`https://wa.me/${clienteActual.cliente.telefono.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-                  style={{ padding: '11px', borderRadius: 10, background: 'rgba(37,211,102,0.09)', border: '1px solid rgba(37,211,102,0.2)', color: '#4ade80', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center', textDecoration: 'none', display: 'block' }}>
-                  📱 Abrir WhatsApp
+                  style={{ flex: 1, padding: '14px', borderRadius: 12, background: 'rgba(37,211,102,0.12)', border: '1px solid rgba(37,211,102,0.3)', color: '#4ade80', fontSize: 15, fontWeight: 700, cursor: 'pointer', textAlign: 'center', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  📱 WhatsApp
                 </a>
               ) : (
-                <div style={{ padding: '11px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.2)', fontSize: 13, textAlign: 'center' }}>
-                  Sin teléfono
+                <div style={{ flex: 1, padding: '14px', borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.18)', fontSize: 13, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  Sin tel.
                 </div>
               )}
-              <button onClick={siguiente} disabled={indice >= datos.length - 1}
-                style={{ padding: '11px', borderRadius: 10, background: indice < datos.length - 1 ? 'rgba(99,102,241,0.14)' : 'rgba(255,255,255,0.02)', border: `1px solid ${indice < datos.length - 1 ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)'}`, color: indice < datos.length - 1 ? '#818cf8' : 'rgba(255,255,255,0.18)', fontSize: 13, fontWeight: 600, cursor: indice < datos.length - 1 ? 'pointer' : 'default' }}>
-                Siguiente →
-              </button>
             </div>
+            <button onClick={siguiente} disabled={indice >= datos.length - 1}
+              style={{ width: '100%', padding: '12px', borderRadius: 12, background: indice < datos.length - 1 ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${indice < datos.length - 1 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)'}`, color: indice < datos.length - 1 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.15)', fontSize: 14, fontWeight: 600, cursor: indice < datos.length - 1 ? 'pointer' : 'default' }}>
+              Siguiente cliente → ({indice + 1} / {datos.length})
+            </button>
           </>
         )}
 

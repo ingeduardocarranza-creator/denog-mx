@@ -19,21 +19,32 @@ const fmtFechaCorta = (f) => {
 }
 
 async function dibujarEstadoCuenta({ cliente, grupos }) {
-  const W = 800, PAD = 24
-  const hdrH = 90, stripeH = 48, gap = 8
-  const entLblH = 36, tbHdrH = 32, rowH = 30, subH = 36
-  const pgHdrH = 32, pgTbH = 28, pgRowH = 28
-  const totalH = 58, footH = 44
+  const S   = 2          // escala 2x — canvas interno 1200px, se muestra a 600px
+  const W   = 600 * S    // 1200px
+  const PAD = 25 * S
 
-  let height = hdrH + stripeH + gap
+  // Alturas en puntos lógicos × S
+  const hdrH   = 120 * S
+  const stripe = 60  * S
+  const gap    = 8   * S
+  const entLblH = 40 * S
+  const tbHdrH  = 34 * S
+  const rowH    = 38 * S
+  const subH    = 46 * S
+  const pgHdrH  = 38 * S
+  const pgRowH  = 34 * S
+  const totalH  = 90 * S
+  const footH   = 50 * S
+
+  let height = hdrH + stripe + gap
   for (const g of grupos) {
-    height += entLblH + tbHdrH + (g.pedidos.length * rowH) + subH + gap
-    if (g.pagos.length > 0) height += pgHdrH + pgTbH + (g.pagos.length * pgRowH) + gap
+    height += entLblH + tbHdrH + g.pedidos.length * rowH + subH + gap
+    if (g.pagos.length > 0) height += pgHdrH + g.pagos.length * pgRowH + gap
   }
   height += totalH + footH
 
   const canvas = document.createElement('canvas')
-  canvas.width = W
+  canvas.width  = W
   canvas.height = height
   const ctx = canvas.getContext('2d')
   ctx.textBaseline = 'middle'
@@ -49,145 +60,146 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
   const logoImg = new Image()
   logoImg.src = LOGO
   await new Promise(r => { logoImg.onload = r; logoImg.onerror = r })
-  const lh = 62
+  const lh = 70 * S
   const lw = logoImg.naturalWidth > 0 ? lh * logoImg.naturalWidth / logoImg.naturalHeight : lh
   ctx.drawImage(logoImg, PAD, y + (hdrH - lh) / 2, lw, lh)
 
-  ctx.textAlign = 'center'
-  ctx.fillStyle = '#ffffff'
-  ctx.font = 'bold 17px -apple-system,system-ui,sans-serif'
-  ctx.fillText('DENOG USA COMPRAS', W / 2, y + hdrH / 2 - 11)
-  ctx.fillStyle = '#9ca3af'
-  ctx.font = '12px -apple-system,system-ui,sans-serif'
-  ctx.fillText('Estado de cuenta', W / 2, y + hdrH / 2 + 11)
+  // Texto a la derecha del logo
+  const textX = PAD + lw + 20 * S
   ctx.textAlign = 'left'
+  ctx.fillStyle = '#ffffff'
+  ctx.font = `bold ${20 * S}px -apple-system,system-ui,sans-serif`
+  ctx.fillText('Denog USA Compras', textX, y + hdrH / 2 - 14 * S)
+  ctx.fillStyle = '#9ca3af'
+  ctx.font = `${13 * S}px -apple-system,system-ui,sans-serif`
+  ctx.fillText('Estado de cuenta', textX, y + hdrH / 2 + 12 * S)
+
+  // Línea dorada inferior del header
+  ctx.fillStyle = '#f59e0b'
+  ctx.fillRect(0, y + hdrH - 3 * S, W, 3 * S)
   y += hdrH
 
   // ── CLIENT STRIPE ────────────────────────────────────────────────
   ctx.fillStyle = '#1e3a5f'
-  ctx.fillRect(0, y, W, stripeH)
+  ctx.fillRect(0, y, W, stripe)
   ctx.fillStyle = '#ffffff'
-  ctx.font = 'bold 13px -apple-system,system-ui,sans-serif'
-  ctx.fillText('CLIENTE: ' + (cliente.nombre || '').toUpperCase(), PAD, y + stripeH / 2)
+  ctx.font = `bold ${16 * S}px -apple-system,system-ui,sans-serif`
+  ctx.textAlign = 'left'
+  ctx.fillText((cliente.nombre || '').toUpperCase(), PAD, y + stripe / 2)
   if (grupos.length === 1 && grupos[0].entrega) {
+    ctx.fillStyle = '#93c5fd'
+    ctx.font = `${12 * S}px -apple-system,system-ui,sans-serif`
     ctx.textAlign = 'right'
-    ctx.fillText('ENTREGA: ' + fmtFecha(grupos[0].entrega.fecha_entrega), W - PAD, y + stripeH / 2)
+    ctx.fillText(fmtFecha(grupos[0].entrega.fecha_entrega), W - PAD, y + stripe / 2)
     ctx.textAlign = 'left'
   }
-  y += stripeH + gap
+  y += stripe + gap
 
   let totalGeneral = 0
-  let totalPagado = 0
+  let totalPagado  = 0
 
   for (const g of grupos) {
-    const subtotal = g.pedidos.reduce((s, p) => s + (p.precio_venta || 0), 0)
+    const subtotal    = g.pedidos.reduce((s, p) => s + (p.precio_venta || 0), 0)
     const pagadoGrupo = g.pagos.reduce((s, p) => s + (p.monto || 0), 0)
     totalGeneral += subtotal
-    totalPagado += pagadoGrupo
+    totalPagado  += pagadoGrupo
 
-    // Entrega label
-    ctx.fillStyle = '#f3f4f6'
+    // Entrega label con borde dorado izquierdo
+    ctx.fillStyle = '#f8fafc'
     ctx.fillRect(0, y, W, entLblH)
-    ctx.fillStyle = '#3b82f6'
-    ctx.fillRect(0, y, 4, entLblH)
-    ctx.fillStyle = '#1f2937'
-    ctx.font = 'bold 12px -apple-system,system-ui,sans-serif'
+    ctx.fillStyle = '#f59e0b'
+    ctx.fillRect(0, y, 4 * S, entLblH)
+    ctx.fillStyle = '#374151'
+    ctx.font = `bold ${12 * S}px -apple-system,system-ui,sans-serif`
+    ctx.textAlign = 'left'
     ctx.fillText(
-      g.entrega ? 'ENTREGA ' + fmtFecha(g.entrega.fecha_entrega) : 'PEDIDOS PENDIENTES',
-      PAD + 8, y + entLblH / 2
+      g.entrega ? '📦 ENTREGA: ' + fmtFecha(g.entrega.fecha_entrega) : '📦 PEDIDOS PENDIENTES',
+      PAD + 6 * S, y + entLblH / 2
     )
     y += entLblH
 
-    // Table header
+    // Header tabla
     ctx.fillStyle = '#374151'
     ctx.fillRect(0, y, W, tbHdrH)
-    ctx.fillStyle = '#d1d5db'
-    ctx.font = 'bold 10px -apple-system,system-ui,sans-serif'
+    ctx.fillStyle = '#ffffff'
+    ctx.font = `bold ${11 * S}px -apple-system,system-ui,sans-serif`
+    ctx.textAlign = 'left'
     ctx.fillText('PRODUCTO', PAD, y + tbHdrH / 2)
     ctx.textAlign = 'center'
-    ctx.fillText('CANT.', W - 230, y + tbHdrH / 2)
+    ctx.fillText('CANT', W - 200 * S, y + tbHdrH / 2)
     ctx.textAlign = 'right'
     ctx.fillText('PRECIO', W - PAD, y + tbHdrH / 2)
     ctx.textAlign = 'left'
     y += tbHdrH
 
-    // Product rows
+    // Filas de productos
     g.pedidos.forEach((p, i) => {
       ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f9fafb'
       ctx.fillRect(0, y, W, rowH)
       ctx.fillStyle = '#f3f4f6'
       ctx.fillRect(0, y + rowH - 1, W, 1)
 
-      ctx.font = '12px -apple-system,system-ui,sans-serif'
-      const maxW = W - PAD * 2 - 185
+      ctx.font = `${13 * S}px -apple-system,system-ui,sans-serif`
+      const maxW = W - PAD * 2 - 220 * S
       let desc = p.descripcion || ''
       while (desc.length > 5 && ctx.measureText(desc).width > maxW) desc = desc.slice(0, -1)
       if (desc !== (p.descripcion || '')) desc += '…'
       ctx.fillStyle = '#111827'
+      ctx.textAlign = 'left'
       ctx.fillText(desc, PAD, y + rowH / 2)
 
-      ctx.textAlign = 'center'
       ctx.fillStyle = '#6b7280'
-      ctx.fillText(String(p.cantidad || 1), W - 230, y + rowH / 2)
+      ctx.textAlign = 'center'
+      ctx.fillText(String(p.cantidad || 1), W - 200 * S, y + rowH / 2)
 
+      ctx.fillStyle = '#111827'
+      ctx.font = `bold ${13 * S}px -apple-system,system-ui,sans-serif`
       ctx.textAlign = 'right'
-      ctx.fillStyle = '#1f2937'
-      ctx.font = 'bold 12px -apple-system,system-ui,sans-serif'
       ctx.fillText(fmt(p.precio_venta), W - PAD, y + rowH / 2)
       ctx.textAlign = 'left'
       y += rowH
     })
 
-    // Subtotal
-    ctx.fillStyle = '#eff6ff'
+    // Subtotal amarillo
+    ctx.fillStyle = '#fef9c3'
     ctx.fillRect(0, y, W, subH)
-    ctx.fillStyle = '#1d4ed8'
-    ctx.font = 'bold 12px -apple-system,system-ui,sans-serif'
-    ctx.fillText('Subtotal', PAD, y + subH / 2)
+    ctx.fillStyle = '#92400e'
+    ctx.font = `bold ${12 * S}px -apple-system,system-ui,sans-serif`
+    ctx.textAlign = 'left'
+    ctx.fillText('Subtotal:', PAD, y + subH / 2)
+    ctx.font = `bold ${15 * S}px -apple-system,system-ui,sans-serif`
     ctx.textAlign = 'right'
-    ctx.font = 'bold 14px -apple-system,system-ui,sans-serif'
     ctx.fillText(fmt(subtotal), W - PAD, y + subH / 2)
     ctx.textAlign = 'left'
     y += subH + gap
 
-    // Pagos / Anticipos
+    // Anticipos
     if (g.pagos.length > 0) {
-      ctx.fillStyle = '#f0fdf4'
+      ctx.fillStyle = '#dcfce7'
       ctx.fillRect(0, y, W, pgHdrH)
-      ctx.fillStyle = '#16a34a'
-      ctx.fillRect(0, y, 4, pgHdrH)
       ctx.fillStyle = '#166534'
-      ctx.font = 'bold 12px -apple-system,system-ui,sans-serif'
-      ctx.fillText('Anticipos / Pagos registrados', PAD + 8, y + pgHdrH / 2)
+      ctx.font = `bold ${12 * S}px -apple-system,system-ui,sans-serif`
+      ctx.textAlign = 'left'
+      ctx.fillText('✓ Anticipos aplicados', PAD, y + pgHdrH / 2)
       ctx.textAlign = 'right'
-      ctx.fillStyle = '#15803d'
       ctx.fillText(fmt(pagadoGrupo), W - PAD, y + pgHdrH / 2)
       ctx.textAlign = 'left'
       y += pgHdrH
 
-      ctx.fillStyle = '#dcfce7'
-      ctx.fillRect(0, y, W, pgTbH)
-      ctx.fillStyle = '#166534'
-      ctx.font = 'bold 10px -apple-system,system-ui,sans-serif'
-      ctx.fillText('FECHA', PAD, y + pgTbH / 2)
-      ctx.textAlign = 'center'
-      ctx.fillText('MÉTODO', W / 2, y + pgTbH / 2)
-      ctx.textAlign = 'right'
-      ctx.fillText('MONTO', W - PAD, y + pgTbH / 2)
-      ctx.textAlign = 'left'
-      y += pgTbH
-
-      g.pagos.forEach((p, i) => {
-        ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f0fdf4'
+      g.pagos.forEach((p) => {
+        ctx.fillStyle = '#ffffff'
         ctx.fillRect(0, y, W, pgRowH)
+        ctx.fillStyle = '#f3f4f6'
+        ctx.fillRect(0, y + pgRowH - 1, W, 1)
         ctx.fillStyle = '#374151'
-        ctx.font = '11px -apple-system,system-ui,sans-serif'
+        ctx.font = `${11 * S}px -apple-system,system-ui,sans-serif`
+        ctx.textAlign = 'left'
         ctx.fillText(fmtFechaCorta(p.creado_en), PAD, y + pgRowH / 2)
         ctx.textAlign = 'center'
         ctx.fillText(p.metodo || p.tipo || '', W / 2, y + pgRowH / 2)
-        ctx.textAlign = 'right'
         ctx.fillStyle = '#15803d'
-        ctx.font = 'bold 12px -apple-system,system-ui,sans-serif'
+        ctx.font = `bold ${12 * S}px -apple-system,system-ui,sans-serif`
+        ctx.textAlign = 'right'
         ctx.fillText(fmt(p.monto), W - PAD, y + pgRowH / 2)
         ctx.textAlign = 'left'
         y += pgRowH
@@ -198,28 +210,30 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
 
   // ── TOTAL A PAGAR ────────────────────────────────────────────────
   const saldo = Math.max(0, totalGeneral - totalPagado)
-  ctx.fillStyle = '#fee2e2'
+  ctx.fillStyle = '#111827'
   ctx.fillRect(0, y, W, totalH)
-  ctx.fillStyle = '#991b1b'
-  ctx.font = 'bold 14px -apple-system,system-ui,sans-serif'
-  ctx.fillText('TOTAL A PAGAR', PAD, y + totalH / 2)
+  ctx.fillStyle = '#9ca3af'
+  ctx.font = `${14 * S}px -apple-system,system-ui,sans-serif`
+  ctx.textAlign = 'left'
+  ctx.fillText('TOTAL A PAGAR', PAD, y + totalH / 2 - 18 * S)
+  ctx.fillStyle = '#f59e0b'
+  ctx.font = `bold ${32 * S}px -apple-system,system-ui,sans-serif`
   ctx.textAlign = 'right'
-  ctx.fillStyle = '#7f1d1d'
-  ctx.font = 'bold 28px -apple-system,system-ui,sans-serif'
-  ctx.fillText(fmt(saldo), W - PAD, y + totalH / 2)
+  ctx.fillText(fmt(saldo), W - PAD, y + totalH / 2 + 10 * S)
   ctx.textAlign = 'left'
   y += totalH
 
   // ── FOOTER ───────────────────────────────────────────────────────
-  ctx.fillStyle = '#111827'
+  ctx.fillStyle = '#1f2937'
   ctx.fillRect(0, y, W, footH)
   ctx.fillStyle = '#6b7280'
-  ctx.font = '12px -apple-system,system-ui,sans-serif'
+  ctx.font = `${12 * S}px -apple-system,system-ui,sans-serif`
   ctx.textAlign = 'center'
   ctx.fillText('¡Gracias por tu Happy Shopping! 📦  ·  denog.mx', W / 2, y + footH / 2)
 
   return canvas
 }
+
 
 export default function EstadosCuenta() {
   const [modo, setModo] = useState('entrega')

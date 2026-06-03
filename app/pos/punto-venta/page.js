@@ -35,6 +35,11 @@ export default function PuntoDeVenta() {
   const [vendedores, setVendedores] = useState([])
 
   const [modo, setModo] = useState('modo1');
+  const [domicilios, setDomicilios] = useState([])
+  const [cargandoDomicilios, setCargandoDomicilios] = useState(false)
+  const [cobrandoDomicilio, setCobrandoDomicilio] = useState(null)
+  const [pagoDomicilio, setPagoDomicilio] = useState({ metodo1: 'Efectivo', monto1: '', metodo2: 'Transferencia', mostrar2: false })
+  const [domiciliosBadge, setDomiciliosBadge] = useState(0)
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
   const [ticketListo, setTicketListo] = useState(null);
@@ -75,6 +80,14 @@ export default function PuntoDeVenta() {
     if (turnoEstado === 'activo') {
       verificarRetiroPendiente()
       const intervalo = setInterval(verificarRetiroPendiente, 10000)
+      return () => clearInterval(intervalo)
+    }
+  }, [turnoEstado])
+
+  useEffect(() => {
+    if (turnoEstado === 'activo') {
+      cargarDomicilios()
+      const intervalo = setInterval(cargarDomicilios, 60000)
       return () => clearInterval(intervalo)
     }
   }, [turnoEstado])
@@ -131,6 +144,102 @@ export default function PuntoDeVenta() {
     })
     setConfirmandoRetiro(false)
     setRetiroPendiente(null)
+  }
+
+  const cargarDomicilios = async () => {
+    setCargandoDomicilios(true)
+    const hoy = new Date().toISOString().split('T')[0]
+    const res = await fetch(`/api/domicilios/listar?fecha=${hoy}`)
+    const data = await res.json()
+    if (data.ok) {
+      setDomicilios(data.domicilios)
+      setDomiciliosBadge(data.domicilios.filter(d => ['pendiente', 'confirmado', 'en_camino'].includes(d.estado)).length)
+    }
+    setCargandoDomicilios(false)
+  }
+
+  const confirmarCostoDomicilio = async (d, costo_envio) => {
+    await fetch('/api/domicilios/actualizar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: d.id, estado: 'confirmado', costo_envio, total: (d.subtotal || 0) + costo_envio })
+    })
+    cargarDomicilios()
+  }
+
+  const cambiarEstadoDomicilio = async (id, estado) => {
+    await fetch('/api/domicilios/actualizar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, estado })
+    })
+    cargarDomicilios()
+  }
+
+  const cancelarDomicilio = async (id) => {
+    if (!confirm('¿Estás seguro de que quieres cancelar este domicilio?')) return
+    await fetch('/api/domicilios/actualizar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, estado: 'cancelado' })
+    })
+    cargarDomicilios()
+  }
+
+  const getTotalAnticiposDom = (d) => (d.anticipos_detalle || []).reduce((s, a) => s + (a.monto || 0), 0)
+  const getTotalAPagarDom   = (d) => Math.max(0, (d.total || 0) - getTotalAnticiposDom(d))
+  const fmtDom = (n) => `$${(n || 0).toLocaleString('es-MX')}`
+  const fmtFechaDom = (f) => {
+    if (!f) return ''
+    const meses = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
+    const d = new Date(f + 'T12:00:00')
+    return `${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`
+  }
+  const fmtFechaShortDom = (f) => {
+    if (!f) return ''
+    const d = new Date(f)
+    return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
+  }
+
+  const registrarPagoDomicilio = async (d) => {
+    const totalAPagar = getTotalAPagarDom(d)
+    const monto1 = parseFloat(pagoDomicilio.monto1) || 0
+    const monto2 = pagoDomicilio.mostrar2 ? totalAPagar - monto1 : 0
+    if (monto1 <= 0) return
+
+    const totalPago = monto1 + monto2
+    let restante = totalPago
+    for (let i = 0; i < (d.entrega_ids || []).length; i++) {
+      const entrega_id = d.entrega_ids[i]
+      const prodsEnt = (d.productos_detalle || []).filter(p => p.entrega_id === entrega_id)
+      const antEnt   = (d.anticipos_detalle || []).filter(a => a.entrega_id === entrega_id)
+      const subEnt   = prodsEnt.reduce((s, p) => s + (p.precio_venta || 0), 0)
+      const antSumEnt = antEnt.reduce((s, a) => s + (a.monto || 0), 0)
+      let porPagar = Math.max(0, subEnt - antSumEnt)
+      if (i === 0) porPagar += (d.costo_envio || 0)
+      const aplicar = Math.min(restante, porPagar)
+      restante -= aplicar
+      if (aplicar <= 0) continue
+      const prop = totalPago > 0 ? monto1 / totalPago : 1
+      const m1 = Math.round(aplicar * prop)
+      const m2 = aplicar - m1
+      if (m1 > 0) await fetch('/api/punto-venta/pagar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: d.cliente_id, entrega_id, vendedor_id: colaborador?.id, pagos: [{ monto: m1, metodo: pagoDomicilio.metodo1 }] })
+      })
+      if (pagoDomicilio.mostrar2 && m2 > 0) await fetch('/api/punto-venta/pagar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: d.cliente_id, entrega_id, vendedor_id: colaborador?.id, pagos: [{ monto: m2, metodo: pagoDomicilio.metodo2 }] })
+      })
+      await fetch('/api/pedidos/actualizar-estado', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: d.cliente_id, entrega_id, estado: 'Entregado' })
+      })
+    }
+    await fetch('/api/domicilios/actualizar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: d.id, estado: 'entregado' })
+    })
+    setCobrandoDomicilio(null)
+    setPagoDomicilio({ metodo1: 'Efectivo', monto1: '', metodo2: 'Transferencia', mostrar2: false })
+    cargarDomicilios()
   }
 
   const getDiaSemana = () => {
@@ -502,9 +611,13 @@ export default function PuntoDeVenta() {
                 </h1>
               </div>
             </div>
-            <div className="grid grid-cols-2 bg-gray-900 p-1 rounded-xl border border-gray-800 w-full sm:w-80 h-fit">
+            <div className="grid grid-cols-3 bg-gray-900 p-1 rounded-xl border border-gray-800 w-full sm:w-96 h-fit">
               <button type="button" onClick={() => cambiarDeModoLimpiandoTodo('modo1')} className={`py-2 text-xs font-bold rounded-lg transition-all ${modo === 'modo1' ? 'bg-gray-800 text-white' : 'text-gray-400'}`}>📦 Encargos</button>
               <button type="button" onClick={() => cambiarDeModoLimpiandoTodo('modo2')} className={`py-2 text-xs font-bold rounded-lg transition-all ${modo === 'modo2' ? 'bg-gray-800 text-white' : 'text-gray-400'}`}>⚡ Tienda</button>
+              <button type="button" onClick={() => cambiarDeModoLimpiandoTodo('modo3')} className={`py-2 text-xs font-bold rounded-lg transition-all relative ${modo === 'modo3' ? 'bg-gray-800 text-white' : 'text-gray-400'}`}>
+                🚚 Dom.
+                {domiciliosBadge > 0 && <span style={{ position: 'absolute', top: 3, right: 5, background: '#ef4444', color: 'white', fontSize: 8, fontWeight: 700, borderRadius: '50%', width: 14, height: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{domiciliosBadge}</span>}
+              </button>
             </div>
           </div>
 
@@ -696,6 +809,185 @@ export default function PuntoDeVenta() {
               <button type="button" onClick={procesarCobroFinal} disabled={loading || (modo === 'modo1' && !clienteSeleccionado) || (modo === 'modo2' && carritoTienda.length === 0) || cobroIncompleto || cobroExcedido} className={`w-full font-bold text-xs py-3.5 rounded-xl uppercase tracking-widest transition-all ${cobroIncompleto ? 'bg-red-900/40 text-red-400 border border-red-800 cursor-not-allowed' : cobroExcedido ? 'bg-amber-950/40 text-amber-400 border border-amber-900 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'}`}>
                 {loading ? 'Procesando...' : cobroIncompleto ? `⚠️ Importe Incompleto (Falta $${saldoDiferenciaCaja.toFixed(0)})` : cobroExcedido ? `⚠️ Importe Excedido (Sobra $${Math.abs(saldoDiferenciaCaja).toFixed(0)})` : '✓ Registrar pago'}
               </button>
+
+            {/* ─── MODO 3: DOMICILIOS ─────────────────────────────── */}
+            {modo === 'modo3' && (
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div style={{ color: 'white', fontSize: 14, fontWeight: 700 }}>🚚 Domicilios del día</div>
+                  <button onClick={cargarDomicilios} style={{ padding: '4px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer' }}>↻ Actualizar</button>
+                </div>
+
+                {cargandoDomicilios ? (
+                  <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: 32, fontSize: 13 }}>Cargando...</div>
+                ) : domicilios.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: 32, fontSize: 13 }}>No hay domicilios para hoy</div>
+                ) : (
+                  domicilios.map(d => {
+                    const colorBorde = d.estado === 'cancelado' ? 'rgba(248,113,113,0.15)' : d.estado === 'entregado' ? 'rgba(74,222,128,0.15)' : d.estado === 'en_camino' ? 'rgba(251,191,36,0.15)' : d.estado === 'confirmado' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)'
+                    const colorEstado = d.estado === 'cancelado' ? '#f87171' : d.estado === 'entregado' ? '#4ade80' : d.estado === 'en_camino' ? '#fbbf24' : d.estado === 'confirmado' ? '#10b981' : '#f59e0b'
+                    const etiquetaEstado = d.estado === 'cancelado' ? '❌ Cancelado' : d.estado === 'entregado' ? '✅ Entregado' : d.estado === 'en_camino' ? '🚚 En camino' : d.estado === 'confirmado' ? '✅ Confirmado' : '⏳ Por confirmar'
+                    const totalAPagar = getTotalAPagarDom(d)
+                    const cobrando = cobrandoDomicilio === d.id
+
+                    return (
+                      <div key={d.id} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${colorBorde}`, borderRadius: 14, padding: 14, marginBottom: 10, opacity: d.estado === 'cancelado' ? 0.5 : 1 }}>
+
+                        {/* Info principal */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                          <div>
+                            <div style={{ color: 'white', fontSize: 13, fontWeight: 600 }}>{d.clientes?.nombre}</div>
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>📍 {d.direccion}, Col. {d.colonia}</div>
+                            {d.referencias && <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>📝 {d.referencias}</div>}
+                            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>📱 {d.celular_contacto} · 📅 {fmtFechaDom(d.fecha_preferida)} {d.horario}</div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
+                            <div style={{ color: colorEstado, fontSize: 11, fontWeight: 600, marginBottom: 4 }}>{etiquetaEstado}</div>
+                            {d.costo_envio > 0 && <div style={{ color: '#f59e0b', fontSize: 11 }}>{fmtDom(d.costo_envio)} envío</div>}
+                            {d.total > 0 && <div style={{ color: 'white', fontSize: 14, fontWeight: 800 }}>{fmtDom(totalAPagar)}</div>}
+                          </div>
+                        </div>
+
+                        {/* Pendiente: elegir costo envío */}
+                        {d.estado === 'pendiente' && (
+                          <div>
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Elige el costo de envío</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                              {[{ monto: 50, label: 'Zona corta · 0-5 km', color: '#10b981', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.2)' },
+                                { monto: 70, label: 'Zona larga · 5.1+ km', color: '#818cf8', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.2)' }].map(op => (
+                                <button key={op.monto} onClick={() => confirmarCostoDomicilio(d, op.monto)}
+                                  style={{ background: op.bg, border: `1px solid ${op.border}`, borderRadius: 10, padding: 12, cursor: 'pointer' }}>
+                                  <div style={{ color: op.color, fontSize: 20, fontWeight: 800 }}>${op.monto}</div>
+                                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>{op.label}</div>
+                                </button>
+                              ))}
+                            </div>
+                            <button onClick={() => cancelarDomicilio(d.id)}
+                              style={{ width: '100%', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 8, padding: '7px', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>
+                              ❌ Cancelar domicilio
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Confirmado: marcar en camino */}
+                        {d.estado === 'confirmado' && (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => cambiarEstadoDomicilio(d.id, 'en_camino')}
+                              style={{ flex: 1, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '8px', color: '#fbbf24', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                              🚚 Marcar en camino
+                            </button>
+                            <button onClick={() => cancelarDomicilio(d.id)}
+                              style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 8, padding: '8px 12px', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>
+                              ❌ Cancelar
+                            </button>
+                          </div>
+                        )}
+
+                        {/* En camino: registrar cobro */}
+                        {d.estado === 'en_camino' && !cobrando && (
+                          turnoEstado === 'activo' ? (
+                            <button onClick={() => { setCobrandoDomicilio(d.id); setPagoDomicilio({ metodo1: 'Efectivo', monto1: String(totalAPagar), metodo2: 'Transferencia', mostrar2: false }) }}
+                              style={{ width: '100%', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '10px', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                              💳 Registrar cobro y marcar entregado
+                            </button>
+                          ) : (
+                            <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 11, padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+                              🔒 Abre tu turno para cobrar
+                            </div>
+                          )
+                        )}
+
+                        {/* Panel de cobro */}
+                        {cobrando && (
+                          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: 14, marginTop: 4 }}>
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Registrar cobro</div>
+
+                            {/* Desglose por entrega */}
+                            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: 10, marginBottom: 12 }}>
+                              {(d.entrega_ids || []).map((entrega_id, idx) => {
+                                const prodsEnt = (d.productos_detalle || []).filter(p => p.entrega_id === entrega_id)
+                                const antEnt   = (d.anticipos_detalle || []).filter(a => a.entrega_id === entrega_id)
+                                const subEnt   = prodsEnt.reduce((s, p) => s + (p.precio_venta || 0), 0)
+                                const antSumEnt = antEnt.reduce((s, a) => s + (a.monto || 0), 0)
+                                const porPagar = Math.max(0, subEnt - antSumEnt) + (idx === 0 ? (d.costo_envio || 0) : 0)
+                                return (
+                                  <div key={entrega_id} style={{ marginBottom: idx < d.entrega_ids.length - 1 ? 10 : 0, paddingBottom: idx < d.entrega_ids.length - 1 ? 10 : 0, borderBottom: idx < d.entrega_ids.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+                                    <div style={{ color: '#10b981', fontSize: 10, fontWeight: 600, marginBottom: 4 }}>📦 ENTREGA {entrega_id}</div>
+                                    {prodsEnt.map((p, i) => (
+                                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                                        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>• {p.descripcion}</span>
+                                        <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10 }}>{fmtDom(p.precio_venta)}</span>
+                                      </div>
+                                    ))}
+                                    {idx === 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: 'rgba(245,158,11,0.7)', fontSize: 10 }}>🚚 Envío</span><span style={{ color: '#f59e0b', fontSize: 10 }}>{fmtDom(d.costo_envio)}</span></div>}
+                                    {antEnt.map((a, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: 'rgba(16,185,129,0.7)', fontSize: 10 }}>✅ Anticipo {fmtFechaShortDom(a.creado_en)}</span><span style={{ color: '#10b981', fontSize: 10, fontWeight: 600 }}>-{fmtDom(a.monto)}</span></div>)}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 600 }}>Por pagar</span>
+                                      <span style={{ color: '#f87171', fontSize: 10, fontWeight: 700 }}>{fmtDom(porPagar)}</span>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6, marginTop: 6 }}>
+                                <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>Total a pagar</span>
+                                <span style={{ color: '#4ade80', fontSize: 15, fontWeight: 800 }}>{fmtDom(totalAPagar)}</span>
+                              </div>
+                            </div>
+
+                            {/* Métodos de pago */}
+                            <div style={{ marginBottom: 8 }}>
+                              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                                {['Efectivo','Transferencia','Terminal'].map(m => (
+                                  <button key={m} onClick={() => setPagoDomicilio({ ...pagoDomicilio, metodo1: m })}
+                                    style={{ flex: 1, padding: '6px', borderRadius: 8, border: `1px solid ${pagoDomicilio.metodo1 === m ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.08)'}`, background: pagoDomicilio.metodo1 === m ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.03)', color: pagoDomicilio.metodo1 === m ? '#4ade80' : 'rgba(255,255,255,0.4)', fontSize: 10, cursor: 'pointer', fontWeight: pagoDomicilio.metodo1 === m ? 600 : 400 }}>
+                                    {m}
+                                  </button>
+                                ))}
+                              </div>
+                              <input type="number" value={pagoDomicilio.monto1} onChange={e => setPagoDomicilio({ ...pagoDomicilio, monto1: e.target.value })}
+                                placeholder={`Monto en ${pagoDomicilio.metodo1}`}
+                                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px', color: 'white', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+                            </div>
+
+                            {!pagoDomicilio.mostrar2 ? (
+                              <button onClick={() => setPagoDomicilio({ ...pagoDomicilio, mostrar2: true })}
+                                style={{ width: '100%', background: 'transparent', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px', color: 'rgba(255,255,255,0.3)', fontSize: 11, cursor: 'pointer', marginBottom: 8 }}>
+                                + Agregar segundo método
+                              </button>
+                            ) : (
+                              <div style={{ marginBottom: 8 }}>
+                                <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                                  {['Efectivo','Transferencia','Terminal'].filter(m => m !== pagoDomicilio.metodo1).map(m => (
+                                    <button key={m} onClick={() => setPagoDomicilio({ ...pagoDomicilio, metodo2: m })}
+                                      style={{ flex: 1, padding: '6px', borderRadius: 8, border: `1px solid ${pagoDomicilio.metodo2 === m ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.08)'}`, background: pagoDomicilio.metodo2 === m ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.03)', color: pagoDomicilio.metodo2 === m ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 10, cursor: 'pointer' }}>
+                                      {m}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 8, padding: '8px 12px', color: '#818cf8', fontSize: 12 }}>
+                                  {fmtDom(totalAPagar - (parseFloat(pagoDomicilio.monto1) || 0))} en {pagoDomicilio.metodo2} (automático)
+                                </div>
+                              </div>
+                            )}
+
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => registrarPagoDomicilio(d)}
+                                style={{ flex: 1, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: 8, padding: '10px', color: '#4ade80', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                                ✅ Confirmar cobro
+                              </button>
+                              <button onClick={() => setCobrandoDomicilio(null)}
+                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '10px 14px', color: 'rgba(255,255,255,0.3)', fontSize: 11, cursor: 'pointer' }}>
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            )}
             </div>
           </div>
         </div>

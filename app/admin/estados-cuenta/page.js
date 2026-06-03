@@ -278,28 +278,61 @@ export default function EstadosCuenta() {
     if (!entregaId) return
     setCargando(true)
     setDatos([])
-    const entrega = entregas.find(e => String(e.id) === String(entregaId))
-    const [pedsRes, pagsRes] = await Promise.all([
-      fetch(`/api/reportes/pedidos?entrega_id=${entregaId}`).then(r => r.json()),
-      fetch(`/api/reportes/pagos?entrega_id=${entregaId}`).then(r => r.json())
-    ])
-    const pedidos = (pedsRes.pedidos || []).filter(p => p.estado !== 'Entregado')
-    const pagos = pagsRes.pagos || []
 
+    // Paso 1: identificar qué clientes tienen pedidos en la entrega seleccionada
+    // Paso 2: traer TODOS los pedidos y pagos sin filtro de entrega
+    const [pedsEntregaRes, todosPedsRes, todosPagsRes] = await Promise.all([
+      fetch(`/api/reportes/pedidos?entrega_id=${entregaId}`).then(r => r.json()),
+      fetch('/api/reportes/pedidos').then(r => r.json()),
+      fetch('/api/reportes/pagos').then(r => r.json())
+    ])
+
+    // IDs de clientes que aparecen en la entrega seleccionada
+    const clientesEnEntrega = new Set(
+      (pedsEntregaRes.pedidos || []).map(p => String(p.cliente_id))
+    )
+    if (clientesEnEntrega.size === 0) { setCargando(false); return }
+
+    // Todos los pedidos pendientes de esos clientes (cualquier entrega)
+    const todosPedidos = (todosPedsRes.pedidos || []).filter(p =>
+      clientesEnEntrega.has(String(p.cliente_id)) && p.estado !== 'Entregado'
+    )
+
+    // Todos los pagos de esos clientes (cualquier entrega)
+    const todosPagos = (todosPagsRes.pagos || []).filter(p =>
+      clientesEnEntrega.has(String(p.cliente_id))
+    )
+
+    // Agrupar: cliente → entrega → { pedidos, pagos }
     const porCliente = {}
-    pedidos.forEach(p => {
-      if (!porCliente[p.cliente_id]) porCliente[p.cliente_id] = { nombre: p.clientes?.nombre || '', pedidos: [], pagos: [] }
-      porCliente[p.cliente_id].pedidos.push(p)
+    todosPedidos.forEach(p => {
+      const cid = String(p.cliente_id)
+      if (!porCliente[cid]) porCliente[cid] = { nombre: p.clientes?.nombre || '', porEntrega: {} }
+      const eid = String(p.entrega_id || 'sin')
+      if (!porCliente[cid].porEntrega[eid]) porCliente[cid].porEntrega[eid] = { pedidos: [], pagos: [] }
+      porCliente[cid].porEntrega[eid].pedidos.push(p)
     })
-    pagos.forEach(p => {
-      if (porCliente[p.cliente_id]) porCliente[p.cliente_id].pagos.push(p)
+    todosPagos.forEach(p => {
+      const cid = String(p.cliente_id)
+      if (!porCliente[cid]) return
+      const eid = String(p.entrega_id || 'sin')
+      if (porCliente[cid].porEntrega[eid]) porCliente[cid].porEntrega[eid].pagos.push(p)
     })
 
     const lista = Object.entries(porCliente).map(([id, d]) => {
-      const cl = clientes.find(c => String(c.id) === String(id))
+      const cl = clientes.find(c => String(c.id) === id)
+      const grupos = Object.entries(d.porEntrega).map(([eid, data]) => ({
+        entrega: entregas.find(e => String(e.id) === eid) || null,
+        pedidos: data.pedidos,
+        pagos: data.pagos
+      })).sort((a, b) => {
+        if (!a.entrega) return 1
+        if (!b.entrega) return -1
+        return new Date(a.entrega.fecha_entrega) - new Date(b.entrega.fecha_entrega)
+      })
       return {
         cliente: { id, nombre: d.nombre || cl?.nombre || '', telefono: cl?.telefono || '' },
-        grupos: [{ entrega, pedidos: d.pedidos, pagos: d.pagos }]
+        grupos
       }
     }).sort((a, b) => a.cliente.nombre.localeCompare(b.cliente.nombre, 'es'))
 

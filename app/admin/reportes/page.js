@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import * as XLSX from 'xlsx'
 
 export default function Reportes() {
   const [seccion, setSeccion] = useState('entregas')
@@ -23,6 +24,10 @@ export default function Reportes() {
   const [metricasT, setMetricasT] = useState(null)
   const [topProductos, setTopProductos] = useState([])
   const [datosGraficaT, setDatosGraficaT] = useState([])
+
+  // Raw data para exportar Excel
+  const [rawPedidos, setRawPedidos] = useState([])
+  const [rawPagos, setRawPagos] = useState([])
 
   const chartERef = useRef(null)
   const chartTRef = useRef(null)
@@ -71,6 +76,8 @@ export default function Reportes() {
     ])
     const peds = pedidosRes.ok ? pedidosRes.pedidos || [] : []
     const pays = pagosRes.ok ? pagosRes.pagos || [] : []
+    setRawPedidos(peds)
+    setRawPagos(pays)
 
     // Solo pedidos de encargos (con cliente_id)
     const pedsEncargos = peds.filter(p => p.cliente_id)
@@ -143,6 +150,8 @@ export default function Reportes() {
     ])
     const peds = pedidosRes.ok ? pedidosRes.pedidos || [] : []
     const pays = pagosRes.ok ? pagosRes.pagos || [] : []
+    setRawPedidos(peds)
+    setRawPagos(pays)
 
     const ventaTotal = peds.reduce((s, p) => s + (p.precio_venta || 0), 0)
     const costoTotal = peds.reduce((s, p) => s + (p.costo_mxn || 0), 0)
@@ -195,6 +204,68 @@ export default function Reportes() {
     setCargando(false)
   }
 
+  const exportarExcel = () => {
+    const ahora = new Date()
+    const fechaStr = `${ahora.getFullYear()}${String(ahora.getMonth()+1).padStart(2,'0')}${String(ahora.getDate()).padStart(2,'0')}`
+    const wb = XLSX.utils.book_new()
+
+    // ── Hoja 1: Pedidos ───────────────────────────────────────────
+    const filPedidos = rawPedidos.filter(p => p.cliente_id)
+    const hojaPedidos = [
+      ['Cliente','Descripción','Cantidad','Precio USD','Tipo de cambio','Impuesto %','Costo MXN','Precio venta','Utilidad','Estado','Entrega','Fecha captura'],
+      ...filPedidos.map(p => [
+        p.clientes?.nombre || '',
+        p.descripcion || '',
+        p.cantidad || 1,
+        p.precio_usd || '',
+        p.tc || '',
+        p.impuesto != null ? `${p.impuesto}%` : '',
+        p.costo_mxn || 0,
+        p.precio_venta || 0,
+        p.utilidad || 0,
+        p.estado || '',
+        p.entregas?.fecha_entrega || '',
+        p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
+      ])
+    ]
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaPedidos), 'Pedidos')
+
+    // ── Hoja 2: Pagos ─────────────────────────────────────────────
+    const hojaPagos = [
+      ['Cliente','Fecha','Monto','Método','Tipo','Entrega'],
+      ...rawPagos.map(p => [
+        p.clientes?.nombre || '(Tienda)',
+        p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
+        p.monto || 0,
+        p.metodo || '',
+        p.tipo || '',
+        p.entrega_id || '',
+      ])
+    ]
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaPagos), 'Pagos')
+
+    // ── Hoja 3: Resumen ───────────────────────────────────────────
+    const m = metricasE || metricasEC
+    const hojaResumen = m ? [
+      ['Concepto','Valor'],
+      ['Venta total', m.ventaTotal || 0],
+      ['Costo total', m.costoTotal || 0],
+      ['Utilidad total', m.utilidadTotal || 0],
+      ['Margen %', m.margen ? `${m.margen.toFixed(1)}%` : ''],
+      ['Total cobrado', m.cobradoTotal || 0],
+      ['Anticipos', m.totalAnticipos || 0],
+      ['Por cobrar', m.pendiente || 0],
+      ['Efectivo', (m.anticiposEfectivo || 0) + (m.liquidEfectivo || 0)],
+      ['Transferencia', (m.anticiposTransferencia || 0) + (m.liquidTransferencia || 0)],
+      ['Terminal', (m.anticiposTerminal || 0) + (m.liquidTerminal || 0)],
+    ] : [['Sin datos cargados']]
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaResumen), 'Resumen')
+
+    XLSX.writeFile(wb, `Denog_Reporte_${fechaStr}.xlsx`)
+  }
+
+  const hayDatos = (metricasE || metricasEC) && rawPedidos.length > 0
+
   const TabBtn = ({ id, label, active, onClick }) => (
     <button onClick={onClick}
       style={{ background: active ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, padding: '9px 22px', color: active ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
@@ -232,9 +303,17 @@ export default function Reportes() {
     <div className="min-h-screen bg-gray-950 p-6">
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
 
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ color: 'white', fontSize: 22, fontWeight: 700 }}>📊 Reportes financieros</div>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 2 }}>Por modelo de negocio</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+          <div>
+            <div style={{ color: 'white', fontSize: 22, fontWeight: 700 }}>📊 Reportes financieros</div>
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 2 }}>Por modelo de negocio</div>
+          </div>
+          {hayDatos && (
+            <button onClick={exportarExcel}
+              style={{ padding: '9px 18px', borderRadius: 10, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              ⬇️ Exportar Excel
+            </button>
+          )}
         </div>
 
         {/* Tabs principales */}

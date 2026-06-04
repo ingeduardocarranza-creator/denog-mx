@@ -204,17 +204,25 @@ export default function PuntoDeVenta() {
     setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', fecha_preferida: '', horario: '', notas: '' })
     setPedidosClienteDom([])
     setAnticiposClienteDom([])
+    console.log('[Domicilios] Domicilio creado — recargando lista...')
     cargarDomicilios()
   }
 
   const cargarDomicilios = async () => {
     setCargandoDomicilios(true)
-    const hoy = new Date().toISOString().split('T')[0]
+    // Usar fecha LOCAL (no UTC) para evitar desfase horario en México
+    const ahora = new Date()
+    const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
+    console.log('[Domicilios] Cargando para fecha local:', hoy)
     const res = await fetch(`/api/domicilios/listar?fecha=${hoy}`)
     const data = await res.json()
+    console.log('[Domicilios] Respuesta API:', data.ok, 'total:', data.domicilios?.length, data.ok ? '' : data.mensaje)
     if (data.ok) {
       setDomicilios(data.domicilios)
       setDomiciliosBadge(data.domicilios.filter(d => ['pendiente', 'confirmado', 'en_camino'].includes(d.estado)).length)
+      console.log('[Domicilios] Estados:', data.domicilios.map(d => `${d.clientes?.nombre}: ${d.estado} (${d.fecha_preferida})`))
+    } else {
+      console.error('[Domicilios] Error:', data.mensaje)
     }
     setCargandoDomicilios(false)
   }

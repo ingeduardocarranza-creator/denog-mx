@@ -40,6 +40,12 @@ export default function PuntoDeVenta() {
   const [cobrandoDomicilio, setCobrandoDomicilio] = useState(null)
   const [pagoDomicilio, setPagoDomicilio] = useState({ metodo1: 'Efectivo', monto1: '', metodo2: 'Transferencia', mostrar2: false })
   const [domiciliosBadge, setDomiciliosBadge] = useState(0)
+  const [mostrarFormDom, setMostrarFormDom] = useState(false)
+  const [formNuevo, setFormNuevo] = useState({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', fecha_preferida: '', horario: '', notas: '' })
+  const [entregasSeleccionadasDom, setEntregasSeleccionadasDom] = useState([])
+  const [pedidosClienteDom, setPedidosClienteDom] = useState([])
+  const [anticiposClienteDom, setAnticiposClienteDom] = useState([])
+  const [guardandoDom, setGuardandoDom] = useState(false)
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
   const [ticketListo, setTicketListo] = useState(null);
@@ -144,6 +150,61 @@ export default function PuntoDeVenta() {
     })
     setConfirmandoRetiro(false)
     setRetiroPendiente(null)
+  }
+
+  const HORARIOS_SEMANA = ['10:00am - 1:30pm', '3:00pm - 7:00pm']
+  const HORARIOS_SABADO = ['10:00am - 1:00pm', '2:00pm - 5:00pm']
+  const horariosDelDia = (f) => {
+    if (!f) return []
+    const dia = new Date(f + 'T12:00:00').getDay()
+    return dia === 6 ? HORARIOS_SABADO : HORARIOS_SEMANA
+  }
+
+  const cargarPedidosClienteDom = async (cliente_id) => {
+    if (!cliente_id) { setPedidosClienteDom([]); setAnticiposClienteDom([]); return }
+    const [pedsRes, antRes] = await Promise.all([
+      fetch(`/api/cliente/pedidos?cliente_id=${cliente_id}`).then(r => r.json()),
+      fetch(`/api/anticipos?cliente_id=${cliente_id}`).then(r => r.json())
+    ])
+    if (pedsRes.ok) setPedidosClienteDom(pedsRes.pedidos.filter(p => p.estado?.toLowerCase() !== 'entregado'))
+    if (antRes.ok) setAnticiposClienteDom(antRes.anticipos || [])
+  }
+
+  const toggleEntregaDom = (entrega, index, entregasClienteDom) => {
+    const yaSelec = entregasSeleccionadasDom.find(e => e.fecha === entrega.fecha)
+    if (yaSelec) {
+      setEntregasSeleccionadasDom(entregasSeleccionadasDom.filter(e => e.fecha !== entrega.fecha))
+    } else {
+      const primeraNoSelec = entregasClienteDom.findIndex(e => !entregasSeleccionadasDom.find(s => s.fecha === e.fecha))
+      if (index > primeraNoSelec) return
+      setEntregasSeleccionadasDom([...entregasSeleccionadasDom, entrega])
+    }
+  }
+
+  const crearDomicilio = async () => {
+    if (!formNuevo.cliente_id || entregasSeleccionadasDom.length === 0 || !formNuevo.direccion || !formNuevo.colonia || !formNuevo.fecha_preferida || !formNuevo.horario) {
+      alert('Llena todos los campos obligatorios'); return
+    }
+    setGuardandoDom(true)
+    const subtotal = entregasSeleccionadasDom.reduce((s, e) => s + e.total, 0)
+    await fetch('/api/domicilios/crear', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cliente_id: formNuevo.cliente_id,
+        entrega_ids: entregasSeleccionadasDom.map(e => e.entrega_id),
+        direccion: formNuevo.direccion, colonia: formNuevo.colonia,
+        referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto,
+        fecha_preferida: formNuevo.fecha_preferida, horario: formNuevo.horario,
+        notas: formNuevo.notas, subtotal, total: null, costo_envio: null, estado: 'pendiente'
+      })
+    })
+    setGuardandoDom(false)
+    setMostrarFormDom(false)
+    setEntregasSeleccionadasDom([])
+    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', fecha_preferida: '', horario: '', notas: '' })
+    setPedidosClienteDom([])
+    setAnticiposClienteDom([])
+    cargarDomicilios()
   }
 
   const cargarDomicilios = async () => {
@@ -813,10 +874,183 @@ export default function PuntoDeVenta() {
             {/* ─── MODO 3: DOMICILIOS ─────────────────────────────── */}
             {modo === 'modo3' && (
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 16 }}>
+                {/* Header + acciones */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <div style={{ color: 'white', fontSize: 14, fontWeight: 700 }}>🚚 Domicilios del día</div>
-                  <button onClick={cargarDomicilios} style={{ padding: '4px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer' }}>↻ Actualizar</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => { setMostrarFormDom(f => !f); setEntregasSeleccionadasDom([]); setPedidosClienteDom([]); setAnticiposClienteDom([]) }}
+                      style={{ padding: '5px 14px', borderRadius: 8, background: mostrarFormDom ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.2)', border: `1px solid ${mostrarFormDom ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.35)'}`, color: mostrarFormDom ? 'rgba(255,255,255,0.4)' : '#818cf8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                      {mostrarFormDom ? 'Cancelar' : '+ Nuevo'}
+                    </button>
+                    <button onClick={cargarDomicilios} style={{ padding: '5px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer' }}>↻</button>
+                  </div>
                 </div>
+
+                {/* Formulario nuevo domicilio */}
+                {mostrarFormDom && (() => {
+                  const clientesFiltradosDom = todosClientes.filter(c => c.rol !== 'admin').sort((a,b) => a.nombre.localeCompare(b.nombre, 'es'))
+                  const clienteTieneDom = domicilios.some(d => String(d.cliente_id) === String(formNuevo.cliente_id) && ['pendiente','confirmado','en_camino'].includes(d.estado))
+                  const entregasClienteDom = Object.values(
+                    pedidosClienteDom.reduce((acc, p) => {
+                      const f = p.entregas?.fecha_entrega
+                      if (!f) return acc
+                      if (!acc[f]) acc[f] = { fecha: f, entrega_id: p.entrega_id, productos: [], total: 0 }
+                      acc[f].productos.push(p)
+                      acc[f].total += p.precio_venta || 0
+                      return acc
+                    }, {})
+                  ).sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+                  const subtotalSel = entregasSeleccionadasDom.reduce((s, e) => s + e.total, 0)
+                  const fmtF = (f) => {
+                    if (!f) return ''
+                    const m = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
+                    const d = new Date(f + 'T12:00:00')
+                    return `${d.getDate()} ${m[d.getMonth()]} ${d.getFullYear()}`
+                  }
+                  const fmtFS = (f) => { if (!f) return ''; const d = new Date(f); return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) }
+                  const iStyle = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, padding:'8px 12px', color:'white', fontSize:12, outline:'none', boxSizing:'border-box' }
+                  const lStyle = { color:'rgba(255,255,255,0.4)', fontSize:10, textTransform:'uppercase', letterSpacing:1, display:'block', marginBottom:5 }
+                  return (
+                    <div style={{ background:'rgba(99,102,241,0.04)', border:'1px solid rgba(99,102,241,0.15)', borderRadius:14, padding:16, marginBottom:16 }}>
+                      <div style={{ color:'white', fontSize:13, fontWeight:600, marginBottom:14 }}>➕ Nuevo domicilio</div>
+
+                      {/* ① Cliente */}
+                      <div style={{ marginBottom:12 }}>
+                        <label style={lStyle}>① Cliente *</label>
+                        <select value={formNuevo.cliente_id}
+                          onChange={e => { setFormNuevo({...formNuevo, cliente_id: e.target.value}); setEntregasSeleccionadasDom([]); cargarPedidosClienteDom(e.target.value) }}
+                          style={iStyle}>
+                          <option value="">-- Elige un cliente --</option>
+                          {clientesFiltradosDom.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                        </select>
+                        {clienteTieneDom && (
+                          <div style={{ marginTop:6, color:'#f87171', fontSize:11, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.15)', borderRadius:8, padding:'6px 10px' }}>
+                            ⚠️ Este cliente ya tiene un domicilio activo
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ② Entregas */}
+                      {formNuevo.cliente_id && !clienteTieneDom && (
+                        <div style={{ marginBottom:12 }}>
+                          <label style={lStyle}>② Entregas pendientes — selecciona en orden</label>
+                          {entregasClienteDom.length === 0 ? (
+                            <div style={{ padding:16, textAlign:'center', color:'rgba(255,255,255,0.3)', fontSize:12, background:'rgba(255,255,255,0.02)', borderRadius:10 }}>Sin pedidos pendientes</div>
+                          ) : entregasClienteDom.map((entrega, index) => {
+                            const selec = entregasSeleccionadasDom.find(e => e.fecha === entrega.fecha)
+                            const anteriorSelec = index === 0 || entregasSeleccionadasDom.find(e => e.fecha === entregasClienteDom[index-1].fecha)
+                            const bloqueada = !anteriorSelec && !selec
+                            const antEnt = anticiposClienteDom.filter(a => a.entrega_id === entrega.entrega_id)
+                            const antSum = antEnt.reduce((s,a) => s + (a.monto||0), 0)
+                            const porPagar = Math.max(0, entrega.total - antSum)
+                            return (
+                              <div key={entrega.fecha} onClick={() => !bloqueada && toggleEntregaDom(entrega, index, entregasClienteDom)}
+                                style={{ background: selec ? 'rgba(245,158,11,0.06)' : bloqueada ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.03)', border:`1px solid ${selec ? 'rgba(245,158,11,0.35)' : bloqueada ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)'}`, borderRadius:12, padding:10, marginBottom:6, cursor: bloqueada ? 'not-allowed' : 'pointer', opacity: bloqueada ? 0.35 : 1 }}>
+                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                                    <div style={{ width:18, height:18, borderRadius:5, border:`2px solid ${selec ? '#f59e0b' : 'rgba(255,255,255,0.2)'}`, background: selec ? 'rgba(245,158,11,0.15)' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color: selec ? '#f59e0b' : 'transparent', flexShrink:0 }}>✓</div>
+                                    <span style={{ color: selec ? '#f59e0b' : 'rgba(255,255,255,0.7)', fontSize:12, fontWeight:600 }}>📅 {fmtF(entrega.fecha)}</span>
+                                    {index === 0 && <span style={{ background:'rgba(239,68,68,0.12)', color:'#f87171', fontSize:9, padding:'2px 6px', borderRadius:10 }}>⚠️ Más antigua</span>}
+                                  </div>
+                                  <span style={{ color: selec ? '#f59e0b' : 'rgba(255,255,255,0.5)', fontSize:12, fontWeight:700 }}>{fmtDom(entrega.total)}</span>
+                                </div>
+                                <div style={{ paddingLeft:26 }}>
+                                  {entrega.productos.map(p => (
+                                    <div key={p.id} style={{ display:'flex', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                                      <span style={{ color:'rgba(255,255,255,0.4)', fontSize:10 }}>{p.descripcion}</span>
+                                      <span style={{ color:'rgba(255,255,255,0.45)', fontSize:10 }}>{fmtDom(p.precio_venta)}</span>
+                                    </div>
+                                  ))}
+                                  {antEnt.length > 0 && (
+                                    <div style={{ marginTop:4, paddingTop:3, borderTop:'1px solid rgba(16,185,129,0.15)' }}>
+                                      {antEnt.map((a,i) => (
+                                        <div key={i} style={{ display:'flex', justifyContent:'space-between' }}>
+                                          <span style={{ color:'rgba(16,185,129,0.6)', fontSize:9 }}>✅ Anticipo {fmtFS(a.creado_en)}</span>
+                                          <span style={{ color:'#10b981', fontSize:9, fontWeight:600 }}>-{fmtDom(a.monto)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <div style={{ display:'flex', justifyContent:'space-between', marginTop:4, paddingTop:3, borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+                                    <span style={{ color:'rgba(255,255,255,0.3)', fontSize:10 }}>Por pagar</span>
+                                    <span style={{ color:'#f87171', fontSize:10, fontWeight:600 }}>{fmtDom(porPagar)}</span>
+                                  </div>
+                                  {bloqueada && <div style={{ marginTop:5, textAlign:'center', color:'rgba(255,255,255,0.2)', fontSize:9 }}>🔒 Selecciona primero la entrega anterior</div>}
+                                </div>
+                              </div>
+                            )
+                          })}
+                          {entregasSeleccionadasDom.length > 0 && (
+                            <div style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.15)', borderRadius:8, padding:'7px 12px', display:'flex', justifyContent:'space-between', marginTop:4 }}>
+                              <span style={{ color:'rgba(255,255,255,0.5)', fontSize:11 }}>{entregasSeleccionadasDom.length} entrega{entregasSeleccionadasDom.length > 1 ? 's' : ''} seleccionada{entregasSeleccionadasDom.length > 1 ? 's' : ''}</span>
+                              <span style={{ color:'#f59e0b', fontSize:13, fontWeight:700 }}>{fmtDom(subtotalSel)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ③ Datos de entrega */}
+                      {entregasSeleccionadasDom.length > 0 && !clienteTieneDom && (
+                        <div>
+                          <div style={{ height:1, background:'rgba(255,255,255,0.06)', marginBottom:12 }} />
+                          <label style={lStyle}>③ Datos de entrega</label>
+                          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                            {[
+                              { label:'Calle y número *', key:'direccion', placeholder:'Blvd. Morelos #432' },
+                              { label:'Colonia *', key:'colonia', placeholder:'Villa del Real' },
+                              { label:'Referencias', key:'referencias', placeholder:'Casa azul, cerca de...' },
+                              { label:'Celular', key:'celular_contacto', placeholder:'662 000 0000' },
+                            ].map(campo => (
+                              <div key={campo.key}>
+                                <label style={lStyle}>{campo.label}</label>
+                                <input type="text" value={formNuevo[campo.key]} placeholder={campo.placeholder}
+                                  onChange={e => setFormNuevo({...formNuevo, [campo.key]: e.target.value})}
+                                  style={iStyle} />
+                              </div>
+                            ))}
+                            <div>
+                              <label style={lStyle}>Fecha *</label>
+                              <input type="date" value={formNuevo.fecha_preferida}
+                                onChange={e => setFormNuevo({...formNuevo, fecha_preferida: e.target.value, horario: ''})}
+                                style={iStyle} />
+                            </div>
+                            <div>
+                              <label style={lStyle}>Horario *</label>
+                              <select value={formNuevo.horario}
+                                onChange={e => setFormNuevo({...formNuevo, horario: e.target.value})}
+                                style={iStyle}>
+                                <option value="">-- Elige horario --</option>
+                                {horariosDelDia(formNuevo.fecha_preferida).map(h => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                            </div>
+                            <div style={{ gridColumn:'1 / -1' }}>
+                              <label style={lStyle}>Notas</label>
+                              <input type="text" value={formNuevo.notas} placeholder="Instrucciones especiales..."
+                                onChange={e => setFormNuevo({...formNuevo, notas: e.target.value})}
+                                style={iStyle} />
+                            </div>
+                          </div>
+                          <div style={{ display:'flex', gap:8 }}>
+                            <button onClick={crearDomicilio} disabled={guardandoDom}
+                              style={{ flex:1, background:'rgba(99,102,241,0.2)', border:'1px solid rgba(99,102,241,0.3)', borderRadius:10, padding:'10px', color:'#818cf8', fontSize:13, fontWeight:600, cursor:'pointer', opacity: guardandoDom ? 0.6 : 1 }}>
+                              {guardandoDom ? 'Guardando...' : '✓ Crear domicilio'}
+                            </button>
+                            <button onClick={() => { setMostrarFormDom(false); setEntregasSeleccionadasDom([]); setPedidosClienteDom([]); setAnticiposClienteDom([]) }}
+                              style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'10px 14px', color:'rgba(255,255,255,0.4)', fontSize:12, cursor:'pointer' }}>
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {!formNuevo.cliente_id && (
+                        <div style={{ textAlign:'center', padding:16, color:'rgba(255,255,255,0.25)', fontSize:12 }}>
+                          Selecciona un cliente para ver sus entregas pendientes
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {cargandoDomicilios ? (
                   <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: 32, fontSize: 13 }}>Cargando...</div>

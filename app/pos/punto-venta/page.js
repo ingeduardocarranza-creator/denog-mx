@@ -154,10 +154,20 @@ export default function PuntoDeVenta() {
 
   const HORARIOS_SEMANA = ['10:00am - 1:30pm', '3:00pm - 7:00pm']
   const HORARIOS_SABADO = ['10:00am - 1:00pm', '2:00pm - 5:00pm']
-  const horariosDelDia = (f) => {
+const horariosDelDia = (f) => {
     if (!f) return []
     const dia = new Date(f + 'T12:00:00').getDay()
-    return dia === 6 ? HORARIOS_SABADO : HORARIOS_SEMANA
+    if (dia === 0) return []
+    const horariosBase = dia === 6 ? HORARIOS_SABADO : HORARIOS_SEMANA
+    const ahora = new Date()
+    const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
+    if (f !== hoy) return horariosBase
+    const horaActual = ahora.getHours() * 60 + ahora.getMinutes()
+    return horariosBase.filter(h => {
+      if (h.includes('10:00am')) return horaActual < 630
+      if (h.includes('3:00pm') || h.includes('2:00pm')) return horaActual < 915
+      return true
+    })
   }
 
   const cargarPedidosClienteDom = async (cliente_id) => {
@@ -1020,7 +1030,8 @@ export default function PuntoDeVenta() {
                               <label style={lStyle}>Fecha *</label>
                               <input type="date" value={formNuevo.fecha_preferida}
                                 onChange={e => setFormNuevo({...formNuevo, fecha_preferida: e.target.value, horario: ''})}
-                                style={iStyle} />
+                                style={{ ...iStyle, borderColor: formNuevo.fecha_preferida && new Date(formNuevo.fecha_preferida + 'T12:00:00').getDay() === 0 ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.1)' }} />
+                              {formNuevo.fecha_preferida && new Date(formNuevo.fecha_preferida + 'T12:00:00').getDay() === 0 && <div style={{ color:'#f87171', fontSize:10, marginTop:3 }}>⚠️ No hay servicio los domingos</div>}
                             </div>
                             <div>
                               <label style={lStyle}>Horario *</label>

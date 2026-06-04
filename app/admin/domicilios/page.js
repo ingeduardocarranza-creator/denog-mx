@@ -97,11 +97,23 @@ export default function Domicilios() {
     }
   }
 
-  const horariosDelDia = (fecha) => {
+const horariosDelDia = (fecha) => {
     if (!fecha) return []
     const dia = new Date(fecha + 'T12:00:00').getDay()
-    return dia === 6 ? HORARIOS_SABADO : HORARIOS_SEMANA
+    if (dia === 0) return [] // domingo no disponible
+    const horariosBase = dia === 6 ? HORARIOS_SABADO : HORARIOS_SEMANA
+    const ahora = new Date()
+    const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
+    if (fecha !== hoy) return horariosBase
+    const horaActual = ahora.getHours() * 60 + ahora.getMinutes()
+    return horariosBase.filter(h => {
+      if (h.includes('10:00am')) return horaActual < 630
+      if (h.includes('3:00pm') || h.includes('2:00pm')) return horaActual < 915
+      return true
+    })
   }
+
+  const esDomingo = (fecha) => fecha && new Date(fecha + 'T12:00:00').getDay() === 0
 
   const confirmarCosto = async (d, costo_envio) => {
     const subtotal = d.subtotal || 0
@@ -423,7 +435,8 @@ export default function Domicilios() {
                     <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>Fecha *</label>
                     <input type="date" value={formNuevo.fecha_preferida}
                       onChange={e => setFormNuevo({ ...formNuevo, fecha_preferida: e.target.value, horario: '' })}
-                      style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: 'white', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: `1px solid ${esDomingo(formNuevo.fecha_preferida) ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 10, padding: '9px 12px', color: 'white', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+                    {esDomingo(formNuevo.fecha_preferida) && <div style={{ color: '#f87171', fontSize: 10, marginTop: 4 }}>⚠️ No hay servicio de domicilio los domingos</div>}
                   </div>
                   <div>
                     <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>Horario *</label>

@@ -119,15 +119,15 @@ export default function Domicilio() {
   const horariosDelDia = (fecha) => {
     if (!fecha) return []
     const dia = new Date(fecha + 'T12:00:00').getDay()
-    const ahora = new Date()
-    const fechaSeleccionada = new Date(fecha + 'T12:00:00')
-    const esHoy = ahora.toDateString() === fechaSeleccionada.toDateString()
-    const horaActual = ahora.getHours() * 60 + ahora.getMinutes()
+    if (dia === 0) return []
     const horariosBase = dia === 6 ? HORARIOS_SABADO : HORARIOS_SEMANA
-    if (!esHoy) return horariosBase
+    const ahora = new Date()
+    const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
+    if (fecha !== hoy) return horariosBase
+    const horaActual = ahora.getHours() * 60 + ahora.getMinutes()
     return horariosBase.filter(h => {
-      if (h.includes('10:00am')) return horaActual < (10 * 60 + 30)
-      if (h.includes('3:00pm') || h.includes('2:00pm')) return horaActual < (15 * 60 + 30)
+      if (h.includes('10:00am')) return horaActual < 630
+      if (h.includes('3:00pm') || h.includes('2:00pm')) return horaActual < 915
       return true
     })
   }

@@ -163,6 +163,7 @@ const horariosDelDia = (f) => {
     const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
     if (f !== hoy) return horariosBase
     const horaActual = ahora.getHours() * 60 + ahora.getMinutes()
+    console.log('[Horarios] fecha param:', f, '| hoy calculado:', hoy, '| iguales:', f === hoy, '| hora actual (min):', horaActual)
     return horariosBase.filter(h => {
       if (h.includes('10:00am')) return horaActual < 630
       if (h.includes('3:00pm') || h.includes('2:00pm')) return horaActual < 915

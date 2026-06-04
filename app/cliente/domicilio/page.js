@@ -125,6 +125,7 @@ export default function Domicilio() {
     const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
     if (fecha !== hoy) return horariosBase
     const horaActual = ahora.getHours() * 60 + ahora.getMinutes()
+    console.log('[Horarios] fecha param:', fecha, '| hoy calculado:', hoy, '| iguales:', fecha === hoy, '| hora actual (min):', horaActual)
     return horariosBase.filter(h => {
       if (h.includes('10:00am')) return horaActual < 630
       if (h.includes('3:00pm') || h.includes('2:00pm')) return horaActual < 915

@@ -138,7 +138,7 @@ export default function CajaPage() {
     })
     const data = await res.json()
     setGuardando(false)
-    if (data.ok) window.location.href = '/pos/punto-venta'
+    if (data.ok) window.location.href = colaborador?.rol === 'admin' ? '/admin/punto-venta' : '/pos/punto-venta'
     else setError(data.mensaje)
   }
 

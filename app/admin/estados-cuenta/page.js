@@ -264,15 +264,67 @@ export default function EstadosCuenta() {
   const [imagenURL, setImagenURL] = useState(null)
   const canvasRef = useRef(null)
 
+  // Edición de pedidos
+  const [todosClientes, setTodosClientes] = useState([])
+  const [vendedoresOpts, setVendedoresOpts] = useState([])
+  const [editandoPedido, setEditandoPedido] = useState(null)
+  const [editFormPedido, setEditFormPedido] = useState({})
+  const [guardandoPedido, setGuardandoPedido] = useState(false)
+  const [pedidoMsg, setPedidoMsg] = useState('')
+
   useEffect(() => {
     Promise.all([
       fetch('/api/entregas').then(r => r.json()),
       fetch('/api/clientes/listar').then(r => r.json())
     ]).then(([e, c]) => {
       if (e.ok) setEntregas(e.entregas)
-      if (c.ok) setClientes(c.clientes.filter(cl => cl.rol !== 'admin'))
+      if (c.ok) {
+        setClientes(c.clientes.filter(cl => cl.rol !== 'admin'))
+        setTodosClientes(c.clientes)
+        setVendedoresOpts(c.clientes.filter(cl => cl.rol === 'admin' || cl.rol === 'vendedor'))
+      }
     })
   }, [])
+
+  const abrirEditarPedido = (p) => {
+    setEditandoPedido(p.id)
+    setEditFormPedido({
+      cliente_id: p.cliente_id || '',
+      entrega_id: p.entrega_id || '',
+      descripcion: p.descripcion || '',
+      lugar_compra: p.lugar_compra || '',
+      cantidad: p.cantidad ?? 1,
+      fecha_compra: p.fecha_compra || '',
+      precio_usd: p.precio_usd ?? '',
+      tipo_cambio: p.tipo_cambio ?? '',
+      impuesto_pct: p.impuesto_pct ?? '',
+      costo_mxn: p.costo_mxn ?? '',
+      precio_venta: p.precio_venta ?? '',
+      utilidad: p.utilidad ?? '',
+      notas: p.notas || '',
+      estado: p.estado || '',
+      vendedor_id: p.vendedor_id || '',
+    })
+    setPedidoMsg('')
+  }
+
+  const guardarPedidoEdit = async () => {
+    setGuardandoPedido(true)
+    const res = await fetch('/api/pedidos/actualizar-pedido', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editandoPedido, ...editFormPedido })
+    })
+    const data = await res.json()
+    setGuardandoPedido(false)
+    if (data.ok) {
+      setEditandoPedido(null)
+      if (modo === 'entrega') cargarPorEntrega()
+      else cargarPorCliente()
+    } else {
+      setPedidoMsg(data.mensaje || 'Error al guardar')
+    }
+  }
 
   const cargarPorEntrega = async () => {
     if (!entregaId) return
@@ -546,9 +598,93 @@ export default function EstadosCuenta() {
                     )}
                     <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, overflow: 'hidden', marginBottom: 8 }}>
                       {g.pedidos.map((p, pi) => (
-                        <div key={pi} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: pi < g.pedidos.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                          <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, flex: 1, marginRight: 12 }}>{p.descripcion}</span>
-                          <span style={{ color: 'white', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>{fmt(p.precio_venta)}</span>
+                        <div key={pi}>
+                          {editandoPedido !== p.id ? (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: pi < g.pedidos.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                              <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, flex: 1, marginRight: 12 }}>{p.descripcion}</span>
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                                <span style={{ color: 'white', fontSize: 12, fontWeight: 600 }}>{fmt(p.precio_venta)}</span>
+                                <button onClick={() => abrirEditarPedido(p)}
+                                  style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '3px 9px', color: '#818cf8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                  ✏️
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: 14, margin: 6 }}>
+                              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Editar pedido</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                                <div>
+                                  <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, display: 'block', marginBottom: 3 }}>Cliente</label>
+                                  <select value={editFormPedido.cliente_id} onChange={ev => setEditFormPedido({ ...editFormPedido, cliente_id: ev.target.value })}
+                                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '6px 9px', color: 'white', fontSize: 11, outline: 'none', boxSizing: 'border-box' }}>
+                                    <option value="">— seleccionar —</option>
+                                    {todosClientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, display: 'block', marginBottom: 3 }}>Entrega</label>
+                                  <select value={editFormPedido.entrega_id} onChange={ev => setEditFormPedido({ ...editFormPedido, entrega_id: ev.target.value })}
+                                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '6px 9px', color: 'white', fontSize: 11, outline: 'none', boxSizing: 'border-box' }}>
+                                    <option value="">— seleccionar —</option>
+                                    {entregas.map(en => <option key={en.id} value={en.id}>{en.fecha_entrega}{en.nota ? ` · ${en.nota}` : ''}</option>)}
+                                  </select>
+                                </div>
+                                <div style={{ gridColumn: '1 / -1' }}>
+                                  <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, display: 'block', marginBottom: 3 }}>Descripción</label>
+                                  <input type="text" value={editFormPedido.descripcion} onChange={ev => setEditFormPedido({ ...editFormPedido, descripcion: ev.target.value })}
+                                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '6px 9px', color: 'white', fontSize: 11, outline: 'none', boxSizing: 'border-box' }} />
+                                </div>
+                                {[
+                                  ['cantidad', 'Cantidad', 'number'],
+                                  ['fecha_compra', 'Fecha compra', 'date'],
+                                  ['precio_usd', 'Precio USD', 'number'],
+                                  ['tipo_cambio', 'Tipo cambio', 'number'],
+                                  ['impuesto_pct', 'Impuesto %', 'number'],
+                                  ['costo_mxn', 'Costo MXN', 'number'],
+                                  ['precio_venta', 'Precio venta', 'number'],
+                                  ['utilidad', 'Utilidad', 'number'],
+                                ].map(([field, lbl, type]) => (
+                                  <div key={field}>
+                                    <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, display: 'block', marginBottom: 3 }}>{lbl}</label>
+                                    <input type={type} step={type === 'number' ? '0.01' : undefined} value={editFormPedido[field]} onChange={ev => setEditFormPedido({ ...editFormPedido, [field]: ev.target.value })}
+                                      style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '6px 9px', color: 'white', fontSize: 11, outline: 'none', boxSizing: 'border-box' }} />
+                                  </div>
+                                ))}
+                                <div>
+                                  <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, display: 'block', marginBottom: 3 }}>Estado</label>
+                                  <select value={editFormPedido.estado} onChange={ev => setEditFormPedido({ ...editFormPedido, estado: ev.target.value })}
+                                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '6px 9px', color: 'white', fontSize: 11, outline: 'none', boxSizing: 'border-box' }}>
+                                    {['Pendiente', 'En camino', 'En tienda', 'Entregado', 'Cancelado'].map(s => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, display: 'block', marginBottom: 3 }}>Vendedor</label>
+                                  <select value={editFormPedido.vendedor_id} onChange={ev => setEditFormPedido({ ...editFormPedido, vendedor_id: ev.target.value })}
+                                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '6px 9px', color: 'white', fontSize: 11, outline: 'none', boxSizing: 'border-box' }}>
+                                    <option value="">— ninguno —</option>
+                                    {vendedoresOpts.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                                  </select>
+                                </div>
+                                <div style={{ gridColumn: '1 / -1' }}>
+                                  <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, display: 'block', marginBottom: 3 }}>Notas</label>
+                                  <input type="text" value={editFormPedido.notas} onChange={ev => setEditFormPedido({ ...editFormPedido, notas: ev.target.value })}
+                                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '6px 9px', color: 'white', fontSize: 11, outline: 'none', boxSizing: 'border-box' }} placeholder="Opcional" />
+                                </div>
+                              </div>
+                              {pedidoMsg && <div style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>{pedidoMsg}</div>}
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={guardarPedidoEdit} disabled={guardandoPedido}
+                                  style={{ background: '#6366f1', border: 'none', borderRadius: 7, padding: '6px 14px', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: guardandoPedido ? 0.6 : 1 }}>
+                                  {guardandoPedido ? 'Guardando...' : '✓ Guardar'}
+                                </button>
+                                <button onClick={() => setEditandoPedido(null)}
+                                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 7, padding: '6px 14px', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer' }}>
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

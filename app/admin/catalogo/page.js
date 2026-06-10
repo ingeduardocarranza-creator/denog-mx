@@ -19,9 +19,15 @@ export default function CatalogoTienda() {
   const [mostrarCreadorCat, setMostrarCreadorCat] = useState(false);
   const [filtroBusqueda, setFiltroBusqueda] = useState('');
 
+  // COTIZADOR — persiste en sesión, no se resetea al limpiar formulario
+  const [tipoCambio, setTipoCambio] = useState('18.50');
+  const [tipoTax, setTipoTax] = useState('arizona');
+  const [taxDenogPct, setTaxDenogPct] = useState('');
+
   // CAMPOS DEL FORMULARIO
   const [nombre, setNombre] = useState('');
   const [codigoBarras, setCodigoBarras] = useState('');
+  const [precioUsd, setPrecioUsd] = useState('');
   const [costo, setCosto] = useState('');
   const [precioVenta, setPrecioVenta] = useState('');
   const [stock, setStock] = useState('');
@@ -74,7 +80,7 @@ export default function CatalogoTienda() {
     const datosProducto = {
       nombre: nombre.trim(),
       codigo_barras: codigoFinal,
-      costo: Number(costo) || 0,
+      costo: costoMxn,
       precio_venta: Number(precioVenta) || 0,
       stock: Number(stock) || 0,
       categoria: categoria,
@@ -113,11 +119,12 @@ export default function CatalogoTienda() {
     setEditandoId(p.id);
     setNombre(p.nombre);
     setCodigoBarras(p.codigo_barras || '');
+    setPrecioUsd('');
     setCosto(p.costo || '');
     setPrecioVenta(p.precio_venta || '');
     setStock(p.stock || '0');
     setCategoria(p.categoria || 'Ropa');
-    window.scrollTo({ top: 0, behavior: 'smooth' }); // Te sube al formulario de inmediato
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const cambiarEstadoActivo = async (id, estadoActual) => {
@@ -133,14 +140,22 @@ export default function CatalogoTienda() {
     setEditandoId(null);
     setNombre('');
     setCodigoBarras('');
+    setPrecioUsd('');
     setCosto('');
     setPrecioVenta('');
     setStock('');
     setCategoria(listaCategorias[0] || 'Ropa');
   };
 
+  // COTIZADOR — cálculos en tiempo real
+  const taxPct = tipoTax === 'arizona' ? 0.086 : tipoTax === 'california' ? 0.0775 : (Number(taxDenogPct) / 100 || 0)
+  const costoMxn = precioUsd ? Number(precioUsd) * (1 + taxPct) * Number(tipoCambio) : Number(costo) || 0
+  const venta = Number(precioVenta) || 0
+  const utilidad = venta - costoMxn
+  const margen = venta > 0 ? (utilidad / venta) * 100 : 0
+
   // 5. FILTRADO DINÁMICO MEDIANTE EL BUSCADOR DE LA TABLA
-  const productosFiltrados = productos.filter(p => 
+  const productosFiltrados = productos.filter(p =>
     p.nombre?.toLowerCase().includes(filtroBusqueda.toLowerCase()) || 
     p.codigo_barras?.toLowerCase().includes(filtroBusqueda.toLowerCase()) ||
     p.categoria?.toLowerCase().includes(filtroBusqueda.toLowerCase())
@@ -204,15 +219,82 @@ export default function CatalogoTienda() {
                 <input type="text" value={codigoBarras} onChange={(e) => setCodigoBarras(e.target.value)} placeholder="Escanea el código de barras de Ross/Walmart" className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none" />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-slate-400 font-bold">Costo en USA ($USD/MXN)</label>
-                  <input type="number" step="0.01" value={costo} onChange={(e) => setCosto(e.target.value)} placeholder="Ej. 14.99" className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none" />
+              {/* COTIZADOR */}
+              <div className="space-y-3 bg-[#111520] rounded-xl p-3 border border-slate-800">
+                <div className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">💱 Cotizador</div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-slate-400 font-bold">Precio USD</label>
+                    <input type="number" step="0.01" value={precioUsd} onChange={(e) => setPrecioUsd(e.target.value)} placeholder="Ej. 14.99" className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-slate-400 font-bold">Tipo de cambio</label>
+                    <input type="number" step="0.01" value={tipoCambio} onChange={(e) => setTipoCambio(e.target.value)} className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none" />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-slate-400 font-bold">Precio Venta MXN *</label>
-                  <input type="number" step="0.01" required value={precioVenta} onChange={(e) => setPrecioVenta(e.target.value)} placeholder="Ej. 450" className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none" />
+
+                <div className="space-y-1.5">
+                  <label className="text-slate-400 font-bold">Impuesto</label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {[
+                      { key: 'arizona', label: 'Arizona 8.6%' },
+                      { key: 'california', label: 'California 7.75%' },
+                      { key: 'denog', label: 'Tax Denog' },
+                    ].map(op => (
+                      <button key={op.key} type="button" onClick={() => setTipoTax(op.key)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${tipoTax === op.key ? 'bg-blue-900/30 border-blue-700 text-blue-400' : 'bg-[#1e2533] border-slate-700 text-slate-400 hover:border-slate-600'}`}>
+                        {op.label}
+                      </button>
+                    ))}
+                  </div>
+                  {tipoTax === 'denog' && (
+                    <input type="number" step="0.01" value={taxDenogPct} onChange={(e) => setTaxDenogPct(e.target.value)} placeholder="Porcentaje Ej. 10.5"
+                      className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none mt-1" />
+                  )}
                 </div>
+
+                {precioUsd && (
+                  <div className="text-[11px] space-y-1 bg-[#0b0f19] rounded-lg p-2.5 border border-slate-800/80">
+                    <div className="flex justify-between text-slate-500">
+                      <span>Precio USD</span>
+                      <span className="font-mono">${Number(precioUsd).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-500">
+                      <span>+ Impuesto ({(taxPct * 100).toFixed(2)}%)</span>
+                      <span className="font-mono">+${(Number(precioUsd) * taxPct).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-500">
+                      <span>× Tipo de cambio</span>
+                      <span className="font-mono">× {tipoCambio}</span>
+                    </div>
+                    <div className="flex justify-between text-white font-bold border-t border-slate-700 pt-1.5">
+                      <span>= Costo MXN</span>
+                      <span className="font-mono text-amber-400">${costoMxn.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {editandoId && !precioUsd && costo && (
+                  <div className="text-[11px] text-slate-500 bg-[#0b0f19] rounded-lg px-2.5 py-2 border border-slate-800/80">
+                    Costo guardado: <span className="font-mono text-slate-300">${Number(costo).toFixed(2)} MXN</span> — ingresa Precio USD para recalcular
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-400 font-bold">Precio Venta MXN *</label>
+                <input type="number" step="0.01" required value={precioVenta} onChange={(e) => setPrecioVenta(e.target.value)} placeholder="Ej. 450" className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none" />
+                {precioVenta && costoMxn > 0 && (
+                  <div className="flex gap-4 text-[11px] mt-1.5 px-1">
+                    <span className={utilidad >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      Utilidad: ${utilidad.toFixed(2)}
+                    </span>
+                    <span className={margen >= 20 ? 'text-emerald-400' : margen >= 0 ? 'text-amber-400' : 'text-red-400'}>
+                      Margen: {margen.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">

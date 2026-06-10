@@ -77,6 +77,9 @@ export default function PuntoDeVenta() {
       const c = JSON.parse(datos)
       setColaborador(c)
       verificarTurno(c.id)
+      const onVisible = () => { if (document.visibilityState === 'visible') verificarTurno(c.id) }
+      document.addEventListener('visibilitychange', onVisible)
+      return () => document.removeEventListener('visibilitychange', onVisible)
     } else {
       setTurnoEstado('sin_turno')
     }
@@ -369,7 +372,7 @@ if (valorAutocompletado2 > 0) {
             <div style={{ fontSize: 50, marginBottom: 16 }}>💰</div>
             <div style={{ color: 'white', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>No hay turno activo</div>
             <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 24 }}>Abre un turno en caja antes de cobrar.</div>
-            <a href="/admin/caja" style={{ display: 'inline-block', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '11px 24px', color: '#f59e0b', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Abrir turno →</a>
+            <a href="/pos/caja" style={{ display: 'inline-block', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '11px 24px', color: '#f59e0b', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Abrir turno →</a>
           </div>
         </div>
       )}
@@ -510,7 +513,12 @@ if (valorAutocompletado2 > 0) {
         {(modo === 'modo2' || (modo === 'modo1' && clienteSeleccionado)) && (
           <div className="bg-gray-900 p-5 rounded-2xl border border-gray-800 shadow-xl space-y-4">
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">🛒 Agregar producto de tienda</h2>
-            <input type="text" placeholder="Buscar por nombre o código de barras..." value={busquedaProducto} onChange={(e) => setBusquedaProducto(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-xs focus:outline-none" />
+            <input type="text" placeholder="Buscar por nombre o código de barras..." value={busquedaProducto} onChange={(e) => setBusquedaProducto(e.target.value)} onKeyDown={(e) => {
+              if (e.key !== 'Enter') return
+              const exacto = todosProductos.find(p => p.codigo_barras === busquedaProducto)
+              if (exacto) { agregarProductoAlCarrito(exacto); setBusquedaProducto(''); return }
+              if (productosFiltrados.length === 1) { agregarProductoAlCarrito(productosFiltrados[0]); setBusquedaProducto('') }
+            }} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-xs focus:outline-none" />
             {productosFiltrados.length > 0 && (
               <div className="absolute bg-gray-800 border border-gray-700 rounded-xl mt-1 z-30 divide-y divide-gray-700 w-[calc(100%-60px)] max-h-40 overflow-y-auto">
                 {productosFiltrados.map(p => <div key={p.id} onClick={() => agregarProductoAlCarrito(p)} className="p-3 text-xs text-slate-200 hover:bg-blue-600 cursor-pointer flex justify-between font-medium"><span>{p.nombre}</span><span className="font-bold text-blue-400 font-mono">${Number(p.precio_venta).toFixed(0)}</span></div>)}

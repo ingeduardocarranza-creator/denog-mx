@@ -19,10 +19,25 @@ export async function GET() {
 
 export async function POST(req) {
   const { fecha_entrega, nota } = await req.json()
-  
+
   const { data, error } = await supabase
     .from('entregas')
     .insert([{ fecha_entrega, nota, estado: 'futura' }])
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ ok: false, mensaje: error.message })
+  return NextResponse.json({ ok: true, entrega: data })
+}
+
+export async function PUT(req) {
+  const { id, fecha_entrega, nota } = await req.json()
+  if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })
+
+  const { data, error } = await supabase
+    .from('entregas')
+    .update({ fecha_entrega, nota })
+    .eq('id', id)
     .select()
     .single()
 

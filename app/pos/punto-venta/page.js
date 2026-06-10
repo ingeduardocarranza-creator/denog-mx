@@ -807,7 +807,12 @@ const horariosDelDia = (f) => {
                   </div>
                 )}
 
-                <input type="text" placeholder="Buscar por nombre o código de barras..." value={busquedaProducto} onChange={(e) => setBusquedaProducto(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-xs focus:outline-none" />
+                <input type="text" placeholder="Buscar por nombre o código de barras..." value={busquedaProducto} onChange={(e) => setBusquedaProducto(e.target.value)} onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return
+                  const exacto = todosProductos.find(p => p.codigo_barras === busquedaProducto)
+                  if (exacto) { agregarProductoAlCarrito(exacto); setBusquedaProducto(''); return }
+                  if (productosFiltrados.length === 1) { agregarProductoAlCarrito(productosFiltrados[0]); setBusquedaProducto('') }
+                }} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-xs focus:outline-none" />
                 {productosFiltrados.length > 0 && (
                   <div className="absolute bg-gray-800 border border-gray-700 rounded-xl mt-1 z-30 divide-y divide-gray-700 w-[calc(100%-60px)] max-h-40 overflow-y-auto">
                     {productosFiltrados.map(p => <div key={p.id} onClick={() => agregarProductoAlCarrito(p)} className="p-3 text-xs text-slate-200 hover:bg-blue-600 cursor-pointer flex justify-between font-medium"><span>{p.nombre}</span><span className="font-bold text-blue-400 font-mono">${Number(p.precio_venta).toFixed(0)}</span></div>)}

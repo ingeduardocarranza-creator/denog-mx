@@ -41,11 +41,23 @@ export async function POST(req) {
 
 export async function PUT(req) {
   try {
-    const { id, nombre, rol, activo, password } = await req.json()
+    const { id, nombre, usuario, rol, activo, password } = await req.json()
     if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })
 
+    // Verificar unicidad del usuario (excluyendo el propio registro)
+    if (usuario) {
+      const { data: existente } = await supabase
+        .from('clientes')
+        .select('id')
+        .eq('usuario', usuario)
+        .neq('id', id)
+        .maybeSingle()
+      if (existente) return NextResponse.json({ ok: false, mensaje: 'Este usuario ya está en uso' })
+    }
+
     const campos = {}
-    if (nombre !== undefined) campos.nombre = nombre
+    if (nombre  !== undefined) campos.nombre = nombre
+    if (usuario !== undefined) campos.usuario = usuario
     if (rol     !== undefined) campos.rol    = rol
     if (activo  !== undefined) campos.activo = activo
     if (password) campos.password_hash = await bcrypt.hash(password, 10)

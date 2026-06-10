@@ -24,8 +24,9 @@ export default function ColaboradoresAdmin() {
   const [cargando, setCargando]           = useState(false)
   const [msg, setMsg]                     = useState({ texto: '', ok: true })
 
+  const [usuarioManual, setUsuarioManual] = useState(false)
   const [nuevo, setNuevo] = useState({ nombre: '', usuario: '', password: '', rol: 'vendedor' })
-  const [edit, setEdit]   = useState({ nombre: '', rol: 'vendedor', activo: true, password: '' })
+  const [edit, setEdit]   = useState({ nombre: '', usuario: '', rol: 'vendedor', activo: true, password: '' })
 
   useEffect(() => { cargar() }, [])
 
@@ -33,6 +34,28 @@ export default function ColaboradoresAdmin() {
     const res  = await fetch('/api/colaboradores')
     const data = await res.json()
     if (data.ok) setColaboradores(data.colaboradores)
+  }
+
+  // ── Generación automática de usuario ────────────────────────────
+  const quitarAcentos = (s) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ñÑ]/g, 'n')
+
+  const generarBase = (nombre) => {
+    const limpio = quitarAcentos(nombre).toLowerCase().replace(/[^a-z0-9\s]/g, '').trim()
+    const partes = limpio.split(/\s+/).filter(Boolean)
+    if (!partes.length) return ''
+    return partes.length >= 2 ? `${partes[0]}.${partes[partes.length - 1]}` : partes[0]
+  }
+
+  const usuarioUnico = (base, excluirId = null) => {
+    let u = base; let n = 2
+    while (colaboradores.some(c => c.usuario === u && c.id !== excluirId)) { u = `${base}${n}`; n++ }
+    return u
+  }
+
+  const handleNombreNuevo = (nombre) => {
+    const base = generarBase(nombre)
+    setNuevo(prev => ({ ...prev, nombre, usuario: usuarioManual ? prev.usuario : usuarioUnico(base) }))
   }
 
   const mostrarMsg = (texto, ok = true) => {
@@ -45,6 +68,9 @@ export default function ColaboradoresAdmin() {
     if (!nuevo.nombre.trim() || !nuevo.usuario.trim() || !nuevo.password) {
       mostrarMsg('Nombre, usuario y contraseña son obligatorios', false); return
     }
+    if (colaboradores.some(c => c.usuario === nuevo.usuario)) {
+      mostrarMsg('Este usuario ya está en uso', false); return
+    }
     setCargando(true)
     const res  = await fetch('/api/colaboradores', {
       method: 'POST',
@@ -56,6 +82,7 @@ export default function ColaboradoresAdmin() {
     if (data.ok) {
       mostrarMsg('Colaborador creado ✓')
       setNuevo({ nombre: '', usuario: '', password: '', rol: 'vendedor' })
+      setUsuarioManual(false)
       setMostrarForm(false)
       cargar()
     } else {
@@ -66,14 +93,17 @@ export default function ColaboradoresAdmin() {
   // ── Abrir edición ────────────────────────────────────────────────
   const abrirEdicion = (c) => {
     setEditando(c.id)
-    setEdit({ nombre: c.nombre, rol: c.rol, activo: c.activo, password: '' })
+    setEdit({ nombre: c.nombre, usuario: c.usuario || '', rol: c.rol, activo: c.activo, password: '' })
   }
 
   // ── Guardar edición ──────────────────────────────────────────────
   const guardarEdicion = async () => {
     if (!edit.nombre.trim()) { mostrarMsg('El nombre es obligatorio', false); return }
+    if (colaboradores.some(c => c.usuario === edit.usuario && c.id !== editando)) {
+      mostrarMsg('Este usuario ya está en uso', false); return
+    }
     setCargando(true)
-    const body = { id: editando, nombre: edit.nombre, rol: edit.rol, activo: edit.activo }
+    const body = { id: editando, nombre: edit.nombre, usuario: edit.usuario, rol: edit.rol, activo: edit.activo }
     if (edit.password) body.password = edit.password
     const res  = await fetch('/api/colaboradores', {
       method: 'PUT',
@@ -141,12 +171,18 @@ export default function ColaboradoresAdmin() {
               <div>
                 <label style={labelStyle}>Nombre completo</label>
                 <input style={inputStyle} placeholder="Nombre apellido" value={nuevo.nombre}
-                  onChange={e => setNuevo({ ...nuevo, nombre: e.target.value })} />
+                  onChange={e => handleNombreNuevo(e.target.value)} />
               </div>
               <div>
-                <label style={labelStyle}>Usuario (único)</label>
-                <input style={inputStyle} placeholder="nombre.apellido" value={nuevo.usuario}
-                  onChange={e => setNuevo({ ...nuevo, usuario: e.target.value.toLowerCase().replace(/\s/g, '.') })} />
+                <label style={{ ...labelStyle }}>
+                  Usuario {!usuarioManual && <span style={{ color: '#818cf8', fontSize: 10 }}>(auto)</span>}
+                </label>
+                <input style={{ ...inputStyle, borderColor: colaboradores.some(c => c.usuario === nuevo.usuario) ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.12)' }}
+                  placeholder="nombre.apellido" value={nuevo.usuario}
+                  onChange={e => { setUsuarioManual(true); setNuevo({ ...nuevo, usuario: e.target.value.toLowerCase().replace(/\s/g, '.') }) }} />
+                {colaboradores.some(c => c.usuario === nuevo.usuario) && nuevo.usuario && (
+                  <div style={{ color: '#f87171', fontSize: 10, marginTop: 4 }}>Este usuario ya está en uso</div>
+                )}
               </div>
               <div>
                 <label style={labelStyle}>Contraseña</label>

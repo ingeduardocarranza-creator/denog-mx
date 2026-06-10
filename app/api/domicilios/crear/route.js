@@ -12,8 +12,8 @@ export async function POST(req) {
     const body = await req.json()
     const {
       cliente_id, entrega_ids, direccion, colonia,
-      referencias, celular_contacto, fecha_preferida,
-      horario, notas, distancia_km, costo_envio,
+      referencias, celular_contacto, celular_contacto_adicional,
+      fecha_preferida, horario, notas, distancia_km, costo_envio,
       subtotal, total
     } = body
 
@@ -21,8 +21,8 @@ export async function POST(req) {
       .from('domicilios')
       .insert([{
         cliente_id, entrega_ids, direccion, colonia,
-        referencias, celular_contacto, fecha_preferida,
-        horario, notas, distancia_km, costo_envio,
+        referencias, celular_contacto, celular_contacto_adicional,
+        fecha_preferida, horario, notas, distancia_km, costo_envio,
         subtotal, total, estado: 'pendiente'
       }])
       .select()

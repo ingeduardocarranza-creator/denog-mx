@@ -41,7 +41,7 @@ export default function PuntoDeVenta() {
   const [pagoDomicilio, setPagoDomicilio] = useState({ metodo1: 'Efectivo', monto1: '', metodo2: 'Transferencia', mostrar2: false })
   const [domiciliosBadge, setDomiciliosBadge] = useState(0)
   const [mostrarFormDom, setMostrarFormDom] = useState(false)
-  const [formNuevo, setFormNuevo] = useState({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', fecha_preferida: '', horario: '', notas: '' })
+  const [formNuevo, setFormNuevo] = useState({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '' })
   const [entregasSeleccionadasDom, setEntregasSeleccionadasDom] = useState([])
   const [pedidosClienteDom, setPedidosClienteDom] = useState([])
   const [anticiposClienteDom, setAnticiposClienteDom] = useState([])
@@ -204,15 +204,16 @@ const horariosDelDia = (f) => {
         cliente_id: formNuevo.cliente_id,
         entrega_ids: entregasSeleccionadasDom.map(e => e.entrega_id),
         direccion: formNuevo.direccion, colonia: formNuevo.colonia,
-        referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto,
+        referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto, celular_contacto_adicional: formNuevo.celular_contacto_adicional,
         fecha_preferida: formNuevo.fecha_preferida, horario: formNuevo.horario,
         notas: formNuevo.notas, subtotal, total: null, costo_envio: null, estado: 'pendiente'
       })
     })
+    fetch('/api/clientes/actualizar-direccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cliente_id: formNuevo.cliente_id, direccion: formNuevo.direccion, colonia: formNuevo.colonia, referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto }) })
     setGuardandoDom(false)
     setMostrarFormDom(false)
     setEntregasSeleccionadasDom([])
-    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', fecha_preferida: '', horario: '', notas: '' })
+    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '' })
     setPedidosClienteDom([])
     setAnticiposClienteDom([])
     console.log('[Domicilios] Domicilio creado — recargando lista...')
@@ -942,7 +943,12 @@ const horariosDelDia = (f) => {
                       <div style={{ marginBottom:12 }}>
                         <label style={lStyle}>① Cliente *</label>
                         <select value={formNuevo.cliente_id}
-                          onChange={e => { setFormNuevo({...formNuevo, cliente_id: e.target.value}); setEntregasSeleccionadasDom([]); cargarPedidosClienteDom(e.target.value) }}
+                          onChange={e => {
+                            const c = todosClientes.find(cl => String(cl.id) === e.target.value)
+                            setFormNuevo({ ...formNuevo, cliente_id: e.target.value, direccion: c?.direccion || '', colonia: c?.colonia || '', referencias: c?.referencias || '', celular_contacto: c?.celular_contacto || c?.telefono || '', celular_contacto_adicional: '' })
+                            setEntregasSeleccionadasDom([])
+                            cargarPedidosClienteDom(e.target.value)
+                          }}
                           style={iStyle}>
                           <option value="">-- Elige un cliente --</option>
                           {clientesFiltradosDom.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
@@ -1024,6 +1030,7 @@ const horariosDelDia = (f) => {
                               { label:'Colonia *', key:'colonia', placeholder:'Villa del Real' },
                               { label:'Referencias', key:'referencias', placeholder:'Casa azul, cerca de...' },
                               { label:'Celular', key:'celular_contacto', placeholder:'662 000 0000' },
+                              { label:'Celular adicional (opcional)', key:'celular_contacto_adicional', placeholder:'662 000 0001' },
                             ].map(campo => (
                               <div key={campo.key}>
                                 <label style={lStyle}>{campo.label}</label>

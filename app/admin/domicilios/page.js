@@ -15,8 +15,8 @@ export default function Domicilios() {
   const [entregasSeleccionadas, setEntregasSeleccionadas] = useState([])
   const [formNuevo, setFormNuevo] = useState({
     cliente_id: '', direccion: '', colonia: '',
-    referencias: '', celular_contacto: '', fecha_preferida: '',
-    horario: '', notas: ''
+    referencias: '', celular_contacto: '', celular_contacto_adicional: '',
+    fecha_preferida: '', horario: '', notas: ''
   })
   const [guardando, setGuardando] = useState(false)
 
@@ -268,6 +268,7 @@ const horariosDelDia = (fecha) => {
         colonia: formNuevo.colonia,
         referencias: formNuevo.referencias,
         celular_contacto: formNuevo.celular_contacto,
+        celular_contacto_adicional: formNuevo.celular_contacto_adicional,
         fecha_preferida: formNuevo.fecha_preferida,
         horario: formNuevo.horario,
         notas: formNuevo.notas,
@@ -278,10 +279,11 @@ const horariosDelDia = (fecha) => {
         estado: 'pendiente'
       })
     })
+    fetch('/api/clientes/actualizar-direccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cliente_id: formNuevo.cliente_id, direccion: formNuevo.direccion, colonia: formNuevo.colonia, referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto }) })
     setGuardando(false)
     setMostrarNuevo(false)
     setEntregasSeleccionadas([])
-    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', fecha_preferida: '', horario: '', notas: '' })
+    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '' })
     setPedidosCliente([])
     setAnticiposCliente([])
     cargar()
@@ -333,7 +335,16 @@ const horariosDelDia = (fecha) => {
               <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>① Cliente *</label>
               <select value={formNuevo.cliente_id}
                 onChange={e => {
-                  setFormNuevo({ ...formNuevo, cliente_id: e.target.value })
+                  const c = clientes.find(cl => String(cl.id) === e.target.value)
+                  setFormNuevo({
+                    ...formNuevo,
+                    cliente_id: e.target.value,
+                    direccion: c?.direccion || '',
+                    colonia: c?.colonia || '',
+                    referencias: c?.referencias || '',
+                    celular_contacto: c?.celular_contacto || c?.telefono || '',
+                    celular_contacto_adicional: '',
+                  })
                   setEntregasSeleccionadas([])
                   cargarPedidosCliente(e.target.value)
                 }}
@@ -424,6 +435,7 @@ const horariosDelDia = (fecha) => {
                     { label: 'Colonia *', key: 'colonia', placeholder: 'Villa del Real' },
                     { label: 'Referencias', key: 'referencias', placeholder: 'Casa azul, cerca de...' },
                     { label: 'Celular', key: 'celular_contacto', placeholder: '662 000 0000' },
+                    { label: 'Celular adicional (opcional)', key: 'celular_contacto_adicional', placeholder: '662 000 0001' },
                   ].map(campo => (
                     <div key={campo.key}>
                       <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>{campo.label}</label>

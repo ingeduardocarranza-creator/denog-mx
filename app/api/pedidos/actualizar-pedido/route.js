@@ -9,14 +9,14 @@ const supabase = createClient(
 
 export async function PUT(req) {
   const { id, cliente_id, entrega_id, descripcion, lugar_compra, cantidad, fecha_compra,
-    precio_usd, tipo_cambio, impuesto_pct, costo_mxn, precio_venta, utilidad, notas, estado, vendedor_id } = await req.json()
+    precio_usd, tipo_cambio, impuesto_pct, costo_mxn, precio_venta, utilidad, notas, estado, vendedor_id, categoria } = await req.json()
 
   if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })
 
   const { data, error } = await supabase
     .from('pedidos')
     .update({ cliente_id, entrega_id, descripcion, lugar_compra, cantidad, fecha_compra,
-      precio_usd, tipo_cambio, impuesto_pct, costo_mxn, precio_venta, utilidad, notas, estado, vendedor_id })
+      precio_usd, tipo_cambio, impuesto_pct, costo_mxn, precio_venta, utilidad, notas, estado, vendedor_id, categoria })
     .eq('id', id)
     .select()
     .single()

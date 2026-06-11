@@ -29,6 +29,10 @@ export default function Reportes() {
   const [rawPedidos, setRawPedidos] = useState([])
   const [rawPagos, setRawPagos] = useState([])
 
+  // Categorías
+  const [categoriasReporte, setCategoriasReporte] = useState([])
+  const [filtroCatReporte, setFiltroCatReporte] = useState('')
+
   const chartERef = useRef(null)
   const chartTRef = useRef(null)
   const chartEInstance = useRef(null)
@@ -53,6 +57,7 @@ export default function Reportes() {
 
   useEffect(() => {
     fetch('/api/entregas').then(r => r.json()).then(d => { if (d.ok) setEntregas(d.entregas) })
+    fetch('/api/categorias').then(r => r.json()).then(d => { if (d.ok) setCategoriasReporte(d.categorias) })
   }, [])
 
   useEffect(() => {
@@ -334,6 +339,25 @@ export default function Reportes() {
 
             {cargando && <div style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
 
+            {/* Filtro de categoría */}
+            {!cargando && (metricasE || metricasEC) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Categoría:</span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button onClick={() => setFiltroCatReporte('')}
+                    style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${!filtroCatReporte ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, background: !filtroCatReporte ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', color: !filtroCatReporte ? '#818cf8' : 'rgba(255,255,255,0.4)' }}>
+                    Todas
+                  </button>
+                  {categoriasReporte.map(cat => (
+                    <button key={cat.id} onClick={() => setFiltroCatReporte(cat.nombre)}
+                      style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${filtroCatReporte === cat.nombre ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, background: filtroCatReporte === cat.nombre ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', color: filtroCatReporte === cat.nombre ? '#818cf8' : 'rgba(255,255,255,0.4)' }}>
+                      {cat.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Vista período */}
             {periodoEntrega !== 'estado' && !cargando && metricasE && (
               <div>
@@ -411,6 +435,58 @@ export default function Reportes() {
                   </div>
                 )}
 
+                {/* Métricas filtradas por categoría */}
+                {filtroCatReporte && (() => {
+                  const pedsCat = rawPedidos.filter(p => p.cliente_id && p.categoria === filtroCatReporte)
+                  const vCat = pedsCat.reduce((s, p) => s + (p.precio_venta || 0), 0)
+                  const cCat = pedsCat.reduce((s, p) => s + (p.costo_mxn || 0), 0)
+                  const uCat = pedsCat.reduce((s, p) => s + (p.utilidad || 0), 0)
+                  const mCat = vCat > 0 ? (uCat / vCat) * 100 : 0
+                  return (
+                    <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
+                      <div style={{ color: '#818cf8', fontSize: 12, fontWeight: 600, marginBottom: 10 }}>📊 Categoría: {filtroCatReporte}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
+                        <MetricCard label="Venta" value={fmt(vCat)} sub={`${pedsCat.length} pedidos`} />
+                        <MetricCard label="Costo" value={fmt(cCat)} />
+                        <MetricCard label="Utilidad" value={fmt(uCat)} sub={`Margen ${mCat.toFixed(1)}%`} color="16,185,129" />
+                        <MetricCard label="Pedidos" value={pedsCat.length} sub="En categoría" />
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Desglose por categoría */}
+                {rawPedidos.filter(p => p.cliente_id && p.categoria).length > 0 && (() => {
+                  const porCat = rawPedidos.filter(p => p.cliente_id).reduce((acc, p) => {
+                    const cat = p.categoria || 'Sin categoría'
+                    if (!acc[cat]) acc[cat] = { venta: 0, costo: 0, utilidad: 0, count: 0 }
+                    acc[cat].venta += p.precio_venta || 0
+                    acc[cat].costo += p.costo_mxn || 0
+                    acc[cat].utilidad += p.utilidad || 0
+                    acc[cat].count++
+                    return acc
+                  }, {})
+                  const rows = Object.entries(porCat).sort((a, b) => b[1].venta - a[1].venta)
+                  return (
+                    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
+                      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'white', fontSize: 13, fontWeight: 600 }}>Por categoría</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '8px 16px', background: 'rgba(255,255,255,0.02)' }}>
+                        {['Categoría', 'Venta', 'Utilidad', 'Pedidos'].map((h, i) => (
+                          <span key={i} style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
+                        ))}
+                      </div>
+                      {rows.map(([cat, d], i) => (
+                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '9px 16px', borderTop: '1px solid rgba(255,255,255,0.04)', alignItems: 'center' }}>
+                          <span style={{ color: 'white', fontSize: 13 }}>{cat}</span>
+                          <span style={{ color: 'white', fontSize: 13, textAlign: 'right' }}>{fmt(d.venta)}</span>
+                          <span style={{ color: '#10b981', fontSize: 13, textAlign: 'right' }}>{fmt(d.utilidad)}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'right' }}>{d.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+
                 {/* Alertas */}
                 <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14 }}>
                   <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Alertas</div>
@@ -444,6 +520,50 @@ export default function Reportes() {
                       <MetricCard label="Total cobrado" value={fmt(metricasEC.cobradoTotal)} sub={`Anticipos: ${fmt(metricasEC.totalAnticipos)}`} />
                       <MetricCard label="Por cobrar" value={fmt(metricasEC.pendiente)} color="239,68,68" />
                     </div>
+
+                    {/* Métricas filtradas por categoría (estado de cuenta) */}
+                    {filtroCatReporte && (() => {
+                      const pedsCat = rawPedidos.filter(p => p.categoria === filtroCatReporte)
+                      const vCat = pedsCat.reduce((s, p) => s + (p.precio_venta || 0), 0)
+                      const uCat = pedsCat.reduce((s, p) => s + (p.utilidad || 0), 0)
+                      const mCat = vCat > 0 ? (uCat / vCat) * 100 : 0
+                      return (
+                        <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
+                          <div style={{ color: '#818cf8', fontSize: 12, fontWeight: 600, marginBottom: 10 }}>📊 Categoría: {filtroCatReporte} — {pedsCat.length} pedidos</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                            <MetricCard label="Venta" value={fmt(vCat)} />
+                            <MetricCard label="Utilidad" value={fmt(uCat)} color="16,185,129" />
+                            <MetricCard label="Margen" value={`${mCat.toFixed(1)}%`} />
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Desglose por categoría (estado de cuenta) */}
+                    {rawPedidos.filter(p => p.categoria).length > 0 && (() => {
+                      const porCat = rawPedidos.reduce((acc, p) => {
+                        const cat = p.categoria || 'Sin categoría'
+                        if (!acc[cat]) acc[cat] = { venta: 0, utilidad: 0, count: 0 }
+                        acc[cat].venta += p.precio_venta || 0
+                        acc[cat].utilidad += p.utilidad || 0
+                        acc[cat].count++
+                        return acc
+                      }, {})
+                      const rows = Object.entries(porCat).sort((a, b) => b[1].venta - a[1].venta)
+                      return (
+                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
+                          <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'white', fontSize: 13, fontWeight: 600 }}>Por categoría</div>
+                          {rows.map(([cat, d], i) => (
+                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '9px 16px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                              <span style={{ color: 'white', fontSize: 13 }}>{cat}</span>
+                              <span style={{ color: 'white', fontSize: 13, textAlign: 'right' }}>{fmt(d.venta)}</span>
+                              <span style={{ color: '#10b981', fontSize: 13, textAlign: 'right' }}>{fmt(d.utilidad)}</span>
+                              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'right' }}>{d.count} ped.</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
 
                     {porClienteEC.length > 0 && (
                       <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>

@@ -42,7 +42,7 @@ export async function POST(req) {
         cliente_id, entrega_id, descripcion, lugar_compra,
         cantidad, fecha_compra, precio_usd, tipo_cambio,
         impuesto_pct, costo_mxn, precio_venta, utilidad,
-        notas, estado: 'comprado'
+        notas, categoria: body.categoria || null, estado: 'comprado'
       }])
       .select()
       .single()

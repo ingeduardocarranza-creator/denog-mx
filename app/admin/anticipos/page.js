@@ -38,8 +38,7 @@ export default function Anticipos() {
     setAnticipos(an || [])
   }
 
-  const registrarAnticipo = async (e) => {
-    e.preventDefault()
+  const registrarAnticipo = async (modo = 'limpiar') => {
     if (!clienteSeleccionado || !monto || Number(monto) <= 0) {
       setMensaje({ tipo: 'error', texto: 'Llena los campos obligatorios' }); return
     }
@@ -74,7 +73,11 @@ export default function Anticipos() {
     setLoading(false)
     if (error) { setMensaje({ tipo: 'error', texto: 'Error al registrar' }); return }
     setMensaje({ tipo: 'exito', texto: '✓ Anticipo registrado' })
-    setClienteSeleccionado(''); setEntregaSeleccionada(''); setMonto('')
+    if (modo === 'limpiar') {
+      setClienteSeleccionado(''); setEntregaSeleccionada(''); setMonto('')
+    } else {
+      setMonto('')
+    }
     await cargarDatos()
     setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000)
   }
@@ -181,10 +184,16 @@ export default function Anticipos() {
               </div>
             ))}
 
-            <button onClick={registrarAnticipo} disabled={loading}
-              style={{ width: '100%', background: '#6366f1', border: 'none', borderRadius: 10, padding: '11px', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: loading ? 0.6 : 1, marginTop: 4 }}>
-              {loading ? 'Guardando...' : '✓ Registrar anticipo'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button onClick={() => registrarAnticipo('limpiar')} disabled={loading}
+                style={{ flex: 1, background: '#6366f1', border: 'none', borderRadius: 10, padding: '11px', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+                {loading ? 'Guardando...' : '✓ Registrar y limpiar'}
+              </button>
+              <button onClick={() => registrarAnticipo('continuar')} disabled={loading}
+                style={{ flex: 1, background: 'transparent', border: '1px solid rgba(99,102,241,0.5)', borderRadius: 10, padding: '11px', color: '#818cf8', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+                {loading ? 'Guardando...' : '✓ Registrar y continuar'}
+              </button>
+            </div>
           </div>
 
           {/* HISTORIAL */}

@@ -9,7 +9,7 @@ export default function Pedidos() {
   const [tc, setTc] = useState(19.45)
   const [estado, setEstado] = useState('az')
   const [form, setForm] = useState({
-    cliente_id: '', entrega_id: '', descripcion: '',
+    cliente_id: '', entrega_id: '', descripcion: '', categoria: '',
     lugar_compra: 'Ross', cantidad: 1, fecha_compra: hoy,
     precio_usd: '', precio_venta_unitario: '', notas: '',
     vendedor_id: ''
@@ -41,6 +41,8 @@ export default function Pedidos() {
   const [pedidoMsg, setPedidoMsg] = useState('')
   const [editTaxTipo, setEditTaxTipo] = useState('arizona')
   const [editTaxDenogPct, setEditTaxDenogPct] = useState('')
+  const [categorias, setCategorias] = useState([])
+  const [filtroCategoria, setFiltroCategoria] = useState('')
 
   useEffect(() => {
     fetch('/api/clientes/listar').then(r => r.json()).then(d => {
@@ -50,6 +52,11 @@ export default function Pedidos() {
       }
     })
     fetch('/api/entregas').then(r => r.json()).then(d => { if (d.ok) setEntregas(d.entregas) })
+    fetch('/api/categorias').then(r => r.json()).then(d => {
+      console.log('[categorias]', d)
+      if (d.ok) setCategorias(d.categorias)
+      else console.error('[categorias] Error:', d.mensaje)
+    })
   }, [])
 
   useEffect(() => {
@@ -90,6 +97,7 @@ export default function Pedidos() {
         cliente_id: form.cliente_id,
         entrega_id: form.entrega_id,
         descripcion: form.descripcion,
+        categoria: form.categoria || null,
         lugar_compra: form.lugar_compra,
         cantidad: parseInt(form.cantidad) || 1,
         fecha_compra: form.fecha_compra || hoy,
@@ -111,6 +119,7 @@ export default function Pedidos() {
           cliente_id: form.cliente_id,
           entrega_id: form.entrega_id,
           descripcion: '',
+          categoria: form.categoria,
           lugar_compra: form.lugar_compra,
           cantidad: 1,
           fecha_compra: form.fecha_compra,
@@ -121,7 +130,7 @@ export default function Pedidos() {
         })
       } else {
         setForm({
-          cliente_id: '', entrega_id: '', descripcion: '',
+          cliente_id: '', entrega_id: '', descripcion: '', categoria: '',
           lugar_compra: 'Ross', cantidad: 1, fecha_compra: hoy,
           precio_usd: '', precio_venta_unitario: '', notas: '',
           vendedor_id: ''
@@ -157,6 +166,7 @@ export default function Pedidos() {
     if (filtroFecha && p.fecha_compra !== filtroFecha) return false
     if (filtroEstado !== 'Todos' && p.estado !== filtroEstado) return false
     if (filtroEntrega && String(p.entrega_id) !== String(filtroEntrega)) return false
+    if (filtroCategoria && p.categoria !== filtroCategoria) return false
     return true
   })
 
@@ -186,6 +196,7 @@ export default function Pedidos() {
       notas: p.notas || '',
       estado: p.estado || '',
       vendedor_id: p.vendedor_id || '',
+      categoria: p.categoria || '',
     })
     setPedidoMsg('')
   }
@@ -298,6 +309,15 @@ export default function Pedidos() {
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm">
               <option value="">— ¿Quién tomó este pedido? —</option>
               {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre} ({v.rol === 'admin' ? 'Admin' : 'Vendedor'})</option>)}
+            </select>
+          </div>
+
+          <div className="mb-4">
+            <label className="text-gray-400 text-sm block mb-1">Categoría</label>
+            <select value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})}
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm">
+              <option value="">— Sin categoría —</option>
+              {categorias.map(cat => <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>)}
             </select>
           </div>
 
@@ -423,7 +443,7 @@ export default function Pedidos() {
           <div>
             {/* Filtros */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div>
                   <label className="block text-gray-400 text-xs mb-1 uppercase tracking-wide">Cliente</label>
                   <input type="text" value={filtroCliente} onChange={e => { setFiltroCliente(e.target.value); setPagina(1) }}
@@ -454,9 +474,17 @@ export default function Pedidos() {
                     {entregas.map(en => <option key={en.id} value={en.id}>{en.fecha_entrega}{en.nota ? ` · ${en.nota}` : ''}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-gray-400 text-xs mb-1 uppercase tracking-wide">Categoría</label>
+                  <select value={filtroCategoria} onChange={e => { setFiltroCategoria(e.target.value); setPagina(1) }}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none">
+                    <option value="">Todas</option>
+                    {categorias.map(cat => <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>)}
+                  </select>
+                </div>
               </div>
               <div className="flex gap-2 mt-3">
-                <button onClick={() => { setFiltroCliente(''); setFiltroDescripcion(''); setFiltroFecha(''); setFiltroEstado('Todos'); setFiltroEntrega(''); setPagina(1) }}
+                <button onClick={() => { setFiltroCliente(''); setFiltroDescripcion(''); setFiltroFecha(''); setFiltroEstado('Todos'); setFiltroEntrega(''); setFiltroCategoria(''); setPagina(1) }}
                   className="text-xs text-gray-500 hover:text-gray-300 px-3 py-1 rounded-lg bg-gray-800 border border-gray-700">
                   Limpiar filtros
                 </button>
@@ -542,6 +570,13 @@ export default function Pedidos() {
                             <select value={editFormPedido.entrega_id} onChange={ev => setEditFormPedido({ ...editFormPedido, entrega_id: ev.target.value })} style={inS}>
                               <option value="">— seleccionar —</option>
                               {entregas.map(en => <option key={en.id} value={en.id}>{en.fecha_entrega}{en.nota ? ` · ${en.nota}` : ''}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={lbS}>Categoría</label>
+                            <select value={editFormPedido.categoria} onChange={ev => setEditFormPedido({ ...editFormPedido, categoria: ev.target.value })} style={inS}>
+                              <option value="">— Sin categoría —</option>
+                              {categorias.map(cat => <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>)}
                             </select>
                           </div>
                           <div className="lg:col-span-2">

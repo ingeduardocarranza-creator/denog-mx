@@ -120,17 +120,8 @@ export default function Domicilio() {
     if (!fecha) return []
     const dia = new Date(fecha + 'T12:00:00').getDay()
     if (dia === 0) return []
-    const horariosBase = dia === 6 ? HORARIOS_SABADO : HORARIOS_SEMANA
-    const ahora = new Date()
-    const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
-    if (fecha !== hoy) return horariosBase
-    const horaActual = ahora.getHours() * 60 + ahora.getMinutes()
-    console.log('[Horarios] fecha param:', fecha, '| hoy calculado:', hoy, '| iguales:', fecha === hoy, '| hora actual (min):', horaActual)
-    return horariosBase.filter(h => {
-      if (h.includes('10:00am')) return horaActual < 630
-      if (h.includes('3:00pm') || h.includes('2:00pm')) return horaActual < 915
-      return true
-    })
+    if (dia === 6) return ['10:00am - 1:00pm', '2:00pm - 5:00pm']
+    return ['10:00am - 1:30pm', '3:00pm - 7:00pm']
   }
 
   const formatearFecha = (fecha) => {

@@ -21,6 +21,9 @@ export default function Entregas() {
   const [editFormPedido, setEditFormPedido] = useState({})
   const [guardandoPedido, setGuardandoPedido] = useState(false)
   const [pedidoMsg, setPedidoMsg] = useState('')
+  const [entTaxTipo, setEntTaxTipo] = useState('arizona')
+  const [entTaxDenogPct, setEntTaxDenogPct] = useState('')
+  const [busquedaPedidos, setBusquedaPedidos] = useState({})
 
   useEffect(() => { cargar() }, [])
 
@@ -115,6 +118,10 @@ export default function Entregas() {
   }
 
   const abrirEditarPedido = (p) => {
+    const imp = parseFloat(p.impuesto_pct) || 0
+    const taxTipo = Math.abs(imp - 8.6) < 0.01 ? 'arizona' : Math.abs(imp - 7.75) < 0.01 ? 'california' : 'denog'
+    setEntTaxTipo(taxTipo)
+    setEntTaxDenogPct(taxTipo === 'denog' && imp > 0 ? String(imp) : '')
     setEditandoPedido(p.id)
     setEditFormPedido({
       cliente_id: p.cliente_id || '',
@@ -335,10 +342,27 @@ export default function Entregas() {
                   <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14 }}>
                     {!pedidosPanel[e.id] ? (
                       <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textAlign: 'center', padding: 16 }}>Cargando pedidos...</div>
-                    ) : pedidos.length === 0 ? (
-                      <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textAlign: 'center', padding: 16 }}>Sin pedidos en esta entrega</div>
                     ) : (
-                      grupos.map(([fecha, peds]) => (
+                      <>
+                        {pedidos.length > 0 && (
+                          <div style={{ marginBottom: 10 }}>
+                            <input
+                              type="text"
+                              placeholder="Buscar por cliente o descripción..."
+                              value={busquedaPedidos[e.id] || ''}
+                              onChange={ev => setBusquedaPedidos(prev => ({ ...prev, [e.id]: ev.target.value }))}
+                              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px 12px', color: 'white', fontSize: 11, outline: 'none', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        )}
+                        {(() => {
+                          const busq = (busquedaPedidos[e.id] || '').toLowerCase()
+                          const pedsFiltrados = busq
+                            ? pedidos.filter(p => p.clientes?.nombre?.toLowerCase().includes(busq) || p.descripcion?.toLowerCase().includes(busq))
+                            : pedidos
+                          if (pedsFiltrados.length === 0) return <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textAlign: 'center', padding: 12 }}>Sin resultados para "{busquedaPedidos[e.id]}"</div>
+                          const grupos = agruparPorFecha(pedsFiltrados)
+                          return grupos.map(([fecha, peds]) => (
                         <div key={fecha} style={{ marginBottom: 16 }}>
                           <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 6 }}>
                             Capturados el {fecha}
@@ -417,30 +441,81 @@ export default function Entregas() {
                                       <label style={labelStyle}>Cantidad</label>
                                       <input type="number" value={editFormPedido.cantidad} onChange={ev => setEditFormPedido({ ...editFormPedido, cantidad: ev.target.value })} style={inputStyle} />
                                     </div>
-                                    <div>
-                                      <label style={labelStyle}>Precio USD</label>
-                                      <input type="number" step="0.01" value={editFormPedido.precio_usd} onChange={ev => setEditFormPedido({ ...editFormPedido, precio_usd: ev.target.value })} style={inputStyle} />
-                                    </div>
-                                    <div>
-                                      <label style={labelStyle}>Tipo de cambio</label>
-                                      <input type="number" step="0.01" value={editFormPedido.tipo_cambio} onChange={ev => setEditFormPedido({ ...editFormPedido, tipo_cambio: ev.target.value })} style={inputStyle} />
-                                    </div>
-                                    <div>
-                                      <label style={labelStyle}>Impuesto %</label>
-                                      <input type="number" step="0.01" value={editFormPedido.impuesto_pct} onChange={ev => setEditFormPedido({ ...editFormPedido, impuesto_pct: ev.target.value })} style={inputStyle} />
-                                    </div>
-                                    <div>
-                                      <label style={labelStyle}>Costo MXN</label>
-                                      <input type="number" step="0.01" value={editFormPedido.costo_mxn} onChange={ev => setEditFormPedido({ ...editFormPedido, costo_mxn: ev.target.value })} style={inputStyle} />
-                                    </div>
-                                    <div>
-                                      <label style={labelStyle}>Precio de venta</label>
-                                      <input type="number" step="0.01" value={editFormPedido.precio_venta} onChange={ev => setEditFormPedido({ ...editFormPedido, precio_venta: ev.target.value })} style={inputStyle} />
-                                    </div>
-                                    <div>
-                                      <label style={labelStyle}>Utilidad</label>
-                                      <input type="number" step="0.01" value={editFormPedido.utilidad} onChange={ev => setEditFormPedido({ ...editFormPedido, utilidad: ev.target.value })} style={inputStyle} />
-                                    </div>
+                                    {/* Cotizador */}
+                                    {(() => {
+                                      const usd = parseFloat(editFormPedido.precio_usd) || 0
+                                      const tcVal = parseFloat(editFormPedido.tipo_cambio) || 0
+                                      const impPct = parseFloat(editFormPedido.impuesto_pct) || 0
+                                      const imp = impPct / 100
+                                      const costoCalc = usd > 0 && tcVal > 0 ? usd * (1 + imp) * tcVal : parseFloat(editFormPedido.costo_mxn) || 0
+                                      const venta = parseFloat(editFormPedido.precio_venta) || 0
+                                      const util = venta - costoCalc
+                                      const margen = venta > 0 ? (util / venta) * 100 : 0
+                                      const setTax = (tipo) => {
+                                        const pct = tipo === 'arizona' ? 8.6 : tipo === 'california' ? 7.75 : parseFloat(entTaxDenogPct) || 0
+                                        const nc = usd > 0 && tcVal > 0 ? usd * (1 + pct/100) * tcVal : parseFloat(editFormPedido.costo_mxn) || 0
+                                        setEntTaxTipo(tipo)
+                                        setEditFormPedido(prev => ({ ...prev, impuesto_pct: pct, costo_mxn: nc, utilidad: venta - nc }))
+                                      }
+                                      const handleUsd = (val) => {
+                                        const nu = parseFloat(val) || 0
+                                        const nc = nu > 0 && tcVal > 0 ? nu * (1 + imp) * tcVal : 0
+                                        setEditFormPedido(prev => ({ ...prev, precio_usd: val, costo_mxn: nc || prev.costo_mxn, utilidad: venta - (nc || parseFloat(prev.costo_mxn) || 0) }))
+                                      }
+                                      const handleTc = (val) => {
+                                        const nt = parseFloat(val) || 0
+                                        const nc = usd > 0 && nt > 0 ? usd * (1 + imp) * nt : 0
+                                        setEditFormPedido(prev => ({ ...prev, tipo_cambio: val, costo_mxn: nc || prev.costo_mxn, utilidad: venta - (nc || parseFloat(prev.costo_mxn) || 0) }))
+                                      }
+                                      const handleDenogPct = (val) => {
+                                        setEntTaxDenogPct(val)
+                                        const pct = parseFloat(val) || 0
+                                        const nc = usd > 0 && tcVal > 0 ? usd * (1 + pct/100) * tcVal : parseFloat(editFormPedido.costo_mxn) || 0
+                                        setEditFormPedido(prev => ({ ...prev, impuesto_pct: pct, costo_mxn: nc, utilidad: venta - nc }))
+                                      }
+                                      const handleVenta = (val) => {
+                                        setEditFormPedido(prev => ({ ...prev, precio_venta: val, utilidad: (parseFloat(val) || 0) - costoCalc }))
+                                      }
+                                      return (
+                                        <div style={{ gridColumn: '1 / -1', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 10, padding: 12 }}>
+                                          <div style={{ color: '#818cf8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>💱 Cotizador</div>
+                                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                                            <div><label style={labelStyle}>Precio USD</label><input type="number" step="0.01" value={editFormPedido.precio_usd} onChange={ev => handleUsd(ev.target.value)} style={inputStyle} placeholder="Ej. 14.99" /></div>
+                                            <div><label style={labelStyle}>Tipo de cambio</label><input type="number" step="0.01" value={editFormPedido.tipo_cambio} onChange={ev => handleTc(ev.target.value)} style={inputStyle} /></div>
+                                          </div>
+                                          <div style={{ marginBottom: 8 }}>
+                                            <label style={labelStyle}>Impuesto</label>
+                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                              {[['arizona','Arizona 8.6%'],['california','California 7.75%'],['denog','Tax Denog']].map(([k,lbl]) => (
+                                                <button key={k} type="button" onClick={() => setTax(k)}
+                                                  style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: `1px solid ${entTaxTipo === k ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, background: entTaxTipo === k ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)', color: entTaxTipo === k ? '#818cf8' : 'rgba(255,255,255,0.45)' }}>
+                                                  {lbl}
+                                                </button>
+                                              ))}
+                                            </div>
+                                            {entTaxTipo === 'denog' && <input type="number" step="0.01" value={entTaxDenogPct} onChange={ev => handleDenogPct(ev.target.value)} placeholder="%" style={{ ...inputStyle, marginTop: 5, width: '50%' }} />}
+                                          </div>
+                                          {usd > 0 && tcVal > 0 && (
+                                            <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 7, padding: '7px 9px', fontSize: 10, display: 'grid', gap: 2, marginBottom: 8 }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.4)' }}><span>Precio USD</span><span style={{ fontFamily: 'monospace' }}>${usd.toFixed(2)}</span></div>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.4)' }}><span>+ Impuesto ({impPct.toFixed(2)}%)</span><span style={{ fontFamily: 'monospace' }}>+${(usd * imp).toFixed(2)}</span></div>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.4)' }}><span>× TC {tcVal}</span></div>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 4, marginTop: 2 }}><span>= Costo MXN</span><span style={{ fontFamily: 'monospace', color: '#f59e0b' }}>${costoCalc.toFixed(2)}</span></div>
+                                            </div>
+                                          )}
+                                          <div>
+                                            <label style={labelStyle}>Precio de venta MXN</label>
+                                            <input type="number" step="0.01" value={editFormPedido.precio_venta} onChange={ev => handleVenta(ev.target.value)} style={inputStyle} />
+                                            {editFormPedido.precio_venta && costoCalc > 0 && (
+                                              <div style={{ display: 'flex', gap: 10, marginTop: 4, fontSize: 10 }}>
+                                                <span style={{ color: util >= 0 ? '#4ade80' : '#f87171' }}>Utilidad: ${util.toFixed(2)}</span>
+                                                <span style={{ color: margen >= 20 ? '#4ade80' : margen >= 0 ? '#f59e0b' : '#f87171' }}>Margen: {margen.toFixed(1)}%</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )
+                                    })()}
                                     <div>
                                       <label style={labelStyle}>Estado</label>
                                       <select value={editFormPedido.estado} onChange={ev => setEditFormPedido({ ...editFormPedido, estado: ev.target.value })} style={inputStyle}>
@@ -475,7 +550,9 @@ export default function Entregas() {
                             </div>
                           ))}
                         </div>
-                      ))
+                          ))
+                        })()}
+                      </>
                     )}
                   </div>
                 )}

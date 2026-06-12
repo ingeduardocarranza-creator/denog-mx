@@ -49,19 +49,22 @@ export default function AdminCaja() {
   const enviarRetiro = async () => {
     if (!montoRetiro || !motivoRetiro.trim()) return
     setEnviandoRetiro(true)
+    const estadoRetiro = turnoActivo ? 'pendiente' : 'confirmado'
     const res = await fetch('/api/retiros', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ monto: parseFloat(montoRetiro), motivo: motivoRetiro, estado: 'pendiente' })
+      body: JSON.stringify({ monto: parseFloat(montoRetiro), motivo: motivoRetiro, estado: estadoRetiro })
     })
     const data = await res.json()
     setEnviandoRetiro(false)
     if (data.ok) {
       setMontoRetiro('')
       setMotivoRetiro('')
-      setMensajeRetiro('✅ Retiro enviado — esperando confirmación del colaborador')
+      setMensajeRetiro(turnoActivo
+        ? '✅ Retiro enviado — esperando confirmación del colaborador'
+        : '✅ Retiro registrado — se descontará del fondo del próximo turno')
       cargar()
-      setTimeout(() => setMensajeRetiro(''), 4000)
+      setTimeout(() => setMensajeRetiro(''), 5000)
     }
   }
 
@@ -344,9 +347,11 @@ export default function AdminCaja() {
               </div>
               <button onClick={enviarRetiro} disabled={enviandoRetiro || !montoRetiro || !motivoRetiro}
                 style={{ width: '100%', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, padding: '9px', color: '#f59e0b', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: enviandoRetiro || !montoRetiro || !motivoRetiro ? 0.5 : 1 }}>
-                {enviandoRetiro ? 'Enviando...' : '📤 Enviar retiro al colaborador'}
+                {enviandoRetiro ? 'Registrando...' : turnoActivo ? '📤 Enviar retiro al colaborador' : '💾 Registrar retiro'}
               </button>
-              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: 'center', marginTop: 6 }}>El colaborador debe confirmar desde su pantalla</div>
+              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: 'center', marginTop: 6 }}>
+                {turnoActivo ? 'El colaborador debe confirmar desde su pantalla' : 'Sin turno activo — se registra directo como confirmado'}
+              </div>
             </div>
 
             <div style={{ ...secLabel }}>Historial de retiros</div>

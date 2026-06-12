@@ -27,6 +27,7 @@ export default function CajaPage() {
   const [justificacion, setJustificacion] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+  const [retirosPostCorte, setRetirosPostCorte] = useState(0)
 
   useEffect(() => {
     const datos = localStorage.getItem('cliente')
@@ -70,7 +71,18 @@ export default function CajaPage() {
     const res = await fetch('/api/caja?tipo=corte')
     const data = await res.json()
     if (data.ok && data.cortes.length > 0) {
-      setUltimoCorte(data.cortes[0])
+      const corte = data.cortes[0]
+      setUltimoCorte(corte)
+      const ahora = new Date()
+      const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
+      const retirosRes = await fetch(`/api/retiros?fecha=${hoy}`)
+      const retirosData = await retirosRes.json()
+      if (retirosData.ok) {
+        const postCorte = (retirosData.retiros || []).filter(r =>
+          r.estado === 'confirmado' && new Date(r.creado_en) > new Date(corte.creado_en)
+        )
+        setRetirosPostCorte(postCorte.reduce((s, r) => s + r.monto, 0))
+      }
     }
   }
 
@@ -99,7 +111,7 @@ export default function CajaPage() {
   }
 
   const totalContado = calcularTotal(denominaciones)
-  const fondoEsperado = ultimoCorte?.total_contado || 0
+  const fondoEsperado = Math.max(0, (ultimoCorte?.total_contado || 0) - retirosPostCorte)
   const diferencia = totalContado - fondoEsperado
   const hayDiferencia = ultimoCorte ? Math.abs(diferencia) > 0.01 : false
 
@@ -259,9 +271,14 @@ export default function CajaPage() {
           <div>
             {ultimoCorte && (
               <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
-                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Fondo del turno anterior</div>
-                <div style={{ color: '#818cf8', fontSize: 24, fontWeight: 800 }}>{fmt(ultimoCorte.total_contado)}</div>
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Fondo disponible</div>
+                <div style={{ color: '#818cf8', fontSize: 24, fontWeight: 800 }}>{fmt(fondoEsperado)}</div>
                 <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>Corte de {ultimoCorte.clientes?.nombre} — {formatearFecha(ultimoCorte.creado_en)}</div>
+                {retirosPostCorte > 0 && (
+                  <div style={{ color: 'rgba(248,113,113,0.7)', fontSize: 10, marginTop: 4 }}>
+                    {fmt(ultimoCorte.total_contado)} fondo − {fmt(retirosPostCorte)} retiros registrados
+                  </div>
+                )}
               </div>
             )}
             {!ultimoCorte && (

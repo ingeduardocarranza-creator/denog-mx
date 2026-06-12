@@ -106,11 +106,14 @@ export default function AdminCaja() {
     ? retiros.filter(r => r.estado === 'confirmado' && r.creado_en >= aperturaActual.creado_en).reduce((s, r) => s + r.monto, 0)
     : 0
   const efectivoEnCaja = fondoInicial + metricasTurno.efectivo - retirosConfirmadosTurno
+  const fondoActualTurno = fondoInicial - retirosConfirmadosTurno
   const totalDia = metricas.efectivo + metricas.transferencia + metricas.terminal
 
   // Fondo inicial del día: la apertura más antigua del día (la API devuelve DESC, así que es la última)
   const todasAperturas = cortes.filter(c => c.tipo === 'apertura')
   const fondoDia = todasAperturas.length > 0 ? (todasAperturas[todasAperturas.length - 1]?.total_contado || 0) : 0
+  const retirosConfirmadosDia = retiros.filter(r => r.estado === 'confirmado').reduce((s, r) => s + r.monto, 0)
+  const fondoActualDia = Math.max(0, fondoDia - retirosConfirmadosDia)
 
   // Historial: una fila por turno, emparejando por timestamp.
   // Ordenamos aperturas y cortes ASC; el corte de una apertura es el que ocurre
@@ -212,10 +215,21 @@ export default function AdminCaja() {
               ))}
             </div>
 
+            {/* Fondo actual en caja (fondo inicial − retiros) */}
+            <div style={{ background: 'rgba(245,158,11,0.07)', border: '2px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '12px 18px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ color: '#f59e0b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>💵 Fondo en caja</div>
+                <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 3 }}>
+                  {fmt(fondoInicial)} inicial − {fmt(retirosConfirmadosTurno)} retiros
+                </div>
+              </div>
+              <div style={{ color: '#f59e0b', fontSize: 28, fontWeight: 900 }}>{fmt(fondoActualTurno)}</div>
+            </div>
+
             {/* Efectivo en caja ahora */}
             <div style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 10, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 600 }}>Efectivo físico en caja ahora</div>
+                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 600 }}>Efectivo total en caja ahora</div>
                 <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>
                   {fmt(fondoInicial)} fondo + {fmt(metricasTurno.efectivo)} cobrado − {fmt(retirosConfirmadosTurno)} retiros
                 </div>
@@ -227,7 +241,7 @@ export default function AdminCaja() {
 
         {/* ══ SECCIÓN 2: RESUMEN DEL DÍA ══════════════════════════════════ */}
         <div style={{ ...secLabel }}>Resumen del día</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8, marginBottom: 10 }}>
           {[
             { label: 'Fondo inicial', valor: fondoDia, color: 'white' },
             { label: 'Efectivo total día', valor: metricas.efectivo, color: 'white' },
@@ -240,6 +254,16 @@ export default function AdminCaja() {
               <div style={{ color: m.color, fontSize: 20, fontWeight: 700 }}>{fmt(m.valor)}</div>
             </div>
           ))}
+        </div>
+        {/* Fondo actual del día */}
+        <div style={{ background: 'rgba(245,158,11,0.07)', border: '2px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '14px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ color: '#f59e0b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>💵 Fondo en caja</div>
+            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 3 }}>
+              {fmt(fondoDia)} fondo inicial del día − {fmt(retirosConfirmadosDia)} retiros confirmados
+            </div>
+          </div>
+          <div style={{ color: '#f59e0b', fontSize: 28, fontWeight: 900 }}>{fmt(fondoActualDia)}</div>
         </div>
 
         {/* ══ SECCIÓN 3: HISTORIAL + RETIROS (2 columnas) ═════════════════ */}

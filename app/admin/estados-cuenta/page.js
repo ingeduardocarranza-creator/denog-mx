@@ -829,7 +829,7 @@ export default function EstadosCuenta() {
                 {copiado ? '✅ ¡Copiada!' : '📋 Copiar imagen'}
               </button>
               {clienteActual.cliente.telefono ? (
-                <a href={`https://wa.me/${((tel) => { const n = tel.replace(/\D/g, ''); const f = n.startsWith('52') && n.length === 12 ? n : n.length === 10 ? '52' + n : n; console.log('numero original:', tel, 'numero final:', f); return f; })(clienteActual.cliente.telefono)}`} target="_blank" rel="noreferrer"
+                <a href={`https://wa.me/${((tel) => { const n = tel.replace(/\D/g, ''); if (n.length === 12 && n.startsWith('52')) return n; if (n.length === 10) return '52' + n; if (n.length === 11 && n.startsWith('1')) return '52' + n.slice(1); if (n.length === 11 && !n.startsWith('52')) return '52' + n.slice(1); if (n.length === 13 && n.startsWith('521')) return '52' + n.slice(3); console.log('numero original:', tel, 'numero final:', n); return n; })(clienteActual.cliente.telefono)}`} target="_blank" rel="noreferrer"
                   style={{ flex: 1, padding: '14px', borderRadius: 12, background: 'rgba(37,211,102,0.12)', border: '1px solid rgba(37,211,102,0.3)', color: '#4ade80', fontSize: 15, fontWeight: 700, cursor: 'pointer', textAlign: 'center', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   📱 WhatsApp
                 </a>

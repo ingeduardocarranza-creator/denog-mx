@@ -555,8 +555,16 @@ const horariosDelDia = (f) => {
 
   const enviarWhatsApp = () => {
     if (!ticketListo) return;
-    const numLimpio = ticketListo.telefono.replace(/\D/g, '');
-    const numFinal = numLimpio.startsWith('52') && numLimpio.length === 12 ? numLimpio : numLimpio.length === 10 ? '52' + numLimpio : numLimpio;
+    const normalizarTelefono = (tel) => {
+      const n = tel.replace(/\D/g, '')
+      if (n.length === 12 && n.startsWith('52')) return n
+      if (n.length === 10) return '52' + n
+      if (n.length === 11 && n.startsWith('1')) return '52' + n.slice(1)
+      if (n.length === 11 && !n.startsWith('52')) return '52' + n.slice(1)
+      if (n.length === 13 && n.startsWith('521')) return '52' + n.slice(3)
+      return n
+    }
+    const numFinal = normalizarTelefono(ticketListo.telefono);
     console.log('numero original:', ticketListo.telefono, 'numero final:', numFinal);
     const url = `https://api.whatsapp.com/send?phone=${numFinal || ''}&text=${encodeURIComponent(ticketListo.mensajeWhatsapp)}`;
     window.open(url, '_blank');

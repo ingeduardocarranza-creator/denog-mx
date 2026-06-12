@@ -332,6 +332,20 @@ export default function EstadosCuenta() {
     }
   }
 
+  const eliminarPedido = async (pedidoId) => {
+    if (!confirm('¿Eliminar este artículo? Esta acción no se puede deshacer.')) return
+    const res = await fetch('/api/pedidos/actualizar-pedido', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: pedidoId })
+    })
+    const data = await res.json()
+    if (data.ok) {
+      if (modo === 'entrega') cargarPorEntrega()
+      else cargarPorCliente()
+    }
+  }
+
   const cargarPorEntrega = async () => {
     if (!entregaId) return
     setCargando(true)
@@ -351,9 +365,8 @@ export default function EstadosCuenta() {
     )
     if (clientesEnEntrega.size === 0) { setCargando(false); return }
 
-    // Todos los pedidos pendientes de esos clientes (cualquier entrega)
     const todosPedidos = (todosPedsRes.pedidos || []).filter(p =>
-      clientesEnEntrega.has(String(p.cliente_id)) && p.estado !== 'Entregado'
+      clientesEnEntrega.has(String(p.cliente_id))
     )
 
     // Todos los pagos de esos clientes (cualquier entrega)
@@ -412,7 +425,7 @@ export default function EstadosCuenta() {
     ])
 
     const pedidos = (pedsRes.pedidos || []).filter(p =>
-      String(p.cliente_id) === String(clienteId) && p.estado !== 'Entregado'
+      String(p.cliente_id) === String(clienteId)
     )
     const pagos = (pagsRes.pagos || []).filter(p =>
       String(p.cliente_id) === String(clienteId)
@@ -593,7 +606,7 @@ export default function EstadosCuenta() {
               </div>
 
               {clienteActual.grupos.map((g, gi) => {
-                const sub = g.pedidos.reduce((s, p) => s + (p.precio_venta || 0), 0)
+                const sub = g.pedidos.filter(p => p.estado !== 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
                 const pag = g.pagos.reduce((s, p) => s + (p.monto || 0), 0)
                 return (
                   <div key={gi} style={{ marginBottom: gi < clienteActual.grupos.length - 1 ? 16 : 0 }}>
@@ -603,17 +616,28 @@ export default function EstadosCuenta() {
                       </div>
                     )}
                     <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, overflow: 'hidden', marginBottom: 8 }}>
-                      {g.pedidos.map((p, pi) => (
-                        <div key={pi}>
+                      {[...g.pedidos].sort(p => p.estado === 'Entregado' ? 1 : -1).map((p, pi, arr) => (
+                        <div key={pi} style={{ opacity: p.estado === 'Entregado' ? 0.6 : 1 }}>
                           {editandoPedido !== p.id ? (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: pi < g.pedidos.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: pi < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                              {p.estado === 'Entregado' && (
+                                <div style={{ position: 'absolute', top: 4, right: 8, background: '#10b981', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5 }}>✓ ENTREGADO</div>
+                              )}
                               <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, flex: 1, marginRight: 12 }}>{p.descripcion}</span>
                               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
                                 <span style={{ color: 'white', fontSize: 12, fontWeight: 600 }}>{fmt(p.precio_venta)}</span>
-                                <button onClick={() => abrirEditarPedido(p)}
-                                  style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '3px 9px', color: '#818cf8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
-                                  ✏️
-                                </button>
+                                {p.estado !== 'Entregado' && (
+                                  <>
+                                    <button onClick={() => abrirEditarPedido(p)}
+                                      style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '3px 9px', color: '#818cf8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                      ✏️
+                                    </button>
+                                    <button onClick={() => eliminarPedido(p.id)}
+                                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '3px 9px', color: '#f87171', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                      🗑️
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                           ) : (
@@ -774,7 +798,7 @@ export default function EstadosCuenta() {
               })}
 
               {(() => {
-                const total = clienteActual.grupos.reduce((s, g) => s + g.pedidos.reduce((ss, p) => ss + (p.precio_venta || 0), 0), 0)
+                const total = clienteActual.grupos.reduce((s, g) => s + g.pedidos.filter(p => p.estado !== 'Entregado').reduce((ss, p) => ss + (p.precio_venta || 0), 0), 0)
                 const pag = clienteActual.grupos.reduce((s, g) => s + g.pagos.reduce((ss, p) => ss + (p.monto || 0), 0), 0)
                 const saldo = Math.max(0, total - pag)
                 return (

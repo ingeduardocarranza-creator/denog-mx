@@ -44,3 +44,11 @@ export async function PUT(req) {
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true, entrega: data })
 }
+
+export async function DELETE(req) {
+  const { id } = await req.json()
+  if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })
+  const { error } = await supabase.from('entregas').delete().eq('id', id)
+  if (error) return NextResponse.json({ ok: false, mensaje: error.message })
+  return NextResponse.json({ ok: true })
+}

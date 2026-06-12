@@ -100,6 +100,39 @@ export default function Entregas() {
     cargar()
   }
 
+  const eliminarEntrega = async (entregaId) => {
+    if (!confirm('¿Estás seguro de eliminar esta entrega?')) return
+    const res = await fetch(`/api/reportes/pedidos?entrega_id=${entregaId}`)
+    const data = await res.json()
+    const pedidosDe = data.ok ? (data.pedidos || []) : []
+    if (pedidosDe.length > 0) {
+      const elimTambien = confirm(`Esta entrega tiene ${pedidosDe.length} pedido${pedidosDe.length !== 1 ? 's' : ''}. ¿Deseas eliminar también los pedidos?\n\nOK = eliminar pedidos\nCancelar = dejar pedidos sin entrega`)
+      if (elimTambien) {
+        for (const p of pedidosDe) {
+          await fetch('/api/pedidos/actualizar-pedido', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: p.id })
+          })
+        }
+      } else {
+        for (const p of pedidosDe) {
+          await fetch('/api/pedidos/actualizar-pedido', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: p.id, entrega_id: null })
+          })
+        }
+      }
+    }
+    await fetch('/api/entregas', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: entregaId })
+    })
+    cargar()
+  }
+
   // ─── Pedidos ───────────────────────────────────────────────
   const togglePedidos = async (entregaId) => {
     const abriendo = !panelAbierto[entregaId]
@@ -162,7 +195,7 @@ export default function Entregas() {
   }
 
   const eliminarPedido = async (pedidoId, entregaId) => {
-    if (!confirm('¿Eliminar este pedido? Esta acción no se puede deshacer.')) return
+    if (!confirm('¿Eliminar este artículo? Esta acción no se puede deshacer.')) return
     const res = await fetch('/api/pedidos/actualizar-pedido', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -271,6 +304,10 @@ export default function Entregas() {
                       style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, padding: '5px 12px', color: '#818cf8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                       ✏️ Editar
                     </button>
+                    <button onClick={() => eliminarEntrega(e.id)}
+                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '5px 12px', color: '#f87171', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                      🗑️ Eliminar
+                    </button>
                     <span style={{ background: est.bg, border: `1px solid ${est.border}`, borderRadius: 20, padding: '4px 12px', color: est.color, fontSize: 11, fontWeight: 600 }}>
                       {est.label}
                     </span>
@@ -361,8 +398,12 @@ export default function Entregas() {
                             ? pedidos.filter(p => p.clientes?.nombre?.toLowerCase().includes(busq) || p.descripcion?.toLowerCase().includes(busq))
                             : pedidos
                           if (pedsFiltrados.length === 0) return <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textAlign: 'center', padding: 12 }}>Sin resultados para "{busquedaPedidos[e.id]}"</div>
-                          const grupos = agruparPorFecha(pedsFiltrados)
-                          return grupos.map(([fecha, peds]) => (
+                          const pendientes = pedsFiltrados.filter(p => p.estado !== 'Entregado')
+                          const entregados = pedsFiltrados.filter(p => p.estado === 'Entregado')
+                          const grupos = agruparPorFecha(pendientes)
+                          return (
+                            <>
+                            {grupos.map(([fecha, peds]) => (
                         <div key={fecha} style={{ marginBottom: 16 }}>
                           <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 6 }}>
                             Capturados el {fecha}
@@ -550,7 +591,34 @@ export default function Entregas() {
                             </div>
                           ))}
                         </div>
-                          ))
+                          ))}
+                            {entregados.length > 0 && (
+                              <>
+                                {pendientes.length > 0 && (
+                                  <div style={{ borderTop: '1px solid rgba(16,185,129,0.15)', paddingTop: 10, marginTop: 6, marginBottom: 10 }}>
+                                    <span style={{ color: 'rgba(16,185,129,0.5)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>✓ Entregados</span>
+                                  </div>
+                                )}
+                                {entregados.map(p => (
+                                  <div key={p.id} style={{ marginBottom: 8, opacity: 0.6 }}>
+                                    <div style={{ position: 'relative', background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '10px 12px' }}>
+                                      <div style={{ position: 'absolute', top: 6, right: 8, background: '#10b981', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5 }}>✓ ENTREGADO</div>
+                                      <div style={{ paddingRight: 90 }}>
+                                        <div style={{ color: 'white', fontSize: 12, fontWeight: 600 }}>{p.descripcion}</div>
+                                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
+                                          {p.clientes?.nombre || '—'} · {p.cantidad || 1} pza{p.lugar_compra && ` · ${p.lugar_compra}`}
+                                        </div>
+                                      </div>
+                                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
+                                        {p.precio_venta != null && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>Venta <span style={{ color: '#4ade80', fontWeight: 700 }}>{fmt(p.precio_venta)}</span></span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </>
+                            )}
+                            </>
+                          )
                         })()}
                       </>
                     )}

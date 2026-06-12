@@ -165,7 +165,8 @@ export default function Pedidos() {
     if (filtroDescripcion && !p.descripcion?.toLowerCase().includes(filtroDescripcion.toLowerCase())) return false
     if (filtroFecha && p.fecha_compra !== filtroFecha) return false
     if (filtroEstado !== 'Todos' && p.estado !== filtroEstado) return false
-    if (filtroEntrega && String(p.entrega_id) !== String(filtroEntrega)) return false
+    if (filtroEntrega === 'sin_entrega' && p.entrega_id) return false
+    if (filtroEntrega && filtroEntrega !== 'sin_entrega' && String(p.entrega_id) !== String(filtroEntrega)) return false
     if (filtroCategoria && p.categoria !== filtroCategoria) return false
     return true
   })
@@ -471,6 +472,7 @@ export default function Pedidos() {
                   <select value={filtroEntrega} onChange={e => { setFiltroEntrega(e.target.value); setPagina(1) }}
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none">
                     <option value="">Todas</option>
+                    <option value="sin_entrega">— Sin entrega asignada —</option>
                     {entregas.map(en => <option key={en.id} value={en.id}>{en.fecha_entrega}{en.nota ? ` · ${en.nota}` : ''}</option>)}
                   </select>
                 </div>

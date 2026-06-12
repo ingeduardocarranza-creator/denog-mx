@@ -556,8 +556,9 @@ const horariosDelDia = (f) => {
   const enviarWhatsApp = () => {
     if (!ticketListo) return;
     const numLimpio = ticketListo.telefono.replace(/\D/g, '');
-    const numConCodigo = numLimpio.length === 10 ? '52' + numLimpio : numLimpio;
-    const url = `https://api.whatsapp.com/send?phone=${numConCodigo || ''}&text=${encodeURIComponent(ticketListo.mensajeWhatsapp)}`;
+    const numFinal = numLimpio.startsWith('52') && numLimpio.length === 12 ? numLimpio : numLimpio.length === 10 ? '52' + numLimpio : numLimpio;
+    console.log('numero original:', ticketListo.telefono, 'numero final:', numFinal);
+    const url = `https://api.whatsapp.com/send?phone=${numFinal || ''}&text=${encodeURIComponent(ticketListo.mensajeWhatsapp)}`;
     window.open(url, '_blank');
   };
 

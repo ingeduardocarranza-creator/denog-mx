@@ -14,7 +14,7 @@ export async function GET(req) {
 
   let query = supabase
     .from('retiros_caja')
-    .select('*, clientes!pagos_cliente_id_fkey(nombre)')
+    .select('*')
     .order('creado_en', { ascending: false })
 
   if (fecha) {

@@ -556,7 +556,8 @@ const horariosDelDia = (f) => {
   const enviarWhatsApp = () => {
     if (!ticketListo) return;
     const numLimpio = ticketListo.telefono.replace(/\D/g, '');
-    const url = `https://api.whatsapp.com/send?phone=${numLimpio || ''}&text=${encodeURIComponent(ticketListo.mensajeWhatsapp)}`;
+    const numConCodigo = numLimpio.length === 10 ? '52' + numLimpio : numLimpio;
+    const url = `https://api.whatsapp.com/send?phone=${numConCodigo || ''}&text=${encodeURIComponent(ticketListo.mensajeWhatsapp)}`;
     window.open(url, '_blank');
   };
 

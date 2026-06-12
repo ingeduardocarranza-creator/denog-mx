@@ -537,7 +537,7 @@ const horariosDelDia = (f) => {
           await supabase.from('pagos').delete().eq('id', anticipo.id)
         }
       }
-      setMensaje({ tipo: 'exito', texto: '¡Cobro registrado con éxito en caja!' });
+      setMensaje({ tipo: 'exito', texto: totalGeneral === 0 ? '¡Pedido entregado! Cubierto con anticipos' : '¡Cobro registrado con éxito en caja!' });
       setTicketListo(infoTicket);
 
       const { data: pr } = await supabase.from('productos_tienda').select('*').eq('activo', true).gt('stock', 0);
@@ -1137,10 +1137,13 @@ const horariosDelDia = (f) => {
                 </div>
               )}
               <button type="button"
-                onClick={() => { setModalRecibido(''); setModalMonto1(''); setModalDosMetodos(false); setMostrarModalCobro(true) }}
-                disabled={loading || (modo === 'modo1' && !clienteSeleccionado) || (modo === 'modo2' && carritoTienda.length === 0) || totalGeneral <= 0}
+                onClick={totalGeneral === 0
+                  ? () => procesarCobroFinal({ metodo1: null, monto1: 0, metodo2: null, monto2: 0 })
+                  : () => { setModalRecibido(''); setModalMonto1(''); setModalDosMetodos(false); setMostrarModalCobro(true) }
+                }
+                disabled={loading || (modo === 'modo1' && !clienteSeleccionado) || (modo === 'modo2' && carritoTienda.length === 0)}
                 className="w-full font-bold text-xs py-3.5 rounded-xl uppercase tracking-widest transition-all bg-blue-600 hover:bg-blue-700 text-white shadow-lg disabled:opacity-40 disabled:cursor-not-allowed">
-                {loading ? 'Procesando...' : '✓ Registrar pago'}
+                {loading ? 'Procesando...' : totalGeneral === 0 ? '✅ Marcar como entregado' : '✓ Registrar pago'}
               </button>
 
             {/* ─── MODO 3: DOMICILIOS ─────────────────────────────── */}

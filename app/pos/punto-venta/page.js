@@ -38,7 +38,7 @@ export default function PuntoDeVenta() {
   const [domicilios, setDomicilios] = useState([])
   const [cargandoDomicilios, setCargandoDomicilios] = useState(false)
   const [cobrandoDomicilio, setCobrandoDomicilio] = useState(null)
-  const [pagoDomicilio, setPagoDomicilio] = useState({ metodo1: 'Efectivo', monto1: '', metodo2: 'Transferencia', mostrar2: false })
+  const [pagoDomicilio, setPagoDomicilio] = useState({ metodo1: 'Efectivo', monto1: '', recibido1: '', metodo2: 'Transferencia', mostrar2: false, recibido2: '' })
   const [domiciliosBadge, setDomiciliosBadge] = useState(0)
   const [mostrarFormDom, setMostrarFormDom] = useState(false)
   const [formNuevo, setFormNuevo] = useState({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '' })
@@ -60,10 +60,12 @@ export default function PuntoDeVenta() {
   const [anticiposDisponibles, setAnticiposDisponibles] = useState(0);
   const [productosSeleccionados, setProductosSeleccionados] = useState({});
   const [carritoTienda, setCarritoTienda] = useState([]);
-  const [metodo1, setMetodo1] = useState('Efectivo');
-  const [montoMetodo1, setMontoMetodo1] = useState('');
-  const [mostrarMetodo2, setMostrarMetodo2] = useState(false);
-  const [metodo2, setMetodo2] = useState('Transferencia');
+  const [mostrarModalCobro, setMostrarModalCobro] = useState(false);
+  const [modalMetodo1, setModalMetodo1] = useState('Efectivo');
+  const [modalMonto1, setModalMonto1] = useState('');
+  const [modalRecibido, setModalRecibido] = useState('');
+  const [modalDosMetodos, setModalDosMetodos] = useState(false);
+  const [modalMetodo2, setModalMetodo2] = useState('Transferencia');
 
   useEffect(() => {
     const datos = localStorage.getItem('cliente')
@@ -272,6 +274,24 @@ const horariosDelDia = (f) => {
 
   const registrarPagoDomicilio = async (d) => {
     const totalAPagar = getTotalAPagarDom(d)
+
+    if (totalAPagar === 0) {
+      for (const entrega_id of (d.entrega_ids || [])) {
+        await fetch('/api/pedidos/actualizar-estado', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cliente_id: d.cliente_id, entrega_id, estado: 'Entregado' })
+        })
+      }
+      await fetch('/api/domicilios/actualizar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: d.id, estado: 'entregado' })
+      })
+      setCobrandoDomicilio(null)
+      setPagoDomicilio({ metodo1: 'Efectivo', monto1: '', recibido1: '', metodo2: 'Transferencia', mostrar2: false, recibido2: '' })
+      cargarDomicilios()
+      return
+    }
+
     const monto1 = parseFloat(pagoDomicilio.monto1) || 0
     const monto2 = pagoDomicilio.mostrar2 ? totalAPagar - monto1 : 0
     if (monto1 <= 0) return
@@ -310,7 +330,7 @@ const horariosDelDia = (f) => {
       body: JSON.stringify({ id: d.id, estado: 'entregado' })
     })
     setCobrandoDomicilio(null)
-    setPagoDomicilio({ metodo1: 'Efectivo', monto1: '', metodo2: 'Transferencia', mostrar2: false })
+    setPagoDomicilio({ metodo1: 'Efectivo', monto1: '', recibido1: '', metodo2: 'Transferencia', mostrar2: false, recibido2: '' })
     cargarDomicilios()
   }
 
@@ -359,10 +379,11 @@ const horariosDelDia = (f) => {
     setCarritoTienda([]);
     setBusquedaCliente('');
     setBusquedaProducto('');
-    setMontoMetodo1('');
-    setMostrarMetodo2(false);
-    setMetodo1('Efectivo');
-    setMetodo2('Transferencia');
+    setModalMonto1('');
+    setModalDosMetodos(false);
+    setModalMetodo1('Efectivo');
+    setModalMetodo2('Transferencia');
+    setModalRecibido('');
     setMensaje({ tipo: '', texto: '' });
     setTicketListo(null);
   };
@@ -371,8 +392,8 @@ const horariosDelDia = (f) => {
     setClienteSeleccionado(cliente);
     setBusquedaCliente('');
     setCarritoTienda([]);
-    setMontoMetodo1('');
-    setMostrarMetodo2(false);
+    setModalMonto1('');
+    setModalDosMetodos(false);
     setTicketListo(null);
 
     const { data: pedidosDb } = await supabase
@@ -456,16 +477,7 @@ const horariosDelDia = (f) => {
 
   const subtotalTienda = carritoTienda.reduce((acc, item) => acc + (Number(item.producto.precio_venta) * item.cantidad), 0);
   const totalGeneral = modo === 'modo1' ? (sumaEncargosTotalNeto + subtotalTienda) : subtotalTienda;
-  const valorInput1 = Number(montoMetodo1) || 0;
-  const valorAutocompletado2 = mostrarMetodo2 ? Math.max(0, totalGeneral - valorInput1) : 0;
-  const dineroTotalEntregado = valorInput1 + valorAutocompletado2;
-  const saldoDiferenciaCaja = totalGeneral - dineroTotalEntregado;
-  const cobroIncompleto = totalGeneral > 0 && saldoDiferenciaCaja > 0.01;
-  const cobroExcedido = totalGeneral > 0 && saldoDiferenciaCaja < -0.01;
-  const p2 = valorAutocompletado2;
-
-  const procesarCobroFinal = async () => {
-    if (cobroIncompleto || cobroExcedido) return;
+  const procesarCobroFinal = async ({ metodo1: m1, monto1, metodo2: m2, monto2 }) => {
     setLoading(true);
     setMensaje({ tipo: '', texto: '' });
 
@@ -500,27 +512,26 @@ const horariosDelDia = (f) => {
       const entregaIdFinal = modo === 'modo1' && bloquesEntregas.length > 0 ? bloquesEntregas[0].entrega.id : null;
       const vendedorId = modo === 'modo2' ? vendedorTienda?.id : colaborador?.id;
 
-      if (valorInput1 > 0) {
+      if (monto1 > 0) {
         await supabase.from('pagos').insert({
           cliente_id: clienteIdFinal,
           entrega_id: entregaIdFinal,
-          monto: valorInput1,
-          metodo: metodo1,
+          monto: monto1,
+          metodo: m1,
           tipo: 'Venta Liquidación',
           vendedor_id: vendedorId
         });
       }
-      if (valorAutocompletado2 > 0) {
+      if (monto2 > 0 && m2) {
         await supabase.from('pagos').insert({
           cliente_id: clienteIdFinal,
           entrega_id: entregaIdFinal,
-          monto: valorAutocompletado2,
-          metodo: metodo2,
+          monto: monto2,
+          metodo: m2,
           tipo: 'Venta Liquidación',
           vendedor_id: vendedorId
         });
       }
-// Eliminar anticipos aplicados
       if (modo === 'modo1' && listaAnticipos.length > 0) {
         for (const anticipo of listaAnticipos) {
           await supabase.from('pagos').delete().eq('id', anticipo.id)
@@ -533,8 +544,8 @@ const horariosDelDia = (f) => {
       setTodosProductos(pr || []);
       setBloquesEntregas([]);
       setCarritoTienda([]);
-      setMontoMetodo1('');
-      setMostrarMetodo2(false);
+      setModalMonto1('');
+      setModalDosMetodos(false);
     } catch (err) {
       setMensaje({ tipo: 'error', texto: 'Error de conexión.' });
     } finally {
@@ -559,7 +570,277 @@ const horariosDelDia = (f) => {
     p.nombre?.toLowerCase().includes(busquedaProducto.toLowerCase()) || p.codigo_barras?.includes(busquedaProducto)
   ) : [];
 
+  const renderModalCobroPOS = () => {
+    if (!mostrarModalCobro) return null
+    const tipoLabel = modo === 'modo1' ? 'Encargo' : 'Tienda'
+    const nombreCliente = modo === 'modo1' ? clienteSeleccionado?.nombre : 'Tienda'
+    const fmtP = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`
+    const montoM1 = parseFloat(modalMonto1) || (modalDosMetodos ? 0 : totalGeneral)
+    const restoM2 = Math.max(0, totalGeneral - montoM1)
+    const recibido = parseFloat(modalRecibido) || 0
+    const cambio = modalMetodo1 === 'Efectivo' ? recibido - (modalDosMetodos ? montoM1 : totalGeneral) : 0
+    const confirmarDeshabilitado = loading || (modalDosMetodos && (montoM1 <= 0 || montoM1 > totalGeneral))
+    return (
+      <div onClick={e => { if (e.target === e.currentTarget) setMostrarModalCobro(false) }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 30px 70px rgba(0,0,0,0.7)' }}>
+
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+            <div>
+              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 4 }}>Cobro · {tipoLabel}</div>
+              <div style={{ color: 'white', fontSize: 18, fontWeight: 800 }}>{nombreCliente}</div>
+              <div style={{ color: 'white', fontSize: 44, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1.1, marginTop: 6 }}>{fmtP(totalGeneral)}</div>
+            </div>
+            <button onClick={() => setMostrarModalCobro(false)}
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, width: 36, height: 36, color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 4 }}>
+              ✕
+            </button>
+          </div>
+
+          {/* Modo simple */}
+          {!modalDosMetodos ? (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                {['Efectivo', 'Transferencia', 'Terminal'].map(m => (
+                  <button key={m} onClick={() => { setModalMetodo1(m); setModalRecibido('') }}
+                    style={{ flex: 1, padding: '14px 8px', borderRadius: 14, border: `2px solid ${modalMetodo1 === m ? 'rgba(74,222,128,0.5)' : 'rgba(255,255,255,0.08)'}`, background: modalMetodo1 === m ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.03)', color: modalMetodo1 === m ? '#4ade80' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: modalMetodo1 === m ? 700 : 400, cursor: 'pointer' }}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+              {modalMetodo1 === 'Efectivo' && (
+                <input type="number" value={modalRecibido} onChange={e => setModalRecibido(e.target.value)}
+                  placeholder="Con cuánto pagó"
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '12px 16px', color: 'white', fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace', marginBottom: 10 }} />
+              )}
+              {modalMetodo1 === 'Efectivo' && modalRecibido && cambio !== 0 && (
+                <div style={{ background: cambio > 0 ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.1)', border: `2px solid ${cambio > 0 ? 'rgba(74,222,128,0.5)' : 'rgba(239,68,68,0.4)'}`, borderRadius: 14, padding: 16, marginBottom: 14, textAlign: 'center' }}>
+                  {cambio > 0
+                    ? <><div style={{ color: 'rgba(74,222,128,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>💵 Dar de cambio al cliente</div><div style={{ color: '#4ade80', fontSize: 40, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtP(cambio)}</div></>
+                    : <><div style={{ color: 'rgba(248,113,113,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>⚠️ Falta cobrar</div><div style={{ color: '#f87171', fontSize: 36, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtP(Math.abs(cambio))}</div></>
+                  }
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Modo dos métodos */
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Primer método</div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  {['Efectivo', 'Transferencia', 'Terminal'].map(m => (
+                    <button key={m} onClick={() => { setModalMetodo1(m); setModalRecibido('') }}
+                      style={{ flex: 1, padding: '10px 6px', borderRadius: 12, border: `2px solid ${modalMetodo1 === m ? 'rgba(74,222,128,0.5)' : 'rgba(255,255,255,0.08)'}`, background: modalMetodo1 === m ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.03)', color: modalMetodo1 === m ? '#4ade80' : 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: modalMetodo1 === m ? 700 : 400, cursor: 'pointer' }}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <input type="number" value={modalMonto1} onChange={e => setModalMonto1(e.target.value)}
+                  placeholder="Monto del primer método"
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '12px 16px', color: 'white', fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace' }} />
+                {modalMetodo1 === 'Efectivo' && (
+                  <input type="number" value={modalRecibido} onChange={e => setModalRecibido(e.target.value)}
+                    placeholder="Con cuánto pagó"
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 16px', color: 'white', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginTop: 8, fontFamily: 'monospace' }} />
+                )}
+                {modalMetodo1 === 'Efectivo' && modalRecibido && cambio !== 0 && (
+                  <div style={{ background: cambio > 0 ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.1)', border: `2px solid ${cambio > 0 ? 'rgba(74,222,128,0.5)' : 'rgba(239,68,68,0.4)'}`, borderRadius: 14, padding: 14, marginTop: 8, textAlign: 'center' }}>
+                    {cambio > 0
+                      ? <><div style={{ color: 'rgba(74,222,128,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>💵 Cambio parcial</div><div style={{ color: '#4ade80', fontSize: 36, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtP(cambio)}</div></>
+                      : <><div style={{ color: 'rgba(248,113,113,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>⚠️ Falta</div><div style={{ color: '#f87171', fontSize: 32, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtP(Math.abs(cambio))}</div></>
+                    }
+                  </div>
+                )}
+              </div>
+              <div>
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Segundo método</div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  {['Transferencia', 'Terminal'].map(m => (
+                    <button key={m} onClick={() => setModalMetodo2(m)}
+                      style={{ flex: 1, padding: '10px 6px', borderRadius: 12, border: `2px solid ${modalMetodo2 === m ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'}`, background: modalMetodo2 === m ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)', color: modalMetodo2 === m ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: modalMetodo2 === m ? 700 : 400, cursor: 'pointer' }}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: '12px 16px', color: restoM2 > 0 ? '#818cf8' : 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
+                  {fmtP(restoM2)} en {modalMetodo2}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Botón dividir */}
+          <button onClick={() => { setModalDosMetodos(!modalDosMetodos); setModalMonto1(''); setModalRecibido('') }}
+            style={{ width: '100%', background: 'transparent', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 12, padding: '10px', color: 'rgba(255,255,255,0.35)', fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>
+            {modalDosMetodos ? '− Un solo método' : '+ Dividir en dos métodos'}
+          </button>
+
+          {/* Botón confirmar */}
+          <button
+            onClick={async () => {
+              await procesarCobroFinal({
+                metodo1: modalMetodo1,
+                monto1: modalDosMetodos ? montoM1 : totalGeneral,
+                metodo2: modalDosMetodos ? modalMetodo2 : null,
+                monto2: modalDosMetodos ? restoM2 : 0
+              })
+              setMostrarModalCobro(false)
+            }}
+            disabled={confirmarDeshabilitado}
+            style={{ width: '100%', background: confirmarDeshabilitado ? 'rgba(255,255,255,0.05)' : '#14532d', border: `1px solid ${confirmarDeshabilitado ? 'rgba(255,255,255,0.1)' : 'rgba(74,222,128,0.35)'}`, borderRadius: 14, padding: '14px', color: confirmarDeshabilitado ? 'rgba(255,255,255,0.3)' : '#4ade80', fontSize: 15, fontWeight: 800, cursor: confirmarDeshabilitado ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            {loading ? 'Procesando...' : '✅ Confirmar cobro'}
+          </button>
+
+        </div>
+      </div>
+    )
+  }
+
+  const renderModalCobroDomicilio = () => {
+    if (!cobrandoDomicilio) return null
+    const d = domicilios.find(dom => dom.id === cobrandoDomicilio)
+    if (!d) return null
+    const totalAPagar = getTotalAPagarDom(d)
+    return (
+          <div onClick={e => { if (e.target === e.currentTarget) setCobrandoDomicilio(null) }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: 24, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 30px 70px rgba(0,0,0,0.7)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div>
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 4 }}>Cobro · domicilio</div>
+                  <div style={{ color: 'white', fontSize: 20, fontWeight: 800 }}>{d.clientes?.nombre}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 2 }}>📅 {formatearFecha(d.fecha_preferida)} · 🕐 {d.horario}</div>
+                </div>
+                <button onClick={() => setCobrandoDomicilio(null)}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, width: 36, height: 36, color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  ✕
+                </button>
+              </div>
+              <div style={{ background: totalAPagar === 0 ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${totalAPagar === 0 ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 16, padding: '14px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Total a cobrar</div>
+                <div style={{ color: totalAPagar === 0 ? '#4ade80' : 'white', fontSize: 40, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtDom(totalAPagar)}</div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 14, marginBottom: 20 }}>
+                {(d.entrega_ids || []).map((entrega_id, idx) => {
+                  const prodsEnt = (d.productos_detalle || []).filter(p => p.entrega_id === entrega_id)
+                  const antEnt   = (d.anticipos_detalle || []).filter(a => a.entrega_id === entrega_id)
+                  const subEnt   = prodsEnt.reduce((s, p) => s + (p.precio_venta || 0), 0)
+                  const antSum   = antEnt.reduce((s, a) => s + (a.monto || 0), 0)
+                  const porPagar = Math.max(0, subEnt - antSum) + (idx === 0 ? (d.costo_envio || 0) : 0)
+                  const entInfo  = todasEntregas.find(e => e.id === entrega_id)
+                  const fechaEnt = entInfo ? fmtFechaDom(entInfo.fecha_entrega) : String(entrega_id)
+                  return (
+                    <div key={entrega_id} style={{ marginBottom: idx < d.entrega_ids.length - 1 ? 12 : 0, paddingBottom: idx < d.entrega_ids.length - 1 ? 12 : 0, borderBottom: idx < d.entrega_ids.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                      <div style={{ color: '#10b981', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>📦 {fechaEnt}</div>
+                      {prodsEnt.map((p, i) => (<div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>• {p.descripcion}</span><span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>{fmtDom(p.precio_venta)}</span></div>))}
+                      {idx === 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: 'rgba(245,158,11,0.7)', fontSize: 11 }}>🚚 Envío</span><span style={{ color: '#f59e0b', fontSize: 11 }}>{fmtDom(d.costo_envio)}</span></div>}
+                      {antEnt.map((a, i) => (<div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: 'rgba(16,185,129,0.7)', fontSize: 11 }}>✅ Anticipo {fmtFechaShortDom(a.creado_en)}</span><span style={{ color: '#10b981', fontSize: 11, fontWeight: 600 }}>-{fmtDom(a.monto)}</span></div>))}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 5, marginTop: 5, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>Por pagar</span>
+                        <span style={{ color: '#f87171', fontSize: 11, fontWeight: 700 }}>{fmtDom(porPagar)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {totalAPagar === 0 ? (
+                <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 14, padding: 16, marginBottom: 20, textAlign: 'center' }}>
+                  <div style={{ color: '#4ade80', fontSize: 15, fontWeight: 700 }}>✅ Pagado con anticipos</div>
+                  <div style={{ color: 'rgba(74,222,128,0.6)', fontSize: 12, marginTop: 4 }}>Sin cobro adicional — solo se registrará la entrega</div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Método de pago</div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                      {['Efectivo','Transferencia','Terminal'].map(m => (
+                        <button key={m} onClick={() => setPagoDomicilio({ ...pagoDomicilio, metodo1: m, recibido1: '' })}
+                          style={{ flex: 1, padding: '12px 8px', borderRadius: 14, border: `2px solid ${pagoDomicilio.metodo1 === m ? 'rgba(74,222,128,0.5)' : 'rgba(255,255,255,0.08)'}`, background: pagoDomicilio.metodo1 === m ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.03)', color: pagoDomicilio.metodo1 === m ? '#4ade80' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: pagoDomicilio.metodo1 === m ? 700 : 400, cursor: 'pointer' }}>
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                    <input type="number" value={pagoDomicilio.monto1} onChange={e => setPagoDomicilio({ ...pagoDomicilio, monto1: e.target.value })}
+                      placeholder={`Monto en ${pagoDomicilio.metodo1}`}
+                      style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '12px 16px', color: 'white', fontSize: 16, fontWeight: 600, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace' }} />
+                    {pagoDomicilio.metodo1 === 'Efectivo' && (
+                      <input type="number" value={pagoDomicilio.recibido1} onChange={e => setPagoDomicilio({ ...pagoDomicilio, recibido1: e.target.value })}
+                        placeholder="Con cuánto pagó"
+                        style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 16px', color: 'white', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginTop: 8, fontFamily: 'monospace' }} />
+                    )}
+                    {pagoDomicilio.metodo1 === 'Efectivo' && pagoDomicilio.recibido1 && (() => {
+                      const montoEfec = pagoDomicilio.mostrar2 ? (parseFloat(pagoDomicilio.monto1) || 0) : totalAPagar
+                      const recibido = parseFloat(pagoDomicilio.recibido1) || 0
+                      const feria = recibido - montoEfec
+                      return feria !== 0 && (
+                        <div style={{ background: feria > 0 ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.1)', border: `2px solid ${feria > 0 ? 'rgba(74,222,128,0.5)' : 'rgba(239,68,68,0.4)'}`, borderRadius: 14, padding: 16, marginTop: 10, textAlign: 'center' }}>
+                          {feria > 0
+                            ? <><div style={{ color: 'rgba(74,222,128,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>💵 Dar de cambio al cliente</div><div style={{ color: '#4ade80', fontSize: 40, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtDom(feria)}</div></>
+                            : <><div style={{ color: 'rgba(248,113,113,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>⚠️ Falta cobrar</div><div style={{ color: '#f87171', fontSize: 36, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtDom(Math.abs(feria))}</div></>
+                          }
+                        </div>
+                      )
+                    })()}
+                  </div>
+                  {!pagoDomicilio.mostrar2 ? (
+                    <button onClick={() => setPagoDomicilio({ ...pagoDomicilio, mostrar2: true })}
+                      style={{ width: '100%', background: 'transparent', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 12, padding: '10px', color: 'rgba(255,255,255,0.35)', fontSize: 12, cursor: 'pointer', marginBottom: 16 }}>
+                      + Agregar segundo método de pago
+                    </button>
+                  ) : (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Segundo método</div>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                        {['Efectivo','Transferencia','Terminal'].filter(m => m !== pagoDomicilio.metodo1).map(m => (
+                          <button key={m} onClick={() => setPagoDomicilio({ ...pagoDomicilio, metodo2: m, recibido2: '' })}
+                            style={{ flex: 1, padding: '12px 8px', borderRadius: 14, border: `2px solid ${pagoDomicilio.metodo2 === m ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'}`, background: pagoDomicilio.metodo2 === m ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)', color: pagoDomicilio.metodo2 === m ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: pagoDomicilio.metodo2 === m ? 700 : 400, cursor: 'pointer' }}>
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: '12px 16px', color: '#818cf8', fontSize: 16, fontWeight: 700, fontFamily: 'monospace', marginBottom: pagoDomicilio.metodo2 === 'Efectivo' ? 8 : 0 }}>
+                        {fmtDom(totalAPagar - (parseFloat(pagoDomicilio.monto1) || 0))} en {pagoDomicilio.metodo2}
+                      </div>
+                      {pagoDomicilio.metodo2 === 'Efectivo' && (
+                        <input type="number" value={pagoDomicilio.recibido2} onChange={e => setPagoDomicilio({ ...pagoDomicilio, recibido2: e.target.value })}
+                          placeholder="Con cuánto pagó (2do método)"
+                          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 16px', color: 'white', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace' }} />
+                      )}
+                      {pagoDomicilio.metodo2 === 'Efectivo' && pagoDomicilio.recibido2 && (() => {
+                        const montoM2 = totalAPagar - (parseFloat(pagoDomicilio.monto1) || 0)
+                        const recibido = parseFloat(pagoDomicilio.recibido2) || 0
+                        const feria = recibido - montoM2
+                        return feria !== 0 && (
+                          <div style={{ background: feria > 0 ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.1)', border: `2px solid ${feria > 0 ? 'rgba(74,222,128,0.5)' : 'rgba(239,68,68,0.4)'}`, borderRadius: 14, padding: 16, marginTop: 8, textAlign: 'center' }}>
+                            {feria > 0
+                              ? <><div style={{ color: 'rgba(74,222,128,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>💵 Dar de cambio</div><div style={{ color: '#4ade80', fontSize: 40, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtDom(feria)}</div></>
+                              : <><div style={{ color: 'rgba(248,113,113,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>⚠️ Falta</div><div style={{ color: '#f87171', fontSize: 36, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtDom(Math.abs(feria))}</div></>
+                            }
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
+                </>
+              )}
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <button onClick={() => registrarPagoDomicilio(d)}
+                  style={{ flex: 1, background: '#14532d', border: '1px solid rgba(74,222,128,0.35)', borderRadius: 14, padding: '14px', color: '#4ade80', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>
+                  {totalAPagar === 0 ? '✅ Confirmar entrega' : '✅ Confirmar cobro'}
+                </button>
+                <button onClick={() => setCobrandoDomicilio(null)}
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '14px 18px', color: 'rgba(255,255,255,0.4)', fontSize: 15, cursor: 'pointer' }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+    )
+  }
+
   return (
+    <>
     <div className="min-h-screen bg-gray-950 text-white font-sans">
 
       {turnoEstado === 'cargando' && (
@@ -845,35 +1126,7 @@ const horariosDelDia = (f) => {
                 <span className="text-xs text-gray-400">Total a cobrar</span>
                 <span className="text-xl font-black font-mono text-white">${totalGeneral.toLocaleString('es-MX', {minimumFractionDigits: 2})}</span>
               </div>
-              {totalGeneral > 0 && (
-                <div className="space-y-3 pt-2">
-                  <div className="flex gap-2">
-                    <select value={metodo1} onChange={(e) => setMetodo1(e.target.value)} className="w-2/3 bg-gray-800 border border-gray-700 text-white rounded-xl p-2.5 text-xs focus:outline-none">
-                      <option value="Efectivo">💵 Efectivo</option>
-                      <option value="Transferencia">📱 Transferencia</option>
-                      <option value="Terminal">💳 Terminal</option>
-                    </select>
-                    <input type="number" placeholder="Monto" value={montoMetodo1} onChange={(e) => setMontoMetodo1(e.target.value)} className="w-1/3 bg-gray-800 border border-gray-700 text-white font-mono rounded-xl p-2.5 text-xs font-bold text-right focus:outline-none" />
-                  </div>
-                  {mostrarMetodo2 && (
-                    <div className="flex gap-2">
-                      <select value={metodo2} onChange={(e) => setMetodo2(e.target.value)} className="w-2/3 bg-gray-800 border border-gray-700 text-white rounded-xl p-2.5 text-xs focus:outline-none">
-                        <option value="Efectivo">💵 Efectivo</option>
-                        <option value="Transferencia">📱 Transferencia</option>
-                        <option value="Terminal">💳 Terminal</option>
-                      </select>
-                      <input type="text" readOnly value={p2 > 0 ? `$${p2.toFixed(0)}` : '$0'} className="w-1/3 bg-gray-950 border border-gray-800 text-gray-400 font-mono rounded-xl p-2.5 text-xs font-bold text-right cursor-not-allowed shadow-inner" />
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    {!mostrarMetodo2 ? (
-                      <button type="button" onClick={() => setMostrarMetodo2(true)} className="w-full bg-gray-800 border border-gray-700 rounded-xl py-2 text-xs font-bold text-slate-300 text-center transition-all">+ Agregar otro método</button>
-                    ) : (
-                      <button type="button" onClick={() => setMostrarMetodo2(false)} className="w-full bg-gray-800 border border-gray-700 rounded-xl py-2 text-xs font-bold text-red-400 text-center transition-all">Remover segundo método</button>
-                    )}
-                  </div>
-                </div>
-              )}
+
               {/* Vendedor asignado en modo tienda */}
               {modo === 'modo2' && vendedorTienda && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
@@ -883,8 +1136,11 @@ const horariosDelDia = (f) => {
                   </span>
                 </div>
               )}
-              <button type="button" onClick={procesarCobroFinal} disabled={loading || (modo === 'modo1' && !clienteSeleccionado) || (modo === 'modo2' && carritoTienda.length === 0) || cobroIncompleto || cobroExcedido} className={`w-full font-bold text-xs py-3.5 rounded-xl uppercase tracking-widest transition-all ${cobroIncompleto ? 'bg-red-900/40 text-red-400 border border-red-800 cursor-not-allowed' : cobroExcedido ? 'bg-amber-950/40 text-amber-400 border border-amber-900 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'}`}>
-                {loading ? 'Procesando...' : cobroIncompleto ? `⚠️ Importe Incompleto (Falta $${saldoDiferenciaCaja.toFixed(0)})` : cobroExcedido ? `⚠️ Importe Excedido (Sobra $${Math.abs(saldoDiferenciaCaja).toFixed(0)})` : '✓ Registrar pago'}
+              <button type="button"
+                onClick={() => { setModalRecibido(''); setModalMonto1(''); setModalDosMetodos(false); setMostrarModalCobro(true) }}
+                disabled={loading || (modo === 'modo1' && !clienteSeleccionado) || (modo === 'modo2' && carritoTienda.length === 0) || totalGeneral <= 0}
+                className="w-full font-bold text-xs py-3.5 rounded-xl uppercase tracking-widest transition-all bg-blue-600 hover:bg-blue-700 text-white shadow-lg disabled:opacity-40 disabled:cursor-not-allowed">
+                {loading ? 'Procesando...' : '✓ Registrar pago'}
               </button>
 
             {/* ─── MODO 3: DOMICILIOS ─────────────────────────────── */}
@@ -1143,9 +1399,9 @@ const horariosDelDia = (f) => {
                         {/* En camino: registrar cobro */}
                         {d.estado === 'en_camino' && !cobrando && (
                           turnoEstado === 'activo' ? (
-                            <button onClick={() => { setCobrandoDomicilio(d.id); setPagoDomicilio({ metodo1: 'Efectivo', monto1: String(totalAPagar), metodo2: 'Transferencia', mostrar2: false }) }}
+                            <button onClick={() => { setCobrandoDomicilio(d.id); setPagoDomicilio({ metodo1: 'Efectivo', monto1: totalAPagar > 0 ? String(totalAPagar) : '', recibido1: '', metodo2: 'Transferencia', mostrar2: false, recibido2: '' }) }}
                               style={{ width: '100%', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '10px', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                              💳 Registrar cobro y marcar entregado
+                              {totalAPagar === 0 ? '✅ Marcar como entregado (cubierto por anticipos)' : '💳 Registrar cobro y marcar entregado'}
                             </button>
                           ) : (
                             <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 11, padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -1154,91 +1410,6 @@ const horariosDelDia = (f) => {
                           )
                         )}
 
-                        {/* Panel de cobro */}
-                        {cobrando && (
-                          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: 14, marginTop: 4 }}>
-                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Registrar cobro</div>
-
-                            {/* Desglose por entrega */}
-                            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: 10, marginBottom: 12 }}>
-                              {(d.entrega_ids || []).map((entrega_id, idx) => {
-                                const prodsEnt = (d.productos_detalle || []).filter(p => p.entrega_id === entrega_id)
-                                const antEnt   = (d.anticipos_detalle || []).filter(a => a.entrega_id === entrega_id)
-                                const subEnt   = prodsEnt.reduce((s, p) => s + (p.precio_venta || 0), 0)
-                                const antSumEnt = antEnt.reduce((s, a) => s + (a.monto || 0), 0)
-                                const porPagar = Math.max(0, subEnt - antSumEnt) + (idx === 0 ? (d.costo_envio || 0) : 0)
-                                return (
-                                  <div key={entrega_id} style={{ marginBottom: idx < d.entrega_ids.length - 1 ? 10 : 0, paddingBottom: idx < d.entrega_ids.length - 1 ? 10 : 0, borderBottom: idx < d.entrega_ids.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-                                    <div style={{ color: '#10b981', fontSize: 10, fontWeight: 600, marginBottom: 4 }}>📦 ENTREGA {entrega_id}</div>
-                                    {prodsEnt.map((p, i) => (
-                                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                                        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>• {p.descripcion}</span>
-                                        <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10 }}>{fmtDom(p.precio_venta)}</span>
-                                      </div>
-                                    ))}
-                                    {idx === 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: 'rgba(245,158,11,0.7)', fontSize: 10 }}>🚚 Envío</span><span style={{ color: '#f59e0b', fontSize: 10 }}>{fmtDom(d.costo_envio)}</span></div>}
-                                    {antEnt.map((a, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: 'rgba(16,185,129,0.7)', fontSize: 10 }}>✅ Anticipo {fmtFechaShortDom(a.creado_en)}</span><span style={{ color: '#10b981', fontSize: 10, fontWeight: 600 }}>-{fmtDom(a.monto)}</span></div>)}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                                      <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 600 }}>Por pagar</span>
-                                      <span style={{ color: '#f87171', fontSize: 10, fontWeight: 700 }}>{fmtDom(porPagar)}</span>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6, marginTop: 6 }}>
-                                <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>Total a pagar</span>
-                                <span style={{ color: '#4ade80', fontSize: 15, fontWeight: 800 }}>{fmtDom(totalAPagar)}</span>
-                              </div>
-                            </div>
-
-                            {/* Métodos de pago */}
-                            <div style={{ marginBottom: 8 }}>
-                              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                                {['Efectivo','Transferencia','Terminal'].map(m => (
-                                  <button key={m} onClick={() => setPagoDomicilio({ ...pagoDomicilio, metodo1: m })}
-                                    style={{ flex: 1, padding: '6px', borderRadius: 8, border: `1px solid ${pagoDomicilio.metodo1 === m ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.08)'}`, background: pagoDomicilio.metodo1 === m ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.03)', color: pagoDomicilio.metodo1 === m ? '#4ade80' : 'rgba(255,255,255,0.4)', fontSize: 10, cursor: 'pointer', fontWeight: pagoDomicilio.metodo1 === m ? 600 : 400 }}>
-                                    {m}
-                                  </button>
-                                ))}
-                              </div>
-                              <input type="number" value={pagoDomicilio.monto1} onChange={e => setPagoDomicilio({ ...pagoDomicilio, monto1: e.target.value })}
-                                placeholder={`Monto en ${pagoDomicilio.metodo1}`}
-                                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px', color: 'white', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-                            </div>
-
-                            {!pagoDomicilio.mostrar2 ? (
-                              <button onClick={() => setPagoDomicilio({ ...pagoDomicilio, mostrar2: true })}
-                                style={{ width: '100%', background: 'transparent', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px', color: 'rgba(255,255,255,0.3)', fontSize: 11, cursor: 'pointer', marginBottom: 8 }}>
-                                + Agregar segundo método
-                              </button>
-                            ) : (
-                              <div style={{ marginBottom: 8 }}>
-                                <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                                  {['Efectivo','Transferencia','Terminal'].filter(m => m !== pagoDomicilio.metodo1).map(m => (
-                                    <button key={m} onClick={() => setPagoDomicilio({ ...pagoDomicilio, metodo2: m })}
-                                      style={{ flex: 1, padding: '6px', borderRadius: 8, border: `1px solid ${pagoDomicilio.metodo2 === m ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.08)'}`, background: pagoDomicilio.metodo2 === m ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.03)', color: pagoDomicilio.metodo2 === m ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 10, cursor: 'pointer' }}>
-                                      {m}
-                                    </button>
-                                  ))}
-                                </div>
-                                <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 8, padding: '8px 12px', color: '#818cf8', fontSize: 12 }}>
-                                  {fmtDom(totalAPagar - (parseFloat(pagoDomicilio.monto1) || 0))} en {pagoDomicilio.metodo2} (automático)
-                                </div>
-                              </div>
-                            )}
-
-                            <div style={{ display: 'flex', gap: 8 }}>
-                              <button onClick={() => registrarPagoDomicilio(d)}
-                                style={{ flex: 1, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: 8, padding: '10px', color: '#4ade80', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                                ✅ Confirmar cobro
-                              </button>
-                              <button onClick={() => setCobrandoDomicilio(null)}
-                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '10px 14px', color: 'rgba(255,255,255,0.3)', fontSize: 11, cursor: 'pointer' }}>
-                                Cancelar
-                              </button>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )
                   })
@@ -1250,5 +1421,9 @@ const horariosDelDia = (f) => {
         </div>
       )}
     </div>
+
+    {renderModalCobroPOS()}
+    {renderModalCobroDomicilio()}
+    </>
   );
 }

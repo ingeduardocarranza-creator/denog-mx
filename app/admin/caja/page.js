@@ -63,7 +63,7 @@ export default function AdminCaja() {
       setMensajeRetiro(turnoActivo
         ? '✅ Retiro enviado — esperando confirmación del colaborador'
         : '✅ Retiro registrado — se descontará del fondo del próximo turno')
-      cargar()
+      await cargar()
       setTimeout(() => setMensajeRetiro(''), 5000)
     }
   }

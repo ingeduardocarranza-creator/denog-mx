@@ -75,13 +75,16 @@ export default function CajaPage() {
       setUltimoCorte(corte)
       const ahora = new Date()
       const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
-      const retirosRes = await fetch(`/api/retiros?fecha=${hoy}`)
+      const retirosRes = await fetch(`/api/retiros?fecha=${hoy}&estado=confirmado`)
       const retirosData = await retirosRes.json()
+      console.log('[caja] retiros confirmados hoy:', retirosData.retiros?.length ?? 0, retirosData.retiros)
       if (retirosData.ok) {
         const postCorte = (retirosData.retiros || []).filter(r =>
-          r.estado === 'confirmado' && new Date(r.creado_en) > new Date(corte.creado_en)
+          new Date(r.creado_en) > new Date(corte.creado_en)
         )
-        setRetirosPostCorte(postCorte.reduce((s, r) => s + r.monto, 0))
+        const totalPostCorte = postCorte.reduce((s, r) => s + r.monto, 0)
+        console.log('[caja] fondo bruto:', corte.total_contado, '| retiros post-corte:', totalPostCorte, '| fondo final:', corte.total_contado - totalPostCorte)
+        setRetirosPostCorte(totalPostCorte)
       }
     }
   }

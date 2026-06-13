@@ -171,7 +171,34 @@ export default function AdminCaja() {
           </div>
         ))}
 
-        {/* ══ SECCIÓN 1: TURNO ACTUAL ══════════════════════════════════════ */}
+        {/* ══ SECCIÓN 1: RESUMEN DEL DÍA ══════════════════════════════════ */}
+        <div style={{ ...secLabel }}>Resumen del día</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8, marginBottom: 10 }}>
+          {[
+            { label: 'Fondo inicial', valor: fondoDia, color: 'white' },
+            { label: 'Efectivo total día', valor: metricas.efectivo, color: 'white' },
+            { label: 'Transferencias', valor: metricas.transferencia, color: 'white' },
+            { label: 'Terminal', valor: metricas.terminal, color: 'white' },
+            { label: 'Total del día', valor: totalDia, color: '#4ade80' },
+          ].map((m, i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 14 }}>
+              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 4 }}>{m.label}</div>
+              <div style={{ color: m.color, fontSize: 20, fontWeight: 700 }}>{fmt(m.valor)}</div>
+            </div>
+          ))}
+        </div>
+        {/* Fondo actual del día */}
+        <div style={{ background: 'rgba(245,158,11,0.07)', border: '2px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '14px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ color: '#f59e0b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>💵 Fondo en caja</div>
+            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 3 }}>
+              {fmt(fondoDia)} fondo inicial del día − {fmt(retirosConfirmadosDia)} retiros confirmados
+            </div>
+          </div>
+          <div style={{ color: '#f59e0b', fontSize: 28, fontWeight: 900 }}>{fmt(fondoActualDia)}</div>
+        </div>
+
+        {/* ══ SECCIÓN 2: TURNO ACTUAL ══════════════════════════════════════ */}
         <div style={{ ...secLabel }}>Turno actual</div>
         {!turnoActivo ? (
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '20px 24px', marginBottom: 20, color: 'rgba(255,255,255,0.25)', fontSize: 13, textAlign: 'center' }}>
@@ -235,33 +262,6 @@ export default function AdminCaja() {
             </div>
           </div>
         )}
-
-        {/* ══ SECCIÓN 2: RESUMEN DEL DÍA ══════════════════════════════════ */}
-        <div style={{ ...secLabel }}>Resumen del día</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8, marginBottom: 10 }}>
-          {[
-            { label: 'Fondo inicial', valor: fondoDia, color: 'white' },
-            { label: 'Efectivo total día', valor: metricas.efectivo, color: 'white' },
-            { label: 'Transferencias', valor: metricas.transferencia, color: 'white' },
-            { label: 'Terminal', valor: metricas.terminal, color: 'white' },
-            { label: 'Total del día', valor: totalDia, color: '#4ade80' },
-          ].map((m, i) => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 14 }}>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 4 }}>{m.label}</div>
-              <div style={{ color: m.color, fontSize: 20, fontWeight: 700 }}>{fmt(m.valor)}</div>
-            </div>
-          ))}
-        </div>
-        {/* Fondo actual del día */}
-        <div style={{ background: 'rgba(245,158,11,0.07)', border: '2px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '14px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ color: '#f59e0b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>💵 Fondo en caja</div>
-            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 3 }}>
-              {fmt(fondoDia)} fondo inicial del día − {fmt(retirosConfirmadosDia)} retiros confirmados
-            </div>
-          </div>
-          <div style={{ color: '#f59e0b', fontSize: 28, fontWeight: 900 }}>{fmt(fondoActualDia)}</div>
-        </div>
 
         {/* ══ SECCIÓN 3: HISTORIAL + RETIROS (2 columnas) ═════════════════ */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>

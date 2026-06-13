@@ -49,20 +49,17 @@ export default function AdminCaja() {
   const enviarRetiro = async () => {
     if (!montoRetiro || !motivoRetiro.trim()) return
     setEnviandoRetiro(true)
-    const estadoRetiro = turnoActivo ? 'pendiente' : 'confirmado'
     const res = await fetch('/api/retiros', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ monto: parseFloat(montoRetiro), motivo: motivoRetiro, estado: estadoRetiro })
+      body: JSON.stringify({ monto: parseFloat(montoRetiro), motivo: motivoRetiro, estado: 'confirmado' })
     })
     const data = await res.json()
     setEnviandoRetiro(false)
     if (data.ok) {
       setMontoRetiro('')
       setMotivoRetiro('')
-      setMensajeRetiro(turnoActivo
-        ? '✅ Retiro enviado — esperando confirmación del colaborador'
-        : '✅ Retiro registrado — se descontará del fondo del próximo turno')
+      setMensajeRetiro('✅ Retiro registrado correctamente')
       await cargar()
       setTimeout(() => setMensajeRetiro(''), 5000)
     }
@@ -109,9 +106,9 @@ export default function AdminCaja() {
   const fondoActualTurno = fondoInicial - retirosConfirmadosTurno
   const totalDia = metricas.efectivo + metricas.transferencia + metricas.terminal
 
-  // Fondo inicial del día: la apertura más antigua del día (la API devuelve DESC, así que es la última)
-  const todasAperturas = cortes.filter(c => c.tipo === 'apertura')
-  const fondoDia = todasAperturas.length > 0 ? (todasAperturas[todasAperturas.length - 1]?.total_contado || 0) : 0
+  // Fondo inicial del día: la apertura más antigua (primera del día), orden explícito por fecha
+  const todasAperturas = cortes.filter(c => c.tipo === 'apertura').sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en))
+  const fondoDia = todasAperturas.length > 0 ? (todasAperturas[0]?.total_contado || 0) : 0
   const retirosConfirmadosDia = retiros.filter(r => r.estado === 'confirmado').reduce((s, r) => s + r.monto, 0)
   const fondoActualDia = Math.max(0, fondoDia - retirosConfirmadosDia)
 
@@ -371,10 +368,10 @@ export default function AdminCaja() {
               </div>
               <button onClick={enviarRetiro} disabled={enviandoRetiro || !montoRetiro || !motivoRetiro}
                 style={{ width: '100%', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, padding: '9px', color: '#f59e0b', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: enviandoRetiro || !montoRetiro || !motivoRetiro ? 0.5 : 1 }}>
-                {enviandoRetiro ? 'Registrando...' : turnoActivo ? '📤 Enviar retiro al colaborador' : '💾 Registrar retiro'}
+                {enviandoRetiro ? 'Registrando...' : '💾 Registrar retiro'}
               </button>
               <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: 'center', marginTop: 6 }}>
-                {turnoActivo ? 'El colaborador debe confirmar desde su pantalla' : 'Sin turno activo — se registra directo como confirmado'}
+                Se registra directamente como confirmado
               </div>
             </div>
 

@@ -312,6 +312,27 @@ export default function PuntoDeVenta() {
         });
       }
 
+      if (modo === 'modo1' && listaAnticipos.length > 0) {
+        let montoRestante = 0;
+        for (const b of bloquesEntregas) {
+          for (const p of b.pedidos) {
+            if (productosSeleccionados[p.id]) montoRestante += Number(p.precio_venta) || 0;
+          }
+        }
+        const anticiposOrdenados = [...listaAnticipos].sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
+        for (const anticipo of anticiposOrdenados) {
+          if (montoRestante <= 0) break;
+          const montoAnticipo = Number(anticipo.monto);
+          if (montoAnticipo <= montoRestante) {
+            await supabase.from('pagos').delete().eq('id', anticipo.id);
+            montoRestante -= montoAnticipo;
+          } else {
+            await supabase.from('pagos').update({ monto: montoAnticipo - montoRestante }).eq('id', anticipo.id);
+            montoRestante = 0;
+          }
+        }
+      }
+
       setMensaje({ tipo: 'exito', texto: totalGeneral === 0 ? '¡Pedido entregado! Cubierto con anticipos' : '¡Cobro registrado con éxito en caja!' });
       setTicketListo(infoTicket);
 
@@ -607,7 +628,11 @@ export default function PuntoDeVenta() {
                           <input type="checkbox" checked={!!productosSeleccionados[p.id]} onChange={(e) => setProductosSeleccionados({ ...productosSeleccionados, [p.id]: e.target.checked })} className="w-4 h-4 rounded text-blue-600 bg-gray-800 border-gray-700" />
                           <span className="font-medium text-slate-200">{p.descripcion}</span>
                         </div>
-                        <span className="font-bold text-white font-mono">${Number(p.precio_venta).toFixed(0)}</span>
+                        <span className="font-bold text-white font-mono">
+                          {(p.cantidad || 1) > 1
+                            ? `x${p.cantidad} = $${Number(p.precio_venta).toLocaleString('es-MX')}`
+                            : `$${Number(p.precio_venta).toFixed(0)}`}
+                        </span>
                       </div>
                     ))}
                     

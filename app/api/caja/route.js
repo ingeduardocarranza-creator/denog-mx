@@ -33,8 +33,8 @@ export async function GET(req) {
       .from('retiros_caja')
       .select('monto')
       .eq('estado', 'confirmado')
-      .gte('confirmado_en', inicio)
-      .lte('confirmado_en', fin)
+      .gte('creado_en', inicio)
+      .lte('creado_en', fin)
 
     const totalRetiros = (retiros || []).reduce((s, r) => s + r.monto, 0)
 

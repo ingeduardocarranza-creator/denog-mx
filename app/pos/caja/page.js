@@ -94,9 +94,12 @@ export default function CajaPage() {
     const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
     const ref = apertura ?? turnoActual
     const desde = ref?.creado_en ? `&desde=${encodeURIComponent(ref.creado_en)}` : ''
+    console.log('[caja] cargarResumenTurno desde:', ref?.creado_en ?? '(sin desde, usa inicio del día)')
     const res = await fetch(`/api/caja?resumen=true&fecha=${hoy}${desde}`)
     const data = await res.json()
+    console.log('[caja] resumenTurno raw:', data)
     if (data.ok) {
+      console.log('[caja] totalRetiros del turno:', data.totalRetiros, '| efectivo:', data.efectivo)
       setResumenTurno({
         efectivo: data.efectivo,
         transferencia: data.transferencia,

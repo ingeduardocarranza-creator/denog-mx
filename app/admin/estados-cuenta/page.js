@@ -28,9 +28,11 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
   const gap    = 8   * S
   const entLblH = 40 * S
   const tbHdrH  = 34 * S
-  const rowH    = 38 * S
-  const subH    = 46 * S
+  const rowH     = 38 * S
+  const dateRowH = 22 * S   // línea extra para fecha_compra
+  const subH     = 46 * S
   const pgHdrH  = 38 * S   // línea resumen de anticipos
+  const liqH    = 52 * S   // strip de liquidación (2 líneas)
   const netoH   = 42 * S   // línea neto por entrega
   const sepH    = 6  * S   // separador antes del total
   const totalH  = 90 * S
@@ -44,8 +46,11 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
   // Calcular alto dinámico
   let height = hdrH + stripe + gap
   for (const g of grupos) {
-    height += entLblH + tbHdrH + g.pedidos.length * rowH + subH
-    if (g.pagos.length > 0) height += pgHdrH
+    height += entLblH + tbHdrH + g.pedidos.reduce((s, p) => s + rowH + (p.fecha_compra ? dateRowH : 0), 0) + subH
+    const _ant = g.pagos.filter(p => !p.tipo?.toLowerCase().includes('liquidaci'))
+    const _liq = g.pagos.filter(p =>  p.tipo?.toLowerCase().includes('liquidaci'))
+    if (_ant.length > 0) height += pgHdrH + _ant.length * (20 * S)
+    if (_liq.length > 0) height += liqH
     height += netoH + gap
   }
   height += sepH + totalH + footH
@@ -148,10 +153,13 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
 
     // Filas de productos
     g.pedidos.forEach((p, i) => {
+      const thisRowH = rowH + (p.fecha_compra ? dateRowH : 0)
       ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f9fafb'
-      ctx.fillRect(0, y, W, rowH)
+      ctx.fillRect(0, y, W, thisRowH)
       ctx.fillStyle = '#f3f4f6'
-      ctx.fillRect(0, y + rowH - 1, W, 1)
+      ctx.fillRect(0, y + thisRowH - 1, W, 1)
+
+      const textY = p.fecha_compra ? y + rowH * 0.42 : y + rowH / 2
 
       ctx.font = `${13 * S}px -apple-system,system-ui,sans-serif`
       const maxW = W - PAD * 2 - 220 * S
@@ -160,18 +168,25 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
       if (desc !== (p.descripcion || '')) desc += '…'
       ctx.fillStyle = '#111827'
       ctx.textAlign = 'left'
-      ctx.fillText(desc, PAD, y + rowH / 2)
+      ctx.fillText(desc, PAD, textY)
 
       ctx.fillStyle = '#6b7280'
       ctx.textAlign = 'center'
-      ctx.fillText(String(p.cantidad || 1), W - 200 * S, y + rowH / 2)
+      ctx.fillText(String(p.cantidad || 1), W - 200 * S, textY)
 
       ctx.fillStyle = '#111827'
       ctx.font = `bold ${13 * S}px -apple-system,system-ui,sans-serif`
       ctx.textAlign = 'right'
-      ctx.fillText(fmt(p.precio_venta), W - PAD, y + rowH / 2)
+      ctx.fillText(fmt(p.precio_venta), W - PAD, textY)
       ctx.textAlign = 'left'
-      y += rowH
+
+      if (p.fecha_compra) {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'
+        ctx.font = `${10 * S}px -apple-system,system-ui,sans-serif`
+        ctx.fillText('Comprado: ' + fmtFecha(p.fecha_compra), PAD, y + rowH + dateRowH * 0.5)
+      }
+
+      y += thisRowH
     })
 
     // Subtotal entrega (amarillo)
@@ -187,18 +202,66 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
     ctx.textAlign = 'left'
     y += subH
 
-    // Resumen anticipos (una sola línea, si existen)
-    if (g.pagos.length > 0) {
+    // Strips de pagos: anticipos (verde) y liquidación (azul) por separado
+    const pagsAnt = g.pagos.filter(p => !p.tipo?.toLowerCase().includes('liquidaci'))
+    const pagsLiq = g.pagos.filter(p =>  p.tipo?.toLowerCase().includes('liquidaci'))
+
+    if (pagsAnt.length > 0) {
+      const totalAnt = pagsAnt.reduce((s, p) => s + (p.monto || 0), 0)
+      const antDetH = pagsAnt.length * (20 * S)
+      const antTotalH = pgHdrH + antDetH
+      const emojiMetC = (m) => m === 'Efectivo' ? '💵' : m === 'Transferencia' ? '📱' : m === 'Terminal' ? '💳' : m
+
       ctx.fillStyle = '#dcfce7'
-      ctx.fillRect(0, y, W, pgHdrH)
+      ctx.fillRect(0, y, W, antTotalH)
       ctx.fillStyle = '#166534'
       ctx.font = `bold ${12 * S}px -apple-system,system-ui,sans-serif`
       ctx.textAlign = 'left'
       ctx.fillText('✓ Anticipos aplicados:', PAD, y + pgHdrH / 2)
       ctx.textAlign = 'right'
-      ctx.fillText('−' + fmt(pagadoGrupo), W - PAD, y + pgHdrH / 2)
+      ctx.fillText('−' + fmt(totalAnt), W - PAD, y + pgHdrH / 2)
       ctx.textAlign = 'left'
-      y += pgHdrH
+
+      pagsAnt.forEach((ant, idx) => {
+        const lineY = y + pgHdrH + idx * (20 * S) + 10 * S
+        const fechaAntTxt = ant.creado_en ? fmtFecha(ant.creado_en.split('T')[0]) : ''
+        ctx.fillStyle = '#15803d'
+        ctx.font = `${10 * S}px -apple-system,system-ui,sans-serif`
+        ctx.fillText(`  ${emojiMetC(ant.metodo)} ${ant.metodo || ''}: ${fmt(ant.monto)}${fechaAntTxt ? ' · ' + fechaAntTxt : ''}`, PAD, lineY)
+      })
+
+      y += antTotalH
+    }
+
+    if (pagsLiq.length > 0) {
+      const totalLiq = pagsLiq.reduce((s, p) => s + (p.monto || 0), 0)
+      const fechaLiq = pagsLiq[0]?.creado_en
+      const emojiMet = (m) => m === 'Efectivo' ? '💵' : m === 'Transferencia' ? '📱' : m === 'Terminal' ? '💳' : m
+      const porMet = pagsLiq.reduce((acc, p) => {
+        if (!p.metodo) return acc
+        acc[p.metodo] = (acc[p.metodo] || 0) + p.monto
+        return acc
+      }, {})
+      const metTxt = Object.entries(porMet).map(([m, monto]) => `${emojiMet(m)} ${m}: ${fmt(monto)}`).join('  ')
+
+      ctx.fillStyle = '#dbeafe'
+      ctx.fillRect(0, y, W, liqH)
+      ctx.fillStyle = '#1d4ed8'
+      ctx.fillRect(0, y, 4 * S, liqH)
+
+      ctx.fillStyle = '#1e3a8a'
+      ctx.font = `bold ${12 * S}px -apple-system,system-ui,sans-serif`
+      ctx.textAlign = 'left'
+      ctx.fillText('✓ Liquidado' + (fechaLiq ? ' · ' + fmtFecha(fechaLiq.split('T')[0]) : ''), PAD + 6 * S, y + liqH * 0.32)
+      ctx.textAlign = 'right'
+      ctx.fillText(fmt(totalLiq), W - PAD, y + liqH * 0.32)
+
+      ctx.fillStyle = '#3b82f6'
+      ctx.font = `${10 * S}px -apple-system,system-ui,sans-serif`
+      ctx.textAlign = 'left'
+      ctx.fillText(metTxt, PAD + 6 * S, y + liqH * 0.72)
+      ctx.textAlign = 'left'
+      y += liqH
     }
 
     // Neto de esta entrega (azul)
@@ -383,11 +446,16 @@ export default function EstadosCuenta() {
       if (!porCliente[cid].porEntrega[eid]) porCliente[cid].porEntrega[eid] = { pedidos: [], pagos: [] }
       porCliente[cid].porEntrega[eid].pedidos.push(p)
     })
+    console.log('[estados-cuenta cargarPorEntrega] todos los pagos:', todosPagos.map(p => ({ tipo: p.tipo, entrega_id: p.entrega_id, monto: p.monto, cliente_id: p.cliente_id })))
     todosPagos.forEach(p => {
       const cid = String(p.cliente_id)
       if (!porCliente[cid]) return
       const eid = String(p.entrega_id || 'sin')
-      if (porCliente[cid].porEntrega[eid]) porCliente[cid].porEntrega[eid].pagos.push(p)
+      if (porCliente[cid].porEntrega[eid]) {
+        porCliente[cid].porEntrega[eid].pagos.push(p)
+      } else {
+        console.warn('[estados-cuenta cargarPorEntrega] pago SIN grupo — tipo:', p.tipo, 'entrega_id:', p.entrega_id, 'eids del cliente:', Object.keys(porCliente[cid]?.porEntrega || {}))
+      }
     })
 
     const lista = Object.entries(porCliente).map(([id, d]) => {
@@ -437,9 +505,17 @@ export default function EstadosCuenta() {
       if (!porEntrega[eid]) porEntrega[eid] = { pedidos: [], pagos: [] }
       porEntrega[eid].pedidos.push(p)
     })
+    const keysEntrega = Object.keys(porEntrega)
+    console.log('[estados-cuenta cargarPorCliente] pedidos agrupados en eids:', keysEntrega)
+    console.log('[estados-cuenta cargarPorCliente] todos los pagos del cliente:', pagos.map(p => ({ tipo: p.tipo, entrega_id: p.entrega_id, monto: p.monto })))
     pagos.forEach(p => {
+      console.log('[DEBUG pago]', p.id, p.tipo, p.entrega_id, p.cliente_id)
       const eid = String(p.entrega_id || 'sin')
-      if (porEntrega[eid]) porEntrega[eid].pagos.push(p)
+      if (porEntrega[eid]) {
+        porEntrega[eid].pagos.push(p)
+      } else {
+        console.warn('[estados-cuenta] pago SIN grupo coincidente — tipo:', p.tipo, 'entrega_id:', p.entrega_id, 'eids disponibles:', keysEntrega)
+      }
     })
 
     const grupos = Object.entries(porEntrega).map(([eid, d]) => ({
@@ -606,7 +682,8 @@ export default function EstadosCuenta() {
               </div>
 
               {clienteActual.grupos.map((g, gi) => {
-                const sub = g.pedidos.filter(p => p.estado !== 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
+                const sub = g.pedidos.reduce((s, p) => s + (p.precio_venta || 0), 0)
+                const pagAnt = g.pagos.filter(p => !p.tipo?.toLowerCase().includes('liquidaci')).reduce((s, p) => s + (p.monto || 0), 0)
                 const pag = g.pagos.reduce((s, p) => s + (p.monto || 0), 0)
                 return (
                   <div key={gi} style={{ marginBottom: gi < clienteActual.grupos.length - 1 ? 16 : 0 }}>
@@ -619,26 +696,39 @@ export default function EstadosCuenta() {
                       {[...g.pedidos].sort(p => p.estado === 'Entregado' ? 1 : -1).map((p, pi, arr) => (
                         <div key={pi} style={{ opacity: p.estado === 'Entregado' ? 0.6 : 1 }}>
                           {editandoPedido !== p.id ? (
-                            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: pi < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                              {p.estado === 'Entregado' && (
-                                <div style={{ position: 'absolute', top: 4, right: 8, background: '#10b981', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5 }}>✓ ENTREGADO</div>
-                              )}
-                              <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, flex: 1, marginRight: 12 }}>{p.descripcion}</span>
-                              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                                <span style={{ color: 'white', fontSize: 12, fontWeight: 600 }}>{fmt(p.precio_venta)}</span>
-                                {p.estado !== 'Entregado' && (
-                                  <>
-                                    <button onClick={() => abrirEditarPedido(p)}
-                                      style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '3px 9px', color: '#818cf8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
-                                      ✏️
-                                    </button>
-                                    <button onClick={() => eliminarPedido(p.id)}
-                                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '3px 9px', color: '#f87171', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
-                                      🗑️
-                                    </button>
-                                  </>
-                                )}
+                            <div style={{ padding: '8px 14px', borderBottom: pi < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ flex: 1, marginRight: 12 }}>
+                                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>{p.descripcion}</span>
+                                  {p.fecha_compra && (
+                                    <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>
+                                      Comprado: {fmtFecha(p.fecha_compra)}
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                                  <span style={{ color: 'white', fontSize: 12, fontWeight: 600 }}>
+                                    {(p.cantidad || 1) > 1 ? `x${p.cantidad} = ${fmt(p.precio_venta)}` : fmt(p.precio_venta)}
+                                  </span>
+                                  {p.estado !== 'Entregado' && (
+                                    <>
+                                      <button onClick={() => abrirEditarPedido(p)}
+                                        style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '3px 9px', color: '#818cf8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                        ✏️
+                                      </button>
+                                      <button onClick={() => eliminarPedido(p.id)}
+                                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '3px 9px', color: '#f87171', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                        🗑️
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
+                              {p.estado === 'Entregado' && (
+                                <div style={{ marginTop: 4 }}>
+                                  <span style={{ background: '#10b981', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5 }}>✓ ENTREGADO</span>
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: 14, margin: 6 }}>
@@ -789,10 +879,57 @@ export default function EstadosCuenta() {
                         </div>
                       ))}
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 4px', fontSize: 12 }}>
-                      <span style={{ color: 'rgba(255,255,255,0.35)' }}>Subtotal · Anticipos</span>
-                      <span style={{ color: 'rgba(255,255,255,0.55)' }}>{fmt(sub)} · <span style={{ color: '#4ade80' }}>{fmt(pag)}</span></span>
-                    </div>
+                    {(() => {
+                      const pagosAnt = g.pagos.filter(pg => !pg.tipo?.toLowerCase().includes('liquidaci'))
+                      if (pagosAnt.length === 0) return null
+                      const emojiMetodo = (m) => m === 'Efectivo' ? '💵' : m === 'Transferencia' ? '📱' : m === 'Terminal' ? '💳' : m
+                      const totalAnt = pagosAnt.reduce((s, pg) => s + pg.monto, 0)
+                      const fechaAnt = pagosAnt[0]?.creado_en
+                      const porMetodo = pagosAnt.reduce((acc, pg) => {
+                        if (!pg.metodo) return acc
+                        acc[pg.metodo] = (acc[pg.metodo] || 0) + pg.monto
+                        return acc
+                      }, {})
+                      return (
+                        <div style={{ borderLeft: '4px solid #16a34a', background: '#dcfce7', borderRadius: '0 6px 6px 0', padding: '8px 12px', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ color: '#166534', fontSize: 13, fontWeight: 700, marginBottom: 3 }}>
+                              ✓ Anticipos aplicados{fechaAnt ? ` · ${fmtFecha(fechaAnt.split('T')[0])}` : ''}
+                            </div>
+                            <div style={{ color: '#15803d', fontSize: 10 }}>
+                              {Object.entries(porMetodo).map(([m, monto]) => `${emojiMetodo(m)} ${m}: ${fmt(monto)}`).join(' · ')}
+                            </div>
+                          </div>
+                          <span style={{ color: '#166534', fontSize: 13, fontWeight: 800, fontFamily: 'monospace' }}>-{fmt(totalAnt)}</span>
+                        </div>
+                      )
+                    })()}
+                    {(() => {
+                      const pagosLiq = g.pagos.filter(pg => pg.tipo?.toLowerCase().includes('liquidaci'))
+                      console.log('[estados-cuenta render] entrega:', g.entrega?.id, '| g.pagos:', g.pagos.length, '→', g.pagos.map(p => p.tipo), '| liquidacion encontrados:', pagosLiq.length)
+                      if (pagosLiq.length === 0) return null
+                      const emojiMetodo = (m) => m === 'Efectivo' ? '💵' : m === 'Transferencia' ? '📱' : m === 'Terminal' ? '💳' : m
+                      const porMetodo = pagosLiq.reduce((acc, pg) => {
+                        if (!pg.metodo) return acc
+                        acc[pg.metodo] = (acc[pg.metodo] || 0) + pg.monto
+                        return acc
+                      }, {})
+                      const totalLiq = pagosLiq.reduce((s, pg) => s + pg.monto, 0)
+                      const fechaLiq = pagosLiq[0]?.creado_en
+                      return (
+                        <div style={{ borderLeft: '4px solid #1d4ed8', background: '#dbeafe', borderRadius: '0 6px 6px 0', padding: '8px 12px', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ color: '#1d4ed8', fontSize: 13, fontWeight: 700, marginBottom: 3 }}>
+                              ✓ Liquidado{fechaLiq ? ` · ${fmtFecha(fechaLiq.split('T')[0])}` : ''}
+                            </div>
+                            <div style={{ color: '#1e40af', fontSize: 10 }}>
+                              {Object.entries(porMetodo).map(([m, monto]) => `${emojiMetodo(m)} ${m}: ${fmt(monto)}`).join(' · ')}
+                            </div>
+                          </div>
+                          <span style={{ color: '#1d4ed8', fontSize: 13, fontWeight: 800, fontFamily: 'monospace' }}>{fmt(totalLiq)}</span>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}

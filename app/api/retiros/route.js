@@ -40,12 +40,14 @@ export async function GET(req) {
 
 export async function POST(req) {
   const body = await req.json()
+  const esConfirmado = (body.estado || 'pendiente') === 'confirmado'
   const { data, error } = await supabase
     .from('retiros_caja')
     .insert([{
       monto: body.monto,
       motivo: body.motivo,
-      estado: body.estado || 'pendiente'
+      estado: body.estado || 'pendiente',
+      ...(esConfirmado ? { confirmado_en: new Date().toISOString() } : {})
     }])
     .select()
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })

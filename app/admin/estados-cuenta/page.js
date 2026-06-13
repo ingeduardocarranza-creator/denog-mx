@@ -21,15 +21,15 @@ const fmtFechaCorta = (f) => {
 async function dibujarEstadoCuenta({ cliente, grupos }) {
   const S   = 2
   const W   = 600 * S
-  const PAD = 25 * S
+  const PAD = 60 * S
 
   const hdrH   = 120 * S
   const stripe = 72  * S   // expandido para nombre + artículos
   const gap    = 8   * S
   const entLblH = 40 * S
   const tbHdrH  = 34 * S
-  const rowH     = 38 * S
-  const dateRowH = 22 * S   // línea extra para fecha_compra
+  const rowH     = 28 * S
+  const dateRowH = 12 * S   // línea extra para fecha_compra
   const subH     = 46 * S
   const pgHdrH  = 38 * S   // línea resumen de anticipos
   const liqH    = 52 * S   // strip de liquidación (2 líneas)
@@ -145,7 +145,7 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
     ctx.textAlign = 'left'
     ctx.fillText('PRODUCTO', PAD, y + tbHdrH / 2)
     ctx.textAlign = 'center'
-    ctx.fillText('CANT', W - 200 * S, y + tbHdrH / 2)
+    ctx.fillText('CANT', W - 170 * S, y + tbHdrH / 2)
     ctx.textAlign = 'right'
     ctx.fillText('PRECIO', W - PAD, y + tbHdrH / 2)
     ctx.textAlign = 'left'
@@ -159,20 +159,23 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
       ctx.fillStyle = '#f3f4f6'
       ctx.fillRect(0, y + thisRowH - 1, W, 1)
 
-      const textY = p.fecha_compra ? y + rowH * 0.42 : y + rowH / 2
+      const textY = p.fecha_compra ? y + rowH * 0.35 : y + rowH / 2
 
       ctx.font = `${13 * S}px -apple-system,system-ui,sans-serif`
       const maxW = W - PAD * 2 - 220 * S
       let desc = p.descripcion || ''
       while (desc.length > 5 && ctx.measureText(desc).width > maxW) desc = desc.slice(0, -1)
       if (desc !== (p.descripcion || '')) desc += '…'
-      ctx.fillStyle = '#111827'
+      ctx.fillStyle = '#9ca3af'
       ctx.textAlign = 'left'
-      ctx.fillText(desc, PAD, textY)
+      ctx.fillText('• ', PAD, textY)
+      const bulletW = ctx.measureText('• ').width
+      ctx.fillStyle = '#111827'
+      ctx.fillText(desc, PAD + bulletW, textY)
 
       ctx.fillStyle = '#6b7280'
       ctx.textAlign = 'center'
-      ctx.fillText(String(p.cantidad || 1), W - 200 * S, textY)
+      ctx.fillText(String(p.cantidad || 1), W - 170 * S, textY)
 
       ctx.fillStyle = '#111827'
       ctx.font = `bold ${13 * S}px -apple-system,system-ui,sans-serif`
@@ -181,7 +184,7 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
       ctx.textAlign = 'left'
 
       if (p.fecha_compra) {
-        ctx.fillStyle = 'rgba(0,0,0,0.5)'
+        ctx.fillStyle = '#9ca3af'
         ctx.font = `${10 * S}px -apple-system,system-ui,sans-serif`
         ctx.fillText('Comprado: ' + fmtFecha(p.fecha_compra), PAD, y + rowH + dateRowH * 0.5)
       }
@@ -696,12 +699,12 @@ export default function EstadosCuenta() {
                       {[...g.pedidos].sort(p => p.estado === 'Entregado' ? 1 : -1).map((p, pi, arr) => (
                         <div key={pi} style={{ opacity: p.estado === 'Entregado' ? 0.6 : 1 }}>
                           {editandoPedido !== p.id ? (
-                            <div style={{ padding: '8px 14px', borderBottom: pi < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ padding: '6px 14px', borderBottom: pi < arr.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div style={{ flex: 1, marginRight: 12 }}>
                                   <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>{p.descripcion}</span>
                                   {p.fecha_compra && (
-                                    <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>
+                                    <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 1 }}>
                                       Comprado: {fmtFecha(p.fecha_compra)}
                                     </div>
                                   )}

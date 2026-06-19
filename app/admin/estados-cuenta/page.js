@@ -490,7 +490,11 @@ export default function EstadosCuenta() {
         grupos = grupos.map(g => {
           const esLaMasReciente = g.entrega && fechaMasReciente && new Date(g.entrega.fecha_entrega).getTime() === fechaMasReciente.getTime()
           if (esLaMasReciente) return g
-          return { ...g, pedidos: g.pedidos.filter(p => p.estado !== 'Entregado') }
+          const pedidosPendientes = g.pedidos.filter(p => p.estado !== 'Entregado')
+          // Si ya no quedan pedidos pendientes en este grupo viejo, el grupo completo
+          // (incluyendo sus anticipos) deja de mostrarse en el estado de cuenta actual
+          if (pedidosPendientes.length === 0) return { ...g, pedidos: [], pagos: [] }
+          return { ...g, pedidos: pedidosPendientes }
         }).filter(g => g.pedidos.length > 0 || g.pagos.length > 0)
       }
 
@@ -565,7 +569,11 @@ export default function EstadosCuenta() {
       grupos = grupos.map(g => {
         const esLaMasReciente = g.entrega && fechaMasReciente && new Date(g.entrega.fecha_entrega).getTime() === fechaMasReciente.getTime()
         if (esLaMasReciente) return g
-        return { ...g, pedidos: g.pedidos.filter(p => p.estado !== 'Entregado') }
+        const pedidosPendientes = g.pedidos.filter(p => p.estado !== 'Entregado')
+        // Si ya no quedan pedidos pendientes en este grupo viejo, el grupo completo
+        // (incluyendo sus anticipos) deja de mostrarse en el estado de cuenta actual
+        if (pedidosPendientes.length === 0) return { ...g, pedidos: [], pagos: [] }
+        return { ...g, pedidos: pedidosPendientes }
       }).filter(g => g.pedidos.length > 0 || g.pagos.length > 0)
     }
 

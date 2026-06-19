@@ -463,7 +463,7 @@ export default function EstadosCuenta() {
 
     const lista = Object.entries(porCliente).map(([id, d]) => {
       const cl = clientes.find(c => String(c.id) === id)
-      const grupos = Object.entries(d.porEntrega).map(([eid, data]) => ({
+      let grupos = Object.entries(d.porEntrega).map(([eid, data]) => ({
         entrega: entregas.find(e => String(e.id) === eid) || null,
         pedidos: data.pedidos,
         pagos: data.pagos
@@ -472,6 +472,28 @@ export default function EstadosCuenta() {
         if (!b.entrega) return -1
         return new Date(a.entrega.fecha_entrega) - new Date(b.entrega.fecha_entrega)
       })
+
+      // En entregas anteriores a la más reciente, ocultar pedidos ya entregados
+      // (el recordatorio solo debe mostrar lo pendiente de recoger).
+      // Si la entrega que se está consultando NO es la más reciente del cliente,
+      // se muestra todo tal cual (evidencia histórica completa).
+      const fechaMasReciente = grupos.reduce((max, g) => {
+        if (!g.entrega) return max
+        const f = new Date(g.entrega.fecha_entrega)
+        return (!max || f > max) ? f : max
+      }, null)
+      const entregaConsultada = entregas.find(e => String(e.id) === String(entregaId))
+      const consultandoLaMasReciente = entregaConsultada && fechaMasReciente &&
+        new Date(entregaConsultada.fecha_entrega).getTime() === fechaMasReciente.getTime()
+
+      if (consultandoLaMasReciente) {
+        grupos = grupos.map(g => {
+          const esLaMasReciente = g.entrega && fechaMasReciente && new Date(g.entrega.fecha_entrega).getTime() === fechaMasReciente.getTime()
+          if (esLaMasReciente) return g
+          return { ...g, pedidos: g.pedidos.filter(p => p.estado !== 'Entregado') }
+        }).filter(g => g.pedidos.length > 0 || g.pagos.length > 0)
+      }
+
       return {
         cliente: { id, nombre: d.nombre || cl?.nombre || '', telefono: cl?.telefono || '' },
         grupos
@@ -517,7 +539,7 @@ export default function EstadosCuenta() {
       }
     })
 
-    const grupos = Object.entries(porEntrega).map(([eid, d]) => ({
+    let grupos = Object.entries(porEntrega).map(([eid, d]) => ({
       entrega: entregas.find(e => String(e.id) === eid) || null,
       pedidos: d.pedidos,
       pagos: d.pagos
@@ -526,6 +548,26 @@ export default function EstadosCuenta() {
       if (!b.entrega) return -1
       return new Date(a.entrega.fecha_entrega) - new Date(b.entrega.fecha_entrega)
     })
+
+    // En entregas anteriores a la más reciente, ocultar pedidos ya entregados
+    // (el recordatorio solo debe mostrar lo pendiente de recoger).
+    // Si se filtró por una entrega vieja específica, se muestra todo (evidencia histórica).
+    const fechaMasReciente = grupos.reduce((max, g) => {
+      if (!g.entrega) return max
+      const f = new Date(g.entrega.fecha_entrega)
+      return (!max || f > max) ? f : max
+    }, null)
+    const entregaConsultada = entregaId ? entregas.find(e => String(e.id) === String(entregaId)) : null
+    const consultandoEntregaVieja = entregaConsultada && fechaMasReciente &&
+      new Date(entregaConsultada.fecha_entrega).getTime() !== fechaMasReciente.getTime()
+
+    if (!consultandoEntregaVieja) {
+      grupos = grupos.map(g => {
+        const esLaMasReciente = g.entrega && fechaMasReciente && new Date(g.entrega.fecha_entrega).getTime() === fechaMasReciente.getTime()
+        if (esLaMasReciente) return g
+        return { ...g, pedidos: g.pedidos.filter(p => p.estado !== 'Entregado') }
+      }).filter(g => g.pedidos.length > 0 || g.pagos.length > 0)
+    }
 
     if (grupos.length === 0) { setCargando(false); return }
 

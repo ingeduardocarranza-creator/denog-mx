@@ -14,20 +14,29 @@ export async function GET(req) {
   const desde = searchParams.get('desde')
   const hasta = searchParams.get('hasta')
 
-  let query = supabase
+  let baseQuery = supabase
     .from('pedidos')
     .select('*, clientes!pedidos_cliente_id_fkey(nombre)')
     .order('creado_en')
-    .range(0, 9999)
 
-  if (entrega_id) query = query.eq('entrega_id', entrega_id)
-  if (cliente_id) query = query.eq('cliente_id', cliente_id)
+  if (entrega_id) baseQuery = baseQuery.eq('entrega_id', entrega_id)
+  if (cliente_id) baseQuery = baseQuery.eq('cliente_id', cliente_id)
 
   if (desde && hasta) {
-    query = query.gte('creado_en', `${desde}T00:00:00`).lte('creado_en', `${hasta}T23:59:59`)
+    baseQuery = baseQuery.gte('creado_en', `${desde}T00:00:00`).lte('creado_en', `${hasta}T23:59:59`)
   }
 
-  const { data, error } = await query
-  if (error) return NextResponse.json({ ok: false, mensaje: error.message })
-  return NextResponse.json({ ok: true, pedidos: data })
+  // Paginar para superar el max_rows=1000 de PostgREST
+  const PAGE = 1000
+  let allData = []
+  let from = 0
+  while (true) {
+    const { data, error } = await baseQuery.range(from, from + PAGE - 1)
+    if (error) return NextResponse.json({ ok: false, mensaje: error.message })
+    allData = allData.concat(data || [])
+    if (!data || data.length < PAGE) break
+    from += PAGE
+  }
+
+  return NextResponse.json({ ok: true, pedidos: allData })
 }

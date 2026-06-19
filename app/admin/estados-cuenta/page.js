@@ -489,18 +489,14 @@ export default function EstadosCuenta() {
     setDatos([])
     const cl = clientes.find(c => String(c.id) === String(clienteId))
 
-    // Siempre traer todos los pedidos y pagos sin filtrar por entrega
+    // Filtrar server-side por cliente_id para evitar el límite de 1000 filas de Supabase
     const [pedsRes, pagsRes] = await Promise.all([
-      fetch('/api/reportes/pedidos').then(r => r.json()),
-      fetch('/api/reportes/pagos').then(r => r.json())
+      fetch(`/api/reportes/pedidos?cliente_id=${clienteId}`).then(r => r.json()),
+      fetch(`/api/reportes/pagos?cliente_id=${clienteId}`).then(r => r.json())
     ])
 
-    const pedidos = (pedsRes.pedidos || []).filter(p =>
-      String(p.cliente_id) === String(clienteId)
-    )
-    const pagos = (pagsRes.pagos || []).filter(p =>
-      String(p.cliente_id) === String(clienteId)
-    )
+    const pedidos = pedsRes.pedidos || []
+    const pagos = pagsRes.pagos || []
 
     const porEntrega = {}
     pedidos.forEach(p => {

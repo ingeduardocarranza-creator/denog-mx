@@ -275,24 +275,10 @@ export default function PuntoDeVenta() {
     };
 
     try {
-      if (modo === 'modo1' && clienteSeleccionado) {
-        for (const b of bloquesEntregas) {
-          for (const p of b.pedidos) {
-            if (productosSeleccionados[p.id]) {
-              await supabase.from('pedidos').update({ estado: 'Entregado' }).eq('id', p.id);
-            }
-          }
-        }
-      }
-
-      for (const item of carritoTienda) {
-        const nuevoStock = Math.max(0, item.producto.stock - item.cantidad);
-        await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', item.producto.id);
-      }
-
       const clienteIdFinal = modo === 'modo1' ? clienteSeleccionado?.id : null;
       const entregaIdFinal = modo === 'modo1' && bloquesEntregas.length > 0 ? bloquesEntregas[0].entrega.id : null;
 
+      // 1) Registrar pagos
       if (monto1 > 0) {
         await supabase.from('pagos').insert({
           cliente_id: clienteIdFinal,
@@ -312,6 +298,7 @@ export default function PuntoDeVenta() {
         });
       }
 
+      // 2) Reconciliar/consumir anticipos
       if (modo === 'modo1' && listaAnticipos.length > 0) {
         let montoRestante = 0;
         for (const b of bloquesEntregas) {
@@ -331,6 +318,23 @@ export default function PuntoDeVenta() {
             montoRestante = 0;
           }
         }
+      }
+
+      // 3) Marcar pedidos como Entregado
+      if (modo === 'modo1' && clienteSeleccionado) {
+        for (const b of bloquesEntregas) {
+          for (const p of b.pedidos) {
+            if (productosSeleccionados[p.id]) {
+              await supabase.from('pedidos').update({ estado: 'Entregado' }).eq('id', p.id);
+            }
+          }
+        }
+      }
+
+      // 4) Actualizar stock de productos tienda
+      for (const item of carritoTienda) {
+        const nuevoStock = Math.max(0, item.producto.stock - item.cantidad);
+        await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', item.producto.id);
       }
 
       setMensaje({ tipo: 'exito', texto: totalGeneral === 0 ? '¡Pedido entregado! Cubierto con anticipos' : '¡Cobro registrado con éxito en caja!' });

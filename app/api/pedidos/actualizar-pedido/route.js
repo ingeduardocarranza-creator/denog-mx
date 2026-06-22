@@ -13,6 +13,33 @@ export async function PUT(req) {
 
   if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })
 
+  // No permitir marcar como Entregado si el cliente aún tiene saldo pendiente en esa entrega
+  if (estado === 'Entregado' && cliente_id && entrega_id) {
+    const { data: pedidosEntrega } = await supabase
+      .from('pedidos')
+      .select('id, precio_venta, estado')
+      .eq('cliente_id', cliente_id)
+      .eq('entrega_id', entrega_id)
+
+    const { data: pagosEntrega } = await supabase
+      .from('pagos')
+      .select('monto')
+      .eq('cliente_id', cliente_id)
+      .eq('entrega_id', entrega_id)
+
+    const totalPedidos = (pedidosEntrega || [])
+      .reduce((s, p) => s + (p.id === id ? (precio_venta || 0) : (p.precio_venta || 0)), 0)
+    const totalPagado = (pagosEntrega || []).reduce((s, p) => s + (p.monto || 0), 0)
+    const saldoPendiente = totalPedidos - totalPagado
+
+    if (saldoPendiente > 0.5) {
+      return NextResponse.json({
+        ok: false,
+        mensaje: `No se puede marcar como Entregado: el cliente tiene un saldo pendiente de $${saldoPendiente.toFixed(2)} en esta entrega.`
+      })
+    }
+  }
+
   const { data, error } = await supabase
     .from('pedidos')
     .update({ cliente_id, entrega_id, descripcion, lugar_compra, cantidad, fecha_compra,

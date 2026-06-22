@@ -276,47 +276,108 @@ export default function PuntoDeVenta() {
 
     try {
       const clienteIdFinal = modo === 'modo1' ? clienteSeleccionado?.id : null;
-      const entregaIdFinal = modo === 'modo1' && bloquesEntregas.length > 0 ? bloquesEntregas[0].entrega.id : null;
 
-      // 1) Registrar pagos
-      if (monto1 > 0) {
-        await supabase.from('pagos').insert({
-          cliente_id: clienteIdFinal,
-          entrega_id: entregaIdFinal,
-          monto: monto1,
-          metodo: m1,
-          tipo: 'Venta Liquidación'
-        });
-      }
-      if (monto2 > 0 && m2) {
-        await supabase.from('pagos').insert({
-          cliente_id: clienteIdFinal,
-          entrega_id: entregaIdFinal,
-          monto: monto2,
-          metodo: m2,
-          tipo: 'Venta Liquidación'
-        });
-      }
+      // Distribuir el pago entre entregas en orden cronológico (más vieja primero)
+      // Si sobra dinero al final, queda como anticipo para la próxima entrega
+      if (modo === 'modo1' && clienteSeleccionado) {
+        // Total recibido en efectivo/transferencia en esta transacción
+        let montoRecibido = (monto1 > 0 ? monto1 : 0) + (monto2 > 0 && m2 ? monto2 : 0);
+        const metodoFinal = m1 || 'Transferencia';
 
-      // 2) Reconciliar/consumir anticipos
-      if (modo === 'modo1' && listaAnticipos.length > 0) {
-        let montoRestante = 0;
-        for (const b of bloquesEntregas) {
-          for (const p of b.pedidos) {
-            if (productosSeleccionados[p.id]) montoRestante += Number(p.precio_venta) || 0;
+        // Ordenar bloques por fecha de entrega, más viejo primero
+        const bloquesOrdenados = [...bloquesEntregas].sort((a, b) =>
+          new Date(a.entrega.fecha_entrega) - new Date(b.entrega.fecha_entrega)
+        );
+
+        for (const bloque of bloquesOrdenados) {
+          const entregaId = bloque.entrega.id;
+
+          // Calcular neto de esta entrega: pedidos seleccionados - anticipos aplicados
+          const totalPedidosBloque = bloque.pedidos
+            .filter(p => productosSeleccionados[p.id])
+            .reduce((s, p) => s + (Number(p.precio_venta) || 0), 0);
+
+          if (totalPedidosBloque === 0) continue;
+
+          // Consumir anticipos de esta entrega primero
+          const anticiposDeEstaEntrega = listaAnticipos
+            .filter(a => a.entrega_id === entregaId)
+            .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
+
+          let netoBloque = totalPedidosBloque;
+          for (const anticipo of anticiposDeEstaEntrega) {
+            if (netoBloque <= 0) break;
+            const montoAnticipo = Number(anticipo.monto);
+            if (montoAnticipo <= netoBloque) {
+              await supabase.from('pagos').delete().eq('id', anticipo.id);
+              netoBloque -= montoAnticipo;
+            } else {
+              await supabase.from('pagos').update({ monto: montoAnticipo - netoBloque }).eq('id', anticipo.id);
+              netoBloque = 0;
+            }
+          }
+
+          // Aplicar anticipos generales (sin entrega_id) si aún queda saldo
+          if (netoBloque > 0) {
+            const anticiposGenerales = listaAnticipos
+              .filter(a => !a.entrega_id)
+              .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
+            for (const anticipo of anticiposGenerales) {
+              if (netoBloque <= 0) break;
+              const montoAnticipo = Number(anticipo.monto);
+              if (montoAnticipo <= netoBloque) {
+                await supabase.from('pagos').delete().eq('id', anticipo.id);
+                netoBloque -= montoAnticipo;
+              } else {
+                await supabase.from('pagos').update({ monto: montoAnticipo - netoBloque }).eq('id', anticipo.id);
+                netoBloque = 0;
+              }
+            }
+          }
+
+          // Aplicar el monto recibido en esta transacción a esta entrega
+          if (netoBloque > 0 && montoRecibido > 0) {
+            const montoAplicar = Math.min(montoRecibido, netoBloque);
+            await supabase.from('pagos').insert({
+              cliente_id: clienteIdFinal,
+              entrega_id: entregaId,
+              monto: montoAplicar,
+              metodo: metodoFinal,
+              tipo: 'Venta Liquidación'
+            });
+            montoRecibido -= montoAplicar;
           }
         }
-        const anticiposOrdenados = [...listaAnticipos].sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
-        for (const anticipo of anticiposOrdenados) {
-          if (montoRestante <= 0) break;
-          const montoAnticipo = Number(anticipo.monto);
-          if (montoAnticipo <= montoRestante) {
-            await supabase.from('pagos').delete().eq('id', anticipo.id);
-            montoRestante -= montoAnticipo;
-          } else {
-            await supabase.from('pagos').update({ monto: montoAnticipo - montoRestante }).eq('id', anticipo.id);
-            montoRestante = 0;
-          }
+
+        // Si sobró dinero después de cubrir todas las entregas → anticipo para la próxima
+        if (montoRecibido > 0.5) {
+          await supabase.from('pagos').insert({
+            cliente_id: clienteIdFinal,
+            entrega_id: null,
+            monto: montoRecibido,
+            metodo: metodoFinal,
+            tipo: 'Anticipo'
+          });
+        }
+      } else {
+        // Modo tienda sin cliente: registrar pago simple
+        if (monto1 > 0) {
+          await supabase.from('pagos').insert({
+            cliente_id: null,
+            entrega_id: null,
+            monto: monto1,
+            metodo: m1,
+            tipo: 'Venta Liquidación'
+          });
+        }
+        if (monto2 > 0 && m2) {
+          await supabase.from('pagos').insert({
+            cliente_id: null,
+            entrega_id: null,
+            monto: monto2,
+            metodo: m2,
+            tipo: 'Venta Liquidación'
+          });
         }
       }
 

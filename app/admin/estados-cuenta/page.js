@@ -749,6 +749,11 @@ export default function EstadosCuenta() {
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div style={{ flex: 1, marginRight: 12 }}>
                                   <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>{p.descripcion}</span>
+                                  {p.apartado_fragil && (
+                                    <span style={{ background: '#facc15', color: '#000', fontSize: '10px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '4px', marginLeft: '6px' }}>
+                                      ⚠️ APARTADOS / FRÁGIL
+                                    </span>
+                                  )}
                                   {p.fecha_compra && (
                                     <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 1 }}>
                                       Comprado: {fmtFecha(p.fecha_compra)}
@@ -764,6 +769,19 @@ export default function EstadosCuenta() {
                                       <button onClick={() => abrirEditarPedido(p)}
                                         style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '3px 9px', color: '#818cf8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
                                         ✏️
+                                      </button>
+                                      <button
+                                        onClick={async () => {
+                                          await fetch('/api/pedidos/actualizar-pedido', {
+                                            method: 'PUT',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ ...p, apartado_fragil: !p.apartado_fragil })
+                                          });
+                                          entregaId ? cargarPorEntrega() : cargarPorCliente();
+                                        }}
+                                        title={p.apartado_fragil ? 'Quitar APARTADOS/FRÁGIL' : 'Marcar APARTADOS/FRÁGIL'}
+                                        style={{ background: p.apartado_fragil ? '#facc15' : 'rgba(250,204,21,0.15)', color: p.apartado_fragil ? '#000' : '#facc15', border: '1px solid #facc15', borderRadius: '6px', padding: '2px 7px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                        ⚠️
                                       </button>
                                       <button onClick={() => eliminarPedido(p.id)}
                                         style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '3px 9px', color: '#f87171', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>

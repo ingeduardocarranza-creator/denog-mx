@@ -701,21 +701,59 @@ export default function EstadosCuenta() {
         {/* Client view */}
         {datos.length > 0 && clienteActual && (
           <>
-            {/* Progress bar */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
-                Cliente{' '}
-                <span style={{ color: 'white', fontWeight: 700 }}>{indice + 1}</span>
-                {' '}de{' '}
-                <span style={{ color: 'white', fontWeight: 700 }}>{datos.length}</span>
+            {/* Navegación avanzada */}
+            <div className="flex items-center gap-2 flex-wrap justify-center mb-4">
+              <button
+                onClick={() => setIndice(0)}
+                disabled={indice === 0}
+                className="px-3 py-1 rounded-lg bg-gray-700 text-white text-sm disabled:opacity-30"
+              >⏮ Primero</button>
+
+              <button
+                onClick={() => setIndice(i => Math.max(0, i - 10))}
+                disabled={indice === 0}
+                className="px-3 py-1 rounded-lg bg-gray-700 text-white text-sm disabled:opacity-30"
+              >-10</button>
+
+              <button
+                onClick={() => setIndice(i => Math.max(0, i - 1))}
+                disabled={indice === 0}
+                className="px-3 py-1 rounded-lg bg-gray-700 text-white text-sm disabled:opacity-30"
+              >◀ Ant</button>
+
+              <div className="flex items-center gap-1">
+                <span className="text-gray-400 text-sm">Cliente</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={datos.length}
+                  value={indice + 1}
+                  onChange={e => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val >= 1 && val <= datos.length) setIndice(val - 1);
+                  }}
+                  className="w-14 text-center bg-gray-800 border border-gray-600 rounded-lg text-white text-sm py-1"
+                />
+                <span className="text-gray-400 text-sm">de {datos.length}</span>
               </div>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                {datos.slice(0, 15).map((_, i) => (
-                  <div key={i} onClick={() => setIndice(i)}
-                    style={{ width: i === indice ? 20 : 8, height: 8, borderRadius: 4, background: i === indice ? '#818cf8' : i < indice ? 'rgba(129,140,248,0.35)' : 'rgba(255,255,255,0.12)', cursor: 'pointer', transition: 'all 0.2s' }} />
-                ))}
-                {datos.length > 15 && <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginLeft: 2 }}>+{datos.length - 15}</span>}
-              </div>
+
+              <button
+                onClick={() => setIndice(i => Math.min(datos.length - 1, i + 1))}
+                disabled={indice === datos.length - 1}
+                className="px-3 py-1 rounded-lg bg-gray-700 text-white text-sm disabled:opacity-30"
+              >Sig ▶</button>
+
+              <button
+                onClick={() => setIndice(i => Math.min(datos.length - 1, i + 10))}
+                disabled={indice === datos.length - 1}
+                className="px-3 py-1 rounded-lg bg-gray-700 text-white text-sm disabled:opacity-30"
+              >+10</button>
+
+              <button
+                onClick={() => setIndice(datos.length - 1)}
+                disabled={indice === datos.length - 1}
+                className="px-3 py-1 rounded-lg bg-gray-700 text-white text-sm disabled:opacity-30"
+              >⏭ Último</button>
             </div>
 
             {/* Client card */}
@@ -772,12 +810,21 @@ export default function EstadosCuenta() {
                                       </button>
                                       <button
                                         onClick={async () => {
+                                          const nuevoValor = !p.apartado_fragil;
                                           await fetch('/api/pedidos/actualizar-pedido', {
                                             method: 'PUT',
                                             headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ ...p, apartado_fragil: !p.apartado_fragil })
+                                            body: JSON.stringify({ ...p, apartado_fragil: nuevoValor })
                                           });
-                                          entregaId ? cargarPorEntrega() : cargarPorCliente();
+                                          setDatos(prev => prev.map(cliente => ({
+                                            ...cliente,
+                                            grupos: cliente.grupos.map(g => ({
+                                              ...g,
+                                              pedidos: g.pedidos.map(ped =>
+                                                ped.id === p.id ? { ...ped, apartado_fragil: nuevoValor } : ped
+                                              )
+                                            }))
+                                          })));
                                         }}
                                         title={p.apartado_fragil ? 'Quitar APARTADOS/FRÁGIL' : 'Marcar APARTADOS/FRÁGIL'}
                                         style={{ background: p.apartado_fragil ? '#facc15' : 'rgba(250,204,21,0.15)', color: p.apartado_fragil ? '#000' : '#facc15', border: '1px solid #facc15', borderRadius: '6px', padding: '2px 7px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -1043,7 +1090,7 @@ export default function EstadosCuenta() {
                 </div>
               )}
             </div>
-            <button onClick={siguiente} disabled={indice >= datos.length - 1}
+            <button onClick={() => setIndice(i => Math.min(datos.length - 1, i + 1))} disabled={indice >= datos.length - 1}
               style={{ width: '100%', padding: '12px', borderRadius: 12, background: indice < datos.length - 1 ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${indice < datos.length - 1 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)'}`, color: indice < datos.length - 1 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.15)', fontSize: 14, fontWeight: 600, cursor: indice < datos.length - 1 ? 'pointer' : 'default' }}>
               Siguiente cliente → ({indice + 1} / {datos.length})
             </button>

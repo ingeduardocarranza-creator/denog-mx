@@ -769,9 +769,10 @@ export default function EstadosCuenta() {
               </div>
 
               {clienteActual.grupos.map((g, gi) => {
-                const sub = g.pedidos.reduce((s, p) => s + (p.precio_venta || 0), 0)
+                const sub = g.pedidos.filter(p => p.estado !== 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
                 const pagAnt = g.pagos.filter(p => !p.tipo?.toLowerCase().includes('liquidaci')).reduce((s, p) => s + (p.monto || 0), 0)
                 const pag = g.pagos.reduce((s, p) => s + (p.monto || 0), 0)
+                const neto = Math.max(0, sub - pag)
                 return (
                   <div key={gi} style={{ marginBottom: gi < clienteActual.grupos.length - 1 ? 16 : 0 }}>
                     {clienteActual.grupos.length > 1 && g.entrega && (
@@ -1049,9 +1050,11 @@ export default function EstadosCuenta() {
               })}
 
               {(() => {
-                const total = clienteActual.grupos.reduce((s, g) => s + g.pedidos.filter(p => p.estado !== 'Entregado').reduce((ss, p) => ss + (p.precio_venta || 0), 0), 0)
-                const pag = clienteActual.grupos.reduce((s, g) => s + g.pagos.reduce((ss, p) => ss + (p.monto || 0), 0), 0)
-                const saldo = Math.max(0, total - pag)
+                const saldo = clienteActual.grupos.reduce((s, g) => {
+                  const totalGrupo = g.pedidos.filter(p => p.estado !== 'Entregado').reduce((ss, p) => ss + (p.precio_venta || 0), 0)
+                  const pagadoGrupo = g.pagos.reduce((ss, p) => ss + (p.monto || 0), 0)
+                  return s + Math.max(0, totalGrupo - pagadoGrupo)
+                }, 0)
                 return (
                   <div style={{ marginTop: 16, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.14)', borderRadius: 10, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: '#f87171', fontSize: 13, fontWeight: 600 }}>Total a pagar</span>

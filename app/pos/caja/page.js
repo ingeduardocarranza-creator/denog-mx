@@ -48,6 +48,17 @@ export default function CajaPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [colaborador])
 
+  useEffect(() => {
+    if (paso !== 'turno' || !turnoActual) return
+
+    // Refrescar resumen cada 30 segundos
+    const intervalo = setInterval(() => {
+      cargarResumenTurno(turnoActual)
+    }, 30000)
+
+    return () => clearInterval(intervalo)
+  }, [paso, turnoActual])
+
   const cargarEstado = async (colaborador_id) => {
     const ahora = new Date()
     const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
@@ -348,6 +359,15 @@ export default function CajaPage() {
             <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Fondo inicial de tu turno</div>
               <div style={{ color: '#10b981', fontSize: 24, fontWeight: 800 }}>{fmt(turnoActual?.total_contado)}</div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Resumen del turno</div>
+              <button
+                onClick={() => cargarResumenTurno(turnoActual)}
+                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '8px', color: 'white', padding: '4px 10px', fontSize: '12px', cursor: 'pointer' }}
+              >
+                🔄 Actualizar
+              </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 12, textAlign: 'center' }}>

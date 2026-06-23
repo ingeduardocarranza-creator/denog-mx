@@ -40,6 +40,8 @@ export default function PuntoDeVenta() {
   
   const [listaAnticipos, setListaAnticipos] = useState([]);
   const [anticiposDisponibles, setAnticiposDisponibles] = useState(0);
+  const [pagosPorEntregaState, setPagosPorEntregaState] = useState({});
+  const [totalEntregadosPorEntregaState, setTotalEntregadosPorEntregaState] = useState({});
 
   const [productosSeleccionados, setProductosSeleccionados] = useState({});
   const [carritoTienda, setCarritoTienda] = useState([]);
@@ -125,6 +127,8 @@ export default function PuntoDeVenta() {
     setBloquesEntregas([]);
     setAnticiposDisponibles(0);
     setListaAnticipos([]);
+    setPagosPorEntregaState({});
+    setTotalEntregadosPorEntregaState({});
     setProductosSeleccionados({});
     setCarritoTienda([]);
     setBusquedaCliente('');
@@ -163,14 +167,25 @@ export default function PuntoDeVenta() {
       if (!p.entrega_id) return;
       pagosPorEntrega[p.entrega_id] = (pagosPorEntrega[p.entrega_id] || 0) + Number(p.monto);
     });
+    setPagosPorEntregaState(pagosPorEntrega);
 
-    // Filtrar: incluir pedido si NO está Entregado, O si está Entregado pero su entrega tiene saldo pendiente
+    const totalEntregadosPorEntrega = {};
+    (pedidosDb || []).forEach(p => {
+      if (p.estado === 'Entregado' && p.entrega_id) {
+        totalEntregadosPorEntrega[p.entrega_id] = (totalEntregadosPorEntrega[p.entrega_id] || 0) + Number(p.precio_venta);
+      }
+    });
+    setTotalEntregadosPorEntregaState(totalEntregadosPorEntrega);
+
+    // Filtrar: incluir pedido si NO está Entregado, O si está Entregado pero el pago no alcanza a cubrir lo entregado
     const historialPedidos = (pedidosDb || []).filter(p => {
       if (p.estado !== 'Entregado') return true;
       const pedidosDeEntrega = (pedidosDb || []).filter(x => x.entrega_id === p.entrega_id);
-      const totalEntrega = pedidosDeEntrega.reduce((s, x) => s + (Number(x.precio_venta) || 0), 0);
+      const totalEntregados = pedidosDeEntrega
+        .filter(x => x.estado === 'Entregado')
+        .reduce((s, x) => s + (Number(x.precio_venta) || 0), 0);
       const pagadoEntrega = pagosPorEntrega[p.entrega_id] || 0;
-      return totalEntrega - pagadoEntrega > 0.5;
+      return pagadoEntrega - totalEntregados < -0.5;
     });
 
     const { data: pagosDb } = await supabase
@@ -712,9 +727,15 @@ export default function PuntoDeVenta() {
                 anticiposDeEsteBloque.push(...anticiposGenerales);
               }
 
-              const subtotalArticulos = bloque.pedidos.reduce((acc, p) => acc + (productosSeleccionados[p.id] ? Number(p.precio_venta) : 0), 0);
+              // Usa totales reales de entregados (antes del filtrado) para calcular sobrante correctamente
+              const totalEntregadosReal = (totalEntregadosPorEntregaState[bloque.entrega.id] || 0);
+              const pagadoBloque = (pagosPorEntregaState[bloque.entrega.id] || 0);
+              const sobranteBloque = Math.max(0, pagadoBloque - totalEntregadosReal);
+              const subtotalArticulos = bloque.pedidos
+                .filter(p => p.estado !== 'Entregado')
+                .reduce((acc, p) => acc + (productosSeleccionados[p.id] ? Number(p.precio_venta) : 0), 0);
               const totalDescuentoAnticipos = anticiposDeEsteBloque.reduce((acc, a) => acc + Number(a.monto), 0);
-              const subtotalFinalEntrega = Math.max(0, subtotalArticulos - totalDescuentoAnticipos);
+              const subtotalFinalEntrega = Math.max(0, subtotalArticulos - sobranteBloque - totalDescuentoAnticipos);
 
               return (
                 <div key={idx} className={`border rounded-xl overflow-hidden ${bloque.atrasada ? 'border-red-900 bg-red-950/10' : 'border-gray-800'}`}>

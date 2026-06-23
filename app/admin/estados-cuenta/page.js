@@ -118,7 +118,7 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
   const netos = []
 
   for (const g of grupos) {
-    const totalEntregados = g.pedidos.filter(p => p.estado === 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
+    const totalEntregados = g.totalEntregadosOriginal ?? g.pedidos.filter(p => p.estado === 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
     const totalPendientes = g.pedidos.filter(p => p.estado !== 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
     const pagadoGrupo = g.pagos.reduce((s, p) => s + (p.monto || 0), 0)
     const sobrante = Math.max(0, pagadoGrupo - totalEntregados)
@@ -203,15 +203,17 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
     ctx.fillText('Subtotal:', PAD, y + subH / 2)
     ctx.font = `bold ${15 * S}px -apple-system,system-ui,sans-serif`
     ctx.textAlign = 'right'
-    ctx.fillText(fmt(subtotal), W - PAD, y + subH / 2)
+    ctx.fillText(fmt(totalPendientes), W - PAD, y + subH / 2)
     ctx.textAlign = 'left'
     y += subH
 
     // Strips de pagos: anticipos (verde) y liquidación (azul) por separado
+    // Ocultar si es entrega vieja con pagos ya aplicados (totalEntregadosOriginal indica que fue filtrada)
+    const ocultarPagos = g.totalEntregadosOriginal !== undefined
     const pagsAnt = g.pagos.filter(p => !p.tipo?.toLowerCase().includes('liquidaci'))
     const pagsLiq = g.pagos.filter(p =>  p.tipo?.toLowerCase().includes('liquidaci'))
 
-    if (pagsAnt.length > 0) {
+    if (!ocultarPagos && pagsAnt.length > 0) {
       const totalAnt = pagsAnt.reduce((s, p) => s + (p.monto || 0), 0)
       const antDetH = pagsAnt.length * (20 * S)
       const antTotalH = pgHdrH + antDetH
@@ -238,7 +240,7 @@ async function dibujarEstadoCuenta({ cliente, grupos }) {
       y += antTotalH
     }
 
-    if (pagsLiq.length > 0) {
+    if (!ocultarPagos && pagsLiq.length > 0) {
       const totalLiq = pagsLiq.reduce((s, p) => s + (p.monto || 0), 0)
       const fechaLiq = pagsLiq[0]?.creado_en
       const emojiMet = (m) => m === 'Efectivo' ? '💵' : m === 'Transferencia' ? '📱' : m === 'Terminal' ? '💳' : m
@@ -451,7 +453,6 @@ export default function EstadosCuenta() {
       if (!porCliente[cid].porEntrega[eid]) porCliente[cid].porEntrega[eid] = { pedidos: [], pagos: [] }
       porCliente[cid].porEntrega[eid].pedidos.push(p)
     })
-    console.log('[estados-cuenta cargarPorEntrega] todos los pagos:', todosPagos.map(p => ({ tipo: p.tipo, entrega_id: p.entrega_id, monto: p.monto, cliente_id: p.cliente_id })))
     todosPagos.forEach(p => {
       const cid = String(p.cliente_id)
       if (!porCliente[cid]) return
@@ -493,10 +494,11 @@ export default function EstadosCuenta() {
           const esLaMasReciente = g.entrega && fechaMasReciente && new Date(g.entrega.fecha_entrega).getTime() === fechaMasReciente.getTime()
           if (esLaMasReciente) return g
           const pedidosPendientes = g.pedidos.filter(p => p.estado !== 'Entregado')
+          const totalEntregadosOriginal = g.pedidos.filter(p => p.estado === 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
           // Si ya no quedan pedidos pendientes en este grupo viejo, el grupo completo
           // (incluyendo sus anticipos) deja de mostrarse en el estado de cuenta actual
           if (pedidosPendientes.length === 0) return { ...g, pedidos: [], pagos: [] }
-          return { ...g, pedidos: pedidosPendientes }
+          return { ...g, pedidos: pedidosPendientes, totalEntregadosOriginal }
         }).filter(g => g.pedidos.length > 0 || g.pagos.length > 0)
       }
 
@@ -533,10 +535,7 @@ export default function EstadosCuenta() {
       porEntrega[eid].pedidos.push(p)
     })
     const keysEntrega = Object.keys(porEntrega)
-    console.log('[estados-cuenta cargarPorCliente] pedidos agrupados en eids:', keysEntrega)
-    console.log('[estados-cuenta cargarPorCliente] todos los pagos del cliente:', pagos.map(p => ({ tipo: p.tipo, entrega_id: p.entrega_id, monto: p.monto })))
     pagos.forEach(p => {
-      console.log('[DEBUG pago]', p.id, p.tipo, p.entrega_id, p.cliente_id)
       const eid = String(p.entrega_id || 'sin')
       if (porEntrega[eid]) {
         porEntrega[eid].pagos.push(p)
@@ -572,10 +571,11 @@ export default function EstadosCuenta() {
         const esLaMasReciente = g.entrega && fechaMasReciente && new Date(g.entrega.fecha_entrega).getTime() === fechaMasReciente.getTime()
         if (esLaMasReciente) return g
         const pedidosPendientes = g.pedidos.filter(p => p.estado !== 'Entregado')
+        const totalEntregadosOriginal = g.pedidos.filter(p => p.estado === 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
         // Si ya no quedan pedidos pendientes en este grupo viejo, el grupo completo
         // (incluyendo sus anticipos) deja de mostrarse en el estado de cuenta actual
         if (pedidosPendientes.length === 0) return { ...g, pedidos: [], pagos: [] }
-        return { ...g, pedidos: pedidosPendientes }
+        return { ...g, pedidos: pedidosPendientes, totalEntregadosOriginal }
       }).filter(g => g.pedidos.length > 0 || g.pagos.length > 0)
     }
 
@@ -771,7 +771,7 @@ export default function EstadosCuenta() {
               </div>
 
               {clienteActual.grupos.map((g, gi) => {
-                const totalEntregados = g.pedidos.filter(p => p.estado === 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
+                const totalEntregados = g.totalEntregadosOriginal ?? g.pedidos.filter(p => p.estado === 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
                 const sub = g.pedidos.filter(p => p.estado !== 'Entregado').reduce((s, p) => s + (p.precio_venta || 0), 0)
                 const pagAnt = g.pagos.filter(p => !p.tipo?.toLowerCase().includes('liquidaci')).reduce((s, p) => s + (p.monto || 0), 0)
                 const pag = g.pagos.reduce((s, p) => s + (p.monto || 0), 0)
@@ -1000,7 +1000,7 @@ export default function EstadosCuenta() {
                     </div>
                     {(() => {
                       const pagosAnt = g.pagos.filter(pg => !pg.tipo?.toLowerCase().includes('liquidaci'))
-                      if (pagosAnt.length === 0) return null
+                      if (pagosAnt.length === 0 || g.totalEntregadosOriginal !== undefined) return null
                       const emojiMetodo = (m) => m === 'Efectivo' ? '💵' : m === 'Transferencia' ? '📱' : m === 'Terminal' ? '💳' : m
                       const totalAnt = pagosAnt.reduce((s, pg) => s + pg.monto, 0)
                       const fechaAnt = pagosAnt[0]?.creado_en
@@ -1025,8 +1025,7 @@ export default function EstadosCuenta() {
                     })()}
                     {(() => {
                       const pagosLiq = g.pagos.filter(pg => pg.tipo?.toLowerCase().includes('liquidaci'))
-                      console.log('[estados-cuenta render] entrega:', g.entrega?.id, '| g.pagos:', g.pagos.length, '→', g.pagos.map(p => p.tipo), '| liquidacion encontrados:', pagosLiq.length)
-                      if (pagosLiq.length === 0) return null
+                      if (pagosLiq.length === 0 || g.totalEntregadosOriginal !== undefined) return null
                       const emojiMetodo = (m) => m === 'Efectivo' ? '💵' : m === 'Transferencia' ? '📱' : m === 'Terminal' ? '💳' : m
                       const porMetodo = pagosLiq.reduce((acc, pg) => {
                         if (!pg.metodo) return acc
@@ -1055,7 +1054,7 @@ export default function EstadosCuenta() {
 
               {(() => {
                 const saldo = clienteActual.grupos.reduce((s, g) => {
-                  const totalEntregados = g.pedidos.filter(p => p.estado === 'Entregado').reduce((ss, p) => ss + (p.precio_venta || 0), 0)
+                  const totalEntregados = g.totalEntregadosOriginal ?? g.pedidos.filter(p => p.estado === 'Entregado').reduce((ss, p) => ss + (p.precio_venta || 0), 0)
                   const totalPendientes = g.pedidos.filter(p => p.estado !== 'Entregado').reduce((ss, p) => ss + (p.precio_venta || 0), 0)
                   const pagadoGrupo = g.pagos.reduce((ss, p) => ss + (p.monto || 0), 0)
                   const sobrante = Math.max(0, pagadoGrupo - totalEntregados)
@@ -1089,7 +1088,7 @@ export default function EstadosCuenta() {
                 {copiado ? '✅ ¡Copiada!' : '📋 Copiar imagen'}
               </button>
               {clienteActual.cliente.telefono ? (
-                <a href={`https://wa.me/${((tel) => { const n = tel.replace(/\D/g, ''); if (n.length === 12 && n.startsWith('52')) return n; if (n.length === 10) return '52' + n; if (n.length === 11 && n.startsWith('1')) return '52' + n.slice(1); if (n.length === 11 && !n.startsWith('52')) return '52' + n.slice(1); if (n.length === 13 && n.startsWith('521')) return '52' + n.slice(3); console.log('numero original:', tel, 'numero final:', n); return n; })(clienteActual.cliente.telefono)}`} target="_blank" rel="noreferrer"
+                <a href={`https://wa.me/${((tel) => { const n = tel.replace(/\D/g, ''); if (n.length === 12 && n.startsWith('52')) return n; if (n.length === 10) return '52' + n; if (n.length === 11 && n.startsWith('1')) return '52' + n.slice(1); if (n.length === 11 && !n.startsWith('52')) return '52' + n.slice(1); if (n.length === 13 && n.startsWith('521')) return '52' + n.slice(3); return n; })(clienteActual.cliente.telefono)}`} target="_blank" rel="noreferrer"
                   style={{ flex: 1, padding: '14px', borderRadius: 12, background: 'rgba(37,211,102,0.12)', border: '1px solid rgba(37,211,102,0.3)', color: '#4ade80', fontSize: 15, fontWeight: 700, cursor: 'pointer', textAlign: 'center', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   📱 WhatsApp
                 </a>

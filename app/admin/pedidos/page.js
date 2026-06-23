@@ -198,6 +198,7 @@ export default function Pedidos() {
       estado: p.estado || '',
       vendedor_id: p.vendedor_id || '',
       categoria: p.categoria || '',
+      apartado_fragil: p.apartado_fragil || false,
     })
     setPedidoMsg('')
   }
@@ -419,6 +420,18 @@ export default function Pedidos() {
               placeholder="Notas opcionales..." />
           </div>
 
+          <div className="mb-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.apartado_fragil || false}
+                onChange={e => setForm({...form, apartado_fragil: e.target.checked})}
+                className="w-4 h-4 accent-yellow-400"
+              />
+              <span className="text-yellow-400 font-bold text-sm">⚠️ APARTADOS / FRÁGIL</span>
+            </label>
+          </div>
+
           {msg && (
             <div className={`text-sm mb-3 ${msg.includes('✓') ? 'text-green-400' : 'text-yellow-400'}`}>
               {msg}
@@ -537,7 +550,13 @@ export default function Pedidos() {
                           <div className="text-white text-xs font-semibold">{p.clientes?.nombre || '—'}</div>
                           <div className="text-gray-500 text-[10px] mt-0.5">{p.fecha_compra || '—'}</div>
                         </div>
-                        <div className="text-gray-300 text-xs truncate" title={p.descripcion}>{p.descripcion || '—'}</div>
+                        <div className="text-gray-300 text-xs truncate" title={p.descripcion}>{p.descripcion || '—'}
+                          {p.apartado_fragil && (
+                            <span className="inline-block bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded mt-1">
+                              ⚠️ APARTADOS / FRÁGIL
+                            </span>
+                          )}
+                        </div>
                         <div className="text-gray-300 text-xs text-right">{p.cantidad ?? 1}</div>
                         <div className="text-amber-400 text-xs font-mono text-right">{p.precio_usd != null ? `$${p.precio_usd}` : '—'}</div>
                         <div className="text-green-400 text-xs font-mono font-bold text-right">{fmtMxn(p.precio_venta)}</div>
@@ -723,6 +742,17 @@ export default function Pedidos() {
                             <label style={lbS}>Notas</label>
                             <input type="text" value={editFormPedido.notas} onChange={ev => setEditFormPedido({ ...editFormPedido, notas: ev.target.value })} style={inS} placeholder="Opcional" />
                           </div>
+                        </div>
+                        <div className="mb-3">
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editFormPedido.apartado_fragil || false}
+                              onChange={e => setEditFormPedido({...editFormPedido, apartado_fragil: e.target.checked})}
+                              className="w-4 h-4 accent-yellow-400"
+                            />
+                            <span className="text-yellow-400 font-bold text-sm">⚠️ APARTADOS / FRÁGIL</span>
+                          </label>
                         </div>
                         {pedidoMsg && <div className="text-red-400 text-xs mb-2">{pedidoMsg}</div>}
                         <div className="flex gap-2">

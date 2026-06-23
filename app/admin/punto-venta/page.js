@@ -569,6 +569,10 @@ export default function PuntoDeVenta() {
     )
   }
 
+  const totalApartadosFragil = bloquesEntregas.reduce((sum, b) =>
+    sum + b.pedidos.filter(p => p.apartado_fragil && productosSeleccionados[p.id]).length, 0
+  );
+
   return (
     <>
       {turnoEstado === 'cargando' && (
@@ -669,6 +673,12 @@ export default function PuntoDeVenta() {
               </div>
             )}
 
+            {totalApartadosFragil > 0 && (
+              <div className="bg-yellow-400 text-black rounded-xl p-4 mb-4 font-bold text-center">
+                ⚠️ ATENCIÓN: Este cliente tiene {totalApartadosFragil} artículo{totalApartadosFragil > 1 ? 's' : ''} APARTADOS / FRÁGIL — agrégalos al pedido antes de continuar
+              </div>
+            )}
+
             {clienteSeleccionado && bloquesEntregas.map((bloque, idx) => {
               const anticiposDeEsteBloque = listaAnticipos.filter(ant => ant.entrega_id === bloque.entrega.id);
               if (idx === 0) {
@@ -684,19 +694,29 @@ export default function PuntoDeVenta() {
                 <div key={idx} className={`border rounded-xl overflow-hidden ${bloque.atrasada ? 'border-red-900 bg-red-950/10' : 'border-gray-800'}`}>
                   <div className={`p-3 font-bold text-xs flex justify-between items-center ${bloque.atrasada ? 'bg-red-900/40 text-red-400' : 'bg-gray-800'}`}>
                     <span>ENTREGA: {formatearFecha(bloque.entrega.fecha_entrega)}</span>
-                    {bloque.atrasada && <span className="bg-red-700 text-white font-black px-2 py-0.5 rounded text-[10px]">ATRASADA</span>}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">
+                        {bloque.pedidos.filter(p => productosSeleccionados[p.id]).length} artículo(s)
+                      </span>
+                      {bloque.atrasada && <span className="bg-red-700 text-white font-black px-2 py-0.5 rounded text-[10px]">ATRASADA</span>}
+                    </div>
                   </div>
                   <div className="divide-y divide-gray-800">
                     {bloque.pedidos.map(p => (
                       <div key={p.id} className="p-3 flex justify-between items-center text-xs">
                         <div className="flex items-center gap-3">
                           <input type="checkbox" checked={!!productosSeleccionados[p.id]} onChange={(e) => setProductosSeleccionados({ ...productosSeleccionados, [p.id]: e.target.checked })} className="w-4 h-4 rounded text-blue-600 bg-gray-800 border-gray-700" />
-                          <span className="font-medium text-slate-200">{p.descripcion}</span>
+                          <div>
+                            <span className="font-medium text-slate-200">{p.descripcion}</span>
+                            {p.apartado_fragil && (
+                              <span className="inline-block bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded ml-2">
+                                ⚠️ APARTADOS / FRÁGIL
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <span className="font-bold text-white font-mono">
-                          {(p.cantidad || 1) > 1
-                            ? `x${p.cantidad} = $${Number(p.precio_venta).toLocaleString('es-MX')}`
-                            : `$${Number(p.precio_venta).toFixed(0)}`}
+                        <span className="text-xs text-slate-400">
+                          {p.cantidad > 1 ? `x${p.cantidad} · ` : ''}${Number(p.precio_venta).toFixed(0)}
                         </span>
                       </div>
                     ))}

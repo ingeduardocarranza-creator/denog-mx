@@ -150,7 +150,28 @@ export default function PuntoDeVenta() {
       .from('pedidos')
       .select('*')
       .eq('cliente_id', cliente.id)
-      .not('estado', 'in', '("Pagado","Entregado")');
+      .not('estado', 'eq', 'Pagado');
+
+    // Traer pagos del cliente para calcular saldos por entrega
+    const { data: pagosClienteDb } = await supabase
+      .from('pagos')
+      .select('entrega_id, monto')
+      .eq('cliente_id', cliente.id);
+
+    const pagosPorEntrega = {};
+    (pagosClienteDb || []).forEach(p => {
+      if (!p.entrega_id) return;
+      pagosPorEntrega[p.entrega_id] = (pagosPorEntrega[p.entrega_id] || 0) + Number(p.monto);
+    });
+
+    // Filtrar: incluir pedido si NO está Entregado, O si está Entregado pero su entrega tiene saldo pendiente
+    const historialPedidos = (pedidosDb || []).filter(p => {
+      if (p.estado !== 'Entregado') return true;
+      const pedidosDeEntrega = (pedidosDb || []).filter(x => x.entrega_id === p.entrega_id);
+      const totalEntrega = pedidosDeEntrega.reduce((s, x) => s + (Number(x.precio_venta) || 0), 0);
+      const pagadoEntrega = pagosPorEntrega[p.entrega_id] || 0;
+      return totalEntrega - pagadoEntrega > 0.5;
+    });
 
     const { data: pagosDb } = await supabase
       .from('pagos')
@@ -158,23 +179,21 @@ export default function PuntoDeVenta() {
       .eq('cliente_id', cliente.id)
       .eq('tipo', 'Anticipo')
       .order('creado_en', { ascending: true });
-    
+
     const pagos = pagosDb || [];
     setListaAnticipos(pagos);
-    
+
     const totalAnticipos = pagos.reduce((acc, p) => acc + Number(p.monto), 0);
     setAnticiposDisponibles(totalAnticipos);
 
     const bloques = [];
-    const historialPedidos = pedidosDb || [];
     const entregasIds = [...new Set(historialPedidos.map(p => p.entrega_id))];
-    
+
     entregasIds.forEach(eId => {
       const datosEntrega = todasEntregas.find(e => e.id === eId);
       const pedidosDeEstaEntrega = historialPedidos.filter(p => p.entrega_id === eId);
-      
+
       if (datosEntrega) {
-        
         const hoy = new Date();
         const fechaE = new Date(datosEntrega.fecha_entrega);
         const diasDiferencia = (hoy - fechaE) / (1000 * 60 * 60 * 24);
@@ -183,7 +202,8 @@ export default function PuntoDeVenta() {
         bloques.push({
           entrega: datosEntrega,
           pedidos: pedidosDeEstaEntrega,
-          atrasada
+          atrasada,
+          soloSaldo: pedidosDeEstaEntrega.every(p => p.estado === 'Entregado')
         });
       }
     });
@@ -192,7 +212,13 @@ export default function PuntoDeVenta() {
 
     const seleccionInicial = {};
     historialPedidos.forEach(p => {
-      seleccionInicial[p.id] = true;
+      seleccionInicial[p.id] = p.estado !== 'Entregado' ? true :
+        (() => {
+          const pedidosDeEntrega = historialPedidos.filter(x => x.entrega_id === p.entrega_id);
+          const totalEntrega = pedidosDeEntrega.reduce((s, x) => s + (Number(x.precio_venta) || 0), 0);
+          const pagadoEntrega = pagosPorEntrega[p.entrega_id] || 0;
+          return totalEntrega - pagadoEntrega > 0.5;
+        })();
     });
     setProductosSeleccionados(seleccionInicial);
   };
@@ -692,6 +718,11 @@ export default function PuntoDeVenta() {
 
               return (
                 <div key={idx} className={`border rounded-xl overflow-hidden ${bloque.atrasada ? 'border-red-900 bg-red-950/10' : 'border-gray-800'}`}>
+                  {bloque.soloSaldo && (
+                    <div className="bg-red-900 text-red-300 text-xs font-bold px-3 py-1 rounded mb-1">
+                      ⚠️ ADEUDO ANTERIOR — se incluye en el cobro de hoy
+                    </div>
+                  )}
                   <div className={`p-3 font-bold text-xs flex justify-between items-center ${bloque.atrasada ? 'bg-red-900/40 text-red-400' : 'bg-gray-800'}`}>
                     <span>ENTREGA: {formatearFecha(bloque.entrega.fecha_entrega)}</span>
                     <div className="flex items-center gap-2">

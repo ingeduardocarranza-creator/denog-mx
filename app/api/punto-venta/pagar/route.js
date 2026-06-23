@@ -15,7 +15,7 @@ export async function POST(req) {
     entrega_id,
     monto: p.monto,
     metodo: p.metodo,
-    tipo: 'pago'
+    tipo: 'Venta Liquidación'
   }))
 
   const { error } = await supabase.from('pagos').insert(registros)

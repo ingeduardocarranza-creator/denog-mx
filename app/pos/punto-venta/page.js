@@ -1029,6 +1029,12 @@ const horariosDelDia = (f) => {
                   </div>
                 )}
 
+                {clienteSeleccionado && bloquesEntregas.some(b => b.pedidos.some(p => p.apartado_fragil)) && (
+                  <div style={{ background: '#facc15', color: '#000', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px', fontWeight: 'bold', textAlign: 'center' }}>
+                    ⚠️ ATENCIÓN: Este cliente tiene artículos APARTADOS / FRÁGIL — agrégalos al pedido antes de continuar
+                  </div>
+                )}
+
                 {clienteSeleccionado && bloquesEntregas.map((bloque, idx) => {
                   const anticiposDeEsteBloque = listaAnticipos.filter(ant => ant.entrega_id === bloque.entrega.id);
                   if (idx === 0) {
@@ -1050,7 +1056,14 @@ const horariosDelDia = (f) => {
                           <div key={p.id} className="p-3 flex justify-between items-center text-xs">
                             <div className="flex items-center gap-3">
                               <input type="checkbox" checked={!!productosSeleccionados[p.id]} onChange={(e) => setProductosSeleccionados({ ...productosSeleccionados, [p.id]: e.target.checked })} className="w-4 h-4 rounded text-blue-600 bg-gray-800 border-gray-700" />
-                              <span className="font-medium text-slate-200">{p.descripcion}</span>
+                              <div>
+                                <span className="font-medium text-slate-200">{p.descripcion}</span>
+                                {p.apartado_fragil && (
+                                  <span style={{ background: '#facc15', color: '#000', fontSize: '10px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '4px', marginLeft: '6px' }}>
+                                    ⚠️ APARTADOS / FRÁGIL
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <span className="font-bold text-white font-mono">
                               {(p.cantidad || 1) > 1

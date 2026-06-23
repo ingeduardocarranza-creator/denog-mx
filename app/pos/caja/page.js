@@ -37,6 +37,17 @@ export default function CajaPage() {
     cargarEstado(c.id)
   }, [])
 
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && colaborador) {
+        // Re-verificar estado al volver a la página (puede haber cambiado el día)
+        cargarEstado(colaborador.id)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [colaborador])
+
   const cargarEstado = async (colaborador_id) => {
     const ahora = new Date()
     const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`

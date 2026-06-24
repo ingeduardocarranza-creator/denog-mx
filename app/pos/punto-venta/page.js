@@ -895,6 +895,14 @@ const horariosDelDia = (f) => {
                 Abrir turno →
               </button>
             </div>
+            <div style={{ textAlign: 'center' }}>
+              <button
+                onClick={() => { localStorage.removeItem('colaborador'); window.location.href = '/' }}
+                style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: '13px', padding: '8px', cursor: 'pointer', marginTop: '12px' }}
+              >
+                🚪 Cerrar sesión
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -281,11 +281,28 @@ export default function CajaPage() {
     <div style={{ minHeight: '100vh', background: '#050508', padding: '24px 16px' }}>
       <div style={{ maxWidth: 600, margin: '0 auto' }}>
 
+        {/* Header discreto — solo en pantallas activas, no en corte_hecho */}
+        {paso !== 'corte_hecho' && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '16px', borderRadius: 10 }}>
+            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>
+              👤 {colaborador?.nombre || 'Colaborador'}
+            </span>
+            <button
+              onClick={() => { localStorage.removeItem('colaborador'); router.push('/') }}
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', padding: '4px 10px', cursor: 'pointer' }}
+            >
+              🚪 Cerrar sesión
+            </button>
+          </div>
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <button onClick={() => router.back()}
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '6px 12px', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer' }}>
-            ← Regresar
-          </button>
+          {paso !== 'corte_hecho' && (
+            <button onClick={() => router.back()}
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '6px 12px', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer' }}>
+              ← Regresar
+            </button>
+          )}
           <div>
             <div style={{ color: 'white', fontSize: 15, fontWeight: 700 }}>
               {paso === 'apertura' ? '🔓 Apertura de turno' : paso === 'turno' ? '💰 Turno activo' : paso === 'corte_hecho' ? '✅ Turno cerrado' : '🔒 Corte de turno'}
@@ -499,13 +516,25 @@ export default function CajaPage() {
                 <span style={{ color: 'white', fontSize: 13 }}>{fmt(ultimoCorte?.total_terminal)}</span>
               </div>
             </div>
-            <button onClick={() => router.back()}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 12, color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
-              ← Regresar
+            <button
+              onClick={() => {
+                setTurnoActual(null)
+                setResumenTurno({ efectivo: 0, transferencia: 0, terminal: 0, totalRetiros: 0 })
+                cargarUltimoCorteGlobal()
+                setPaso('apertura')
+              }}
+              style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', padding: '14px 28px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', width: '100%', marginBottom: '12px' }}
+            >
+              🏪 Abrir nueva caja
             </button>
-            <button onClick={abrirNuevoTurno}
-              style={{ width: '100%', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: 12, color: '#818cf8', fontSize: 13, cursor: 'pointer' }}>
-              🔓 Abrir nuevo turno
+            <button
+              onClick={() => {
+                localStorage.removeItem('colaborador')
+                router.push('/')
+              }}
+              style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '13px', padding: '8px', cursor: 'pointer', marginTop: '8px' }}
+            >
+              🚪 Cerrar sesión
             </button>
           </div>
         )}

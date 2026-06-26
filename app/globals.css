@@ -1,5 +1,28 @@
 @import "tailwindcss";
 
+@keyframes logofloat {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50%       { transform: translateY(-7px) rotate(1deg); }
+}
+@keyframes toptrot {
+  from { transform: translateX(-170px); }
+  to   { transform: translateX(100vw); }
+}
+@keyframes glowpulse {
+  0%, 100% { opacity: .5; }
+  50%       { opacity: 1; }
+}
+@keyframes twinkle {
+  0%, 100% { opacity: .25; }
+  50%       { opacity: 1; }
+}
+
+.logo-float { animation: logofloat 5s ease-in-out infinite; }
+.logo-float:hover { transform: scale(1.06) rotate(-1deg) !important; transition: transform .25s ease; animation-play-state: paused; }
+.dog-trot { animation: toptrot 17s linear infinite; }
+.glow-pulse { animation: glowpulse 7s ease-in-out infinite; }
+.star { animation: twinkle 3s ease-in-out infinite; }
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

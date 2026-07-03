@@ -28,6 +28,7 @@ export default function Reportes() {
   // Raw data para exportar Excel
   const [rawPedidos, setRawPedidos] = useState([])
   const [rawPagos, setRawPagos] = useState([])
+  const [rawPedidosTienda, setRawPedidosTienda] = useState([])
 
   // Categorías
   const [categoriasReporte, setCategoriasReporte] = useState([])
@@ -207,6 +208,10 @@ export default function Reportes() {
       { nombre: 'Terminal', monto: terminal }
     ]
     const topMetodo = metodosTotal.sort((a, b) => b.monto - a.monto)[0]?.nombre || 'N/A'
+
+    const resPedTienda = await fetch(`/api/reportes/pedidos?desde=${desde}&hasta=${hasta}`).then(r => r.json())
+    const pedidosTienda = (resPedTienda.pedidos || []).filter(p => !p.cliente_id)
+    setRawPedidosTienda(pedidosTienda)
 
     setMetricasT({ totalVentas, numTransacciones, ticketPromedio, efectivo, transferencia, terminal, topMetodo })
     setCargando(false)
@@ -409,6 +414,46 @@ export default function Reportes() {
                     <span>Total cobrado</span><span>{fmt(metricasE.cobradoTotal)}</span>
                   </div>
                 </div>
+
+                {/* Detalle de pedidos entregados */}
+                {rawPedidos.filter(p => p.estado === 'Entregado').length > 0 && (
+                  <div style={{ marginTop: 24 }}>
+                    <h3 style={{ color: 'white', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                      📦 Pedidos entregados ({rawPedidos.filter(p => p.estado === 'Entregado').length})
+                    </h3>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '6px 8px' }}>Cliente</th>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '6px 8px' }}>Artículo</th>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '6px 8px' }}>Cant</th>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'right', padding: '6px 8px' }}>Precio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rawPedidos
+                          .filter(p => p.estado === 'Entregado')
+                          .sort((a, b) => (a.clientes?.nombre || '').localeCompare(b.clientes?.nombre || '', 'es'))
+                          .map((p, i) => (
+                            <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                              <td style={{ color: 'rgba(255,255,255,0.8)', padding: '6px 8px' }}>{p.clientes?.nombre || '—'}</td>
+                              <td style={{ color: 'rgba(255,255,255,0.6)', padding: '6px 8px' }}>{p.descripcion}</td>
+                              <td style={{ color: 'rgba(255,255,255,0.6)', padding: '6px 8px', textAlign: 'center' }}>{p.cantidad || 1}</td>
+                              <td style={{ color: 'white', padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>${Number(p.precio_venta).toLocaleString('es-MX')}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+                          <td colSpan={3} style={{ color: 'rgba(255,255,255,0.5)', padding: '8px', fontWeight: 700 }}>Total entregado</td>
+                          <td style={{ color: '#60a5fa', padding: '8px', textAlign: 'right', fontWeight: 700 }}>
+                            ${rawPedidos.filter(p => p.estado === 'Entregado').reduce((s, p) => s + (Number(p.precio_venta) || 0), 0).toLocaleString('es-MX')}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
 
                 {/* Por cliente */}
                 {porClienteE.length > 0 && (
@@ -646,6 +691,41 @@ export default function Reportes() {
                 )}
                 {metricasT.totalVentas > 0 && (
                   <AlertItem tipo="verde" texto={`${metricasT.numTransacciones} ventas registradas en tienda este período`} />
+                )}
+
+                {/* Tabla detalle tienda */}
+                {rawPedidosTienda.length > 0 && (
+                  <div style={{ marginTop: 24 }}>
+                    <h3 style={{ color: 'white', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                      🛒 Productos vendidos en tienda ({rawPedidosTienda.length})
+                    </h3>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '6px 8px' }}>Producto</th>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '6px 8px' }}>Cant</th>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'right', padding: '6px 8px' }}>Precio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rawPedidosTienda.map((p, i) => (
+                          <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                            <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 8px' }}>{p.descripcion}</td>
+                            <td style={{ color: 'rgba(255,255,255,0.6)', padding: '6px 8px', textAlign: 'center' }}>{p.cantidad || 1}</td>
+                            <td style={{ color: 'white', padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>${Number(p.precio_venta).toLocaleString('es-MX')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+                          <td colSpan={2} style={{ color: 'rgba(255,255,255,0.5)', padding: '8px', fontWeight: 700 }}>Total tienda</td>
+                          <td style={{ color: '#60a5fa', padding: '8px', textAlign: 'right', fontWeight: 700 }}>
+                            ${rawPedidosTienda.reduce((s, p) => s + (Number(p.precio_venta) || 0), 0).toLocaleString('es-MX')}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 )}
               </div>
             )}

@@ -41,16 +41,19 @@ export default function Reportes() {
   const fmt = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 
   const getRango = (periodo) => {
+    const tz = 'America/Hermosillo'
+    const toLocal = (d) => d.toLocaleDateString('en-CA', { timeZone: tz })
     const ahora = new Date()
-    const hoy = ahora.toISOString().split('T')[0]
+    const hoy = toLocal(ahora)
     if (periodo === 'hoy') return { desde: hoy, hasta: hoy }
     if (periodo === 'semana') {
       const d = new Date(ahora); d.setDate(d.getDate() - 7)
-      return { desde: d.toISOString().split('T')[0], hasta: hoy }
+      return { desde: toLocal(d), hasta: hoy }
     }
     if (periodo === 'mes') {
-      const d = new Date(ahora.getFullYear(), ahora.getMonth(), 1)
-      return { desde: d.toISOString().split('T')[0], hasta: hoy }
+      // Primer día del mes en hora Hermosillo
+      const [y, m] = hoy.split('-').map(Number)
+      return { desde: `${y}-${String(m).padStart(2,'0')}-01`, hasta: hoy }
     }
     return { desde: hoy, hasta: hoy }
   }

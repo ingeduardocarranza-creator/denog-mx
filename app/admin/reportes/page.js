@@ -22,6 +22,17 @@ export default function Reportes() {
     numTransaccionesTienda: 0
   })
 
+  // Análisis de ventas de tienda (top productos / vendedores / categorías)
+  const [analisisTienda, setAnalisisTienda] = useState({
+    topProductos: [],
+    porVendedor: [],
+    porCategoria: [],
+    totalVendido: 0,
+    totalArticulos: 0,
+    vendedorTop: '',
+    restock: []
+  })
+
   // Datos estado de cuenta
   const [metricasEC, setMetricasEC] = useState(null)
   const [porClienteEC, setPorClienteEC] = useState([])
@@ -46,7 +57,10 @@ export default function Reportes() {
     fetch('/api/categorias').then(r => r.json()).then(d => { if (d.ok) setCategoriasReporte(d.categorias) })
   }, [])
 
-  useEffect(() => { cargarDatos() }, [fechaReporte])
+  useEffect(() => {
+    cargarDatos()
+    cargarAnalisisTienda()
+  }, [fechaReporte])
 
   useEffect(() => {
     if (entregaSeleccionada && seccion === 'estado') cargarEstadoCuenta()
@@ -124,6 +138,52 @@ export default function Reportes() {
 
     setRawPagos(pagosDelDia)
     setCargando(false)
+  }
+
+  const cargarAnalisisTienda = async () => {
+    const res = await fetch(`/api/reportes/ventas-tienda?desde=${fechaReporte}&hasta=${fechaReporte}`)
+    const data = await res.json()
+    const ventas = data.ok ? data.ventas || [] : []
+
+    // Agrupar por producto
+    const porProducto = {}
+    ventas.forEach(v => {
+      const key = v.nombre_producto
+      if (!porProducto[key]) porProducto[key] = { nombre: key, categoria: v.categoria, cantidad: 0, revenue: 0, stock: v.productos_tienda?.stock ?? null }
+      porProducto[key].cantidad += v.cantidad
+      porProducto[key].revenue += v.cantidad * v.precio_unitario
+    })
+
+    // Agrupar por vendedor
+    const porVendedor = {}
+    ventas.forEach(v => {
+      const nombre = v.clientes?.nombre || 'Sin nombre'
+      if (!porVendedor[nombre]) porVendedor[nombre] = { nombre, articulos: 0, total: 0 }
+      porVendedor[nombre].articulos += v.cantidad
+      porVendedor[nombre].total += v.cantidad * v.precio_unitario
+    })
+
+    // Agrupar por categoría
+    const porCategoria = {}
+    ventas.forEach(v => {
+      const cat = v.categoria || 'Sin categoría'
+      if (!porCategoria[cat]) porCategoria[cat] = { categoria: cat, cantidad: 0, revenue: 0 }
+      porCategoria[cat].cantidad += v.cantidad
+      porCategoria[cat].revenue += v.cantidad * v.precio_unitario
+    })
+
+    const topProductos = Object.values(porProducto).sort((a, b) => b.cantidad - a.cantidad)
+    const porVendedorOrdenado = Object.values(porVendedor).sort((a, b) => b.total - a.total)
+
+    setAnalisisTienda({
+      topProductos,
+      porVendedor: porVendedorOrdenado,
+      porCategoria: Object.values(porCategoria).sort((a, b) => b.revenue - a.revenue),
+      totalVendido: ventas.reduce((s, v) => s + v.cantidad * v.precio_unitario, 0),
+      totalArticulos: ventas.reduce((s, v) => s + v.cantidad, 0),
+      vendedorTop: porVendedorOrdenado[0]?.nombre || '—',
+      restock: topProductos.filter(p => p.stock != null && p.stock < 3)
+    })
   }
 
   const cargarEstadoCuenta = async () => {
@@ -413,7 +473,7 @@ export default function Reportes() {
             {cargando && <div style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
 
             {!cargando && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
                 <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
                   <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Ventas tienda</div>
                   <div style={{ color: '#34d399', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalTienda.toLocaleString('es-MX')}</div>
@@ -421,6 +481,121 @@ export default function Reportes() {
                 </div>
               </div>
             )}
+
+            {/* ── Análisis de ventas de tienda (ventas_tienda) ───────────── */}
+            <div>
+              {/* Tarjetas resumen */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
+                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Total vendido</div>
+                  <div style={{ color: '#34d399', fontSize: 24, fontWeight: 700 }}>${analisisTienda.totalVendido.toLocaleString('es-MX')}</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Artículos vendidos</div>
+                  <div style={{ color: 'white', fontSize: 24, fontWeight: 700 }}>{analisisTienda.totalArticulos}</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Vendedor más activo</div>
+                  <div style={{ color: '#818cf8', fontSize: 24, fontWeight: 700 }}>{analisisTienda.vendedorTop || '—'}</div>
+                </div>
+              </div>
+
+              {/* Top productos */}
+              {analisisTienda.topProductos.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <h3 style={{ color: 'white', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>🏆 Top productos</h3>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '8px' }}>Producto</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '8px' }}>Categoría</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '8px' }}>Cantidad</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'right', padding: '8px' }}>Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analisisTienda.topProductos.map((p, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                          <td style={{ color: 'white', padding: '8px', fontWeight: 600 }}>{p.nombre}</td>
+                          <td style={{ color: 'rgba(255,255,255,0.5)', padding: '8px' }}>{p.categoria || '—'}</td>
+                          <td style={{ color: 'rgba(255,255,255,0.6)', padding: '8px', textAlign: 'center' }}>{p.cantidad}</td>
+                          <td style={{ color: '#34d399', padding: '8px', textAlign: 'right', fontWeight: 700 }}>${p.revenue.toLocaleString('es-MX')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Por vendedor */}
+              {analisisTienda.porVendedor.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <h3 style={{ color: 'white', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>👤 Por vendedor</h3>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '8px' }}>Vendedor</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '8px' }}>Artículos</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'right', padding: '8px' }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analisisTienda.porVendedor.map((v, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ color: 'white', padding: '8px', fontWeight: 600 }}>{v.nombre}</td>
+                          <td style={{ color: 'rgba(255,255,255,0.6)', padding: '8px', textAlign: 'center' }}>{v.articulos}</td>
+                          <td style={{ color: '#60a5fa', padding: '8px', textAlign: 'right', fontWeight: 700 }}>${v.total.toLocaleString('es-MX')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Por categoría */}
+              {analisisTienda.porCategoria.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <h3 style={{ color: 'white', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📂 Por categoría</h3>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '8px' }}>Categoría</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '8px' }}>Cantidad</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'right', padding: '8px' }}>Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analisisTienda.porCategoria.map((c, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ color: 'white', padding: '8px' }}>{c.categoria}</td>
+                          <td style={{ color: 'rgba(255,255,255,0.6)', padding: '8px', textAlign: 'center' }}>{c.cantidad}</td>
+                          <td style={{ color: '#f59e0b', padding: '8px', textAlign: 'right', fontWeight: 700 }}>${c.revenue.toLocaleString('es-MX')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Alerta de restock */}
+              {analisisTienda.restock.length > 0 && (
+                <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
+                  <div style={{ color: '#f87171', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>⚠️ Restock necesario (stock &lt; 3)</div>
+                  {analisisTienda.restock.map((p, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: 'rgba(255,255,255,0.7)', borderBottom: i < analisisTienda.restock.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                      <span>{p.nombre}</span>
+                      <span style={{ color: '#f87171', fontWeight: 700 }}>{p.stock} en stock</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {analisisTienda.topProductos.length === 0 && (
+                <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 40 }}>
+                  Sin ventas de tienda para esta fecha
+                </div>
+              )}
+            </div>
           </div>
         )}
 

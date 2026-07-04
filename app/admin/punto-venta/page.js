@@ -425,7 +425,9 @@ export default function PuntoDeVenta() {
         }
 
         // Registrar detalle de venta por cada artículo del carrito
-        if (carritoTienda.length > 0) {
+        console.log('Modo actual:', modo, '| Carrito tienda:', carritoTienda.length)
+        if (modo !== 'modo1' && carritoTienda.length > 0) {
+          console.log('Insertando ventas_tienda...')
           const detalleVenta = carritoTienda.map(item => ({
             pago_id: pagoIdTienda,
             producto_id: item.producto.id,
@@ -435,7 +437,10 @@ export default function PuntoDeVenta() {
             precio_unitario: Number(item.producto.precio_venta),
             vendedor_id: colaborador?.id || null
           }));
-          await supabase.from('ventas_tienda').insert(detalleVenta);
+          const { error: errorVenta } = await supabase.from('ventas_tienda').insert(detalleVenta)
+          if (errorVenta) {
+            console.error('Error insertando ventas_tienda:', errorVenta)
+          }
         }
       }
 

@@ -512,25 +512,41 @@ const horariosDelDia = (f) => {
       const entregaIdFinal = modo === 'modo1' && bloquesEntregas.length > 0 ? bloquesEntregas[0].entrega.id : null;
       const vendedorId = modo === 'modo2' ? vendedorTienda?.id : colaborador?.id;
 
+      let pagoIdTienda = null;
       if (monto1 > 0) {
-        await supabase.from('pagos').insert({
+        const { data: pago1 } = await supabase.from('pagos').insert({
           cliente_id: clienteIdFinal,
           entrega_id: entregaIdFinal,
           monto: monto1,
           metodo: m1,
           tipo: 'Venta Liquidación',
           vendedor_id: vendedorId
-        });
+        }).select('id').single();
+        pagoIdTienda = pago1?.id || pagoIdTienda;
       }
       if (monto2 > 0 && m2) {
-        await supabase.from('pagos').insert({
+        const { data: pago2 } = await supabase.from('pagos').insert({
           cliente_id: clienteIdFinal,
           entrega_id: entregaIdFinal,
           monto: monto2,
           metodo: m2,
           tipo: 'Venta Liquidación',
           vendedor_id: vendedorId
-        });
+        }).select('id').single();
+        pagoIdTienda = pago2?.id || pagoIdTienda;
+      }
+
+      if (modo === 'modo2' && carritoTienda.length > 0) {
+        const detalleVenta = carritoTienda.map(item => ({
+          pago_id: pagoIdTienda,
+          producto_id: item.producto.id,
+          nombre_producto: item.producto.nombre,
+          categoria: item.producto.categoria || null,
+          cantidad: item.cantidad,
+          precio_unitario: Number(item.producto.precio_venta),
+          vendedor_id: vendedorId
+        }));
+        await supabase.from('ventas_tienda').insert(detalleVenta);
       }
       if (modo === 'modo1' && listaAnticipos.length > 0) {
         let montoRestante = 0;

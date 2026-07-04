@@ -402,23 +402,40 @@ export default function PuntoDeVenta() {
         }
       } else {
         // Modo tienda sin cliente: registrar pago simple
+        let pagoIdTienda = null;
         if (monto1 > 0) {
-          await supabase.from('pagos').insert({
+          const { data: pago1 } = await supabase.from('pagos').insert({
             cliente_id: null,
             entrega_id: null,
             monto: monto1,
             metodo: m1,
             tipo: 'Venta Liquidación'
-          });
+          }).select('id').single();
+          pagoIdTienda = pago1?.id || pagoIdTienda;
         }
         if (monto2 > 0 && m2) {
-          await supabase.from('pagos').insert({
+          const { data: pago2 } = await supabase.from('pagos').insert({
             cliente_id: null,
             entrega_id: null,
             monto: monto2,
             metodo: m2,
             tipo: 'Venta Liquidación'
-          });
+          }).select('id').single();
+          pagoIdTienda = pago2?.id || pagoIdTienda;
+        }
+
+        // Registrar detalle de venta por cada artículo del carrito
+        if (carritoTienda.length > 0) {
+          const detalleVenta = carritoTienda.map(item => ({
+            pago_id: pagoIdTienda,
+            producto_id: item.producto.id,
+            nombre_producto: item.producto.nombre,
+            categoria: item.producto.categoria || null,
+            cantidad: item.cantidad,
+            precio_unitario: Number(item.producto.precio_venta),
+            vendedor_id: colaborador?.id || null
+          }));
+          await supabase.from('ventas_tienda').insert(detalleVenta);
         }
       }
 

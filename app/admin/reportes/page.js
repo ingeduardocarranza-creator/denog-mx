@@ -30,7 +30,8 @@ export default function Reportes() {
     totalVendido: 0,
     totalArticulos: 0,
     vendedorTop: '',
-    restock: []
+    restock: [],
+    transacciones: []
   })
 
   // Datos estado de cuenta
@@ -172,6 +173,28 @@ export default function Reportes() {
       porCategoria[cat].revenue += v.cantidad * v.precio_unitario
     })
 
+    // Agrupar por transacción (mismo pago_id)
+    const porTransaccion = {}
+    ventas.forEach(v => {
+      const pagoId = v.pago_id || v.id
+      if (!porTransaccion[pagoId]) {
+        porTransaccion[pagoId] = {
+          pago_id: pagoId,
+          vendedor: v.clientes?.nombre || 'Sin nombre',
+          metodo: v.pagos?.metodo || '—',
+          hora: new Date(v.creado_en).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Hermosillo' }),
+          articulos: [],
+          total: 0
+        }
+      }
+      porTransaccion[pagoId].articulos.push({
+        nombre: v.nombre_producto,
+        cantidad: v.cantidad,
+        precio: v.precio_unitario
+      })
+      porTransaccion[pagoId].total += v.cantidad * v.precio_unitario
+    })
+
     const topProductos = Object.values(porProducto).sort((a, b) => b.cantidad - a.cantidad)
     const porVendedorOrdenado = Object.values(porVendedor).sort((a, b) => b.total - a.total)
 
@@ -182,7 +205,8 @@ export default function Reportes() {
       totalVendido: ventas.reduce((s, v) => s + v.cantidad * v.precio_unitario, 0),
       totalArticulos: ventas.reduce((s, v) => s + v.cantidad, 0),
       vendedorTop: porVendedorOrdenado[0]?.nombre || '—',
-      restock: topProductos.filter(p => p.stock != null && p.stock < 3)
+      restock: topProductos.filter(p => p.stock != null && p.stock < 3),
+      transacciones: Object.values(porTransaccion).sort((a, b) => b.hora.localeCompare(a.hora))
     })
   }
 
@@ -585,6 +609,61 @@ export default function Reportes() {
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: 'rgba(255,255,255,0.7)', borderBottom: i < analisisTienda.restock.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                       <span>{p.nombre}</span>
                       <span style={{ color: '#f87171', fontWeight: 700 }}>{p.stock} en stock</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Transacciones del día */}
+              {analisisTienda.transacciones?.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <h3 style={{ color: 'white', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                    🧾 Transacciones ({analisisTienda.transacciones.length})
+                  </h3>
+                  {analisisTienda.transacciones.map((t, i) => (
+                    <div key={t.pago_id} style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: 10,
+                      padding: '12px 16px',
+                      marginBottom: 10
+                    }}>
+                      {/* Header transacción */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>🕐 {t.hora}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>👤 {t.vendedor}</span>
+                          <span style={{
+                            background: 'rgba(255,255,255,0.08)',
+                            color: 'rgba(255,255,255,0.6)',
+                            fontSize: 11,
+                            padding: '2px 8px',
+                            borderRadius: 20
+                          }}>
+                            {t.metodo}
+                          </span>
+                        </div>
+                        <span style={{ color: '#34d399', fontWeight: 700, fontSize: 15 }}>
+                          ${t.total.toLocaleString('es-MX')}
+                        </span>
+                      </div>
+                      {/* Artículos de la transacción */}
+                      {t.articulos.map((a, j) => (
+                        <div key={j} style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          padding: '4px 0',
+                          borderTop: '1px solid rgba(255,255,255,0.05)',
+                          fontSize: 13
+                        }}>
+                          <span style={{ color: 'rgba(255,255,255,0.7)' }}>
+                            {a.cantidad > 1 ? `x${a.cantidad} ` : ''}{a.nombre}
+                          </span>
+                          <span style={{ color: 'white', fontWeight: 600 }}>
+                            ${(a.cantidad * a.precio).toLocaleString('es-MX')}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>

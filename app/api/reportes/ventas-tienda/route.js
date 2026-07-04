@@ -14,7 +14,7 @@ export async function GET(req) {
 
   let query = supabase
     .from('ventas_tienda')
-    .select('*, clientes!ventas_tienda_vendedor_id_fkey(nombre), productos_tienda(stock)')
+    .select('*, clientes!ventas_tienda_vendedor_id_fkey(nombre), productos_tienda(stock), pagos!ventas_tienda_pago_id_fkey(metodo)')
 
   if (desde) query = query.gte('creado_en', `${desde}T00:00:00`)
   if (hasta) query = query.lte('creado_en', `${hasta}T23:59:59`)

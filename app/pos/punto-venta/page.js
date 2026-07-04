@@ -546,7 +546,9 @@ const horariosDelDia = (f) => {
           precio_unitario: Number(item.producto.precio_venta),
           vendedor_id: vendedorId
         }));
-        await supabase.from('ventas_tienda').insert(detalleVenta);
+        console.log('Insertando ventas_tienda:', detalleVenta)
+        const { error: errorVenta } = await supabase.from('ventas_tienda').insert(detalleVenta)
+        if (errorVenta) console.error('Error ventas_tienda:', errorVenta)
       }
       if (modo === 'modo1' && listaAnticipos.length > 0) {
         let montoRestante = 0;

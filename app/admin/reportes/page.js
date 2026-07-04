@@ -3,34 +3,34 @@ import { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 
 export default function Reportes() {
-  const [seccion, setSeccion] = useState('entregas')
-  const [periodoEntrega, setPeriodoEntrega] = useState('hoy')
-  const [periodoTienda, setPeriodoTienda] = useState('hoy')
+  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Hermosillo' })
+  const [fechaReporte, setFechaReporte] = useState(hoy)
 
+  const [seccion, setSeccion] = useState('entregas')
   const [entregas, setEntregas] = useState([])
   const [entregaSeleccionada, setEntregaSeleccionada] = useState('')
   const [cargando, setCargando] = useState(false)
 
-  // Datos entregas período
-  const [metricasE, setMetricasE] = useState(null)
-  const [porClienteE, setPorClienteE] = useState([])
-  const [datosGraficaE, setDatosGraficaE] = useState([])
+  // Datos entregas/tienda por fecha
+  const [resumenClientesEntregas, setResumenClientesEntregas] = useState([])
+  const [metricasDelDia, setMetricasDelDia] = useState({
+    totalCobradoEntregas: 0,
+    totalAnticipos: 0,
+    totalTienda: 0,
+    totalGeneral: 0,
+    numClientesEntregas: 0,
+    numTransaccionesTienda: 0
+  })
 
   // Datos estado de cuenta
   const [metricasEC, setMetricasEC] = useState(null)
   const [porClienteEC, setPorClienteEC] = useState([])
 
-  // Datos tienda
-  const [metricasT, setMetricasT] = useState(null)
-  const [topProductos, setTopProductos] = useState([])
-  const [datosGraficaT, setDatosGraficaT] = useState([])
-
   // Raw data para exportar Excel
   const [rawPedidos, setRawPedidos] = useState([])
   const [rawPagos, setRawPagos] = useState([])
-  const [rawPedidosTienda, setRawPedidosTienda] = useState([])
 
-  // Categorías
+  // Categorías (usado en Estado de cuenta)
   const [categoriasReporte, setCategoriasReporte] = useState([])
   const [filtroCatReporte, setFiltroCatReporte] = useState('')
 
@@ -41,113 +41,88 @@ export default function Reportes() {
 
   const fmt = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 
-  const getRango = (periodo) => {
-    const tz = 'America/Hermosillo'
-    const toLocal = (d) => d.toLocaleDateString('en-CA', { timeZone: tz })
-    const ahora = new Date()
-    const hoy = toLocal(ahora)
-    if (periodo === 'hoy') return { desde: hoy, hasta: hoy }
-    if (periodo === 'semana') {
-      const d = new Date(ahora); d.setDate(d.getDate() - 7)
-      return { desde: toLocal(d), hasta: hoy }
-    }
-    if (periodo === 'mes') {
-      // Primer día del mes en hora Hermosillo
-      const [y, m] = hoy.split('-').map(Number)
-      return { desde: `${y}-${String(m).padStart(2,'0')}-01`, hasta: hoy }
-    }
-    return { desde: hoy, hasta: hoy }
-  }
-
   useEffect(() => {
     fetch('/api/entregas').then(r => r.json()).then(d => { if (d.ok) setEntregas(d.entregas) })
     fetch('/api/categorias').then(r => r.json()).then(d => { if (d.ok) setCategoriasReporte(d.categorias) })
   }, [])
 
-  useEffect(() => {
-    if (seccion === 'entregas' && periodoEntrega !== 'estado') cargarDatosEntregas()
-  }, [periodoEntrega, seccion])
+  useEffect(() => { cargarDatos() }, [fechaReporte])
 
   useEffect(() => {
-    if (seccion === 'tienda') cargarDatosTienda()
-  }, [periodoTienda, seccion])
-
-  useEffect(() => {
-    if (entregaSeleccionada && periodoEntrega === 'estado') cargarEstadoCuenta()
+    if (entregaSeleccionada && seccion === 'estado') cargarEstadoCuenta()
   }, [entregaSeleccionada])
 
-  const cargarDatosEntregas = async () => {
+  const cargarDatos = async () => {
     setCargando(true)
-    const { desde, hasta } = getRango(periodoEntrega)
-    const [pedidosRes, pagosRes] = await Promise.all([
-      fetch(`/api/reportes/pedidos?desde=${desde}&hasta=${hasta}`).then(r => r.json()),
-      fetch(`/api/reportes/pagos?desde=${desde}&hasta=${hasta}`).then(r => r.json())
-    ])
-    const peds = pedidosRes.ok ? pedidosRes.pedidos || [] : []
-    const pays = pagosRes.ok ? pagosRes.pagos || [] : []
-    setRawPedidos(peds)
-    setRawPagos(pays)
 
-    // Solo pedidos de encargos (con cliente_id)
-    const pedsEncargos = peds.filter(p => p.cliente_id)
-    const paysEncargos = pays.filter(p => p.cliente_id && p.tipo !== 'Venta Liquidación' || (p.cliente_id && p.tipo === 'Venta Liquidación'))
+    // Traer TODOS los pagos del día (fuente principal de actividad de caja)
+    const resPagos = await fetch(`/api/reportes/pagos?desde=${fechaReporte}&hasta=${fechaReporte}`)
+    const datPagos = await resPagos.json()
+    const pagosDelDia = datPagos.pagos || []
 
-    const ventaTotal = pedsEncargos.reduce((s, p) => s + (p.precio_venta || 0), 0)
-    const costoTotal = pedsEncargos.reduce((s, p) => s + (p.costo_mxn || 0), 0)
-    const utilidadTotal = pedsEncargos.reduce((s, p) => s + (p.utilidad || 0), 0)
-    const margen = ventaTotal > 0 ? (utilidadTotal / ventaTotal) * 100 : 0
+    // Separar pagos de entregas vs tienda
+    const pagosEntregas = pagosDelDia.filter(p => p.cliente_id && p.tipo === 'Venta Liquidación')
+    const pagosAnticipios = pagosDelDia.filter(p => p.cliente_id && p.tipo === 'Anticipo')
+    const pagosTienda = pagosDelDia.filter(p => !p.cliente_id && p.tipo === 'Venta Liquidación')
 
-    const anticipos = pays.filter(p => p.tipo?.toLowerCase() === 'anticipo')
-    const liquidaciones = pays.filter(p => p.tipo === 'Venta Liquidación' && p.cliente_id)
-
-    const totalAnticipos = anticipos.reduce((s, p) => s + (p.monto || 0), 0)
-    const totalLiquidado = liquidaciones.reduce((s, p) => s + (p.monto || 0), 0)
-    const cobradoTotal = totalAnticipos + totalLiquidado
-
-    const anticiposEfectivo = anticipos.filter(p => p.metodo?.toLowerCase() === 'efectivo').reduce((s, p) => s + p.monto, 0)
-    const anticiposTransferencia = anticipos.filter(p => p.metodo?.toLowerCase() === 'transferencia').reduce((s, p) => s + p.monto, 0)
-    const anticiposTerminal = anticipos.filter(p => p.metodo?.toLowerCase() === 'terminal').reduce((s, p) => s + p.monto, 0)
-    const liquidEfectivo = liquidaciones.filter(p => p.metodo?.toLowerCase() === 'efectivo').reduce((s, p) => s + p.monto, 0)
-    const liquidTransferencia = liquidaciones.filter(p => p.metodo?.toLowerCase() === 'transferencia').reduce((s, p) => s + p.monto, 0)
-    const liquidTerminal = liquidaciones.filter(p => p.metodo?.toLowerCase() === 'terminal').reduce((s, p) => s + p.monto, 0)
-
-    const clientesUnicos = [...new Set(pedsEncargos.map(p => p.cliente_id))].length
-    const ticketPromedio = clientesUnicos > 0 ? ventaTotal / clientesUnicos : 0
-
-    const clientesPagaron = [...new Set(liquidaciones.map(p => p.cliente_id))].length
-    const tasaCobranza = clientesUnicos > 0 ? (clientesPagaron / clientesUnicos) * 100 : 0
-
-    const metodosTotal = [
-      { nombre: 'Efectivo', monto: anticiposEfectivo + liquidEfectivo },
-      { nombre: 'Transferencia', monto: anticiposTransferencia + liquidTransferencia },
-      { nombre: 'Terminal', monto: anticiposTerminal + liquidTerminal }
-    ]
-    const topMetodo = metodosTotal.sort((a, b) => b.monto - a.monto)[0]?.nombre || 'N/A'
-
-    // Clientes con deuda
-    const porCliente = pedsEncargos.reduce((acc, p) => {
-      if (!acc[p.cliente_id]) acc[p.cliente_id] = { nombre: p.clientes?.nombre || 'Sin nombre', venta: 0, costo: 0, utilidad: 0, cobrado: 0 }
-      acc[p.cliente_id].venta += p.precio_venta || 0
-      acc[p.cliente_id].costo += p.costo_mxn || 0
-      acc[p.cliente_id].utilidad += p.utilidad || 0
-      return acc
-    }, {})
-    liquidaciones.forEach(p => { if (porCliente[p.cliente_id]) porCliente[p.cliente_id].cobrado += p.monto || 0 })
-    anticipos.forEach(p => { if (porCliente[p.cliente_id]) porCliente[p.cliente_id].cobrado += p.monto || 0 })
-
-    const clientesConDeuda = Object.values(porCliente).filter(c => c.venta - c.cobrado > 0).length
-
-    setMetricasE({
-      ventaTotal, costoTotal, utilidadTotal, margen, cobradoTotal,
-      pendiente: ventaTotal - cobradoTotal,
-      totalAnticipos, totalLiquidado,
-      anticiposEfectivo, anticiposTransferencia, anticiposTerminal,
-      liquidEfectivo, liquidTransferencia, liquidTerminal,
-      totalPedidos: pedsEncargos.length, clientesUnicos,
-      ticketPromedio, tasaCobranza, topMetodo, clientesConDeuda,
-      metodosTotal: metodosTotal.sort((a, b) => b.monto - a.monto)
+    // Para entregas: agrupar por cliente
+    const porCliente = {}
+    pagosEntregas.forEach(p => {
+      const nombre = p.clientes?.nombre || 'Sin nombre'
+      if (!porCliente[p.cliente_id]) {
+        porCliente[p.cliente_id] = {
+          nombre,
+          pagos: [],
+          totalPagado: 0
+        }
+      }
+      porCliente[p.cliente_id].pagos.push(p)
+      porCliente[p.cliente_id].totalPagado += Number(p.monto) || 0
     })
-    setPorClienteE(Object.values(porCliente).sort((a, b) => (b.venta - b.cobrado) - (a.venta - a.cobrado)))
+
+    // Traer pedidos entregados de los clientes que pagaron hoy
+    const clientesIds = Object.keys(porCliente)
+    let pedidosPorCliente = {}
+    if (clientesIds.length > 0) {
+      const resPeds = await fetch(`/api/reportes/pedidos?cliente_id_in=${clientesIds.join(',')}`)
+      const datPeds = await resPeds.json()
+      ;(datPeds.pedidos || [])
+        .filter(p => p.estado === 'Entregado')
+        .forEach(p => {
+          if (!pedidosPorCliente[p.cliente_id]) pedidosPorCliente[p.cliente_id] = []
+          pedidosPorCliente[p.cliente_id].push(p)
+        })
+    }
+
+    // Combinar en resumen por cliente
+    const resumenClientes = Object.entries(porCliente).map(([id, d]) => ({
+      cliente_id: id,
+      nombre: d.nombre,
+      totalPagado: d.totalPagado,
+      metodos: [...new Set(d.pagos.map(p => p.metodo))].join(' + '),
+      pedidos: pedidosPorCliente[id] || [],
+      numArticulos: (pedidosPorCliente[id] || []).length
+    })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+
+    setResumenClientesEntregas(resumenClientes)
+
+    // Totales entregas
+    const totalCobradoEntregas = pagosEntregas.reduce((s, p) => s + (Number(p.monto) || 0), 0)
+    const totalAnticipos = pagosAnticipios.reduce((s, p) => s + (Number(p.monto) || 0), 0)
+
+    // Totales tienda
+    const totalTienda = pagosTienda.reduce((s, p) => s + (Number(p.monto) || 0), 0)
+
+    setMetricasDelDia({
+      totalCobradoEntregas,
+      totalAnticipos,
+      totalTienda,
+      totalGeneral: totalCobradoEntregas + totalAnticipos + totalTienda,
+      numClientesEntregas: resumenClientes.length,
+      numTransaccionesTienda: pagosTienda.length
+    })
+
+    setRawPagos(pagosDelDia)
     setCargando(false)
   }
 
@@ -187,108 +162,103 @@ export default function Reportes() {
     setCargando(false)
   }
 
-  const cargarDatosTienda = async () => {
-    setCargando(true)
-    const { desde, hasta } = getRango(periodoTienda)
-    const pagosRes = await fetch(`/api/reportes/pagos?desde=${desde}&hasta=${hasta}`).then(r => r.json())
-    const pays = pagosRes.ok ? pagosRes.pagos || [] : []
-
-    const ventasTienda = pays.filter(p => !p.cliente_id && p.tipo === 'Venta Liquidación')
-    const totalVentas = ventasTienda.reduce((s, p) => s + (p.monto || 0), 0)
-    const numTransacciones = ventasTienda.length
-    const ticketPromedio = numTransacciones > 0 ? totalVentas / numTransacciones : 0
-
-    const efectivo = ventasTienda.filter(p => p.metodo?.toLowerCase() === 'efectivo').reduce((s, p) => s + p.monto, 0)
-    const transferencia = ventasTienda.filter(p => p.metodo?.toLowerCase() === 'transferencia').reduce((s, p) => s + p.monto, 0)
-    const terminal = ventasTienda.filter(p => p.metodo?.toLowerCase() === 'terminal').reduce((s, p) => s + p.monto, 0)
-
-    const metodosTotal = [
-      { nombre: 'Efectivo', monto: efectivo },
-      { nombre: 'Transferencia', monto: transferencia },
-      { nombre: 'Terminal', monto: terminal }
-    ]
-    const topMetodo = metodosTotal.sort((a, b) => b.monto - a.monto)[0]?.nombre || 'N/A'
-
-    const resPedTienda = await fetch(`/api/reportes/pedidos?desde=${desde}&hasta=${hasta}`).then(r => r.json())
-    const pedidosTienda = (resPedTienda.pedidos || []).filter(p => !p.cliente_id)
-    setRawPedidosTienda(pedidosTienda)
-
-    setMetricasT({ totalVentas, numTransacciones, ticketPromedio, efectivo, transferencia, terminal, topMetodo })
-    setCargando(false)
-  }
-
   const exportarExcel = () => {
     const ahora = new Date()
     const fechaStr = `${ahora.getFullYear()}${String(ahora.getMonth()+1).padStart(2,'0')}${String(ahora.getDate()).padStart(2,'0')}`
     const wb = XLSX.utils.book_new()
 
-    // ── Hoja 1: Pedidos ───────────────────────────────────────────
-    const filPedidos = rawPedidos.filter(p => p.cliente_id)
-    const hojaPedidos = [
-      ['Cliente','Descripción','Cantidad','Precio USD','Tipo de cambio','Impuesto %','Costo MXN','Precio venta','Utilidad','Estado','Entrega','Fecha captura'],
-      ...filPedidos.map(p => [
-        p.clientes?.nombre || '',
-        p.descripcion || '',
-        p.cantidad || 1,
-        p.precio_usd || '',
-        p.tc || '',
-        p.impuesto != null ? `${p.impuesto}%` : '',
-        p.costo_mxn || 0,
-        p.precio_venta || 0,
-        p.utilidad || 0,
-        p.estado || '',
-        p.entregas?.fecha_entrega || '',
-        p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
-      ])
-    ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaPedidos), 'Pedidos')
+    if (seccion === 'estado') {
+      // ── Hoja 1: Pedidos ───────────────────────────────────────────
+      const filPedidos = rawPedidos.filter(p => p.cliente_id)
+      const hojaPedidos = [
+        ['Cliente','Descripción','Cantidad','Precio USD','Tipo de cambio','Impuesto %','Costo MXN','Precio venta','Utilidad','Estado','Entrega','Fecha captura'],
+        ...filPedidos.map(p => [
+          p.clientes?.nombre || '',
+          p.descripcion || '',
+          p.cantidad || 1,
+          p.precio_usd || '',
+          p.tc || '',
+          p.impuesto != null ? `${p.impuesto}%` : '',
+          p.costo_mxn || 0,
+          p.precio_venta || 0,
+          p.utilidad || 0,
+          p.estado || '',
+          p.entregas?.fecha_entrega || '',
+          p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
+        ])
+      ]
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaPedidos), 'Pedidos')
 
-    // ── Hoja 2: Pagos ─────────────────────────────────────────────
-    const hojaPagos = [
-      ['Cliente','Fecha','Monto','Método','Tipo','Entrega'],
-      ...rawPagos.map(p => [
-        p.clientes?.nombre || '(Tienda)',
-        p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
-        p.monto || 0,
-        p.metodo || '',
-        p.tipo || '',
-        p.entrega_id || '',
-      ])
-    ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaPagos), 'Pagos')
+      // ── Hoja 2: Pagos ─────────────────────────────────────────────
+      const hojaPagos = [
+        ['Cliente','Fecha','Monto','Método','Tipo','Entrega'],
+        ...rawPagos.map(p => [
+          p.clientes?.nombre || '(Tienda)',
+          p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
+          p.monto || 0,
+          p.metodo || '',
+          p.tipo || '',
+          p.entrega_id || '',
+        ])
+      ]
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaPagos), 'Pagos')
 
-    // ── Hoja 3: Resumen ───────────────────────────────────────────
-    const m = metricasE || metricasEC
-    const hojaResumen = m ? [
-      ['Concepto','Valor'],
-      ['Venta total', m.ventaTotal || 0],
-      ['Costo total', m.costoTotal || 0],
-      ['Utilidad total', m.utilidadTotal || 0],
-      ['Margen %', m.margen ? `${m.margen.toFixed(1)}%` : ''],
-      ['Total cobrado', m.cobradoTotal || 0],
-      ['Anticipos', m.totalAnticipos || 0],
-      ['Por cobrar', m.pendiente || 0],
-      ['Efectivo', (m.anticiposEfectivo || 0) + (m.liquidEfectivo || 0)],
-      ['Transferencia', (m.anticiposTransferencia || 0) + (m.liquidTransferencia || 0)],
-      ['Terminal', (m.anticiposTerminal || 0) + (m.liquidTerminal || 0)],
-    ] : [['Sin datos cargados']]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaResumen), 'Resumen')
+      // ── Hoja 3: Resumen ───────────────────────────────────────────
+      const m = metricasEC
+      const hojaResumen = m ? [
+        ['Concepto','Valor'],
+        ['Venta total', m.ventaTotal || 0],
+        ['Costo total', m.costoTotal || 0],
+        ['Utilidad total', m.utilidadTotal || 0],
+        ['Margen %', m.margen ? `${m.margen.toFixed(1)}%` : ''],
+        ['Total cobrado', m.cobradoTotal || 0],
+        ['Anticipos', m.totalAnticipos || 0],
+        ['Por cobrar', m.pendiente || 0],
+      ] : [['Sin datos cargados']]
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaResumen), 'Resumen')
+    } else {
+      // ── Hoja 1: Pagos del día ─────────────────────────────────────
+      const hojaPagos = [
+        ['Cliente','Fecha','Monto','Método','Tipo','Entrega'],
+        ...rawPagos.map(p => [
+          p.clientes?.nombre || '(Tienda)',
+          p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
+          p.monto || 0,
+          p.metodo || '',
+          p.tipo || '',
+          p.entrega_id || '',
+        ])
+      ]
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaPagos), 'Pagos')
+
+      // ── Hoja 2: Resumen por cliente (entregas) ────────────────────
+      const hojaResumenClientes = [
+        ['Cliente','Artículos','Método(s)','Total pagado'],
+        ...resumenClientesEntregas.map(c => [c.nombre, c.numArticulos, c.metodos, c.totalPagado])
+      ]
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaResumenClientes), 'Resumen clientes')
+
+      // ── Hoja 3: Totales del día ────────────────────────────────────
+      const hojaTotales = [
+        ['Concepto','Valor'],
+        ['Total cobrado entregas', metricasDelDia.totalCobradoEntregas],
+        ['Anticipos recibidos', metricasDelDia.totalAnticipos],
+        ['Ventas tienda', metricasDelDia.totalTienda],
+        ['Total del día', metricasDelDia.totalGeneral],
+      ]
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaTotales), 'Totales')
+    }
 
     XLSX.writeFile(wb, `Denog_Reporte_${fechaStr}.xlsx`)
   }
 
-  const hayDatos = (metricasE || metricasEC) && rawPedidos.length > 0
+  const hayDatos = seccion === 'estado'
+    ? Boolean(metricasEC) && rawPedidos.length > 0
+    : rawPagos.length > 0
 
   const TabBtn = ({ id, label, active, onClick }) => (
     <button onClick={onClick}
       style={{ background: active ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, padding: '9px 22px', color: active ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
-      {label}
-    </button>
-  )
-
-  const PeriodBtn = ({ label, active, onClick }) => (
-    <button onClick={onClick}
-      style={{ background: active ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 8, padding: '4px 12px', color: active ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
       {label}
     </button>
   )
@@ -300,17 +270,6 @@ export default function Reportes() {
       {sub && <div style={{ color: color ? `rgba(${color},0.5)` : 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>{sub}</div>}
     </div>
   )
-
-  const AlertItem = ({ texto, tipo }) => {
-    const colores = { rojo: '#f87171', amarillo: '#f59e0b', verde: '#10b981' }
-    const bgs = { rojo: 'rgba(239,68,68,0.08)', amarillo: 'rgba(245,158,11,0.08)', verde: 'rgba(16,185,129,0.08)' }
-    const borders = { rojo: 'rgba(239,68,68,0.2)', amarillo: 'rgba(245,158,11,0.2)', verde: 'rgba(16,185,129,0.2)' }
-    return (
-      <div style={{ background: bgs[tipo], border: `1px solid ${borders[tipo]}`, borderRadius: 10, padding: '10px 14px', marginBottom: 6, fontSize: 12, color: colores[tipo] }}>
-        {tipo === 'rojo' ? '🔴' : tipo === 'amarillo' ? '⚠️' : '✅'} {texto}
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-gray-950 p-6">
@@ -333,22 +292,151 @@ export default function Reportes() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           <TabBtn label="📦 Entregas" active={seccion === 'entregas'} onClick={() => setSeccion('entregas')} />
           <TabBtn label="⚡ Tienda" active={seccion === 'tienda'} onClick={() => setSeccion('tienda')} />
+          <TabBtn label="📋 Estado de cuenta" active={seccion === 'estado'} onClick={() => setSeccion('estado')} />
         </div>
+
+        {/* Selector de fecha (Entregas / Tienda) */}
+        {(seccion === 'entregas' || seccion === 'tienda') && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>📅 Fecha:</label>
+            <input
+              type="date"
+              value={fechaReporte}
+              onChange={e => setFechaReporte(e.target.value)}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 8,
+                color: 'white',
+                padding: '6px 12px',
+                fontSize: 14,
+                cursor: 'pointer'
+              }}
+            />
+            <button
+              onClick={() => setFechaReporte(hoy)}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 8,
+                color: 'rgba(255,255,255,0.6)',
+                padding: '6px 12px',
+                fontSize: 13,
+                cursor: 'pointer'
+              }}
+            >
+              Hoy
+            </button>
+          </div>
+        )}
 
         {/* ===================== SECCIÓN ENTREGAS ===================== */}
         {seccion === 'entregas' && (
           <div>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-              <PeriodBtn label="Hoy" active={periodoEntrega === 'hoy'} onClick={() => setPeriodoEntrega('hoy')} />
-              <PeriodBtn label="Semana" active={periodoEntrega === 'semana'} onClick={() => setPeriodoEntrega('semana')} />
-              <PeriodBtn label="Mes" active={periodoEntrega === 'mes'} onClick={() => setPeriodoEntrega('mes')} />
-              <PeriodBtn label="📋 Estado de cuenta" active={periodoEntrega === 'estado'} onClick={() => setPeriodoEntrega('estado')} />
-            </div>
+            {cargando && <div style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
+
+            {!cargando && (
+              <div>
+                {/* Tarjetas de resumen */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+                  <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
+                    <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Total cobrado entregas</div>
+                    <div style={{ color: 'white', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalCobradoEntregas.toLocaleString('es-MX')}</div>
+                    <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{metricasDelDia.numClientesEntregas} clientes</div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
+                    <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Anticipos recibidos</div>
+                    <div style={{ color: '#60a5fa', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalAnticipos.toLocaleString('es-MX')}</div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
+                    <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Ventas tienda</div>
+                    <div style={{ color: '#34d399', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalTienda.toLocaleString('es-MX')}</div>
+                  </div>
+                  <div style={{ background: 'rgba(99,102,241,0.2)', borderRadius: 12, padding: 20, border: '1px solid rgba(99,102,241,0.4)' }}>
+                    <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Total del día</div>
+                    <div style={{ color: '#818cf8', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalGeneral.toLocaleString('es-MX')}</div>
+                  </div>
+                </div>
+
+                {/* Tabla resumen por cliente */}
+                {resumenClientesEntregas.length > 0 ? (
+                  <div>
+                    <h3 style={{ color: 'white', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                      📦 Entregas del día ({resumenClientesEntregas.length} clientes)
+                    </h3>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '8px' }}>Cliente</th>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '8px' }}>Artículos</th>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '8px' }}>Método</th>
+                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'right', padding: '8px' }}>Total pagado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resumenClientesEntregas.map((c, i) => (
+                          <tr key={c.cliente_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                            <td style={{ color: 'white', padding: '10px 8px', fontWeight: 600 }}>{c.nombre}</td>
+                            <td style={{ color: 'rgba(255,255,255,0.6)', padding: '10px 8px', textAlign: 'center' }}>{c.numArticulos}</td>
+                            <td style={{ color: 'rgba(255,255,255,0.6)', padding: '10px 8px' }}>{c.metodos}</td>
+                            <td style={{ color: '#60a5fa', padding: '10px 8px', textAlign: 'right', fontWeight: 700 }}>${c.totalPagado.toLocaleString('es-MX')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+                          <td style={{ color: 'rgba(255,255,255,0.5)', padding: '10px 8px', fontWeight: 700 }}>Total</td>
+                          <td style={{ color: 'rgba(255,255,255,0.5)', padding: '10px 8px', textAlign: 'center' }}>
+                            {resumenClientesEntregas.reduce((s, c) => s + c.numArticulos, 0)}
+                          </td>
+                          <td></td>
+                          <td style={{ color: '#60a5fa', padding: '10px 8px', textAlign: 'right', fontWeight: 700 }}>
+                            ${metricasDelDia.totalCobradoEntregas.toLocaleString('es-MX')}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 40 }}>
+                    Sin entregas registradas para esta fecha
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===================== SECCIÓN TIENDA ===================== */}
+        {seccion === 'tienda' && (
+          <div>
+            {cargando && <div style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
+
+            {!cargando && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Ventas tienda</div>
+                  <div style={{ color: '#34d399', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalTienda.toLocaleString('es-MX')}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{metricasDelDia.numTransaccionesTienda} transacciones</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===================== SECCIÓN ESTADO DE CUENTA ===================== */}
+        {seccion === 'estado' && (
+          <div>
+            <select value={entregaSeleccionada} onChange={e => setEntregaSeleccionada(e.target.value)}
+              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', color: 'white', fontSize: 13, outline: 'none', marginBottom: 16 }}>
+              <option value="">— Selecciona estado de cuenta —</option>
+              {entregas.map(e => <option key={e.id} value={e.id}>{e.fecha_entrega}{e.nota ? ` · ${e.nota}` : ''}</option>)}
+            </select>
 
             {cargando && <div style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
 
             {/* Filtro de categoría */}
-            {!cargando && (metricasE || metricasEC) && (
+            {!cargando && metricasEC && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                 <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Categoría:</span>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -366,105 +454,68 @@ export default function Reportes() {
               </div>
             )}
 
-            {/* Vista período */}
-            {periodoEntrega !== 'estado' && !cargando && metricasE && (
+            {!cargando && metricasEC && (
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 12 }}>
-                  <MetricCard label="Venta total" value={fmt(metricasE.ventaTotal)} sub={`${metricasE.totalPedidos} pedidos · ${metricasE.clientesUnicos} clientes`} />
-                  <MetricCard label="Utilidad" value={fmt(metricasE.utilidadTotal)} sub={`Margen ${metricasE.margen.toFixed(1)}%`} color="16,185,129" />
-                  <MetricCard label="Total cobrado" value={fmt(metricasE.cobradoTotal)} sub={`Anticipos: ${fmt(metricasE.totalAnticipos)}`} />
-                  <MetricCard label="Por cobrar" value={fmt(metricasE.pendiente)} sub={`${metricasE.clientesConDeuda} clientes pendientes`} color="239,68,68" />
+                  <MetricCard label="Venta total" value={fmt(metricasEC.ventaTotal)} sub={`${metricasEC.totalPedidos} pedidos · ${metricasEC.clientesUnicos} clientes`} />
+                  <MetricCard label="Utilidad" value={fmt(metricasEC.utilidadTotal)} sub={`Margen ${metricasEC.margen.toFixed(1)}%`} color="16,185,129" />
+                  <MetricCard label="Total cobrado" value={fmt(metricasEC.cobradoTotal)} sub={`Anticipos: ${fmt(metricasEC.totalAnticipos)}`} />
+                  <MetricCard label="Por cobrar" value={fmt(metricasEC.pendiente)} color="239,68,68" />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
-                  <MetricCard label="Tasa de cobranza" value={`${metricasE.tasaCobranza.toFixed(0)}%`} sub="Pagan el mismo día" />
-                  <MetricCard label="Ticket promedio" value={fmt(metricasE.ticketPromedio)} sub="Por cliente" />
-                  <MetricCard label="Método más usado" value={metricasE.topMetodo} sub="En cobros de este período" />
-                </div>
-
-                {/* Desglose cobranza separado */}
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
-                  <div style={{ color: 'white', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Desglose de cobranza</div>
-
-                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 8, fontWeight: 600 }}>Anticipos recibidos</div>
-                  {[
-                    { label: '💵 Efectivo', valor: metricasE.anticiposEfectivo },
-                    { label: '📱 Transferencia', valor: metricasE.anticiposTransferencia },
-                    { label: '💳 Terminal', valor: metricasE.anticiposTerminal },
-                  ].map((r, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
-                      <span>{r.label}</span><span style={{ color: 'white', fontWeight: 600 }}>{fmt(r.valor)}</span>
+                {/* Métricas filtradas por categoría */}
+                {filtroCatReporte && (() => {
+                  const pedsCat = rawPedidos.filter(p => p.categoria === filtroCatReporte)
+                  const vCat = pedsCat.reduce((s, p) => s + (p.precio_venta || 0), 0)
+                  const uCat = pedsCat.reduce((s, p) => s + (p.utilidad || 0), 0)
+                  const mCat = vCat > 0 ? (uCat / vCat) * 100 : 0
+                  return (
+                    <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
+                      <div style={{ color: '#818cf8', fontSize: 12, fontWeight: 600, marginBottom: 10 }}>📊 Categoría: {filtroCatReporte} — {pedsCat.length} pedidos</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                        <MetricCard label="Venta" value={fmt(vCat)} />
+                        <MetricCard label="Utilidad" value={fmt(uCat)} color="16,185,129" />
+                        <MetricCard label="Margen" value={`${mCat.toFixed(1)}%`} />
+                      </div>
                     </div>
-                  ))}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 12px', fontSize: 13, color: '#a78bfa', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    <span>Total anticipos</span><span>{fmt(metricasE.totalAnticipos)}</span>
-                  </div>
+                  )
+                })()}
 
-                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, margin: '12px 0 8px', fontWeight: 600 }}>Cobro en tienda (liquidación)</div>
-                  {[
-                    { label: '💵 Efectivo', valor: metricasE.liquidEfectivo },
-                    { label: '📱 Transferencia', valor: metricasE.liquidTransferencia },
-                    { label: '💳 Terminal', valor: metricasE.liquidTerminal },
-                  ].map((r, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
-                      <span>{r.label}</span><span style={{ color: 'white', fontWeight: 600 }}>{fmt(r.valor)}</span>
+                {/* Desglose por categoría */}
+                {rawPedidos.filter(p => p.categoria).length > 0 && (() => {
+                  const porCat = rawPedidos.reduce((acc, p) => {
+                    const cat = p.categoria || 'Sin categoría'
+                    if (!acc[cat]) acc[cat] = { venta: 0, utilidad: 0, count: 0 }
+                    acc[cat].venta += p.precio_venta || 0
+                    acc[cat].utilidad += p.utilidad || 0
+                    acc[cat].count++
+                    return acc
+                  }, {})
+                  const rows = Object.entries(porCat).sort((a, b) => b[1].venta - a[1].venta)
+                  return (
+                    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
+                      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'white', fontSize: 13, fontWeight: 600 }}>Por categoría</div>
+                      {rows.map(([cat, d], i) => (
+                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '9px 16px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                          <span style={{ color: 'white', fontSize: 13 }}>{cat}</span>
+                          <span style={{ color: 'white', fontSize: 13, textAlign: 'right' }}>{fmt(d.venta)}</span>
+                          <span style={{ color: '#10b981', fontSize: 13, textAlign: 'right' }}>{fmt(d.utilidad)}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'right' }}>{d.count} ped.</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', fontSize: 14, color: '#10b981', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 4 }}>
-                    <span>Total cobrado</span><span>{fmt(metricasE.cobradoTotal)}</span>
-                  </div>
-                </div>
+                  )
+                })()}
 
-                {/* Detalle de pedidos entregados */}
-                {rawPedidos.filter(p => p.estado === 'Entregado').length > 0 && (
-                  <div style={{ marginTop: 24 }}>
-                    <h3 style={{ color: 'white', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-                      📦 Pedidos entregados ({rawPedidos.filter(p => p.estado === 'Entregado').length})
-                    </h3>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '6px 8px' }}>Cliente</th>
-                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '6px 8px' }}>Artículo</th>
-                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '6px 8px' }}>Cant</th>
-                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'right', padding: '6px 8px' }}>Precio</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rawPedidos
-                          .filter(p => p.estado === 'Entregado')
-                          .sort((a, b) => (a.clientes?.nombre || '').localeCompare(b.clientes?.nombre || '', 'es'))
-                          .map((p, i) => (
-                            <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                              <td style={{ color: 'rgba(255,255,255,0.8)', padding: '6px 8px' }}>{p.clientes?.nombre || '—'}</td>
-                              <td style={{ color: 'rgba(255,255,255,0.6)', padding: '6px 8px' }}>{p.descripcion}</td>
-                              <td style={{ color: 'rgba(255,255,255,0.6)', padding: '6px 8px', textAlign: 'center' }}>{p.cantidad || 1}</td>
-                              <td style={{ color: 'white', padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>${Number(p.precio_venta).toLocaleString('es-MX')}</td>
-                            </tr>
-                          ))}
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}>
-                          <td colSpan={3} style={{ color: 'rgba(255,255,255,0.5)', padding: '8px', fontWeight: 700 }}>Total entregado</td>
-                          <td style={{ color: '#60a5fa', padding: '8px', textAlign: 'right', fontWeight: 700 }}>
-                            ${rawPedidos.filter(p => p.estado === 'Entregado').reduce((s, p) => s + (Number(p.precio_venta) || 0), 0).toLocaleString('es-MX')}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
-
-                {/* Por cliente */}
-                {porClienteE.length > 0 && (
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
+                {porClienteEC.length > 0 && (
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
                     <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'white', fontSize: 13, fontWeight: 600 }}>Por cliente</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '8px 16px', background: 'rgba(255,255,255,0.02)' }}>
                       {['Cliente','Venta','Utilidad','Estado'].map((h, i) => (
                         <span key={i} style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
                       ))}
                     </div>
-                    {porClienteE.map((c, i) => {
+                    {porClienteEC.map((c, i) => {
                       const pendiente = c.venta - c.cobrado
                       return (
                         <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.04)', alignItems: 'center' }}>
@@ -482,251 +533,11 @@ export default function Reportes() {
                     })}
                   </div>
                 )}
-
-                {/* Métricas filtradas por categoría */}
-                {filtroCatReporte && (() => {
-                  const pedsCat = rawPedidos.filter(p => p.cliente_id && p.categoria === filtroCatReporte)
-                  const vCat = pedsCat.reduce((s, p) => s + (p.precio_venta || 0), 0)
-                  const cCat = pedsCat.reduce((s, p) => s + (p.costo_mxn || 0), 0)
-                  const uCat = pedsCat.reduce((s, p) => s + (p.utilidad || 0), 0)
-                  const mCat = vCat > 0 ? (uCat / vCat) * 100 : 0
-                  return (
-                    <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
-                      <div style={{ color: '#818cf8', fontSize: 12, fontWeight: 600, marginBottom: 10 }}>📊 Categoría: {filtroCatReporte}</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
-                        <MetricCard label="Venta" value={fmt(vCat)} sub={`${pedsCat.length} pedidos`} />
-                        <MetricCard label="Costo" value={fmt(cCat)} />
-                        <MetricCard label="Utilidad" value={fmt(uCat)} sub={`Margen ${mCat.toFixed(1)}%`} color="16,185,129" />
-                        <MetricCard label="Pedidos" value={pedsCat.length} sub="En categoría" />
-                      </div>
-                    </div>
-                  )
-                })()}
-
-                {/* Desglose por categoría */}
-                {rawPedidos.filter(p => p.cliente_id && p.categoria).length > 0 && (() => {
-                  const porCat = rawPedidos.filter(p => p.cliente_id).reduce((acc, p) => {
-                    const cat = p.categoria || 'Sin categoría'
-                    if (!acc[cat]) acc[cat] = { venta: 0, costo: 0, utilidad: 0, count: 0 }
-                    acc[cat].venta += p.precio_venta || 0
-                    acc[cat].costo += p.costo_mxn || 0
-                    acc[cat].utilidad += p.utilidad || 0
-                    acc[cat].count++
-                    return acc
-                  }, {})
-                  const rows = Object.entries(porCat).sort((a, b) => b[1].venta - a[1].venta)
-                  return (
-                    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
-                      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'white', fontSize: 13, fontWeight: 600 }}>Por categoría</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '8px 16px', background: 'rgba(255,255,255,0.02)' }}>
-                        {['Categoría', 'Venta', 'Utilidad', 'Pedidos'].map((h, i) => (
-                          <span key={i} style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
-                        ))}
-                      </div>
-                      {rows.map(([cat, d], i) => (
-                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '9px 16px', borderTop: '1px solid rgba(255,255,255,0.04)', alignItems: 'center' }}>
-                          <span style={{ color: 'white', fontSize: 13 }}>{cat}</span>
-                          <span style={{ color: 'white', fontSize: 13, textAlign: 'right' }}>{fmt(d.venta)}</span>
-                          <span style={{ color: '#10b981', fontSize: 13, textAlign: 'right' }}>{fmt(d.utilidad)}</span>
-                          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'right' }}>{d.count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })()}
-
-                {/* Alertas */}
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14 }}>
-                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Alertas</div>
-                  {porClienteE.filter(c => c.venta - c.cobrado > 0).map((c, i) => (
-                    <AlertItem key={i} tipo={c.venta - c.cobrado > 3000 ? 'rojo' : 'amarillo'} texto={`${c.nombre} — ${fmt(c.venta - c.cobrado)} pendiente`} />
-                  ))}
-                  {metricasE.cobradoTotal >= metricasE.ventaTotal && metricasE.ventaTotal > 0 && (
-                    <AlertItem tipo="verde" texto="Todo liquidado en este período" />
-                  )}
-                  {porClienteE.filter(c => c.venta - c.cobrado > 0).length === 0 && metricasE.ventaTotal === 0 && (
-                    <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textAlign: 'center', padding: 10 }}>Sin datos en este período</div>
-                  )}
-                </div>
               </div>
             )}
-
-            {/* Vista estado de cuenta */}
-            {periodoEntrega === 'estado' && (
-              <div>
-                <select value={entregaSeleccionada} onChange={e => setEntregaSeleccionada(e.target.value)}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', color: 'white', fontSize: 13, outline: 'none', marginBottom: 16 }}>
-                  <option value="">— Selecciona estado de cuenta —</option>
-                  {entregas.map(e => <option key={e.id} value={e.id}>{e.fecha_entrega}{e.nota ? ` · ${e.nota}` : ''}</option>)}
-                </select>
-
-                {!cargando && metricasEC && (
-                  <div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 12 }}>
-                      <MetricCard label="Venta total" value={fmt(metricasEC.ventaTotal)} sub={`${metricasEC.totalPedidos} pedidos · ${metricasEC.clientesUnicos} clientes`} />
-                      <MetricCard label="Utilidad" value={fmt(metricasEC.utilidadTotal)} sub={`Margen ${metricasEC.margen.toFixed(1)}%`} color="16,185,129" />
-                      <MetricCard label="Total cobrado" value={fmt(metricasEC.cobradoTotal)} sub={`Anticipos: ${fmt(metricasEC.totalAnticipos)}`} />
-                      <MetricCard label="Por cobrar" value={fmt(metricasEC.pendiente)} color="239,68,68" />
-                    </div>
-
-                    {/* Métricas filtradas por categoría (estado de cuenta) */}
-                    {filtroCatReporte && (() => {
-                      const pedsCat = rawPedidos.filter(p => p.categoria === filtroCatReporte)
-                      const vCat = pedsCat.reduce((s, p) => s + (p.precio_venta || 0), 0)
-                      const uCat = pedsCat.reduce((s, p) => s + (p.utilidad || 0), 0)
-                      const mCat = vCat > 0 ? (uCat / vCat) * 100 : 0
-                      return (
-                        <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
-                          <div style={{ color: '#818cf8', fontSize: 12, fontWeight: 600, marginBottom: 10 }}>📊 Categoría: {filtroCatReporte} — {pedsCat.length} pedidos</div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-                            <MetricCard label="Venta" value={fmt(vCat)} />
-                            <MetricCard label="Utilidad" value={fmt(uCat)} color="16,185,129" />
-                            <MetricCard label="Margen" value={`${mCat.toFixed(1)}%`} />
-                          </div>
-                        </div>
-                      )
-                    })()}
-
-                    {/* Desglose por categoría (estado de cuenta) */}
-                    {rawPedidos.filter(p => p.categoria).length > 0 && (() => {
-                      const porCat = rawPedidos.reduce((acc, p) => {
-                        const cat = p.categoria || 'Sin categoría'
-                        if (!acc[cat]) acc[cat] = { venta: 0, utilidad: 0, count: 0 }
-                        acc[cat].venta += p.precio_venta || 0
-                        acc[cat].utilidad += p.utilidad || 0
-                        acc[cat].count++
-                        return acc
-                      }, {})
-                      const rows = Object.entries(porCat).sort((a, b) => b[1].venta - a[1].venta)
-                      return (
-                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
-                          <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'white', fontSize: 13, fontWeight: 600 }}>Por categoría</div>
-                          {rows.map(([cat, d], i) => (
-                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '9px 16px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                              <span style={{ color: 'white', fontSize: 13 }}>{cat}</span>
-                              <span style={{ color: 'white', fontSize: 13, textAlign: 'right' }}>{fmt(d.venta)}</span>
-                              <span style={{ color: '#10b981', fontSize: 13, textAlign: 'right' }}>{fmt(d.utilidad)}</span>
-                              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'right' }}>{d.count} ped.</span>
-                            </div>
-                          ))}
-                        </div>
-                      )
-                    })()}
-
-                    {porClienteEC.length > 0 && (
-                      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
-                        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'white', fontSize: 13, fontWeight: 600 }}>Por cliente</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '8px 16px', background: 'rgba(255,255,255,0.02)' }}>
-                          {['Cliente','Venta','Utilidad','Estado'].map((h, i) => (
-                            <span key={i} style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
-                          ))}
-                        </div>
-                        {porClienteEC.map((c, i) => {
-                          const pendiente = c.venta - c.cobrado
-                          return (
-                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.04)', alignItems: 'center' }}>
-                              <span style={{ color: 'white', fontSize: 13 }}>{c.nombre}</span>
-                              <span style={{ color: 'white', fontSize: 13, textAlign: 'right' }}>{fmt(c.venta)}</span>
-                              <span style={{ color: '#10b981', fontSize: 13, textAlign: 'right' }}>{fmt(c.utilidad)}</span>
-                              <div style={{ textAlign: 'right' }}>
-                                {pendiente <= 0
-                                  ? <span style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px', color: '#4ade80', fontSize: 10 }}>✓ Liquidado</span>
-                                  : <span style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 20, padding: '2px 8px', color: '#f87171', fontSize: 10 }}>{fmt(pendiente)}</span>
-                                }
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {!entregaSeleccionada && (
-                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>
-                    Selecciona un estado de cuenta para ver sus números
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ===================== SECCIÓN TIENDA ===================== */}
-        {seccion === 'tienda' && (
-          <div>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-              <PeriodBtn label="Hoy" active={periodoTienda === 'hoy'} onClick={() => setPeriodoTienda('hoy')} />
-              <PeriodBtn label="Semana" active={periodoTienda === 'semana'} onClick={() => setPeriodoTienda('semana')} />
-              <PeriodBtn label="Mes" active={periodoTienda === 'mes'} onClick={() => setPeriodoTienda('mes')} />
-            </div>
-
-            {cargando && <div style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
-
-            {!cargando && metricasT && (
-              <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
-                  <MetricCard label="Ventas tienda" value={fmt(metricasT.totalVentas)} sub={`${metricasT.numTransacciones} transacciones`} />
-                  <MetricCard label="Ticket promedio" value={fmt(metricasT.ticketPromedio)} sub="Por venta" />
-                  <MetricCard label="Método más usado" value={metricasT.topMetodo} sub="En ventas de tienda" />
-                </div>
-
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
-                  <div style={{ color: 'white', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Desglose de cobranza — Tienda</div>
-                  {[
-                    { label: '💵 Efectivo', valor: metricasT.efectivo },
-                    { label: '📱 Transferencia', valor: metricasT.transferencia },
-                    { label: '💳 Terminal', valor: metricasT.terminal },
-                  ].map((r, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.04)' : 'none', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
-                      <span>{r.label}</span><span style={{ color: 'white', fontWeight: 600 }}>{fmt(r.valor)}</span>
-                    </div>
-                  ))}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', fontSize: 14, color: '#10b981', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 8 }}>
-                    <span>Total</span><span>{fmt(metricasT.totalVentas)}</span>
-                  </div>
-                </div>
-
-                {metricasT.totalVentas === 0 && (
-                  <AlertItem tipo="amarillo" texto="Sin ventas de tienda en este período" />
-                )}
-                {metricasT.totalVentas > 0 && (
-                  <AlertItem tipo="verde" texto={`${metricasT.numTransacciones} ventas registradas en tienda este período`} />
-                )}
-
-                {/* Tabla detalle tienda */}
-                {rawPedidosTienda.length > 0 && (
-                  <div style={{ marginTop: 24 }}>
-                    <h3 style={{ color: 'white', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-                      🛒 Productos vendidos en tienda ({rawPedidosTienda.length})
-                    </h3>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '6px 8px' }}>Producto</th>
-                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '6px 8px' }}>Cant</th>
-                          <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'right', padding: '6px 8px' }}>Precio</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rawPedidosTienda.map((p, i) => (
-                          <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                            <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 8px' }}>{p.descripcion}</td>
-                            <td style={{ color: 'rgba(255,255,255,0.6)', padding: '6px 8px', textAlign: 'center' }}>{p.cantidad || 1}</td>
-                            <td style={{ color: 'white', padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>${Number(p.precio_venta).toLocaleString('es-MX')}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}>
-                          <td colSpan={2} style={{ color: 'rgba(255,255,255,0.5)', padding: '8px', fontWeight: 700 }}>Total tienda</td>
-                          <td style={{ color: '#60a5fa', padding: '8px', textAlign: 'right', fontWeight: 700 }}>
-                            ${rawPedidosTienda.reduce((s, p) => s + (Number(p.precio_venta) || 0), 0).toLocaleString('es-MX')}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
+            {!entregaSeleccionada && (
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>
+                Selecciona un estado de cuenta para ver sus números
               </div>
             )}
           </div>

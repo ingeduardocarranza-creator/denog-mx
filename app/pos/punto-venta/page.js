@@ -64,6 +64,7 @@ export default function PuntoDeVenta() {
   const [modalMetodo1, setModalMetodo1] = useState('Efectivo');
   const [modalMonto1, setModalMonto1] = useState('');
   const [modalRecibido, setModalRecibido] = useState('');
+  const [modalRecibidoSplit, setModalRecibidoSplit] = useState('');
   const [modalDosMetodos, setModalDosMetodos] = useState(false);
   const [modalMetodo2, setModalMetodo2] = useState('Transferencia');
 
@@ -384,6 +385,7 @@ const horariosDelDia = (f) => {
     setModalMetodo1('Efectivo');
     setModalMetodo2('Transferencia');
     setModalRecibido('');
+    setModalRecibidoSplit('');
     setMensaje({ tipo: '', texto: '' });
     setTicketListo(null);
   };
@@ -616,11 +618,6 @@ const horariosDelDia = (f) => {
     const tipoLabel = modo === 'modo1' ? 'Encargo' : 'Tienda'
     const nombreCliente = modo === 'modo1' ? clienteSeleccionado?.nombre : 'Tienda'
     const fmtP = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`
-    const montoM1 = parseFloat(modalMonto1) || (modalDosMetodos ? 0 : totalGeneral)
-    const restoM2 = Math.max(0, totalGeneral - montoM1)
-    const recibido = parseFloat(modalRecibido) || 0
-    const cambio = modalMetodo1 === 'Efectivo' ? recibido - (modalDosMetodos ? montoM1 : totalGeneral) : 0
-    const confirmarDeshabilitado = loading || (modalDosMetodos && (montoM1 <= 0 || montoM1 > totalGeneral))
     return (
       <div onClick={e => { if (e.target === e.currentTarget) setMostrarModalCobro(false) }}
         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -639,99 +636,155 @@ const horariosDelDia = (f) => {
             </button>
           </div>
 
-          {/* Modo simple */}
-          {!modalDosMetodos ? (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                {['Efectivo', 'Transferencia', 'Terminal'].map(m => (
-                  <button key={m} onClick={() => { setModalMetodo1(m); setModalRecibido('') }}
-                    style={{ flex: 1, padding: '14px 8px', borderRadius: 14, border: `2px solid ${modalMetodo1 === m ? 'rgba(74,222,128,0.5)' : 'rgba(255,255,255,0.08)'}`, background: modalMetodo1 === m ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.03)', color: modalMetodo1 === m ? '#4ade80' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: modalMetodo1 === m ? 700 : 400, cursor: 'pointer' }}>
-                    {m}
+          {/* Toggle un pago / dividido */}
+          <div className="grid grid-cols-2 gap-1.5 bg-gray-950 p-1.5 rounded-2xl border border-gray-800 mb-5">
+            <button type="button" onClick={() => setModalDosMetodos(false)}
+              className={`py-3 rounded-xl text-sm font-bold transition-all ${!modalDosMetodos ? 'bg-green-950 text-white border border-green-500' : 'text-gray-400'}`}>💳 Un solo pago</button>
+            <button type="button" onClick={() => setModalDosMetodos(true)}
+              className={`py-3 rounded-xl text-sm font-bold transition-all ${modalDosMetodos ? 'bg-green-950 text-white border border-green-500' : 'text-gray-400'}`}>✂️ Pago dividido</button>
+          </div>
+
+          {/* ===== UN SOLO PAGO ===== */}
+          {!modalDosMetodos && (
+            <div className="flex flex-col gap-4">
+              <span className="text-[11px] font-bold tracking-widest text-gray-400 uppercase">¿Con qué paga?</span>
+              <div className="grid grid-cols-3 gap-2.5">
+                {['Efectivo','Transferencia','Terminal'].map((m) => (
+                  <button key={m} type="button" onClick={() => setModalMetodo1(m)}
+                    className={`flex flex-col items-center gap-1.5 py-4 rounded-2xl border-2 transition-all ${modalMetodo1 === m ? METODOS[m].ring : 'border-gray-700 bg-gray-900'}`}>
+                    <span className="text-2xl">{METODOS[m].icon}</span>
+                    <span className={`text-[13px] font-bold ${modalMetodo1 === m ? 'text-white' : 'text-gray-400'}`}>{m}</span>
                   </button>
                 ))}
               </div>
-              {modalMetodo1 === 'Efectivo' && (
-                <input type="number" value={modalRecibido} onChange={e => setModalRecibido(e.target.value)}
-                  placeholder="Con cuánto pagó"
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '12px 16px', color: 'white', fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace', marginBottom: 10 }} />
-              )}
-              {modalMetodo1 === 'Efectivo' && modalRecibido && cambio !== 0 && (
-                <div style={{ background: cambio > 0 ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.1)', border: `2px solid ${cambio > 0 ? 'rgba(74,222,128,0.5)' : 'rgba(239,68,68,0.4)'}`, borderRadius: 14, padding: 16, marginBottom: 14, textAlign: 'center' }}>
-                  {cambio > 0
-                    ? <><div style={{ color: 'rgba(74,222,128,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>💵 Dar de cambio al cliente</div><div style={{ color: '#4ade80', fontSize: 40, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtP(cambio)}</div></>
-                    : <><div style={{ color: 'rgba(248,113,113,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>⚠️ Falta cobrar</div><div style={{ color: '#f87171', fontSize: 36, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtP(Math.abs(cambio))}</div></>
-                  }
+
+              {modalMetodo1 === 'Efectivo' ? (
+                <div className="flex flex-col gap-3">
+                  <span className="text-[11px] font-bold tracking-widest text-gray-400 uppercase">¿Con cuánto paga?</span>
+                  <div className="flex items-center gap-3 h-15 px-4 rounded-2xl bg-gray-950 border-2 border-green-500 ring-4 ring-green-500/10">
+                    <span className="text-xl font-bold text-green-500">$</span>
+                    <input type="text" inputMode="numeric" value={modalRecibido}
+                      onChange={(e) => setModalRecibido(e.target.value.replace(/[^0-9]/g,''))}
+                      placeholder="0" className="flex-1 bg-transparent outline-none text-white text-2xl font-bold" />
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {chipsDe(total).map((v, i) => (
+                      <button key={v} type="button" onClick={() => setModalRecibido(String(v))}
+                        className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${Number(modalRecibido) === v ? 'border-green-500 bg-green-500/10 text-green-400' : 'border-gray-700 bg-gray-950 text-gray-400'}`}>
+                        {i === 0 ? 'Exacto' : money(v)}
+                      </button>
+                    ))}
+                  </div>
+                  <div className={`flex flex-col gap-0.5 px-5 py-4 rounded-2xl border ${recibido === 0 ? 'border-dashed border-gray-700 bg-gray-950' : cambio >= 0 ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'}`}>
+                    <span className={`text-[11px] font-bold tracking-widest uppercase ${cambio >= 0 ? 'text-green-400/80' : 'text-red-400/90'}`}>{recibido === 0 ? 'Cambio a entregar' : cambio >= 0 ? 'Cambio a entregar' : 'Falta dinero'}</span>
+                    <span className={`text-3xl font-extrabold ${recibido === 0 ? 'text-gray-600' : cambio >= 0 ? 'text-green-400' : 'text-red-400'}`}>{recibido === 0 ? '—' : money(Math.abs(cambio))}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className={`flex items-center gap-3 px-4 py-4 rounded-2xl border ${METODOS[modalMetodo1].ring}`}>
+                  <span className="text-xl">{METODOS[modalMetodo1].icon}</span>
+                  <span className="text-sm text-gray-200">Se cobra <b className="text-white">{money(total)}</b> por {modalMetodo1}. No hay cambio.</span>
                 </div>
               )}
             </div>
-          ) : (
-            /* Modo dos métodos */
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Primer método</div>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                  {['Efectivo', 'Transferencia', 'Terminal'].map(m => (
-                    <button key={m} onClick={() => { setModalMetodo1(m); setModalRecibido('') }}
-                      style={{ flex: 1, padding: '10px 6px', borderRadius: 12, border: `2px solid ${modalMetodo1 === m ? 'rgba(74,222,128,0.5)' : 'rgba(255,255,255,0.08)'}`, background: modalMetodo1 === m ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.03)', color: modalMetodo1 === m ? '#4ade80' : 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: modalMetodo1 === m ? 700 : 400, cursor: 'pointer' }}>
-                      {m}
+          )}
+
+          {/* ===== PAGO DIVIDIDO ===== */}
+          {modalDosMetodos && (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <span className="text-[11px] font-bold tracking-widest text-gray-400 uppercase">1 · Primer método — escribe cuánto</span>
+                <div className="grid grid-cols-3 gap-2">
+                  {['Efectivo','Transferencia','Terminal'].map((m) => (
+                    <button key={m} type="button" onClick={() => { setModalMetodo1(m); if (modalMetodo2 === m) setModalMetodo2(['Efectivo','Transferencia','Terminal'].find(x => x !== m)); }}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 text-xs font-bold transition-all ${modalMetodo1 === m ? METODOS[m].ring + ' text-white' : 'border-gray-700 bg-gray-900 text-gray-400'}`}>
+                      <span className="text-base">{METODOS[m].icon}</span>{m}
                     </button>
                   ))}
                 </div>
-                <input type="number" value={modalMonto1} onChange={e => setModalMonto1(e.target.value)}
-                  placeholder="Monto del primer método"
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '12px 16px', color: 'white', fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace' }} />
-                {modalMetodo1 === 'Efectivo' && (
-                  <input type="number" value={modalRecibido} onChange={e => setModalRecibido(e.target.value)}
-                    placeholder="Con cuánto pagó"
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 16px', color: 'white', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginTop: 8, fontFamily: 'monospace' }} />
-                )}
-                {modalMetodo1 === 'Efectivo' && modalRecibido && cambio !== 0 && (
-                  <div style={{ background: cambio > 0 ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.1)', border: `2px solid ${cambio > 0 ? 'rgba(74,222,128,0.5)' : 'rgba(239,68,68,0.4)'}`, borderRadius: 14, padding: 14, marginTop: 8, textAlign: 'center' }}>
-                    {cambio > 0
-                      ? <><div style={{ color: 'rgba(74,222,128,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>💵 Cambio parcial</div><div style={{ color: '#4ade80', fontSize: 36, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtP(cambio)}</div></>
-                      : <><div style={{ color: 'rgba(248,113,113,0.8)', fontSize: 11, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>⚠️ Falta</div><div style={{ color: '#f87171', fontSize: 32, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{fmtP(Math.abs(cambio))}</div></>
-                    }
-                  </div>
-                )}
+                <div className="flex items-center gap-2.5 h-13 px-4 rounded-xl bg-gray-950 border-2 border-gray-600">
+                  <span className="text-lg font-bold text-gray-300">$</span>
+                  <input type="text" inputMode="numeric" value={modalMonto1}
+                    onChange={(e) => setModalMonto1(e.target.value.replace(/[^0-9]/g,''))}
+                    placeholder="0" className="flex-1 bg-transparent outline-none text-white text-xl font-bold" />
+                </div>
               </div>
-              <div>
-                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Segundo método</div>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                  {['Transferencia', 'Terminal'].map(m => (
-                    <button key={m} onClick={() => setModalMetodo2(m)}
-                      style={{ flex: 1, padding: '10px 6px', borderRadius: 12, border: `2px solid ${modalMetodo2 === m ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'}`, background: modalMetodo2 === m ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)', color: modalMetodo2 === m ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: modalMetodo2 === m ? 700 : 400, cursor: 'pointer' }}>
-                      {m}
+
+              <div className="flex flex-col gap-2">
+                <span className="text-[11px] font-bold tracking-widest text-gray-400 uppercase">2 · Segundo método — se completa solo</span>
+                <div className="grid grid-cols-3 gap-2">
+                  {['Efectivo','Transferencia','Terminal'].filter(m => m !== modalMetodo1).map((m) => (
+                    <button key={m} type="button" onClick={() => setModalMetodo2(m)}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 text-xs font-bold transition-all ${modalMetodo2 === m ? METODOS[m].ring + ' text-white' : 'border-gray-700 bg-gray-900 text-gray-400'}`}>
+                      <span className="text-base">{METODOS[m].icon}</span>{m}
                     </button>
                   ))}
                 </div>
-                <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: '12px 16px', color: restoM2 > 0 ? '#818cf8' : 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
-                  {fmtP(restoM2)} en {modalMetodo2}
+                <div className={`flex items-center justify-between px-4 py-3.5 rounded-xl border ${METODOS[modalMetodo2]?.ring || 'border-gray-700'}`}>
+                  <span className="text-sm text-gray-200">Va en {modalMetodo2}:</span>
+                  <span className={`text-xl font-bold ${METODOS[modalMetodo2]?.text || 'text-gray-300'}`}>{money(resto)}</span>
                 </div>
+              </div>
+
+              {/* Efectivo dentro del dividido → cambio de esa parte */}
+              {efectivoEnSplit !== null && (
+                <div className="flex flex-col gap-2.5 p-3.5 rounded-2xl bg-green-500/5 border border-green-500/30">
+                  <span className="text-[11px] font-bold tracking-wider text-green-300 uppercase">💵 Efectivo · su parte es {money(efectivoEnSplit)}</span>
+                  <div className="flex items-center gap-2.5 h-13 px-4 rounded-xl bg-gray-950 border-2 border-green-500">
+                    <span className="text-lg font-bold text-green-500">$</span>
+                    <input type="text" inputMode="numeric" value={modalRecibidoSplit}
+                      onChange={(e) => setModalRecibidoSplit(e.target.value.replace(/[^0-9]/g,''))}
+                      placeholder="¿con cuánto paga?" className="flex-1 bg-transparent outline-none text-white text-xl font-bold" />
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {chipsDe(efectivoEnSplit).map((v, i) => (
+                      <button key={v} type="button" onClick={() => setModalRecibidoSplit(String(v))}
+                        className={`py-2 rounded-lg text-xs font-bold border transition-all ${Number(modalRecibidoSplit) === v ? 'border-green-500 bg-green-500/10 text-green-400' : 'border-gray-700 bg-gray-950 text-gray-400'}`}>
+                        {i === 0 ? 'Exacto' : money(v)}
+                      </button>
+                    ))}
+                  </div>
+                  <div className={`flex flex-col px-4 py-3 rounded-xl border ${recSplit === 0 ? 'border-dashed border-gray-700 bg-gray-950' : cambioSplit >= 0 ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'}`}>
+                    <span className={`text-[10px] font-bold tracking-wider uppercase ${cambioSplit >= 0 ? 'text-green-400/80' : 'text-red-400/90'}`}>{cambioSplit >= 0 ? 'Cambio a entregar' : 'Falta en efectivo'}</span>
+                    <span className={`text-2xl font-extrabold ${recSplit === 0 ? 'text-gray-600' : cambioSplit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{recSplit === 0 ? '—' : money(Math.abs(cambioSplit))}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Barra de cuadre */}
+              <div className="flex flex-col gap-2">
+                <div className="h-3 rounded-full bg-gray-950 border border-gray-800 overflow-hidden flex">
+                  <div style={{ width: `${Math.max(0, Math.min(100, (monto1/total)*100))}%` }} className="bg-green-500 transition-all" />
+                  <div className="flex-1 bg-indigo-500 transition-all" />
+                </div>
+                <span className={`text-xs font-bold ${puedeConfirmar ? 'text-green-400' : 'text-gray-400'}`}>{puedeConfirmar ? `✓ Suma exacta ${money(total)}` : `Escribe un monto menor a ${money(total)}`}</span>
               </div>
             </div>
           )}
 
-          {/* Botón dividir */}
-          <button onClick={() => { setModalDosMetodos(!modalDosMetodos); setModalMonto1(''); setModalRecibido('') }}
-            style={{ width: '100%', background: 'transparent', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 12, padding: '10px', color: 'rgba(255,255,255,0.35)', fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>
-            {modalDosMetodos ? '− Un solo método' : '+ Dividir en dos métodos'}
-          </button>
-
-          {/* Botón confirmar */}
-          <button
-            onClick={async () => {
-              await procesarCobroFinal({
-                metodo1: modalMetodo1,
-                monto1: modalDosMetodos ? montoM1 : totalGeneral,
-                metodo2: modalDosMetodos ? modalMetodo2 : null,
-                monto2: modalDosMetodos ? restoM2 : 0
-              })
-              setMostrarModalCobro(false)
-            }}
-            disabled={confirmarDeshabilitado}
-            style={{ width: '100%', background: confirmarDeshabilitado ? 'rgba(255,255,255,0.05)' : '#14532d', border: `1px solid ${confirmarDeshabilitado ? 'rgba(255,255,255,0.1)' : 'rgba(74,222,128,0.35)'}`, borderRadius: 14, padding: '14px', color: confirmarDeshabilitado ? 'rgba(255,255,255,0.3)' : '#4ade80', fontSize: 15, fontWeight: 800, cursor: confirmarDeshabilitado ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
-            {loading ? 'Procesando...' : '✅ Confirmar cobro'}
-          </button>
+          {/* Resumen + confirmar */}
+          <div className="flex flex-col gap-2.5 mt-5">
+            <div className={`px-4 py-2.5 rounded-xl text-center text-[13px] font-semibold border ${puedeConfirmar ? 'bg-green-500/10 text-green-300 border-green-500/30' : 'bg-red-500/5 text-red-300 border-red-500/30'}`}>
+              {puedeConfirmar
+                ? (!modalDosMetodos
+                    ? (modalMetodo1 === 'Efectivo' ? `Recibes ${money(recibido)} · devuelves ${money(cambio)} de cambio.` : `Cobras ${money(total)} por ${modalMetodo1}.`)
+                    : `${money(monto1)} ${modalMetodo1} + ${money(resto)} ${modalMetodo2}${efectivoEnSplit !== null && cambioSplit > 0 ? ` · cambio ${money(cambioSplit)}` : ''}.`)
+                : (motivo || 'Completa los datos para cobrar.')}
+            </div>
+            <button type="button" disabled={!puedeConfirmar || loading}
+              onClick={async () => {
+                await procesarCobroFinal({
+                  metodo1: modalMetodo1,
+                  monto1: modalDosMetodos ? monto1 : total,
+                  metodo2: modalDosMetodos ? modalMetodo2 : null,
+                  monto2: modalDosMetodos ? resto : 0
+                })
+                setMostrarModalCobro(false)
+              }}
+              className={`h-15 rounded-2xl font-extrabold text-lg flex items-center justify-center gap-2.5 transition-all ${puedeConfirmar && !loading ? 'bg-gradient-to-b from-green-500 to-green-600 text-white shadow-lg shadow-green-500/30' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}>
+              {loading ? 'Procesando...' : `✅ ${puedeConfirmar ? `Confirmar cobro · ${money(total)}` : 'Confirmar cobro'}`}
+            </button>
+          </div>
 
         </div>
       </div>
@@ -888,6 +941,35 @@ const horariosDelDia = (f) => {
     modo3: { nombre: 'Domicilio', icono: '🚚', desc: 'Pedido para enviar a domicilio del cliente',
              activo: 'bg-amber-500 text-white shadow-lg shadow-amber-500/40',    banner: 'bg-amber-500',   borde: 'border-amber-500 ring-4 ring-amber-500/15',   texto: 'text-amber-400' },
   };
+
+  const METODOS = {
+    Efectivo:      { icon:'💵', ring:'border-green-500 bg-green-500/10 shadow-lg shadow-green-500/30',    text:'text-green-400' },
+    Transferencia: { icon:'🏦', ring:'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/30', text:'text-indigo-400' },
+    Terminal:      { icon:'💳', ring:'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/30', text:'text-purple-400' },
+  };
+  const money = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
+  const chipsDe = (base) => { const c = Math.ceil(base/500)*500; return [...new Set([base, c, c+500, c+1000])].slice(0,4); };
+
+  const total   = totalGeneral;
+  const recibido = Number(modalRecibido) || 0;
+  const cambio   = recibido - total;
+
+  const monto1  = Math.min(Number(modalMonto1) || 0, total);
+  const resto   = total - monto1;
+  const efectivoEnSplit = modalMetodo1 === 'Efectivo' ? monto1 : (modalMetodo2 === 'Efectivo' ? resto : null);
+  const recSplit = Number(modalRecibidoSplit) || 0;
+  const cambioSplit = recSplit - (efectivoEnSplit || 0);
+
+  let puedeConfirmar, motivo = '';
+  if (!modalDosMetodos) {
+    if (modalMetodo1 === 'Efectivo') { puedeConfirmar = recibido >= total; if (!puedeConfirmar) motivo = 'El efectivo no alcanza (mínimo ' + money(total) + ').'; }
+    else puedeConfirmar = true;
+  } else {
+    puedeConfirmar = monto1 > 0 && monto1 < total && modalMetodo1 !== modalMetodo2;
+    if (monto1 <= 0) motivo = 'Escribe el monto del primer método.';
+    else if (monto1 >= total) motivo = 'El primer monto debe ser menor al total.';
+    else if (efectivoEnSplit !== null && recSplit < efectivoEnSplit) { puedeConfirmar = false; motivo = 'El efectivo no alcanza para su parte.'; }
+  }
 
   return (
     <>

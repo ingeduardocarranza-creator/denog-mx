@@ -631,6 +631,15 @@ export default function PuntoDeVenta() {
     sum + b.pedidos.filter(p => p.apartado_fragil && productosSeleccionados[p.id]).length, 0
   );
 
+  const MODOS = {
+    modo1: { nombre: 'Encargos',  icono: '📦', desc: 'Entrega de compras que llegaron de USA',
+             activo: 'bg-violet-600 text-white shadow-lg shadow-violet-600/40',  banner: 'bg-violet-600',  borde: 'border-violet-600 ring-4 ring-violet-600/15',  texto: 'text-violet-400' },
+    modo2: { nombre: 'Tienda',    icono: '🏬', desc: 'Venta directa en el mostrador de la tienda',
+             activo: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/40', banner: 'bg-emerald-600', borde: 'border-emerald-600 ring-4 ring-emerald-600/15', texto: 'text-emerald-400' },
+    modo3: { nombre: 'Domicilio', icono: '🚚', desc: 'Pedido para enviar a domicilio del cliente',
+             activo: 'bg-amber-500 text-white shadow-lg shadow-amber-500/40',    banner: 'bg-amber-500',   borde: 'border-amber-500 ring-4 ring-amber-500/15',   texto: 'text-amber-400' },
+  };
+
   return (
     <>
       {turnoEstado === 'cargando' && (
@@ -695,9 +704,13 @@ export default function PuntoDeVenta() {
         {/* ========================================================= */}
 
         {/* CONTROLES DE PESTAÑAS */}
-        <div className="grid grid-cols-2 bg-gray-900 p-1 rounded-xl border border-gray-800 w-full sm:w-80 h-fit">
-          <button type="button" onClick={() => cambiarDeModoLimpiandoTodo('modo1')} className={`py-2 text-xs font-bold rounded-lg transition-all ${modo === 'modo1' ? 'bg-gray-800 text-white' : 'text-gray-400'}`}>📦 Encargos</button>
-          <button type="button" onClick={() => cambiarDeModoLimpiandoTodo('modo2')} className={`py-2 text-xs font-bold rounded-lg transition-all ${modo === 'modo2' ? 'bg-gray-800 text-white' : 'text-gray-400'}`}>⚡ Tienda</button>
+        <div className="grid grid-cols-2 gap-1 bg-gray-900 p-1 rounded-xl border border-gray-800 w-full sm:w-80 h-fit">
+          {['modo1', 'modo2'].map((m) => (
+            <button key={m} type="button" onClick={() => cambiarDeModoLimpiandoTodo(m)}
+              className={`flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold rounded-lg transition-all ${modo === m ? MODOS[m].activo : 'text-gray-400 hover:text-white'}`}>
+              {MODOS[m].icono} {MODOS[m].nombre}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -713,11 +726,24 @@ export default function PuntoDeVenta() {
       )}
 
       <div className="max-w-4xl mx-auto grid grid-cols-1 gap-6">
+        {/* BANNER: EN QUÉ SECCIÓN ESTOY */}
+        <div className={`flex items-center gap-3 rounded-xl px-4 py-3 mb-6 ${MODOS[modo].banner}`}>
+          <span className="text-2xl">{MODOS[modo].icono}</span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[10px] font-bold tracking-widest text-white/80 uppercase">Estás en</span>
+            <span className="text-lg font-extrabold text-white">{MODOS[modo].nombre}</span>
+          </div>
+          <span className="ml-auto text-xs font-medium text-white/90 text-right max-w-[240px]">{MODOS[modo].desc}</span>
+        </div>
+
         {modo === 'modo1' && (
           <div className="bg-gray-900 p-5 rounded-2xl border border-gray-800 shadow-xl space-y-4">
             {!clienteSeleccionado ? (
               <div className="relative">
-                <input type="text" placeholder="Buscar por nombre de cliente o teléfono..." value={busquedaCliente} onChange={(e) => setBusquedaCliente(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-xs focus:outline-none" />
+                <div className={`flex items-center gap-3 h-14 px-5 rounded-2xl bg-gray-900 mb-6 border-2 ${MODOS[modo].borde}`}>
+                  <span className={MODOS[modo].texto}>🔍</span>
+                  <input type="text" placeholder="Buscar por nombre de cliente o teléfono..." value={busquedaCliente} onChange={(e) => setBusquedaCliente(e.target.value)} className="flex-1 bg-transparent outline-none text-[15px] font-semibold text-gray-200 placeholder:text-gray-400" />
+                </div>
                 {clientesFiltrados.length > 0 && (
                   <div className="absolute top-full left-0 right-0 bg-gray-800 border border-gray-700 rounded-xl mt-2 z-20 divide-y divide-gray-700">
                     {clientesFiltrados.map(c => <div key={c.id} onClick={() => seleccionarClienteEncargo(c)} className="p-3 text-sm text-slate-200 hover:bg-blue-600 cursor-pointer flex justify-between"><span>{c.nombre}</span><span className="text-gray-400 font-mono text-xs">{c.telefono}</span></div>)}
@@ -816,12 +842,15 @@ export default function PuntoDeVenta() {
         {(modo === 'modo2' || (modo === 'modo1' && clienteSeleccionado)) && (
           <div className="bg-gray-900 p-5 rounded-2xl border border-gray-800 shadow-xl space-y-4">
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">🛒 Agregar producto de tienda</h2>
-            <input type="text" placeholder="Buscar por nombre o código de barras..." value={busquedaProducto} onChange={(e) => setBusquedaProducto(e.target.value)} onKeyDown={(e) => {
-              if (e.key !== 'Enter') return
-              const exacto = todosProductos.find(p => p.codigo_barras === busquedaProducto)
-              if (exacto) { agregarProductoAlCarrito(exacto); setBusquedaProducto(''); return }
-              if (productosFiltrados.length === 1) { agregarProductoAlCarrito(productosFiltrados[0]); setBusquedaProducto('') }
-            }} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-xs focus:outline-none" />
+            <div className={`flex items-center gap-3 h-14 px-5 rounded-2xl bg-gray-900 mb-6 border-2 ${MODOS[modo].borde}`}>
+              <span className={MODOS[modo].texto}>🔍</span>
+              <input type="text" placeholder="Buscar por nombre o código de barras..." value={busquedaProducto} onChange={(e) => setBusquedaProducto(e.target.value)} onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                const exacto = todosProductos.find(p => p.codigo_barras === busquedaProducto)
+                if (exacto) { agregarProductoAlCarrito(exacto); setBusquedaProducto(''); return }
+                if (productosFiltrados.length === 1) { agregarProductoAlCarrito(productosFiltrados[0]); setBusquedaProducto('') }
+              }} className="flex-1 bg-transparent outline-none text-[15px] font-semibold text-gray-200 placeholder:text-gray-400" />
+            </div>
             {productosFiltrados.length > 0 && (
               <div className="absolute bg-gray-800 border border-gray-700 rounded-xl mt-1 z-30 divide-y divide-gray-700 w-[calc(100%-60px)] max-h-40 overflow-y-auto">
                 {productosFiltrados.map(p => <div key={p.id} onClick={() => agregarProductoAlCarrito(p)} className="p-3 text-xs text-slate-200 hover:bg-blue-600 cursor-pointer flex justify-between font-medium"><span>{p.nombre}</span><span className="font-bold text-blue-400 font-mono">${Number(p.precio_venta).toFixed(0)}</span></div>)}

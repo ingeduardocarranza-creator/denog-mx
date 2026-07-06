@@ -32,7 +32,46 @@ export default function CatalogoTienda() {
   const [precioVenta, setPrecioVenta] = useState('');
   const [stock, setStock] = useState('');
   const [categoria, setCategoria] = useState('Ropa');
+  const [imagenUrl, setImagenUrl] = useState('');
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
+
+  // SUBIR FOTO: pide una URL firmada al servidor y sube el archivo directo
+  // del navegador a Supabase Storage (no pasa por nuestra función serverless,
+  // así no choca con el límite de tamaño de body de Vercel).
+  const subirFoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      setMensaje({ tipo: 'error', texto: 'La foto pesa más de 15MB. Usa una más ligera.' });
+      return;
+    }
+
+    setSubiendoImagen(true);
+    setMensaje({ tipo: '', texto: '' });
+    try {
+      const res = await fetch('/api/catalogo/subir-imagen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: file.type }),
+      });
+      const datos = await res.json();
+      if (!datos.ok) throw new Error(datos.mensaje || 'No se pudo preparar la subida.');
+
+      const { error: subeError } = await supabase.storage
+        .from('productos')
+        .uploadToSignedUrl(datos.path, datos.token, file);
+      if (subeError) throw subeError;
+
+      setImagenUrl(datos.publicUrl);
+    } catch (err) {
+      setMensaje({ tipo: 'error', texto: 'Error al subir la foto: ' + err.message });
+    } finally {
+      setSubiendoImagen(false);
+    }
+  };
 
   // 1. CARGAR DATOS DESDE SUPABASE Y EXTRAER CATEGORÍAS EXISTENTES
   const cargarProductosYCategorias = async () => {
@@ -84,6 +123,7 @@ export default function CatalogoTienda() {
       precio_venta: Number(precioVenta) || 0,
       stock: Number(stock) || 0,
       categoria: categoria,
+      imagen_url: imagenUrl.trim() || null,
       activo: true
     };
 
@@ -124,6 +164,7 @@ export default function CatalogoTienda() {
     setPrecioVenta(p.precio_venta || '');
     setStock(p.stock || '0');
     setCategoria(p.categoria || 'Ropa');
+    setImagenUrl(p.imagen_url || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -145,6 +186,7 @@ export default function CatalogoTienda() {
     setPrecioVenta('');
     setStock('');
     setCategoria(listaCategorias[0] || 'Ropa');
+    setImagenUrl('');
   };
 
   // COTIZADOR — cálculos en tiempo real
@@ -217,6 +259,29 @@ export default function CatalogoTienda() {
               <div className="space-y-1">
                 <label className="text-slate-400 font-bold">Código de Barras <span className="text-[10px] text-slate-500">(UPC / Scan)</span></label>
                 <input type="text" value={codigoBarras} onChange={(e) => setCodigoBarras(e.target.value)} placeholder="Escanea el código de barras de Ross/Walmart" className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-400 font-bold">Foto <span className="text-[10px] text-slate-500">(referencia para el POS)</span></label>
+                <div className="flex items-center gap-3">
+                  {imagenUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={imagenUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-slate-700 flex-none" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-xl">📦</div>
+                  )}
+                  <div className="flex-1 space-y-1.5">
+                    <label className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl cursor-pointer transition-all">
+                      {subiendoImagen ? 'Subiendo…' : imagenUrl ? '📷 Cambiar foto' : '📷 Tomar / subir foto'}
+                      <input type="file" accept="image/*" onChange={subirFoto} disabled={subiendoImagen} className="hidden" />
+                    </label>
+                    {imagenUrl && (
+                      <button type="button" onClick={() => setImagenUrl('')} className="w-full text-center text-[11px] text-red-400 hover:underline">
+                        Quitar foto
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* COTIZADOR */}
@@ -355,8 +420,18 @@ export default function CatalogoTienda() {
                     productosFiltrados.map((p) => (
                       <tr key={p.id} className={`hover:bg-slate-800/20 transition-colors ${!p.activo ? 'opacity-40' : ''}`}>
                         <td className="p-3">
-                          <p className="font-bold text-slate-200">{p.nombre}</p>
-                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">{p.codigo_barras}</p>
+                          <div className="flex items-center gap-2">
+                            {p.imagen_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={p.imagen_url} alt="" className="w-8 h-8 rounded object-cover border border-slate-700 flex-none" />
+                            ) : (
+                              <div className="w-8 h-8 rounded bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-[11px]">📦</div>
+                            )}
+                            <div>
+                              <p className="font-bold text-slate-200">{p.nombre}</p>
+                              <p className="text-[10px] text-slate-500 font-mono mt-0.5">{p.codigo_barras}</p>
+                            </div>
+                          </div>
                         </td>
                         <td className="p-3">
                           <span className="bg-[#1e2533] px-2 py-0.5 rounded text-[10px] text-slate-300 border border-slate-700/60">{p.categoria}</span>

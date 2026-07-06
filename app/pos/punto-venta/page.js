@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import TiendaTienda from '../../components/pos/TiendaTienda';
+import { construirVentaItems, calcularTotalesCarrito } from '../../../lib/pos/tiendaUtils';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -60,6 +62,9 @@ export default function PuntoDeVenta() {
   const [anticiposDisponibles, setAnticiposDisponibles] = useState(0);
   const [productosSeleccionados, setProductosSeleccionados] = useState({});
   const [carritoTienda, setCarritoTienda] = useState([]);
+  const [carritoVentaTienda, setCarritoVentaTienda] = useState([]);
+  const [descuentoVentaTienda, setDescuentoVentaTienda] = useState({ tipo: null, valor: 0 });
+  const [clienteTienda, setClienteTienda] = useState(null);
   const [mostrarModalCobro, setMostrarModalCobro] = useState(false);
   const [modalMetodo1, setModalMetodo1] = useState('Efectivo');
   const [modalMonto1, setModalMonto1] = useState('');
@@ -477,7 +482,9 @@ const horariosDelDia = (f) => {
     }
   });
 
-  const subtotalTienda = carritoTienda.reduce((acc, item) => acc + (Number(item.producto.precio_venta) * item.cantidad), 0);
+  const subtotalTiendaExtra = carritoTienda.reduce((acc, item) => acc + (Number(item.producto.precio_venta) * item.cantidad), 0);
+  const totalesVentaTienda = calcularTotalesCarrito(carritoVentaTienda, descuentoVentaTienda);
+  const subtotalTienda = modo === 'modo2' ? totalesVentaTienda.total : subtotalTiendaExtra;
   const totalGeneral = modo === 'modo1' ? (sumaEncargosTotalNeto + subtotalTienda) : subtotalTienda;
   const procesarCobroFinal = async ({ metodo1: m1, monto1, metodo2: m2, monto2 }) => {
     setLoading(true);
@@ -489,7 +496,12 @@ const horariosDelDia = (f) => {
         b.pedidos.forEach(p => { if (productosSeleccionados[p.id]) textoArticulos += `• ${p.descripcion}\n`; });
       });
     }
-    carritoTienda.forEach(item => { textoArticulos += `• ${item.producto.nombre} (x${item.cantidad})\n`; });
+    if (modo === 'modo1') {
+      carritoTienda.forEach(item => { textoArticulos += `• ${item.producto.nombre} (x${item.cantidad})\n`; });
+    }
+    if (modo === 'modo2') {
+      carritoVentaTienda.forEach(linea => { textoArticulos += `• ${linea.nombre} (x${linea.cantidad})\n`; });
+    }
 
     const infoTicket = {
       telefono: clienteSeleccionado?.telefono || '',
@@ -505,12 +517,21 @@ const horariosDelDia = (f) => {
         }
       }
 
-      for (const item of carritoTienda) {
-        const nuevoStock = Math.max(0, item.producto.stock - item.cantidad);
-        await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', item.producto.id);
+      if (modo === 'modo1') {
+        for (const item of carritoTienda) {
+          const nuevoStock = Math.max(0, item.producto.stock - item.cantidad);
+          await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', item.producto.id);
+        }
+      }
+      if (modo === 'modo2') {
+        for (const linea of carritoVentaTienda) {
+          if (linea.origen !== 'catalogo' || linea.stockDisponible == null) continue;
+          const nuevoStock = Math.max(0, linea.stockDisponible - linea.cantidad);
+          await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', linea.productoId);
+        }
       }
 
-      const clienteIdFinal = modo === 'modo1' ? clienteSeleccionado?.id : null;
+      const clienteIdFinal = modo === 'modo1' ? clienteSeleccionado?.id : (modo === 'modo2' ? (clienteTienda?.id ?? null) : null);
       const entregaIdFinal = modo === 'modo1' && bloquesEntregas.length > 0 ? bloquesEntregas[0].entrega.id : null;
       const vendedorId = modo === 'modo2' ? vendedorTienda?.id : colaborador?.id;
 
@@ -538,16 +559,11 @@ const horariosDelDia = (f) => {
         pagoIdTienda = pago2?.id || pagoIdTienda;
       }
 
-      if (modo === 'modo2' && carritoTienda.length > 0) {
-        const detalleVenta = carritoTienda.map(item => ({
-          pago_id: pagoIdTienda,
-          producto_id: item.producto.id,
-          nombre_producto: item.producto.nombre,
-          categoria: item.producto.categoria || null,
-          cantidad: item.cantidad,
-          precio_unitario: Number(item.producto.precio_venta),
-          vendedor_id: vendedorId
-        }));
+      if (modo === 'modo2' && carritoVentaTienda.length > 0) {
+        const detalleVenta = construirVentaItems(carritoVentaTienda, descuentoVentaTienda, {
+          pagoId: pagoIdTienda,
+          vendedorId,
+        });
         await supabase.from('ventas_tienda').insert(detalleVenta);
       }
       if (modo === 'modo1' && listaAnticipos.length > 0) {
@@ -577,6 +593,9 @@ const horariosDelDia = (f) => {
       setTodosProductos(pr || []);
       setBloquesEntregas([]);
       setCarritoTienda([]);
+      setCarritoVentaTienda([]);
+      setDescuentoVentaTienda({ tipo: null, valor: 0 });
+      setClienteTienda(null);
       setModalMonto1('');
       setModalDosMetodos(false);
     } catch (err) {
@@ -1135,7 +1154,7 @@ const horariosDelDia = (f) => {
             </div>
           )}
 
-          <div className="max-w-4xl mx-auto grid grid-cols-1 gap-6">
+          <div className={modo === 'modo2' ? 'max-w-6xl mx-auto grid grid-cols-1 gap-6' : 'max-w-4xl mx-auto grid grid-cols-1 gap-6'}>
             {/* BANNER: EN QUÉ SECCIÓN ESTOY */}
             <div className={`flex items-center gap-3 rounded-xl px-4 py-3 mb-6 ${MODOS[modo].banner}`}>
               <span className="text-2xl">{MODOS[modo].icono}</span>
@@ -1230,7 +1249,36 @@ const horariosDelDia = (f) => {
               </div>
             )}
 
-            {(modo === 'modo2' || (modo === 'modo1' && clienteSeleccionado)) && (
+            {modo === 'modo2' && (
+              <TiendaTienda
+                productos={todosProductos}
+                cart={carritoVentaTienda}
+                setCart={setCarritoVentaTienda}
+                descuentoVenta={descuentoVentaTienda}
+                setDescuentoVenta={setDescuentoVentaTienda}
+                vendedorTienda={vendedorTienda}
+                setVendedorTienda={setVendedorTienda}
+                vendedores={vendedores}
+                colaborador={colaborador}
+                todosClientes={todosClientes}
+                clienteTienda={clienteTienda}
+                setClienteTienda={setClienteTienda}
+                loading={loading}
+                onCobrar={() => {
+                  if (carritoVentaTienda.length === 0) return;
+                  if (totalesVentaTienda.total === 0) {
+                    procesarCobroFinal({ metodo1: null, monto1: 0, metodo2: null, monto2: 0 });
+                    return;
+                  }
+                  setModalRecibido('');
+                  setModalMonto1('');
+                  setModalDosMetodos(false);
+                  setMostrarModalCobro(true);
+                }}
+              />
+            )}
+
+            {(modo === 'modo1' && clienteSeleccionado) && (
               <div className="bg-gray-900 p-5 rounded-2xl border border-gray-800 shadow-xl space-y-4">
                 <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">🛒 Agregar producto de tienda</h2>
 
@@ -1294,6 +1342,7 @@ const horariosDelDia = (f) => {
               </div>
             )}
 
+            {modo !== 'modo2' && (
             <div className="bg-gray-900 p-5 rounded-2xl border border-gray-800 shadow-xl space-y-4">
               <div className="border-b border-gray-800 pb-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Resumen final</div>
               <div className="text-xs space-y-2 font-medium">
@@ -1310,21 +1359,12 @@ const horariosDelDia = (f) => {
                 <span className="text-xl font-black font-mono text-white">${totalGeneral.toLocaleString('es-MX', {minimumFractionDigits: 2})}</span>
               </div>
 
-              {/* Vendedor asignado en modo tienda */}
-              {modo === 'modo2' && vendedorTienda && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Venta asignada a</span>
-                  <span style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 20, padding: '2px 10px', color: '#818cf8', fontSize: 11, fontWeight: 600 }}>
-                    {vendedorTienda.nombre.split(' ')[0]} {vendedorTienda.nombre.split(' ')[1]}
-                  </span>
-                </div>
-              )}
               <button type="button"
                 onClick={totalGeneral === 0
                   ? () => procesarCobroFinal({ metodo1: null, monto1: 0, metodo2: null, monto2: 0 })
                   : () => { setModalRecibido(''); setModalMonto1(''); setModalDosMetodos(false); setMostrarModalCobro(true) }
                 }
-                disabled={loading || (modo === 'modo1' && !clienteSeleccionado) || (modo === 'modo2' && carritoTienda.length === 0)}
+                disabled={loading || (modo === 'modo1' && !clienteSeleccionado)}
                 className="w-full font-bold text-xs py-3.5 rounded-xl uppercase tracking-widest transition-all bg-blue-600 hover:bg-blue-700 text-white shadow-lg disabled:opacity-40 disabled:cursor-not-allowed">
                 {loading ? 'Procesando...' : totalGeneral === 0 ? '✅ Marcar como entregado' : '✓ Registrar pago'}
               </button>
@@ -1603,6 +1643,7 @@ const horariosDelDia = (f) => {
               </div>
             )}
             </div>
+            )}
           </div>
         </div>
       )}

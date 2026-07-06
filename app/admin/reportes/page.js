@@ -31,8 +31,13 @@ export default function Reportes() {
     totalArticulos: 0,
     vendedorTop: '',
     restock: [],
-    transacciones: []
+    transacciones: [],
+    utilidadConocida: 0,
+    porConciliar: []
   })
+  const [incluirPorConciliar, setIncluirPorConciliar] = useState(false)
+  const [costoDraft, setCostoDraft] = useState({})
+  const [guardandoCosto, setGuardandoCosto] = useState(null)
 
   // Datos estado de cuenta
   const [metricasEC, setMetricasEC] = useState(null)
@@ -198,6 +203,13 @@ export default function Reportes() {
     const topProductos = Object.values(porProducto).sort((a, b) => b.cantidad - a.cantidad)
     const porVendedorOrdenado = Object.values(porVendedor).sort((a, b) => b.total - a.total)
 
+    // Utilidad exacta = solo líneas con costo_unitario conocido (ver README del
+    // rediseño de Tienda). Las líneas manuales sin costo quedan "por conciliar"
+    // hasta que el admin capture el costo real aquí mismo.
+    const conCosto = ventas.filter(v => v.costo_unitario != null)
+    const utilidadConocida = conCosto.reduce((s, v) => s + (v.precio_unitario - v.costo_unitario) * v.cantidad, 0)
+    const porConciliar = ventas.filter(v => v.costo_unitario == null)
+
     setAnalisisTienda({
       topProductos,
       porVendedor: porVendedorOrdenado,
@@ -206,8 +218,28 @@ export default function Reportes() {
       totalArticulos: ventas.reduce((s, v) => s + v.cantidad, 0),
       vendedorTop: porVendedorOrdenado[0]?.nombre || '—',
       restock: topProductos.filter(p => p.stock != null && p.stock < 3),
-      transacciones: Object.values(porTransaccion).sort((a, b) => b.hora.localeCompare(a.hora))
+      transacciones: Object.values(porTransaccion).sort((a, b) => b.hora.localeCompare(a.hora)),
+      utilidadConocida,
+      porConciliar
     })
+  }
+
+  const guardarCostoConciliacion = async (ventaId) => {
+    const valor = parseFloat(costoDraft[ventaId])
+    if (isNaN(valor) || valor < 0) return
+    setGuardandoCosto(ventaId)
+    try {
+      const admin = JSON.parse(localStorage.getItem('cliente') || 'null')
+      await fetch('/api/reportes/ventas-tienda', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: ventaId, costo_unitario: valor, conciliado_por: admin?.id || null })
+      })
+      await cargarAnalisisTienda()
+      setCostoDraft(prev => { const next = { ...prev }; delete next[ventaId]; return next })
+    } finally {
+      setGuardandoCosto(null)
+    }
   }
 
   const cargarEstadoCuenta = async () => {
@@ -354,6 +386,11 @@ export default function Reportes() {
       {sub && <div style={{ color: color ? `rgba(${color},0.5)` : 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>{sub}</div>}
     </div>
   )
+
+  // Utilidad "por conciliar" tratada como si costara $0 (aproximación optimista)
+  // solo cuando el admin decide incluirla explícitamente en el total.
+  const utilidadPorConciliarComoIngreso = analisisTienda.porConciliar.reduce((s, v) => s + v.precio_unitario * v.cantidad, 0)
+  const utilidadMostrada = analisisTienda.utilidadConocida + (incluirPorConciliar ? utilidadPorConciliarComoIngreso : 0)
 
   return (
     <div className="min-h-screen bg-gray-950 p-6">
@@ -522,7 +559,70 @@ export default function Reportes() {
                   <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Vendedor más activo</div>
                   <div style={{ color: '#818cf8', fontSize: 24, fontWeight: 700 }}>{analisisTienda.vendedorTop || '—'}</div>
                 </div>
+                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    Utilidad
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'rgba(255,255,255,0.4)', cursor: 'pointer', marginLeft: 'auto' }}>
+                      <input type="checkbox" checked={incluirPorConciliar} onChange={(e) => setIncluirPorConciliar(e.target.checked)} />
+                      incluir por conciliar
+                    </label>
+                  </div>
+                  <div style={{ color: '#facc15', fontSize: 24, fontWeight: 700 }}>${utilidadMostrada.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</div>
+                  {analisisTienda.porConciliar.length > 0 && (
+                    <div style={{ color: '#f87171', fontSize: 12, marginTop: 2 }}>⚠ {analisisTienda.porConciliar.length} línea(s) por conciliar {incluirPorConciliar ? '(no incluidas arriba)' : '(excluidas)'}</div>
+                  )}
+                </div>
               </div>
+
+              {/* Ventas manuales por conciliar: sin costo_unitario al momento de cobrar */}
+              {analisisTienda.porConciliar.length > 0 && (
+                <div style={{ marginBottom: 24, background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.2)', borderRadius: 12, padding: 16 }}>
+                  <h3 style={{ color: '#facc15', fontSize: 15, fontWeight: 700, marginBottom: 4 }}>⚠ Ventas manuales por conciliar ({analisisTienda.porConciliar.length})</h3>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginBottom: 12 }}>
+                    Ventas rápidas por monto o producto sin catálogo — no tenían costo conocido al cobrar. Captura el costo real para que la utilidad quede exacta.
+                  </p>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'left', padding: '8px' }}>Artículo</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '8px' }}>Cant.</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'right', padding: '8px' }}>Precio venta</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'right', padding: '8px' }}>Costo unitario</th>
+                        <th style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '8px' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analisisTienda.porConciliar.map((v) => (
+                        <tr key={v.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '8px', color: 'white' }}>{v.nombre_producto}</td>
+                          <td style={{ padding: '8px', textAlign: 'center', color: 'rgba(255,255,255,0.7)' }}>{v.cantidad}</td>
+                          <td style={{ padding: '8px', textAlign: 'right', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>${Number(v.precio_unitario).toFixed(2)}</td>
+                          <td style={{ padding: '8px', textAlign: 'right' }}>
+                            <input
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={costoDraft[v.id] ?? ''}
+                              onChange={(e) => setCostoDraft(prev => ({ ...prev, [v.id]: e.target.value }))}
+                              style={{ width: 90, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 8, padding: '6px 8px', color: 'white', fontSize: 12, textAlign: 'right' }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              disabled={!costoDraft[v.id] || guardandoCosto === v.id}
+                              onClick={() => guardarCostoConciliacion(v.id)}
+                              style={{ background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.4)', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: costoDraft[v.id] ? 'pointer' : 'not-allowed', opacity: costoDraft[v.id] ? 1 : 0.5 }}
+                            >
+                              {guardandoCosto === v.id ? 'Guardando…' : 'Guardar'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {/* Top productos */}
               {analisisTienda.topProductos.length > 0 && (

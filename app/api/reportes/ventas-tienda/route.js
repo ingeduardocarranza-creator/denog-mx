@@ -23,3 +23,25 @@ export async function GET(req) {
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true, ventas: data || [] })
 }
+
+// Conciliación de costo: el admin captura costo_unitario para líneas
+// manuales (origen manual_monto/manual_producto) que se cobraron sin costo
+// conocido, para que la utilidad de esa venta quede exacta.
+export async function PATCH(req) {
+  const { id, costo_unitario, conciliado_por } = await req.json()
+  if (!id || costo_unitario == null || isNaN(Number(costo_unitario))) {
+    return NextResponse.json({ ok: false, mensaje: 'id y costo_unitario son requeridos.' })
+  }
+
+  const { error } = await supabase
+    .from('ventas_tienda')
+    .update({
+      costo_unitario: Number(costo_unitario),
+      costo_conciliado_en: new Date().toISOString(),
+      costo_conciliado_por: conciliado_por || null,
+    })
+    .eq('id', id)
+
+  if (error) return NextResponse.json({ ok: false, mensaje: error.message })
+  return NextResponse.json({ ok: true })
+}

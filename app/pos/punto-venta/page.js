@@ -402,7 +402,7 @@ const horariosDelDia = (f) => {
       .from('pedidos')
       .select('*')
       .eq('cliente_id', cliente.id)
-      .not('estado', 'in', '("Pagado","Entregado")');
+      .not('estado', 'in', '("Pagado","Entregado","no_llego")');
 
     const { data: pagosDb } = await supabase
       .from('pagos')

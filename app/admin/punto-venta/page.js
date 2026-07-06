@@ -156,7 +156,8 @@ export default function PuntoDeVenta() {
       .from('pedidos')
       .select('*')
       .eq('cliente_id', cliente.id)
-      .not('estado', 'eq', 'Pagado');
+      .not('estado', 'eq', 'Pagado')
+      .not('estado', 'eq', 'no_llego');
 
     // Traer pagos del cliente para calcular saldos por entrega
     const { data: pagosClienteDb } = await supabase

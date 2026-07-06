@@ -216,7 +216,7 @@ export default function Reportes() {
       fetch(`/api/reportes/pedidos?entrega_id=${entregaSeleccionada}`).then(r => r.json()),
       fetch(`/api/reportes/pagos?entrega_id=${entregaSeleccionada}`).then(r => r.json())
     ])
-    const peds = pedidosRes.ok ? pedidosRes.pedidos || [] : []
+    const peds = (pedidosRes.ok ? pedidosRes.pedidos || [] : []).filter(p => p.estado !== 'no_llego')
     const pays = pagosRes.ok ? pagosRes.pagos || [] : []
     setRawPedidos(peds)
     setRawPagos(pays)

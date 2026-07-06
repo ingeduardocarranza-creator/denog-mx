@@ -436,7 +436,7 @@ export default function EstadosCuenta() {
     if (clientesEnEntrega.size === 0) { setCargando(false); return }
 
     const todosPedidos = (todosPedsRes.pedidos || []).filter(p =>
-      clientesEnEntrega.has(String(p.cliente_id))
+      clientesEnEntrega.has(String(p.cliente_id)) && p.estado !== 'no_llego'
     )
 
     // Todos los pagos de esos clientes (cualquier entrega)
@@ -525,7 +525,7 @@ export default function EstadosCuenta() {
       fetch(`/api/reportes/pagos?cliente_id=${clienteId}`).then(r => r.json())
     ])
 
-    const pedidos = pedsRes.pedidos || []
+    const pedidos = (pedsRes.pedidos || []).filter(p => p.estado !== 'no_llego')
     const pagos = pagsRes.pagos || []
 
     const porEntrega = {}

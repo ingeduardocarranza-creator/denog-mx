@@ -20,7 +20,7 @@ export async function GET(req) {
 
   let baseQuery = supabase
     .from('pedidos')
-    .select('*, clientes!pedidos_cliente_id_fkey(nombre)')
+    .select('*, clientes!pedidos_cliente_id_fkey(nombre, telefono)')
     .order('creado_en')
 
   if (entrega_id)  baseQuery = baseQuery.eq('entrega_id', entrega_id)

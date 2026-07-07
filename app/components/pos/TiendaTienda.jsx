@@ -7,34 +7,10 @@ import {
   calcularLineaEfectiva,
   calcularTotalesCarrito,
 } from '../../../lib/pos/tiendaUtils';
+import Foto from './ProductoFoto';
+import DescuentoForm from './DescuentoForm';
 
 const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const PALETA_CATEGORIAS = ['#38bdf8', '#818cf8', '#34d399', '#f472b6', '#facc15', '#fb7185', '#a78bfa', '#f59e0b'];
-const colorParaCategoria = (categoria) => {
-  const str = categoria || '';
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
-  return PALETA_CATEGORIAS[hash % PALETA_CATEGORIAS.length];
-};
-
-function Foto({ imagenUrl, categoria, size = 46 }) {
-  const color = colorParaCategoria(categoria);
-  if (imagenUrl) {
-    return (
-      <img
-        src={imagenUrl}
-        alt=""
-        style={{ flex: 'none', width: size, height: size, borderRadius: 10, objectFit: 'cover', border: `1px solid ${color}55` }}
-      />
-    );
-  }
-  return (
-    <div style={{ flex: 'none', width: size, height: size, borderRadius: 10, background: color + '22', border: `1px solid ${color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.45 }}>
-      📦
-    </div>
-  );
-}
 
 export default function TiendaTienda({
   productos,
@@ -552,37 +528,3 @@ export default function TiendaTienda({
   );
 }
 
-function DescuentoForm({ tipo, setTipo, draft, setDraft, onConfirmar, onCancelar }) {
-  const prefijo = tipo === 'amount' ? '$' : '%';
-  return (
-    <>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-        <select
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
-          style={{ appearance: 'none', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 12, padding: '13px 14px', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
-        >
-          <option value="percent" style={{ background: '#152036' }}>Porcentaje (%)</option>
-          <option value="amount" style={{ background: '#152036' }}>Monto ($)</option>
-        </select>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid #3b82f6', borderRadius: 12, padding: '13px 16px' }}>
-          <span style={{ fontSize: 16, color: 'rgba(255,255,255,0.55)', fontWeight: 700 }}>{prefijo}</span>
-          <input type="number" autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="0" style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 17, fontWeight: 800 }} />
-        </div>
-      </div>
-      {tipo === 'percent' && (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
-          {[10, 15, 20].map((pct) => (
-            <button key={pct} type="button" onClick={() => setDraft(String(pct))} style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
-              {pct} %
-            </button>
-          ))}
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-        <button type="button" onClick={onConfirmar} style={{ flex: 1, background: '#34d399', color: '#0f172a', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>Confirmar</button>
-        <button type="button" onClick={onCancelar} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
-      </div>
-    </>
-  );
-}

@@ -161,40 +161,9 @@ export default function PuntoDeVenta() {
       .from('pedidos')
       .select('*')
       .eq('cliente_id', cliente.id)
-      .not('estado', 'eq', 'Pagado')
-      .not('estado', 'eq', 'no_llego');
+      .not('estado', 'in', '("Pagado","Entregado","no_llego")');
 
-    // Traer pagos del cliente para calcular saldos por entrega
-    const { data: pagosClienteDb } = await supabase
-      .from('pagos')
-      .select('entrega_id, monto')
-      .eq('cliente_id', cliente.id);
-
-    const pagosPorEntrega = {};
-    (pagosClienteDb || []).forEach(p => {
-      if (!p.entrega_id) return;
-      pagosPorEntrega[p.entrega_id] = (pagosPorEntrega[p.entrega_id] || 0) + Number(p.monto);
-    });
-    setPagosPorEntregaState(pagosPorEntrega);
-
-    const totalEntregadosPorEntrega = {};
-    (pedidosDb || []).forEach(p => {
-      if (p.estado === 'Entregado' && p.entrega_id) {
-        totalEntregadosPorEntrega[p.entrega_id] = (totalEntregadosPorEntrega[p.entrega_id] || 0) + Number(p.precio_venta);
-      }
-    });
-    setTotalEntregadosPorEntregaState(totalEntregadosPorEntrega);
-
-    // Filtrar: incluir pedido si NO está Entregado, O si está Entregado pero el pago no alcanza a cubrir lo entregado
-    const historialPedidos = (pedidosDb || []).filter(p => {
-      if (p.estado !== 'Entregado') return true;
-      const pedidosDeEntrega = (pedidosDb || []).filter(x => x.entrega_id === p.entrega_id);
-      const totalEntregados = pedidosDeEntrega
-        .filter(x => x.estado === 'Entregado')
-        .reduce((s, x) => s + (Number(x.precio_venta) || 0), 0);
-      const pagadoEntrega = pagosPorEntrega[p.entrega_id] || 0;
-      return pagadoEntrega - totalEntregados < -0.5;
-    });
+    const historialPedidos = pedidosDb || [];
 
     const { data: pagosDb } = await supabase
       .from('pagos')
@@ -234,15 +203,7 @@ export default function PuntoDeVenta() {
     setBloquesEntregas(bloques);
 
     const seleccionInicial = {};
-    historialPedidos.forEach(p => {
-      seleccionInicial[p.id] = p.estado !== 'Entregado' ? true :
-        (() => {
-          const pedidosDeEntrega = historialPedidos.filter(x => x.entrega_id === p.entrega_id);
-          const totalEntrega = pedidosDeEntrega.reduce((s, x) => s + (Number(x.precio_venta) || 0), 0);
-          const pagadoEntrega = pagosPorEntrega[p.entrega_id] || 0;
-          return totalEntrega - pagadoEntrega > 0.5;
-        })();
-    });
+    historialPedidos.forEach(p => { seleccionInicial[p.id] = true; });
     setProductosSeleccionados(seleccionInicial);
   };
 

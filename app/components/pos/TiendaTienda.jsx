@@ -53,7 +53,18 @@ export default function TiendaTienda({
   loading,
 }) {
   const [subtab, setSubtab] = useState('productos');
-  const [montoValue, setMontoValue] = useState('');
+  // Captura el monto como si fuera una caja registradora: se escriben puros
+  // dígitos y los 2 últimos siempre son los centavos, sin necesidad de
+  // teclear el punto decimal (evita cobros confusos por un punto olvidado).
+  const [montoCentavos, setMontoCentavos] = useState('');
+  const montoNumero = parseInt(montoCentavos || '0', 10) / 100;
+  const montoFormateado = montoNumero.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const onMontoInput = (e) => {
+    const soloDigitos = e.target.value.replace(/\D/g, '');
+    const comoEntero = parseInt(soloDigitos || '0', 10);
+    if (comoEntero > 999999999) return; // tope ~$9,999,999.99
+    setMontoCentavos(String(comoEntero));
+  };
   const [montoDesc, setMontoDesc] = useState('');
   const [query, setQuery] = useState('');
   const [activeCat, setActiveCat] = useState('Todos');
@@ -109,10 +120,9 @@ export default function TiendaTienda({
   };
 
   const agregarMonto = () => {
-    const val = parseFloat(montoValue);
-    if (!(val > 0)) return;
-    setCart((prev) => [...prev, crearLineaMonto(montoDesc, val)]);
-    setMontoValue('');
+    if (!(montoNumero > 0)) return;
+    setCart((prev) => [...prev, crearLineaMonto(montoDesc, montoNumero)]);
+    setMontoCentavos('');
     setMontoDesc('');
   };
 
@@ -178,7 +188,7 @@ export default function TiendaTienda({
     setVentaDiscountOpen(false);
   };
 
-  const montoValido = parseFloat(montoValue) > 0;
+  const montoValido = montoNumero > 0;
   const carritoVacio = cart.length === 0;
 
   return (
@@ -207,13 +217,23 @@ export default function TiendaTienda({
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 40, fontWeight: 400, color: 'rgba(255,255,255,0.55)' }}>$</span>
               <input
-                type="number"
-                value={montoValue}
-                onChange={(e) => setMontoValue(e.target.value)}
-                placeholder="0.00"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={montoFormateado}
+                onChange={onMontoInput}
                 style={{ width: 260, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 64, fontWeight: 800, textAlign: 'left' }}
               />
             </div>
+            {montoCentavos && (
+              <button
+                type="button"
+                onClick={() => setMontoCentavos('')}
+                style={{ marginTop: -12, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >
+                ✕ Borrar monto
+              </button>
+            )}
             <input
               type="text"
               value={montoDesc}

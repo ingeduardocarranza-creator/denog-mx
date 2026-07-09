@@ -126,7 +126,7 @@ export default function AdminLayout({ children }) {
       {isMobile && menuOpen && (
         <div
           onClick={() => setMenuOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 90 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 90, touchAction: 'none' }}
         />
       )}
 
@@ -135,6 +135,7 @@ export default function AdminLayout({ children }) {
         width: 220, flexShrink: 0, position: 'fixed', top: 0, left: isMobile ? (menuOpen ? 0 : -220) : 0, height: '100vh',
         background: '#050508', borderRight: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', flexDirection: 'column', zIndex: 100, overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y',
         ...(isMobile ? { transition: 'left 0.22s ease' } : {}),
       }}>
 

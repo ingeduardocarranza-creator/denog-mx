@@ -46,6 +46,20 @@ export default function AdminLayout({ children }) {
   const router   = useRouter()
   const pathname = usePathname()
   const [domiciliosPendientes, setDomiciliosPendientes] = useState(0)
+  const [isMobile, setIsMobile] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 860px)')
+    setIsMobile(mq.matches)
+    const handler = (e) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [pathname])
 
   useEffect(() => {
     const verificar = async () => {
@@ -70,18 +84,49 @@ export default function AdminLayout({ children }) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#04060e' }}>
 
+      {/* ── Barra superior móvil ──────────────────────────────────── */}
+      {isMobile && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, height: 56,
+          background: '#050508', borderBottom: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px',
+          zIndex: 110,
+        }}>
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            aria-label="Abrir menú"
+            style={{ background: 'transparent', border: 'none', color: 'white', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4 }}
+          >
+            ☰
+          </button>
+          <img src={LOGO_SRC} alt="Denog" style={{ height: 28, width: 'auto', display: 'block' }} />
+          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600 }}>Denog USA Compras</div>
+        </div>
+      )}
+
+      {/* ── Overlay ───────────────────────────────────────────────── */}
+      {isMobile && menuOpen && (
+        <div
+          onClick={() => setMenuOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 90 }}
+        />
+      )}
+
       {/* ── Sidebar ───────────────────────────────────────────────── */}
       <div style={{
-        width: 220, flexShrink: 0, position: 'fixed', top: 0, left: 0, height: '100vh',
+        width: 220, flexShrink: 0, position: 'fixed', top: 0, left: isMobile ? (menuOpen ? 0 : -220) : 0, height: '100vh',
         background: '#050508', borderRight: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', flexDirection: 'column', zIndex: 100, overflowY: 'auto',
+        ...(isMobile ? { transition: 'left 0.22s ease' } : {}),
       }}>
 
-        {/* Logo + nombre */}
-        <div style={{ padding: '24px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, textAlign: 'center', minHeight: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <img src={LOGO_SRC} alt="Denog" style={{ height: 120, width: 'auto', display: 'block', marginBottom: 12 }} />
-          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>Denog USA Compras</div>
-        </div>
+        {/* Logo + nombre — solo en escritorio, en móvil ya está en la barra superior */}
+        {!isMobile && (
+          <div style={{ padding: '24px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, textAlign: 'center', minHeight: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={LOGO_SRC} alt="Denog" style={{ height: 120, width: 'auto', display: 'block', marginBottom: 12 }} />
+            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>Denog USA Compras</div>
+          </div>
+        )}
 
         {/* Grupos del menú */}
         <div style={{ flex: 1, padding: '12px 10px' }}>
@@ -162,7 +207,7 @@ export default function AdminLayout({ children }) {
       </div>
 
       {/* ── Contenido principal ────────────────────────────────────── */}
-      <div style={{ marginLeft: 220, flex: 1, minWidth: 0 }}>
+      <div style={{ marginLeft: isMobile ? 0 : 220, paddingTop: isMobile ? 56 : 0, flex: 1, minWidth: 0, overflowX: 'hidden' }}>
         {children}
       </div>
 

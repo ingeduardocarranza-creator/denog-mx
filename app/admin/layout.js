@@ -62,6 +62,13 @@ export default function AdminLayout({ children }) {
   }, [pathname])
 
   useEffect(() => {
+    if (!isMobile || !menuOpen) return
+    const original = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = original }
+  }, [isMobile, menuOpen])
+
+  useEffect(() => {
     const verificar = async () => {
       const hoy = new Date().toISOString().split('T')[0]
       const res  = await fetch(`/api/domicilios/listar?fecha=${hoy}`)

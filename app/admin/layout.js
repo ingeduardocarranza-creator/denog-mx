@@ -129,7 +129,7 @@ export default function AdminLayout({ children }) {
 
       {/* ── Sidebar ───────────────────────────────────────────────── */}
       <div id="admin-mobile-sidebar" style={{
-        width: 220, flexShrink: 0, position: 'fixed', top: 0, bottom: 0, left: isMobile ? (menuOpen ? 0 : -220) : 0,
+        width: 220, flexShrink: 0, position: 'fixed', top: isMobile ? 56 : 0, bottom: 0, left: isMobile ? (menuOpen ? 0 : -220) : 0,
         background: '#050508', borderRight: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', flexDirection: 'column', zIndex: 100, overflowY: 'auto',
         WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain',

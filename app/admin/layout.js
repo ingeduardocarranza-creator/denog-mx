@@ -132,10 +132,10 @@ export default function AdminLayout({ children }) {
 
       {/* ── Sidebar ───────────────────────────────────────────────── */}
       <div style={{
-        width: 220, flexShrink: 0, position: 'fixed', top: 0, left: isMobile ? (menuOpen ? 0 : -220) : 0, height: '100vh',
+        width: 220, flexShrink: 0, position: 'fixed', top: 0, left: isMobile ? (menuOpen ? 0 : -220) : 0, height: '100dvh',
         background: '#050508', borderRight: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', flexDirection: 'column', zIndex: 100, overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y',
+        WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain',
         ...(isMobile ? { transition: 'left 0.22s ease' } : {}),
       }}>
 

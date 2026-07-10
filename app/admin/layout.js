@@ -131,8 +131,7 @@ export default function AdminLayout({ children }) {
       <div id="admin-mobile-sidebar" style={{
         width: 220, flexShrink: 0, position: 'fixed', top: isMobile ? 56 : 0, bottom: 0, left: isMobile ? (menuOpen ? 0 : -220) : 0,
         background: '#050508', borderRight: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', flexDirection: 'column', zIndex: 100, overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain',
+        display: 'flex', flexDirection: 'column', zIndex: 100, overflow: 'hidden',
         ...(isMobile ? { transition: 'left 0.22s ease' } : {}),
       }}>
 
@@ -144,8 +143,11 @@ export default function AdminLayout({ children }) {
           </div>
         )}
 
-        {/* Grupos del menú */}
-        <div style={{ flex: 1, minHeight: 0, padding: '12px 10px' }}>
+        {/* Grupos del menú — único contenedor con scroll, el header y el footer quedan siempre fijos */}
+        <div style={{
+          flex: 1, minHeight: 0, padding: '12px 10px', overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain',
+        }}>
           {grupos.map((grupo, gi) => (
             <div key={gi} style={{ marginBottom: 20 }}>
 

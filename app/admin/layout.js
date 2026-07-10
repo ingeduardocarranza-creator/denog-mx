@@ -63,20 +63,17 @@ export default function AdminLayout({ children }) {
 
   useEffect(() => {
     if (!isMobile || !menuOpen) return
-    const scrollY = window.scrollY
-    const body = document.body
-    const original = { position: body.style.position, top: body.style.top, width: body.style.width, overflow: body.style.overflow }
-    body.style.position = 'fixed'
-    body.style.top = `-${scrollY}px`
-    body.style.width = '100%'
-    body.style.overflow = 'hidden'
-    return () => {
-      body.style.position = original.position
-      body.style.top = original.top
-      body.style.width = original.width
-      body.style.overflow = original.overflow
-      window.scrollTo(0, scrollY)
+    // iOS Safari: bloquear position:fixed en el body también bloquea el
+    // scroll táctil de elementos anidados con su propio overflow. En vez de
+    // eso, interceptamos el touchmove global y solo dejamos pasar el gesto
+    // nativo cuando empieza dentro del sidebar (así el menú sí scrollea).
+    const sidebar = document.getElementById('admin-mobile-sidebar')
+    const onTouchMove = (e) => {
+      if (sidebar && sidebar.contains(e.target)) return
+      e.preventDefault()
     }
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => document.removeEventListener('touchmove', onTouchMove)
   }, [isMobile, menuOpen])
 
   useEffect(() => {
@@ -131,7 +128,7 @@ export default function AdminLayout({ children }) {
       )}
 
       {/* ── Sidebar ───────────────────────────────────────────────── */}
-      <div style={{
+      <div id="admin-mobile-sidebar" style={{
         width: 220, flexShrink: 0, position: 'fixed', top: 0, left: isMobile ? (menuOpen ? 0 : -220) : 0, height: '100dvh',
         background: '#050508', borderRight: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', flexDirection: 'column', zIndex: 100, overflowY: 'auto',

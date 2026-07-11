@@ -8,6 +8,8 @@ export default function ClientePortal() {
   const [cargando, setCargando] = useState(true)
   const [pagos, setPagos] = useState([])
   const [domicilios, setDomicilios] = useState([])
+  const [pedidosMercadito, setPedidosMercadito] = useState([])
+  const [vista, setVista] = useState('pendiente') // 'pendiente' | 'historial' — compartido por Pedidos y Mercadito
   const router = useRouter()
 
   useEffect(() => {
@@ -29,6 +31,10 @@ export default function ClientePortal() {
     fetch(`/api/anticipos?cliente_id=${c.id}`)
       .then(r => r.json())
       .then(d => { if (d.ok) setPagos(d.anticipos || []) })
+
+    fetch(`/api/cliente/mercadito?cliente_id=${c.id}`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) setPedidosMercadito(d.pedidos || []) })
   }, [])
 
   const formatearFecha = (fecha) => {
@@ -93,6 +99,25 @@ export default function ClientePortal() {
   return domicilio
 }
 
+  const ESTADO_MERCADITO = {
+    nuevo: { label: '🆕 Recibido', color: '#818cf8' },
+    confirmado: { label: '📋 Confirmado', color: '#38bdf8' },
+    esperando_anticipo: { label: '⏳ Esperando anticipo', color: '#facc15' },
+    aprobado: { label: '✅ Aprobado', color: '#34d399' },
+    agregado: { label: '📦 En tu entrega', color: '#22c55e' },
+    cancelado: { label: '🚫 Cancelado', color: '#f87171' },
+  }
+  const totalPedidoMercadito = (p) => (p.items || []).reduce((s, it) => s + (Number(it.precio_unitario) || 0) * (Number(it.cantidad) || 0), 0)
+
+  const entregasFiltradas = entregasOrdenadas.filter(([, { items }]) => {
+    const todosEntregados = items.every(p => p.estado?.toLowerCase() === 'entregado')
+    return vista === 'historial' ? todosEntregados : !todosEntregados
+  })
+
+  const mercaditoFiltrados = pedidosMercadito.filter(p =>
+    vista === 'historial' ? ['agregado', 'cancelado'].includes(p.estado) : !['agregado', 'cancelado'].includes(p.estado)
+  )
+
   const salir = () => { localStorage.removeItem('cliente'); router.push('/') }
 
   if (cargando) return (
@@ -152,14 +177,31 @@ export default function ClientePortal() {
           <span style={{ color: 'rgba(245,158,11,0.6)', fontSize: 14 }}>→</span>
         </button>
 
+        {/* Toggle Pendiente / Historial — compartido por Pedidos y Mercadito */}
+        <div style={{ display: 'flex', gap: 6, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: 4, marginBottom: 16 }}>
+          {[{ key: 'pendiente', label: 'Pendiente' }, { key: 'historial', label: 'Historial' }].map(op => (
+            <button key={op.key} onClick={() => setVista(op.key)}
+              style={{
+                flex: 1, padding: '8px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+                fontSize: 11.5, fontWeight: 700, letterSpacing: 0.3,
+                background: vista === op.key ? 'rgba(16,185,129,0.15)' : 'transparent',
+                color: vista === op.key ? '#10b981' : 'rgba(255,255,255,0.35)',
+              }}>
+              {op.label}
+            </button>
+          ))}
+        </div>
+
         {/* Entregas */}
-        {entregasOrdenadas.length === 0 ? (
+        {entregasFiltradas.length === 0 ? (
           <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 48, textAlign: 'center' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🛍️</div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>No tienes pedidos registrados aún</div>
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
+              {vista === 'historial' ? 'Aún no tienes entregas en tu historial' : 'No tienes pedidos pendientes'}
+            </div>
           </div>
         ) : (
-          entregasOrdenadas.map(([fecha, { items, estado, entrega_id }]) => {
+          entregasFiltradas.map(([fecha, { items, estado, entrega_id }]) => {
             const todosEntregados = items.every(p => p.estado?.toLowerCase() === 'entregado')
             const estilo = getEstadoEntrega(estado, todosEntregados)
             const anticiposEntrega = getAnticiposEntrega(entrega_id)
@@ -266,6 +308,60 @@ export default function ClientePortal() {
               </div>
             )
           })
+        )}
+
+        {/* Compras de tu Mercadito */}
+        {pedidosMercadito.length > 0 && (
+          <div style={{ marginTop: 22 }}>
+            <div style={{ color: '#a89af8', fontSize: 12, fontWeight: 700, letterSpacing: 0.3 }}>🛍️ Compras de tu Mercadito</div>
+            <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10.5, marginBottom: 10 }}>Aparte de tus pedidos de EE. UU.</div>
+
+            {mercaditoFiltrados.length === 0 ? (
+              <div style={{ background: 'rgba(139,124,246,0.04)', border: '1px solid rgba(139,124,246,0.18)', borderRadius: 20, padding: 32, textAlign: 'center' }}>
+                <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12.5 }}>
+                  {vista === 'historial' ? 'Aún no tienes compras del Mercadito en tu historial' : 'No tienes compras del Mercadito pendientes'}
+                </div>
+              </div>
+            ) : mercaditoFiltrados.map(p => {
+              const estiloM = ESTADO_MERCADITO[p.estado] || ESTADO_MERCADITO.nuevo
+              const totalM = totalPedidoMercadito(p)
+              return (
+                <div key={p.id} style={{ background: 'rgba(139,124,246,0.05)', border: '1px solid rgba(139,124,246,0.25)', borderRadius: 20, marginBottom: 14, overflow: 'hidden' }}>
+                  <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(139,124,246,0.12)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#a89af8', fontSize: 12, fontWeight: 600 }}>{p.folio} · {formatearFechaCorta(p.creado_en)}</span>
+                    <span style={{ background: estiloM.color + '22', border: `1px solid ${estiloM.color}55`, borderRadius: 20, padding: '3px 10px', color: estiloM.color, fontSize: 10, fontWeight: 600 }}>
+                      {estiloM.label}
+                    </span>
+                  </div>
+
+                  {(p.items || []).map((it, i) => (
+                    <div key={i} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(139,124,246,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+                        {it.imagen_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={it.imagen_url} alt="" style={{ width: 34, height: 34, borderRadius: 9, objectFit: 'cover', flexShrink: 0 }} />
+                        ) : (
+                          <div style={{ width: 34, height: 34, background: 'rgba(139,124,246,0.1)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>🛍️</div>
+                        )}
+                        <div>
+                          <div style={{ color: 'white', fontSize: 12, fontWeight: 500 }}>{it.nombre}</div>
+                          <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>{it.cantidad} pz{it.apartado_fragil ? ' · ⚠️ Frágil' : ''}</div>
+                        </div>
+                      </div>
+                      <div style={{ color: 'white', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                        ${(Number(it.precio_unitario) * Number(it.cantidad)).toLocaleString('es-MX')}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ padding: '10px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>Total</span>
+                    <span style={{ color: '#a89af8', fontSize: 14, fontWeight: 800 }}>${totalM.toLocaleString('es-MX')}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
 
         {/* Footer */}

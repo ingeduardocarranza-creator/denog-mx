@@ -36,6 +36,14 @@ export default function CatalogoTienda() {
   const [subiendoImagen, setSubiendoImagen] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
 
+  // Mercadito: mismos productos, con datos extra opcionales para publicarlos
+  // en la tienda pública en línea.
+  const [mostrarEnMercadito, setMostrarEnMercadito] = useState(false);
+  const [descripcion, setDescripcion] = useState('');
+  const [galeria, setGaleria] = useState([]);
+  const [subiendoGaleriaSlot, setSubiendoGaleriaSlot] = useState(null);
+  const GALERIA_SLOTS = 2; // + foto principal = 3 fotos en total
+
   // SUBIR FOTO: pide una URL firmada al servidor y sube el archivo directo
   // del navegador a Supabase Storage (no pasa por nuestra función serverless,
   // así no choca con el límite de tamaño de body de Vercel).
@@ -73,11 +81,41 @@ export default function CatalogoTienda() {
     }
   };
 
+  // SUBIR FOTOS DE GALERÍA (miniaturas extra para la ficha del Mercadito)
+  const subirFotoGaleria = (idx) => async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      setMensaje({ tipo: 'error', texto: 'La foto pesa más de 15MB. Usa una más ligera.' });
+      return;
+    }
+    setSubiendoGaleriaSlot(idx);
+    setMensaje({ tipo: '', texto: '' });
+    try {
+      const res = await fetch('/api/catalogo/subir-imagen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: file.type, carpeta: 'mercadito' }),
+      });
+      const datos = await res.json();
+      if (!datos.ok) throw new Error(datos.mensaje || 'No se pudo preparar la subida.');
+      const { error: subeError } = await supabase.storage.from('productos').uploadToSignedUrl(datos.path, datos.token, file);
+      if (subeError) throw subeError;
+      setGaleria((g) => { const next = [...g]; next[idx] = datos.publicUrl; return next; });
+    } catch (err) {
+      setMensaje({ tipo: 'error', texto: 'Error al subir la foto: ' + err.message });
+    } finally {
+      setSubiendoGaleriaSlot(null);
+    }
+  };
+  const quitarFotoGaleria = (idx) => setGaleria((g) => g.filter((_, i) => i !== idx));
+
   // 1. CARGAR DATOS DESDE SUPABASE Y EXTRAER CATEGORÍAS EXISTENTES
   const cargarProductosYCategorias = async () => {
     const { data, error } = await supabase
       .from('productos_tienda')
-      .select('*')
+      .select('*, creador:clientes(nombre)')
       .order('id', { ascending: false });
     
     if (!error && data) {
@@ -124,7 +162,11 @@ export default function CatalogoTienda() {
       stock: Number(stock) || 0,
       categoria: categoria,
       imagen_url: imagenUrl.trim() || null,
-      activo: true
+      activo: true,
+      mostrar_en_mercadito: mostrarEnMercadito,
+      descripcion: descripcion.trim() || null,
+      galeria: galeria.filter(Boolean),
+      pendiente_aprobacion: false, // cualquier guardado del admin lo aprueba
     };
 
     try {
@@ -165,6 +207,9 @@ export default function CatalogoTienda() {
     setStock(p.stock || '0');
     setCategoria(p.categoria || 'Ropa');
     setImagenUrl(p.imagen_url || '');
+    setMostrarEnMercadito(!!p.mostrar_en_mercadito);
+    setDescripcion(p.descripcion || '');
+    setGaleria(p.galeria || []);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -172,6 +217,15 @@ export default function CatalogoTienda() {
     const { error } = await supabase
       .from('productos_tienda')
       .update({ activo: !estadoActual })
+      .eq('id', id);
+
+    if (!error) cargarProductosYCategorias();
+  };
+
+  const toggleMercadito = async (id, estadoActual) => {
+    const { error } = await supabase
+      .from('productos_tienda')
+      .update({ mostrar_en_mercadito: !estadoActual })
       .eq('id', id);
 
     if (!error) cargarProductosYCategorias();
@@ -187,6 +241,9 @@ export default function CatalogoTienda() {
     setStock('');
     setCategoria(listaCategorias[0] || 'Ropa');
     setImagenUrl('');
+    setMostrarEnMercadito(false);
+    setDescripcion('');
+    setGaleria([]);
   };
 
   // COTIZADOR — cálculos en tiempo real
@@ -197,8 +254,9 @@ export default function CatalogoTienda() {
   const margen = venta > 0 ? (utilidad / venta) * 100 : 0
 
   // 5. FILTRADO DINÁMICO MEDIANTE EL BUSCADOR DE LA TABLA
-  const productosFiltrados = productos.filter(p =>
-    p.nombre?.toLowerCase().includes(filtroBusqueda.toLowerCase()) || 
+  const productosPendientes = productos.filter(p => p.pendiente_aprobacion);
+  const productosFiltrados = productos.filter(p => !p.pendiente_aprobacion).filter(p =>
+    p.nombre?.toLowerCase().includes(filtroBusqueda.toLowerCase()) ||
     p.codigo_barras?.toLowerCase().includes(filtroBusqueda.toLowerCase()) ||
     p.categoria?.toLowerCase().includes(filtroBusqueda.toLowerCase())
   );
@@ -216,6 +274,37 @@ export default function CatalogoTienda() {
         {mensaje.texto && (
           <div className={`p-4 rounded-xl text-xs font-bold text-center border ${mensaje.tipo === 'exito' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900' : 'bg-red-950/40 text-red-400 border-red-900'}`}>
             {mensaje.texto}
+          </div>
+        )}
+
+        {/* POR APROBAR — productos que agregaron/editaron colaboradores, les falta costo/precio/stock */}
+        {productosPendientes.length > 0 && (
+          <div className="bg-amber-950/20 border border-amber-900/50 rounded-2xl p-5 space-y-3">
+            <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
+              🕓 Por aprobar ({productosPendientes.length})
+            </h2>
+            <p className="text-[11px] text-amber-400/70">Agregados por colaboradores — falta capturar costo, precio de venta y stock antes de que aparezcan en el catálogo.</p>
+            <div className="space-y-2">
+              {productosPendientes.map((p) => (
+                <div key={p.id} className="flex items-center gap-3 bg-[#161b26] border border-amber-900/40 rounded-xl p-3">
+                  {p.imagen_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.imagen_url} alt="" className="w-10 h-10 rounded-lg object-cover border border-slate-700 flex-none" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-lg">📦</div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-200 text-xs">{p.nombre}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      {p.categoria} · {p.codigo_barras}{p.creador?.nombre ? ` · agregado por ${p.creador.nombre}` : ''}
+                    </p>
+                  </div>
+                  <button onClick={() => iniciarEdicion(p)} className="flex-none bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg font-bold text-[11px]">
+                    Completar y aprobar
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -280,6 +369,43 @@ export default function CatalogoTienda() {
                         Quitar foto
                       </button>
                     )}
+                  </div>
+                </div>
+              </div>
+
+              {/* MERCADITO */}
+              <div className="space-y-3 bg-[#111520] rounded-xl p-3 border border-slate-800">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">🛍️ Mostrar en Mercadito</span>
+                  <button type="button" onClick={() => setMostrarEnMercadito((v) => !v)}
+                    className={`w-10 h-6 rounded-full relative transition-all ${mostrarEnMercadito ? 'bg-purple-600' : 'bg-slate-700'}`}>
+                    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${mostrarEnMercadito ? 'left-4.5' : 'left-0.5'}`} style={{ left: mostrarEnMercadito ? 18 : 2 }} />
+                  </button>
+                </label>
+
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-bold">Descripción (para la ficha pública del Mercadito)</label>
+                  <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Descripción visible en el Mercadito" rows={3} className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none resize-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-bold">Fotos adicionales <span className="text-[10px] text-slate-500">(hasta {GALERIA_SLOTS}, más la foto principal = {GALERIA_SLOTS + 1} en total)</span></label>
+                  <div className="flex gap-2">
+                    {Array.from({ length: GALERIA_SLOTS }).map((_, idx) => (
+                      <div key={idx} className="flex-1">
+                        {galeria[idx] ? (
+                          <div className="relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={galeria[idx]} alt="" className="w-full h-14 rounded-lg object-cover border border-slate-700" />
+                            <button type="button" onClick={() => quitarFotoGaleria(idx)} className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full w-4 h-4 text-[9px] leading-none">✕</button>
+                          </div>
+                        ) : (
+                          <label className="flex items-center justify-center w-full h-14 rounded-lg bg-[#1e2533] border border-dashed border-slate-700 cursor-pointer text-slate-500 text-[10px]">
+                            {subiendoGaleriaSlot === idx ? '…' : '+'}
+                            <input type="file" accept="image/*" onChange={subirFotoGaleria(idx)} disabled={subiendoGaleriaSlot !== null} className="hidden" />
+                          </label>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -428,7 +554,10 @@ export default function CatalogoTienda() {
                               <div className="w-8 h-8 rounded bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-[11px]">📦</div>
                             )}
                             <div>
-                              <p className="font-bold text-slate-200">{p.nombre}</p>
+                              <p className="font-bold text-slate-200 flex items-center gap-1.5">
+                                {p.nombre}
+                                {p.mostrar_en_mercadito && <span title="Visible en Mercadito" className="text-[9px] bg-purple-950/50 text-purple-300 border border-purple-800/60 rounded px-1.5 py-0.5">🛍️ Mercadito</span>}
+                              </p>
                               <p className="text-[10px] text-slate-500 font-mono mt-0.5">{p.codigo_barras}</p>
                             </div>
                           </div>
@@ -450,6 +579,9 @@ export default function CatalogoTienda() {
                             </button>
                             <button onClick={() => cambiarEstadoActivo(p.id, p.activo)} className={`px-2 py-1 rounded-md font-bold text-[11px] border transition-all ${p.activo ? 'bg-red-950/20 text-red-400 border-red-900/60 hover:bg-red-900/40' : 'bg-emerald-950/20 text-emerald-400 border-emerald-900/60 hover:bg-emerald-900/40'}`}>
                               {p.activo ? 'Pausar' : 'Activar'}
+                            </button>
+                            <button onClick={() => toggleMercadito(p.id, p.mostrar_en_mercadito)} title={p.mostrar_en_mercadito ? 'Quitar del Mercadito' : 'Mostrar en Mercadito'} className={`px-2 py-1 rounded-md font-bold text-[11px] border transition-all ${p.mostrar_en_mercadito ? 'bg-purple-950/40 text-purple-300 border-purple-700/60 hover:bg-purple-900/50' : 'bg-[#1e2533] text-slate-400 border-slate-700 hover:border-purple-700/60 hover:text-purple-300'}`}>
+                              🛍️ {p.mostrar_en_mercadito ? 'En Mercadito' : 'Mostrar'}
                             </button>
                           </div>
                         </td>

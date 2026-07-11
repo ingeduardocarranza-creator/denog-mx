@@ -14,19 +14,22 @@ const EXT_POR_TIPO = {
   'image/gif': 'gif',
   'image/heic': 'heic',
   'image/heif': 'heif',
+  'image/avif': 'avif',
 }
 
 // Devuelve una URL firmada de subida: el archivo se sube DIRECTO del
 // navegador a Supabase Storage (no pasa por esta función), para no chocar
 // con el límite de tamaño de body de las funciones serverless de Vercel.
 export async function POST(req) {
-  const { tipo } = await req.json()
+  const { tipo, carpeta } = await req.json()
   const ext = EXT_POR_TIPO[tipo]
   if (!ext) {
-    return NextResponse.json({ ok: false, mensaje: 'Formato no soportado. Usa JPG, PNG, WEBP, GIF o HEIC.' })
+    return NextResponse.json({ ok: false, mensaje: 'Formato no soportado. Usa JPG, PNG, WEBP, GIF, HEIC o AVIF.' })
   }
 
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  // Solo letras/números/guiones para evitar traversal de rutas en el bucket.
+  const carpetaSegura = /^[a-z0-9-]+$/i.test(carpeta || '') ? `${carpeta}/` : ''
+  const path = `${carpetaSegura}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
 
   const { data, error } = await supabase.storage.from('productos').createSignedUploadUrl(path)
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })

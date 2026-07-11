@@ -594,6 +594,12 @@ export default function CajaPage() {
               🏪 Abrir nueva caja
             </button>
             <button
+              onClick={() => router.push('/admin/inicio')}
+              style={{ background: 'rgba(139,124,246,0.12)', border: '1px solid rgba(139,124,246,0.3)', color: '#a89af8', borderRadius: '12px', padding: '12px 28px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', width: '100%', marginBottom: '12px' }}
+            >
+              ← Volver al menú
+            </button>
+            <button
               onClick={() => {
                 localStorage.removeItem('colaborador')
                 router.push('/')

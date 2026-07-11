@@ -21,8 +21,8 @@ export default function ProductoCard({ producto, onAdd }) {
             borderRadius: 16,
             background: producto.imagen_url
               ? `center / cover no-repeat url(${producto.imagen_url})`
-              : 'linear-gradient(135deg, rgba(139,124,246,0.18), rgba(168,154,248,0.1))',
-            border: '1px solid rgba(255,255,255,0.1)',
+              : 'rgba(193,85,58,0.1)',
+            border: '1.5px solid rgba(0,0,0,0.08)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 36,
           }}
@@ -34,20 +34,20 @@ export default function ProductoCard({ producto, onAdd }) {
             </div>
           )}
         </div>
-        <div style={{ color: '#fff', fontSize: 13, fontWeight: 600, marginTop: 10, lineHeight: 1.3, height: 34, overflow: 'hidden', fontFamily: 'var(--font-poppins)' }}>
+        <div style={{ color: '#2a2118', fontSize: 13, fontWeight: 600, marginTop: 10, lineHeight: 1.3, height: 34, overflow: 'hidden', fontFamily: 'var(--font-poppins)' }}>
           {producto.nombre}
         </div>
       </Link>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-        <div style={{ color: '#a89af8', fontSize: 15, fontWeight: 800, fontFamily: 'var(--font-baloo2)' }}>${money(producto.precio_venta)}</div>
+        <div style={{ color: '#c1553a', fontSize: 15, fontWeight: 800, fontFamily: 'var(--font-baloo2)' }}>${money(producto.precio_venta)}</div>
         <button
           type="button"
           disabled={agotado}
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAdd?.(producto); }}
           style={{
             width: 30, height: 30, borderRadius: 9,
-            background: agotado ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,#8b7cf6,#a89af8)',
-            color: agotado ? 'rgba(255,255,255,0.3)' : '#fff',
+            background: agotado ? 'rgba(0,0,0,0.06)' : '#c1553a',
+            color: agotado ? 'rgba(42,33,24,0.3)' : '#fff',
             border: 'none', fontSize: 16, fontWeight: 800, cursor: agotado ? 'not-allowed' : 'pointer',
             lineHeight: 1,
           }}

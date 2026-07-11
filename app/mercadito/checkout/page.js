@@ -3,14 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import TarjetaCliente from '../../components/cliente/TarjetaCliente';
 import { leerCarrito, vaciarCarrito, calcularTotales } from '../../../lib/mercadito/carritoUtils';
 
 const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const NUMERO_DENOG = '526625486432';
 
-const inputStyle = { width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, padding: '11px 14px', color: '#fff', fontSize: 13, marginBottom: 10, outline: 'none' };
-const botonMorado = { display: 'block', width: '100%', textAlign: 'center', textDecoration: 'none', background: 'linear-gradient(135deg,#8b7cf6,#a89af8)', color: '#fff', fontWeight: 800, fontSize: 14, border: 'none', borderRadius: 12, padding: 13, cursor: 'pointer' };
-const botonVerde = { ...botonMorado, background: '#25D366' };
+const inputStyle = { width: '100%', background: 'rgba(0,0,0,0.03)', border: '1.5px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '11px 14px', color: '#2a2118', fontSize: 13, marginBottom: 10, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' };
+const botonTerracota = { display: 'block', width: '100%', textAlign: 'center', textDecoration: 'none', background: '#c1553a', color: '#fff', fontWeight: 800, fontSize: 14, border: 'none', borderRadius: 12, padding: 13, cursor: 'pointer', fontFamily: 'inherit' };
+const botonVerde = { ...botonTerracota, background: '#25D366' };
 
 export default function CheckoutMercadito() {
   const router = useRouter();
@@ -118,35 +119,35 @@ export default function CheckoutMercadito() {
     }
   };
 
-  if (!listo) return <div style={{ minHeight: '100vh', background: '#0b0818' }} />;
+  if (!listo) return <div style={{ minHeight: '100vh', background: '#fbf8f3' }} />;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0b0818', fontFamily: 'var(--font-poppins)' }}>
-      <div style={{ maxWidth: 500, margin: '0 auto', padding: 18 }}>
+    <TarjetaCliente>
+      <div style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <div onClick={() => router.push('/mercadito/carrito')} style={{ color: 'rgba(255,255,255,0.6)', fontSize: 20, cursor: 'pointer' }}>←</div>
+          <div onClick={() => router.push('/mercadito/carrito')} style={{ color: '#2a2118', fontSize: 20, cursor: 'pointer' }}>←</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Image src="/assets/logodenog.png" alt="Denog" width={191} height={120} style={{ height: 120, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(139,124,246,0.5))' }} />
-            <div style={{ fontFamily: 'var(--font-baloo2)', color: '#fff', fontWeight: 700, fontSize: 19 }}>Finalizar pedido</div>
+            <Image src="/assets/logodenog.png" alt="Denog" width={191} height={120} style={{ height: 120, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(193,85,58,0.35))' }} />
+            <div style={{ fontFamily: 'var(--font-baloo2)', color: '#2a2118', fontWeight: 700, fontSize: 19 }}>Finalizar pedido</div>
           </div>
           <div style={{ width: 20 }} />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '12px 14px', marginBottom: 20 }}>
-          <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600 }}>Total del pedido</span>
-          <span style={{ color: '#fff', fontSize: 18, fontWeight: 800 }}>${money(total)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '12px 14px', marginBottom: 20 }}>
+          <span style={{ color: 'rgba(42,33,24,0.65)', fontSize: 13, fontWeight: 600 }}>Total del pedido</span>
+          <span style={{ color: '#2a2118', fontSize: 18, fontWeight: 800 }}>${money(total)}</span>
         </div>
 
-        {error && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 12 }}>{error}</div>}
+        {error && <div style={{ color: '#c0392b', fontSize: 12, marginBottom: 12 }}>{error}</div>}
 
         {cliente ? (
           // ---- Cliente con sesión iniciada ----
           enviado ? (
-            <div style={{ textAlign: 'center', color: '#34d399', fontSize: 13, fontWeight: 700, padding: 10 }}>
+            <div style={{ textAlign: 'center', color: '#2e7d4f', fontSize: 13, fontWeight: 700, padding: 10 }}>
               ✅ Se agregó a tu próxima entrega — lo verás en tu Estado de Cuenta.
             </div>
           ) : (
-            <button type="button" disabled={enviando} onClick={agregarAProximaEntrega} style={botonMorado}>
+            <button type="button" disabled={enviando} onClick={agregarAProximaEntrega} style={botonTerracota}>
               {enviando ? 'Enviando…' : '📦 Agregar a mi próxima entrega'}
             </button>
           )
@@ -162,7 +163,7 @@ export default function CheckoutMercadito() {
                 >
                   💬 Enviar pedido por WhatsApp
                 </a>
-                <div onClick={() => setDispositivo('desktop')} style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 10, cursor: 'pointer', textDecoration: 'underline' }}>
+                <div onClick={() => setDispositivo('desktop')} style={{ textAlign: 'center', color: 'rgba(42,33,24,0.4)', fontSize: 11, marginTop: 10, cursor: 'pointer', textDecoration: 'underline' }}>
                   💻 Estoy en computadora
                 </div>
               </>
@@ -172,7 +173,7 @@ export default function CheckoutMercadito() {
                 <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Tu nombre (para el pedido)" style={inputStyle} />
                 <input type="text" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="Tu número de WhatsApp" style={inputStyle} />
                 {enviado ? (
-                  <div style={{ textAlign: 'center', color: '#34d399', fontSize: 13, fontWeight: 700, padding: 10 }}>
+                  <div style={{ textAlign: 'center', color: '#2e7d4f', fontSize: 13, fontWeight: 700, padding: 10 }}>
                     ✅ Tu pedido fue enviado a Denog. Te contactaremos por WhatsApp para confirmar.
                   </div>
                 ) : (
@@ -180,22 +181,22 @@ export default function CheckoutMercadito() {
                     {enviando ? 'Enviando…' : '📨 Enviar pedido'}
                   </button>
                 )}
-                <div onClick={() => setDispositivo('movil')} style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 10, cursor: 'pointer', textDecoration: 'underline' }}>
+                <div onClick={() => setDispositivo('movil')} style={{ textAlign: 'center', color: 'rgba(42,33,24,0.4)', fontSize: 11, marginTop: 10, cursor: 'pointer', textDecoration: 'underline' }}>
                   📱 Estoy en el celular
                 </div>
               </>
             )}
 
             {!enviado && (
-              <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12.5, marginBottom: 10 }}>
+              <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1.5px solid rgba(0,0,0,0.08)' }}>
+                <div style={{ color: 'rgba(42,33,24,0.6)', fontSize: 12.5, marginBottom: 10 }}>
                   ¿Ya tienes cuenta con nosotros? Inicia sesión para agregarlo directo a tu próxima entrega.
                 </div>
                 <form onSubmit={iniciarSesion}>
                   <input type="text" value={loginUsuario} onChange={(e) => setLoginUsuario(e.target.value)} placeholder="Usuario" style={inputStyle} />
                   <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Contraseña" style={inputStyle} />
-                  {loginError && <div style={{ color: '#f87171', fontSize: 11.5, marginBottom: 8 }}>{loginError}</div>}
-                  <button type="submit" disabled={loginCargando} style={botonMorado}>
+                  {loginError && <div style={{ color: '#c0392b', fontSize: 11.5, marginBottom: 8 }}>{loginError}</div>}
+                  <button type="submit" disabled={loginCargando} style={botonTerracota}>
                     {loginCargando ? 'Entrando…' : 'Iniciar sesión →'}
                   </button>
                 </form>
@@ -204,6 +205,6 @@ export default function CheckoutMercadito() {
           </>
         )}
       </div>
-    </div>
+    </TarjetaCliente>
   );
 }

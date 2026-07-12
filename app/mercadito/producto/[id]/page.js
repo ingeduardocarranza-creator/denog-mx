@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
 import TarjetaCliente from '../../../components/cliente/TarjetaCliente';
-import { leerCarrito, guardarCarrito, agregarAlCarrito, CARRITO_EVENTO } from '../../../../lib/mercadito/carritoUtils';
+import { IconHouse, IconCart } from '../../../components/mercadito/HeaderIcons';
+import MenuUsuario from '../../../components/mercadito/MenuUsuario';
+import { leerCarrito, guardarCarrito, agregarAlCarrito, calcularTotales, CARRITO_EVENTO } from '../../../../lib/mercadito/carritoUtils';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -12,6 +15,10 @@ const supabase = createClient(
 );
 
 const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const botonCaja = { flex: 'none', width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
+const botonGris = { ...botonCaja, background: 'rgba(0,0,0,0.05)', border: '1.5px solid rgba(0,0,0,0.08)', color: '#2a2118' };
+const botonNaranja = { ...botonCaja, background: '#c1502e' };
 
 const estrellasLabel = (n) => '★'.repeat(Math.round(n || 0)) + '☆'.repeat(5 - Math.round(n || 0));
 
@@ -25,6 +32,7 @@ export default function FichaProducto() {
   const [cantidad, setCantidad] = useState(1);
   const [agregado, setAgregado] = useState(false);
   const [enCarrito, setEnCarrito] = useState(0);
+  const [totalArticulos, setTotalArticulos] = useState(0);
 
   const [resenas, setResenas] = useState([]);
   const [cliente, setCliente] = useState(null);
@@ -53,8 +61,10 @@ export default function FichaProducto() {
     })();
 
     const actualizarEnCarrito = () => {
-      const linea = leerCarrito().find((l) => String(l.productoId) === String(id));
+      const cart = leerCarrito();
+      const linea = cart.find((l) => String(l.productoId) === String(id));
       setEnCarrito(linea?.cantidad || 0);
+      setTotalArticulos(calcularTotales(cart).totalArticulos);
     };
     actualizarEnCarrito();
     window.addEventListener(CARRITO_EVENTO, actualizarEnCarrito);
@@ -114,8 +124,34 @@ export default function FichaProducto() {
 
   return (
     <TarjetaCliente>
+      {/* Header */}
+      <div style={{ background: '#fbf8f3', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '16px 18px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div onClick={() => router.back()} style={{ ...botonGris, fontSize: 20 }}>←</div>
+            <div onClick={() => router.push('/cliente')} style={botonNaranja} title="Inicio del cliente">
+              <IconHouse size={18} fill="#fff" />
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Image src="/assets/logodenog.png" alt="Denog" width={191} height={120} style={{ height: 120, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(193,85,58,0.35))' }} />
+            <div style={{ fontFamily: 'var(--font-baloo2)', color: '#2a2118', fontWeight: 700, fontSize: 19 }}>Mercadito</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div onClick={() => router.push('/mercadito/carrito')} style={{ ...botonCaja, position: 'relative', background: 'rgba(193,80,46,0.13)' }} title="Carrito">
+              <IconCart size={18} fill="#c1502e" />
+              {totalArticulos > 0 && (
+                <span style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, background: '#c1502e', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fbf8f3' }}>
+                  {totalArticulos}
+                </span>
+              )}
+            </div>
+            <MenuUsuario cliente={cliente} />
+          </div>
+        </div>
+      </div>
+
       <div style={{ padding: 18 }}>
-        <div onClick={() => router.back()} style={{ color: '#2a2118', fontSize: 20, cursor: 'pointer', marginBottom: 14 }}>←</div>
 
         <div
           style={{

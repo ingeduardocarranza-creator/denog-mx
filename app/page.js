@@ -63,15 +63,34 @@ export default function Portada() {
   const [cargando,   setCargando]   = useState(false)
   const [logoHover,  setLogoHover]  = useState(false)
   const [productosMercadito, setProductosMercadito] = useState([])
+  const [sesionActiva, setSesionActiva] = useState(null)
   const heroRef = useRef(null)
   const loginRef = useRef(null)
   const usuarioInputRef = useRef(null)
   const router  = useRouter()
 
+  const rutaSegunRol = (rol) =>
+    rol === 'admin' ? '/admin/reportes'
+    : (rol === 'vendedor' || rol === 'colaborador') ? '/admin/inicio'
+    : '/cliente'
+
   const irALogin = () => {
+    if (sesionActiva) { router.push(rutaSegunRol(sesionActiva.rol)); return }
     loginRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     setTimeout(() => usuarioInputRef.current?.focus(), 350)
   }
+
+  const cerrarSesionPortada = () => {
+    localStorage.removeItem('cliente')
+    setSesionActiva(null)
+  }
+
+  useEffect(() => {
+    const datos = localStorage.getItem('cliente')
+    if (datos) {
+      try { setSesionActiva(JSON.parse(datos)) } catch { /* dato corrupto, se ignora */ }
+    }
+  }, [])
 
   useEffect(() => {
     supabase.from('productos_tienda').select('id, nombre, precio_venta, imagen_url')
@@ -108,10 +127,10 @@ export default function Portada() {
       })
       const data = await res.json()
       if (data.ok) {
-        localStorage.setItem('cliente', JSON.stringify({ id: data.id, nombre: data.nombre, rol: data.rol }))
-        if      (data.rol === 'admin')                                   router.push('/admin/reportes')
-        else if (data.rol === 'vendedor' || data.rol === 'colaborador') router.push('/admin/inicio')
-        else                                                             router.push('/cliente')
+        const c = { id: data.id, nombre: data.nombre, rol: data.rol }
+        localStorage.setItem('cliente', JSON.stringify(c))
+        setSesionActiva(c)
+        router.push(rutaSegunRol(data.rol))
       } else {
         setError(data.mensaje || 'Usuario o contraseña incorrectos')
       }
@@ -240,7 +259,7 @@ export default function Portada() {
             padding: '11px 20px', borderRadius: 12, border: 'none', cursor: 'pointer',
             boxShadow: '0 8px 24px rgba(37,211,102,.35)',
           }}>
-            Iniciar sesión
+            {sesionActiva ? 'Mi cuenta →' : 'Iniciar sesión'}
           </button>
         </div>
       </header>
@@ -301,6 +320,41 @@ export default function Portada() {
 
         {/* Login derecha */}
         <div ref={loginRef} style={{ flex: '1 1 320px', minWidth: 'min(100%, 300px)', maxWidth: 420 }}>
+          {sesionActiva ? (
+            <div style={{
+              padding: 'clamp(26px,3vw,34px) clamp(22px,2.5vw,32px)',
+              background: 'rgba(28,20,54,.66)', border: '1px solid rgba(255,255,255,.12)',
+              borderRadius: 22, boxShadow: '0 24px 60px rgba(0,0,0,.45)',
+              backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+              display: 'flex', flexDirection: 'column', gap: 16,
+            }}>
+              <div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '6px 14px', background: 'rgba(52,211,153,.12)', border: '1px solid rgba(52,211,153,.35)', borderRadius: 999 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#6ee7b7' }}>Sesión activa</span>
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 24, color: '#fff' }}>Hola de nuevo, {sesionActiva.nombre?.split(' ')[0]} 👋</div>
+                <div style={{ fontSize: 14, color: '#a99cd6', marginTop: 4 }}>Ya iniciaste sesión en este dispositivo.</div>
+              </div>
+
+              <button onClick={() => router.push(rutaSegunRol(sesionActiva.rol))} style={{
+                height: 56, borderRadius: 14, border: 'none', fontFamily: 'inherit',
+                cursor: 'pointer', background: 'linear-gradient(180deg, #9168FF, #7B47F5)',
+                color: '#fff', fontWeight: 700, fontSize: 16,
+                boxShadow: '0 14px 30px rgba(123,71,245,.45)',
+              }}>
+                Continuar →
+              </button>
+
+              <button onClick={cerrarSesionPortada} style={{
+                height: 48, borderRadius: 14, fontFamily: 'inherit', cursor: 'pointer',
+                background: 'transparent', border: '1px solid rgba(255,255,255,.16)',
+                color: '#a99cd6', fontWeight: 600, fontSize: 14,
+              }}>
+                Cerrar sesión / entrar con otra cuenta
+              </button>
+            </div>
+          ) : (
           <form onSubmit={handleLogin} style={{
             padding: 'clamp(26px,3vw,34px) clamp(22px,2.5vw,32px)',
             background: 'rgba(28,20,54,.66)', border: '1px solid rgba(255,255,255,.12)',
@@ -355,6 +409,7 @@ export default function Portada() {
               ¿Olvidaste tu contraseña? WhatsApp 💬
             </a>
           </form>
+          )}
         </div>
       </main>
 

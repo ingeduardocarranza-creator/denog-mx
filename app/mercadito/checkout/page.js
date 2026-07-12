@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import TarjetaCliente from '../../components/cliente/TarjetaCliente';
-import { IconHouse, IconUser } from '../../components/mercadito/HeaderIcons';
+import { IconHouse } from '../../components/mercadito/HeaderIcons';
+import MenuUsuario from '../../components/mercadito/MenuUsuario';
 import { leerCarrito, vaciarCarrito, calcularTotales } from '../../../lib/mercadito/carritoUtils';
 
 const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -140,9 +141,7 @@ export default function CheckoutMercadito() {
             <Image src="/assets/logodenog.png" alt="Denog" width={191} height={120} style={{ height: 120, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(193,85,58,0.35))' }} />
             <div style={{ fontFamily: 'var(--font-baloo2)', color: '#2a2118', fontWeight: 700, fontSize: 19 }}>Finalizar pedido</div>
           </div>
-          <div onClick={() => router.push('/cliente/detalle')} style={botonGris} title="Usuario del cliente">
-            <IconUser size={18} fill="#2a2118" />
-          </div>
+          <MenuUsuario cliente={cliente} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '12px 14px', marginBottom: 20 }}>

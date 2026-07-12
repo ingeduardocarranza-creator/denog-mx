@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
 import TarjetaCliente from '../../components/cliente/TarjetaCliente';
-import { IconHouse, IconUser } from '../../components/mercadito/HeaderIcons';
+import { IconHouse } from '../../components/mercadito/HeaderIcons';
+import MenuUsuario from '../../components/mercadito/MenuUsuario';
 import { leerCarrito, guardarCarrito, actualizarCantidad, quitarLinea, calcularTotales, sincronizarStock } from '../../../lib/mercadito/carritoUtils';
 
 const supabase = createClient(
@@ -25,6 +26,12 @@ export default function CarritoMercadito() {
   const [stockPorProducto, setStockPorProducto] = useState({});
   const [listo, setListo] = useState(false);
   const [aviso, setAviso] = useState('');
+  const [cliente, setCliente] = useState(null);
+
+  useEffect(() => {
+    const datos = localStorage.getItem('cliente');
+    if (datos) { try { setCliente(JSON.parse(datos)) } catch {} }
+  }, []);
 
   // Trae el stock real y fresco de cada producto en el carrito, y ajusta el
   // carrito si algo cambió desde que se agregó (bajó el stock, se agotó, o
@@ -86,9 +93,7 @@ export default function CarritoMercadito() {
             <Image src="/assets/logodenog.png" alt="Denog" width={191} height={120} style={{ height: 120, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(193,85,58,0.35))' }} />
             <div style={{ fontFamily: 'var(--font-baloo2)', color: '#2a2118', fontWeight: 700, fontSize: 19 }}>Tu carrito</div>
           </div>
-          <div onClick={() => router.push('/cliente/detalle')} style={botonGris} title="Usuario del cliente">
-            <IconUser size={18} fill="#2a2118" />
-          </div>
+          <MenuUsuario cliente={cliente} />
         </div>
 
         {aviso && (

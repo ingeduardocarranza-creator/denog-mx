@@ -6,10 +6,18 @@ import TarjetaCliente from '../../components/cliente/TarjetaCliente'
 const money = (n) => `$${Math.round(n || 0).toLocaleString('es-MX')}`
 const fk = { fontFamily: 'var(--font-baloo2)' }
 
+const badgeFragil = (
+  <div style={{ background: 'rgba(250,204,21,0.18)', color: '#8a6d00', fontSize: 11, fontWeight: 800, borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+    ⚠️ Frágil
+  </div>
+)
+
 export default function HistorialCompras() {
   const [cargando, setCargando] = useState(true)
   const [pedidos, setPedidos] = useState([])
+  const [pagos, setPagos] = useState([])
   const [pedidosMercadito, setPedidosMercadito] = useState([])
+  const [abierto, setAbierto] = useState(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -20,6 +28,10 @@ export default function HistorialCompras() {
     fetch(`/api/cliente/pedidos?cliente_id=${c.id}`)
       .then(r => r.json())
       .then(d => { if (d.ok) setPedidos(d.pedidos); setCargando(false) })
+
+    fetch(`/api/anticipos?cliente_id=${c.id}`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) setPagos(d.anticipos || []) })
 
     fetch(`/api/cliente/mercadito?cliente_id=${c.id}`)
       .then(r => r.json())
@@ -33,9 +45,11 @@ export default function HistorialCompras() {
     return `${d.getDate()} ${meses[d.getMonth()]}`
   }
 
+  const getTotalPagado = (entrega_id) => pagos.filter(a => a.entrega_id === entrega_id).reduce((s, a) => s + (a.monto || 0), 0)
+
   const porEntrega = pedidos.reduce((acc, p) => {
     const fecha = p.entregas?.fecha_entrega || 'Sin entrega'
-    if (!acc[fecha]) acc[fecha] = { fecha, items: [] }
+    if (!acc[fecha]) acc[fecha] = { fecha, items: [], entrega_id: p.entrega_id }
     acc[fecha].items.push(p)
     return acc
   }, {})
@@ -45,11 +59,15 @@ export default function HistorialCompras() {
     .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
     .map(e => {
       const lugares = [...new Set(e.items.map(p => p.lugar_compra).filter(Boolean))]
+      const total = e.items.reduce((s, p) => s + (p.precio_venta || 0), 0)
       return {
         key: 'encargo-' + e.fecha,
+        tipo: 'encargo',
         nombre: lugares[0] ? `Pedido de ${lugares[0]}` : 'Tu pedido',
         fecha: e.fecha,
-        total: e.items.reduce((s, p) => s + (p.precio_venta || 0), 0),
+        total,
+        pagado: getTotalPagado(e.entrega_id),
+        items: e.items.map(p => ({ nombre: p.descripcion, cantidad: p.cantidad, precio: p.precio_venta, fragil: p.apartado_fragil })),
       }
     })
 
@@ -62,9 +80,12 @@ export default function HistorialCompras() {
       const total = (p.items || []).reduce((s, it) => s + (Number(it.precio_unitario) || 0) * (Number(it.cantidad) || 0), 0)
       return {
         key: 'mercadito-' + p.id,
+        tipo: 'mercadito',
         nombre: `Mercadito · ${primerItem}${extra > 0 ? ` +${extra} más` : ''}`,
+        folio: p.folio,
         fecha: (p.actualizado_en || p.creado_en || '').slice(0, 10),
         total,
+        items: (p.items || []).map(it => ({ nombre: it.nombre, cantidad: it.cantidad, precio: it.precio_unitario, fragil: it.apartado_fragil })),
       }
     })
 
@@ -93,15 +114,56 @@ export default function HistorialCompras() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {historial.map(h => (
-              <div key={h.key} style={{ background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ color: '#2a2118', fontSize: 14, fontWeight: 600 }}>{h.nombre}</div>
-                  <div style={{ color: 'rgba(42,33,24,0.5)', fontSize: 12, marginTop: 2 }}>Entregado · {formatearFecha(h.fecha)}</div>
+            {historial.map(h => {
+              const expandido = abierto === h.key
+              return (
+                <div key={h.key} style={{ background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 14, overflow: 'hidden' }}>
+                  <button
+                    onClick={() => setAbierto(expandido ? null : h.key)}
+                    style={{ width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', textAlign: 'left', fontFamily: 'inherit' }}
+                  >
+                    <div>
+                      <div style={{ color: '#2a2118', fontSize: 14, fontWeight: 600 }}>{h.nombre}</div>
+                      <div style={{ color: 'rgba(42,33,24,0.5)', fontSize: 12, marginTop: 2 }}>
+                        Entregado · {formatearFecha(h.fecha)}{h.folio ? ` · ${h.folio}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ color: '#2a2118', fontSize: 14, fontWeight: 800 }}>{money(h.total)}</div>
+                      <div style={{ color: 'rgba(42,33,24,0.4)', fontSize: 12, transform: expandido ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</div>
+                    </div>
+                  </button>
+
+                  {expandido && (
+                    <div style={{ borderTop: '1.5px solid rgba(0,0,0,0.06)', padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                        {h.items.map((it, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                              <div style={{ color: '#2a2118', fontSize: 13.5 }}>{it.cantidad}x {it.nombre}</div>
+                              {it.fragil && badgeFragil}
+                            </div>
+                            <div style={{ color: '#2a2118', fontSize: 13.5, fontWeight: 700, flexShrink: 0 }}>{money(it.precio)}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ borderTop: '1.5px solid rgba(0,0,0,0.06)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {h.tipo === 'encargo' && h.pagado > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ color: 'rgba(42,33,24,0.6)', fontSize: 12.5 }}>Anticipo pagado</div>
+                            <div style={{ color: '#2e7d4f', fontSize: 13, fontWeight: 700 }}>{money(h.pagado)}</div>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ color: '#2a2118', fontSize: 13.5, fontWeight: 700 }}>Total</div>
+                          <div style={{ color: '#c1553a', fontSize: 15, fontWeight: 800 }}>{money(h.total)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div style={{ color: '#2a2118', fontSize: 14, fontWeight: 800 }}>{money(h.total)}</div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

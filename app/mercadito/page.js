@@ -6,7 +6,8 @@ import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
 import ProductoCard from '../components/mercadito/ProductoCard';
 import TarjetaCliente from '../components/cliente/TarjetaCliente';
-import { IconHouse, IconUser, IconCart } from '../components/mercadito/HeaderIcons';
+import { IconHouse, IconCart } from '../components/mercadito/HeaderIcons';
+import MenuUsuario from '../components/mercadito/MenuUsuario';
 import { emojiPara } from '../../lib/mercadito/categorias';
 import { leerCarrito, guardarCarrito, agregarAlCarrito, calcularTotales, CARRITO_EVENTO } from '../../lib/mercadito/carritoUtils';
 
@@ -28,9 +29,12 @@ export default function MercaditoCatalogo() {
   const [query, setQuery] = useState('');
   const [categoriaActiva, setCategoriaActiva] = useState('Todos');
   const [cart, setCart] = useState([]);
+  const [cliente, setCliente] = useState(null);
 
   useEffect(() => {
     setCart(leerCarrito());
+    const datos = localStorage.getItem('cliente');
+    if (datos) { try { setCliente(JSON.parse(datos)) } catch {} }
     (async () => {
       const { data } = await supabase
         .from('productos_tienda')
@@ -102,9 +106,7 @@ export default function MercaditoCatalogo() {
                   </span>
                 )}
               </div>
-              <div onClick={() => router.push('/cliente/detalle')} style={botonGris} title="Usuario del cliente">
-                <IconUser size={18} fill="#2a2118" />
-              </div>
+              <MenuUsuario cliente={cliente} />
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.03)', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '10px 14px' }}>

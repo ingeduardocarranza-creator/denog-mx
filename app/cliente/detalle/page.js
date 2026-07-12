@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import TarjetaCliente from '../../components/cliente/TarjetaCliente'
+import BotonCarrito from '../../components/mercadito/BotonCarrito'
 
 const money = (n) => `$${Math.round(n || 0).toLocaleString('es-MX')}`
 const fk = { fontFamily: 'var(--font-baloo2)' }
@@ -91,10 +92,13 @@ export default function DetalleCuenta() {
     <TarjetaCliente>
       <div style={{ padding: '22px 20px 40px' }}>
 
-        <button onClick={() => router.push('/cliente')} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
-          <div style={{ color: '#2a2118', fontSize: 20 }}>←</div>
-          <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 19, ...fk }}>Detalle de mi cuenta</div>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+          <button onClick={() => router.push('/cliente')} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
+            <div style={{ color: '#2a2118', fontSize: 20 }}>←</div>
+            <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 19, ...fk }}>Detalle de mi cuenta</div>
+          </button>
+          <BotonCarrito />
+        </div>
 
         {entregasPendientes.length === 0 && itemsMercadito.length === 0 && (
           <div style={{ background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 16, padding: 40, textAlign: 'center', color: 'rgba(42,33,24,0.5)', fontSize: 14 }}>

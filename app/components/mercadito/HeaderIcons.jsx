@@ -13,7 +13,7 @@ export const IconUser = ({ size = 18, fill = '#2a2118' }) => (
   </svg>
 );
 
-export const IconCart = ({ size = 18, fill = '#c1502e' }) => (
+export const IconCart = ({ size = 18, fill = '#c1553a' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill}>
     <path d="M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.6-1.4 2.5c-.2.3-.2.6-.2 1 0 1.1.9 2 2 2h12v-2H7.4c-.1 0-.2-.1-.2-.2v-.1l.9-1.7h7.4c.8 0 1.4-.4 1.8-1l3.6-6.5c.1-.2.1-.3.1-.5 0-.6-.4-1-1-1H5.2l-.9-2H1zm16 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
   </svg>

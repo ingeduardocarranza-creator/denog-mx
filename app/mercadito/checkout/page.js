@@ -7,13 +7,14 @@ import TarjetaCliente from '../../components/cliente/TarjetaCliente';
 import { IconHouse } from '../../components/mercadito/HeaderIcons';
 import MenuUsuario from '../../components/mercadito/MenuUsuario';
 import { leerCarrito, vaciarCarrito, calcularTotales } from '../../../lib/mercadito/carritoUtils';
+import { irAInicio, volverSeguro } from '../../../lib/mercadito/navegacion';
 
 const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const NUMERO_DENOG = '526625486432';
 
 const botonCaja = { flex: 'none', width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
 const botonGris = { ...botonCaja, background: 'rgba(0,0,0,0.05)', border: '1.5px solid rgba(0,0,0,0.08)', color: '#2a2118' };
-const botonNaranja = { ...botonCaja, background: '#c1502e' };
+const botonNaranja = { ...botonCaja, background: '#c1553a' };
 
 const inputStyle = { width: '100%', background: 'rgba(0,0,0,0.03)', border: '1.5px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '11px 14px', color: '#2a2118', fontSize: 13, marginBottom: 10, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' };
 const botonTerracota = { display: 'block', width: '100%', textAlign: 'center', textDecoration: 'none', background: '#c1553a', color: '#fff', fontWeight: 800, fontSize: 14, border: 'none', borderRadius: 12, padding: 13, cursor: 'pointer', fontFamily: 'inherit' };
@@ -132,8 +133,8 @@ export default function CheckoutMercadito() {
       <div style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div onClick={() => router.push('/mercadito/carrito')} style={{ ...botonGris, fontSize: 20 }}>←</div>
-            <div onClick={() => router.push('/cliente')} style={botonNaranja} title="Inicio del cliente">
+            <div onClick={() => volverSeguro(router, '/mercadito/carrito')} style={{ ...botonGris, fontSize: 20 }}>←</div>
+            <div onClick={() => irAInicio(router, cliente)} style={botonNaranja} title="Inicio">
               <IconHouse size={18} fill="#fff" />
             </div>
           </div>
@@ -141,7 +142,7 @@ export default function CheckoutMercadito() {
             <Image src="/assets/logodenog.png" alt="Denog" width={191} height={120} style={{ height: 120, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(193,85,58,0.35))' }} />
             <div style={{ fontFamily: 'var(--font-baloo2)', color: '#2a2118', fontWeight: 700, fontSize: 19 }}>Finalizar pedido</div>
           </div>
-          <MenuUsuario cliente={cliente} />
+          <MenuUsuario cliente={cliente} onLogin={setCliente} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '12px 14px', marginBottom: 20 }}>
@@ -174,9 +175,6 @@ export default function CheckoutMercadito() {
                 >
                   💬 Enviar pedido por WhatsApp
                 </a>
-                <div onClick={() => setDispositivo('desktop')} style={{ textAlign: 'center', color: 'rgba(42,33,24,0.4)', fontSize: 11, marginTop: 10, cursor: 'pointer', textDecoration: 'underline' }}>
-                  💻 Estoy en computadora
-                </div>
               </>
             ) : (
               // ---- Invitado + computadora ----
@@ -192,9 +190,6 @@ export default function CheckoutMercadito() {
                     {enviando ? 'Enviando…' : '📨 Enviar pedido'}
                   </button>
                 )}
-                <div onClick={() => setDispositivo('movil')} style={{ textAlign: 'center', color: 'rgba(42,33,24,0.4)', fontSize: 11, marginTop: 10, cursor: 'pointer', textDecoration: 'underline' }}>
-                  📱 Estoy en el celular
-                </div>
               </>
             )}
 

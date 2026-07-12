@@ -8,6 +8,7 @@ import TarjetaCliente from '../../components/cliente/TarjetaCliente';
 import { IconHouse } from '../../components/mercadito/HeaderIcons';
 import MenuUsuario from '../../components/mercadito/MenuUsuario';
 import { leerCarrito, guardarCarrito, actualizarCantidad, quitarLinea, calcularTotales, sincronizarStock } from '../../../lib/mercadito/carritoUtils';
+import { irAInicio, volverSeguro } from '../../../lib/mercadito/navegacion';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -18,7 +19,7 @@ const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionD
 
 const botonCaja = { flex: 'none', width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
 const botonGris = { ...botonCaja, background: 'rgba(0,0,0,0.05)', border: '1.5px solid rgba(0,0,0,0.08)', color: '#2a2118' };
-const botonNaranja = { ...botonCaja, background: '#c1502e' };
+const botonNaranja = { ...botonCaja, background: '#c1553a' };
 
 export default function CarritoMercadito() {
   const router = useRouter();
@@ -84,8 +85,8 @@ export default function CarritoMercadito() {
       <div style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div onClick={() => router.push('/mercadito')} style={{ ...botonGris, fontSize: 20 }}>←</div>
-            <div onClick={() => router.push('/cliente')} style={botonNaranja} title="Inicio del cliente">
+            <div onClick={() => volverSeguro(router, '/mercadito')} style={{ ...botonGris, fontSize: 20 }}>←</div>
+            <div onClick={() => irAInicio(router, cliente)} style={botonNaranja} title="Inicio">
               <IconHouse size={18} fill="#fff" />
             </div>
           </div>
@@ -93,7 +94,7 @@ export default function CarritoMercadito() {
             <Image src="/assets/logodenog.png" alt="Denog" width={191} height={120} style={{ height: 120, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(193,85,58,0.35))' }} />
             <div style={{ fontFamily: 'var(--font-baloo2)', color: '#2a2118', fontWeight: 700, fontSize: 19 }}>Tu carrito</div>
           </div>
-          <MenuUsuario cliente={cliente} />
+          <MenuUsuario cliente={cliente} onLogin={setCliente} />
         </div>
 
         {aviso && (

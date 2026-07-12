@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import TarjetaCliente from '../../components/cliente/TarjetaCliente'
+import BotonCarrito from '../../components/mercadito/BotonCarrito'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -171,15 +172,18 @@ export default function Domicilio() {
     <TarjetaCliente>
       <div style={{ padding: '22px 20px 40px' }}>
 
-        <button onClick={() => paso === 1 ? router.push('/cliente') : setPaso(1)} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', fontFamily: 'inherit' }}>
-          <div style={{ color: '#2a2118', fontSize: 20 }}>←</div>
-          <div>
-            <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 19, ...fk }}>🚚 Pedir domicilio</div>
-            <div style={{ color: 'rgba(42,33,24,0.5)', fontSize: 12.5, marginTop: 1 }}>
-              {paso === 1 ? 'Paso 1 de 2 · Selecciona tus entregas' : 'Paso 2 de 2 · Datos de entrega'}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <button onClick={() => paso === 1 ? router.push('/cliente') : setPaso(1)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', fontFamily: 'inherit' }}>
+            <div style={{ color: '#2a2118', fontSize: 20 }}>←</div>
+            <div>
+              <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 19, ...fk }}>🚚 Pedir domicilio</div>
+              <div style={{ color: 'rgba(42,33,24,0.5)', fontSize: 12.5, marginTop: 1 }}>
+                {paso === 1 ? 'Paso 1 de 2 · Selecciona tus entregas' : 'Paso 2 de 2 · Datos de entrega'}
+              </div>
             </div>
-          </div>
-        </button>
+          </button>
+          <BotonCarrito />
+        </div>
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
           <div style={{ flex: 1, height: 6, borderRadius: 999, background: '#c1553a' }} />

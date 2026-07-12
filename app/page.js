@@ -43,19 +43,6 @@ const IconTikTok = () => (
   </svg>
 )
 
-const STARS = [
-  { top: '12%', left: '8%',  size: 2,   delay: '0s'   },
-  { top: '18%', left: '22%', size: 1.5, delay: '.4s'  },
-  { top: '8%',  left: '45%', size: 2.5, delay: '.9s'  },
-  { top: '25%', left: '62%', size: 1.5, delay: '.2s'  },
-  { top: '14%', left: '80%', size: 2,   delay: '1.1s' },
-  { top: '35%', left: '90%', size: 1.5, delay: '.6s'  },
-  { top: '55%', left: '95%', size: 2,   delay: '1.4s' },
-  { top: '70%', left: '5%',  size: 1.5, delay: '.3s'  },
-  { top: '80%', left: '30%', size: 2,   delay: '1.8s' },
-  { top: '88%', left: '72%', size: 1.5, delay: '.7s'  },
-]
-
 export default function Portada() {
   const [usuario,    setUsuario]    = useState('')
   const [password,   setPassword]   = useState('')
@@ -141,8 +128,8 @@ export default function Portada() {
     }
   }
 
-  const jk = { fontFamily: "'Plus Jakarta Sans', sans-serif" }
-  const fk = { fontFamily: "'Fredoka', sans-serif" }
+  const fk = { fontFamily: 'var(--font-baloo2)' }
+  const jk = { fontFamily: 'var(--font-poppins)' }
 
   return (
     <>
@@ -156,55 +143,41 @@ export default function Portada() {
         to   { transform: translateX(100vw); }
       }
       @keyframes glowpulse {
-        0%, 100% { opacity: .5; }
-        50%       { opacity: 1; }
-      }
-      @keyframes twinkle {
-        0%, 100% { opacity: .25; }
-        50%       { opacity: 1; }
+        0%, 100% { opacity: .45; }
+        50%       { opacity: .9; }
       }
     `}</style>
     <div ref={heroRef} style={{
       minHeight: '100dvh', overflow: 'hidden', position: 'relative',
-      background: 'radial-gradient(120% 90% at 16% 8%, #2C1C54 0%, #1E1440 46%, #160E30 100%)',
+      background: 'linear-gradient(175deg, #fdfaf5 0%, #fbf8f3 40%, #f5ecdf 100%)',
       display: 'flex', flexDirection: 'column',
       padding: '120px clamp(20px,5vw,56px) clamp(28px,4vw,44px)',
       ...jk,
     }}>
 
-      {/* Estrellas */}
-      {STARS.map((s, i) => (
-        <div key={i} className="star" style={{
-          position: 'absolute', top: s.top, left: s.left,
-          width: s.size, height: s.size, borderRadius: '50%',
-          background: '#cdbcff', pointerEvents: 'none',
-          animationDelay: s.delay, animationDuration: `${2.6 + i * 0.1}s`,
-        }} />
-      ))}
-
-      {/* Halos */}
+      {/* Halos cálidos */}
       <div data-parallax="12" className="glow-pulse" style={{
-        position: 'absolute', top: '-10%', left: '-5%',
+        position: 'absolute', top: '-12%', left: '-6%',
         width: 420, height: 420, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(130,87,245,.22) 0%, transparent 70%)',
-        pointerEvents: 'none',
+        background: 'radial-gradient(circle, rgba(193,85,58,.14) 0%, transparent 70%)',
+        pointerEvents: 'none', animation: 'glowpulse 6s ease-in-out infinite',
       }} />
       <div data-parallax="8" className="glow-pulse" style={{
-        position: 'absolute', bottom: '5%', right: '-8%',
+        position: 'absolute', bottom: '4%', right: '-8%',
         width: 380, height: 380, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(125,216,229,.18) 0%, transparent 70%)',
-        pointerEvents: 'none', animationDelay: '3.5s',
+        background: 'radial-gradient(circle, rgba(250,204,21,.12) 0%, transparent 70%)',
+        pointerEvents: 'none', animation: 'glowpulse 6s ease-in-out infinite', animationDelay: '3s',
       }} />
 
-      {/* Franja + línea luminosa */}
+      {/* Franja superior */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 90,
-        background: 'linear-gradient(180deg, rgba(130,87,245,.16), transparent)',
+        background: 'linear-gradient(180deg, rgba(193,85,58,.08), transparent)',
         pointerEvents: 'none',
       }}>
         <div style={{
           position: 'absolute', top: 88, left: 0, right: 0, height: 2,
-          background: 'linear-gradient(90deg, transparent, rgba(130,87,245,.6) 14%, rgba(125,216,229,.6) 86%, transparent)',
+          background: 'linear-gradient(90deg, transparent, rgba(193,85,58,.35) 14%, rgba(250,204,21,.35) 86%, transparent)',
         }} />
       </div>
 
@@ -220,6 +193,7 @@ export default function Portada() {
           loopStart="1.25"
           loopEnd="8.7"
           height="124px"
+          shadow="drop-shadow(0 6px 16px rgba(193,85,58,.35))"
         />
       </div>
 
@@ -237,27 +211,27 @@ export default function Portada() {
             }}
           >
             <Image src="/assets/wordmark-v2.png" alt="Denog" width={92} height={92} priority
-              style={{ height: 'clamp(64px,9vw,92px)', width: 'auto', display: 'block', filter: 'drop-shadow(0 6px 16px rgba(130,87,245,.5))' }} />
+              style={{ height: 'clamp(64px,9vw,92px)', width: 'auto', display: 'block', filter: 'drop-shadow(0 6px 16px rgba(193,85,58,.3))' }} />
           </div>
           <div>
-            <div style={{ ...fk, fontWeight: 700, fontSize: 'clamp(20px,3vw,24px)', color: '#fff', lineHeight: 1.1 }}>Denog</div>
-            <div style={{ fontWeight: 600, fontSize: 12, color: '#a99cd6', letterSpacing: '.18em', textTransform: 'uppercase' }}>USA COMPRAS</div>
+            <div style={{ ...fk, fontWeight: 700, fontSize: 'clamp(20px,3vw,24px)', color: '#2a2118', lineHeight: 1.1 }}>Denog</div>
+            <div style={{ fontWeight: 700, fontSize: 11, color: '#c1553a', letterSpacing: '.18em', textTransform: 'uppercase' }}>USA COMPRAS</div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => router.push('/mercadito')} style={{
             display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit',
-            background: 'linear-gradient(135deg,#8257F5,#9D86F0)', color: '#fff', fontSize: 14, fontWeight: 800,
-            padding: '11px 20px', borderRadius: 12, border: 'none', cursor: 'pointer',
-            boxShadow: '0 8px 24px rgba(130,87,245,.4)',
+            background: '#fff', color: '#a3432b', fontSize: 14, fontWeight: 800,
+            padding: '11px 20px', borderRadius: 12, border: '1.5px solid rgba(193,85,58,0.3)', cursor: 'pointer',
+            boxShadow: '0 8px 20px rgba(193,85,58,.12)',
           }}>
             🛍️ Mercadito
           </button>
           <button onClick={irALogin} style={{
-            fontFamily: 'inherit', background: '#25D366', color: '#fff', fontSize: 14, fontWeight: 800,
+            fontFamily: 'inherit', background: '#c1553a', color: '#fff', fontSize: 14, fontWeight: 800,
             padding: '11px 20px', borderRadius: 12, border: 'none', cursor: 'pointer',
-            boxShadow: '0 8px 24px rgba(37,211,102,.35)',
+            boxShadow: '0 8px 24px rgba(193,85,58,.35)',
           }}>
             {sesionActiva ? 'Mi cuenta →' : 'Iniciar sesión'}
           </button>
@@ -277,11 +251,11 @@ export default function Portada() {
           {/* Badge */}
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 24,
-            padding: '8px 16px', background: 'rgba(255,255,255,.07)',
-            border: '1px solid rgba(255,255,255,.18)', borderRadius: 999,
+            padding: '8px 16px', background: 'rgba(193,85,58,0.08)',
+            border: '1px solid rgba(193,85,58,0.25)', borderRadius: 999,
           }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#8257F5', flexShrink: 0, boxShadow: '0 0 8px #8257F5' }} />
-            <span style={{ fontWeight: 600, fontSize: 12.5, letterSpacing: '.05em', textTransform: 'uppercase', color: '#d6dcf5' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#c1553a', flexShrink: 0, boxShadow: '0 0 8px rgba(193,85,58,.6)' }} />
+            <span style={{ fontWeight: 700, fontSize: 12.5, letterSpacing: '.05em', textTransform: 'uppercase', color: '#a3432b' }}>
               EE. UU. → México · Compras sin fronteras
             </span>
           </div>
@@ -291,28 +265,28 @@ export default function Portada() {
             ...fk, fontWeight: 700,
             fontSize: 'clamp(34px,5.6vw,62px)',
             lineHeight: 1.05, letterSpacing: '-.01em',
-            color: '#F6F4FF', margin: '0 0 16px',
+            color: '#2a2118', margin: '0 0 16px',
           }}>
             Lo mejor de Estados Unidos,{' '}
-            <span style={{ color: '#9D86F0' }}>en la puerta de tu casa.</span>
+            <span style={{ color: '#c1553a' }}>en la puerta de tu casa.</span>
           </h1>
 
           {/* Tagline */}
-          <p style={{ fontWeight: 700, fontSize: 'clamp(14px,2vw,17px)', letterSpacing: '.16em', textTransform: 'uppercase', color: '#8257F5', margin: '0 0 18px' }}>
+          <p style={{ fontWeight: 700, fontSize: 'clamp(14px,2vw,17px)', letterSpacing: '.16em', textTransform: 'uppercase', color: '#c1553a', margin: '0 0 18px' }}>
             ✨ My Happy Shopping
           </p>
 
           {/* Párrafo */}
-          <p style={{ fontWeight: 400, fontSize: 'clamp(15px,1.7vw,18px)', lineHeight: 1.55, color: '#B7BAD6', maxWidth: 520, margin: '0 0 24px' }}>
+          <p style={{ fontWeight: 400, fontSize: 'clamp(15px,1.7vw,18px)', lineHeight: 1.55, color: 'rgba(42,33,24,0.65)', maxWidth: 520, margin: '0 0 24px' }}>
             Compra en cualquier tienda de EE. UU. y nosotros lo traemos hasta México. Tú eliges, Denog se encarga de comprar, traer y entregar.
           </p>
 
           {/* Bullets */}
           <div style={{ display: 'flex', gap: '20px 26px', flexWrap: 'wrap' }}>
-            {[{ label: 'Compras en USA', color: '#8257F5' }, { label: 'Seguimiento en tiempo real', color: '#7DD8E5' }].map(b => (
+            {[{ label: 'Compras en USA', color: '#c1553a' }, { label: 'Seguimiento en tiempo real', color: '#b8860b' }].map(b => (
               <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: b.color, flexShrink: 0 }} />
-                <span style={{ fontWeight: 500, fontSize: 14.5, color: '#cfd3ec' }}>{b.label}</span>
+                <span style={{ fontWeight: 600, fontSize: 14.5, color: 'rgba(42,33,24,0.7)' }}>{b.label}</span>
               </div>
             ))}
           </div>
@@ -323,33 +297,32 @@ export default function Portada() {
           {sesionActiva ? (
             <div style={{
               padding: 'clamp(26px,3vw,34px) clamp(22px,2.5vw,32px)',
-              background: 'rgba(28,20,54,.66)', border: '1px solid rgba(255,255,255,.12)',
-              borderRadius: 22, boxShadow: '0 24px 60px rgba(0,0,0,.45)',
-              backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+              background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)',
+              borderRadius: 22, boxShadow: '0 24px 60px rgba(42,33,24,.1)',
               display: 'flex', flexDirection: 'column', gap: 16,
             }}>
               <div>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '6px 14px', background: 'rgba(52,211,153,.12)', border: '1px solid rgba(52,211,153,.35)', borderRadius: 999 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#6ee7b7' }}>Sesión activa</span>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '6px 14px', background: 'rgba(46,125,79,.1)', border: '1px solid rgba(46,125,79,.3)', borderRadius: 999 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2e7d4f', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2e7d4f' }}>Sesión activa</span>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: 24, color: '#fff' }}>Hola de nuevo, {sesionActiva.nombre?.split(' ')[0]} 👋</div>
-                <div style={{ fontSize: 14, color: '#a99cd6', marginTop: 4 }}>Ya iniciaste sesión en este dispositivo.</div>
+                <div style={{ ...fk, fontWeight: 700, fontSize: 24, color: '#2a2118' }}>Hola de nuevo, {sesionActiva.nombre?.split(' ')[0]} 👋</div>
+                <div style={{ fontSize: 14, color: 'rgba(42,33,24,0.55)', marginTop: 4 }}>Ya iniciaste sesión en este dispositivo.</div>
               </div>
 
               <button onClick={() => router.push(rutaSegunRol(sesionActiva.rol))} style={{
                 height: 56, borderRadius: 14, border: 'none', fontFamily: 'inherit',
-                cursor: 'pointer', background: 'linear-gradient(180deg, #9168FF, #7B47F5)',
+                cursor: 'pointer', background: '#c1553a',
                 color: '#fff', fontWeight: 700, fontSize: 16,
-                boxShadow: '0 14px 30px rgba(123,71,245,.45)',
+                boxShadow: '0 14px 30px rgba(193,85,58,.35)',
               }}>
                 Continuar →
               </button>
 
               <button onClick={cerrarSesionPortada} style={{
                 height: 48, borderRadius: 14, fontFamily: 'inherit', cursor: 'pointer',
-                background: 'transparent', border: '1px solid rgba(255,255,255,.16)',
-                color: '#a99cd6', fontWeight: 600, fontSize: 14,
+                background: 'transparent', border: '1.5px solid rgba(0,0,0,0.12)',
+                color: 'rgba(42,33,24,0.55)', fontWeight: 600, fontSize: 14,
               }}>
                 Cerrar sesión / entrar con otra cuenta
               </button>
@@ -357,14 +330,13 @@ export default function Portada() {
           ) : (
           <form onSubmit={handleLogin} style={{
             padding: 'clamp(26px,3vw,34px) clamp(22px,2.5vw,32px)',
-            background: 'rgba(28,20,54,.66)', border: '1px solid rgba(255,255,255,.12)',
-            borderRadius: 22, boxShadow: '0 24px 60px rgba(0,0,0,.45)',
-            backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+            background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)',
+            borderRadius: 22, boxShadow: '0 24px 60px rgba(42,33,24,.1)',
             display: 'flex', flexDirection: 'column', gap: 16,
           }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 28, color: '#fff' }}>Hola 👋</div>
-              <div style={{ fontSize: 15, color: '#a99cd6', marginTop: 4 }}>Ingresa a tu cuenta</div>
+              <div style={{ ...fk, fontWeight: 700, fontSize: 28, color: '#2a2118' }}>Hola 👋</div>
+              <div style={{ fontSize: 15, color: 'rgba(42,33,24,0.55)', marginTop: 4 }}>Ingresa a tu cuenta</div>
             </div>
 
             {[
@@ -372,22 +344,22 @@ export default function Portada() {
               { label: 'Contraseña',  type: 'password', val: password, set: setPassword, ac: 'current-password' },
             ].map(({ label, type, val, set, ac }) => (
               <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, color: '#a99cd6', fontWeight: 500 }}>{label}</label>
+                <label style={{ fontSize: 13, color: 'rgba(42,33,24,0.6)', fontWeight: 600 }}>{label}</label>
                 <input ref={label === 'Usuario' ? usuarioInputRef : undefined} type={type} value={val} onChange={e => set(e.target.value)} autoComplete={ac}
                   style={{
                     height: 54, padding: '0 18px', borderRadius: 14, outline: 'none',
-                    border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.05)',
-                    color: '#fff', fontSize: 15, fontFamily: 'inherit', transition: 'border-color .2s',
+                    border: '1.5px solid rgba(0,0,0,0.1)', background: 'rgba(0,0,0,0.03)',
+                    color: '#2a2118', fontSize: 15, fontFamily: 'inherit', transition: 'border-color .2s',
                   }}
-                  onFocus={e => e.target.style.borderColor = '#8257F5'}
-                  onBlur={e  => e.target.style.borderColor = 'rgba(255,255,255,.14)'}
+                  onFocus={e => e.target.style.borderColor = '#c1553a'}
+                  onBlur={e  => e.target.style.borderColor = 'rgba(0,0,0,0.1)'}
                 />
               </div>
             ))}
 
             {error && (
               <div style={{
-                fontSize: 13, color: '#f87171', fontWeight: 500,
+                fontSize: 13, color: '#c0392b', fontWeight: 500,
                 background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)',
                 borderRadius: 10, padding: '10px 14px',
               }}>{error}</div>
@@ -396,16 +368,16 @@ export default function Portada() {
             <button type="submit" disabled={cargando} style={{
               height: 56, borderRadius: 14, border: 'none', fontFamily: 'inherit',
               cursor: cargando ? 'not-allowed' : 'pointer',
-              background: cargando ? 'rgba(145,104,255,.5)' : 'linear-gradient(180deg, #9168FF, #7B47F5)',
+              background: cargando ? 'rgba(193,85,58,.5)' : '#c1553a',
               color: '#fff', fontWeight: 700, fontSize: 16,
-              boxShadow: '0 14px 30px rgba(123,71,245,.45)',
+              boxShadow: '0 14px 30px rgba(193,85,58,.35)',
               opacity: cargando ? 0.7 : 1, transition: 'opacity .2s',
             }}>
               {cargando ? 'Ingresando…' : 'Entrar →'}
             </button>
 
             <a href="https://wa.me/526625486432" target="_blank" rel="noreferrer"
-              style={{ textAlign: 'center', fontSize: 13.5, color: '#a99cd6', textDecoration: 'none', marginTop: 4 }}>
+              style={{ textAlign: 'center', fontSize: 13.5, color: 'rgba(42,33,24,0.5)', textDecoration: 'none', marginTop: 4 }}>
               ¿Olvidaste tu contraseña? WhatsApp 💬
             </a>
           </form>
@@ -418,13 +390,13 @@ export default function Portada() {
         <section style={{ position: 'relative', zIndex: 2, marginTop: 'clamp(28px,4vw,44px)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
-              <div style={{ ...fk, fontWeight: 700, fontSize: 'clamp(18px,2.4vw,22px)', color: '#F6F4FF' }}>🛍️ Mercadito</div>
-              <div style={{ fontSize: 13, color: '#B7BAD6', marginTop: 2 }}>Productos listos para agregar a tu próxima entrega</div>
+              <div style={{ ...fk, fontWeight: 700, fontSize: 'clamp(18px,2.4vw,22px)', color: '#2a2118' }}>🛍️ Mercadito</div>
+              <div style={{ fontSize: 13, color: 'rgba(42,33,24,0.55)', marginTop: 2 }}>Productos listos para agregar a tu próxima entrega</div>
             </div>
             <button onClick={() => router.push('/mercadito')} style={{
-              flexShrink: 0, background: '#25D366', border: 'none',
+              flexShrink: 0, background: '#c1553a', border: 'none',
               borderRadius: 999, padding: '11px 20px', color: '#fff', fontWeight: 800, fontSize: 13,
-              cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 8px 24px rgba(37,211,102,.35)',
+              cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 8px 24px rgba(193,85,58,.3)',
             }}>
               Ver mercadito completo →
             </button>
@@ -436,14 +408,14 @@ export default function Portada() {
               }}>
                 <div style={{
                   width: '100%', aspectRatio: '1 / 1', borderRadius: 16,
-                  background: p.imagen_url ? `center / cover no-repeat url(${p.imagen_url})` : 'rgba(130,87,245,.14)',
-                  border: '1px solid rgba(255,255,255,.14)',
+                  background: p.imagen_url ? `center / cover no-repeat url(${p.imagen_url})` : 'rgba(193,85,58,0.1)',
+                  border: '1.5px solid rgba(0,0,0,0.08)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30,
                 }}>
                   {!p.imagen_url && '🛍️'}
                 </div>
-                <div style={{ color: '#e7e3f7', fontSize: 12.5, fontWeight: 600, marginTop: 8, lineHeight: 1.3, height: 32, overflow: 'hidden' }}>{p.nombre}</div>
-                <div style={{ color: '#9D86F0', fontSize: 14, fontWeight: 800, marginTop: 4 }}>${Number(p.precio_venta).toLocaleString('es-MX')}</div>
+                <div style={{ color: '#2a2118', fontSize: 12.5, fontWeight: 600, marginTop: 8, lineHeight: 1.3, height: 32, overflow: 'hidden' }}>{p.nombre}</div>
+                <div style={{ color: '#c1553a', fontSize: 14, fontWeight: 800, marginTop: 4 }}>${Number(p.precio_venta).toLocaleString('es-MX')}</div>
               </div>
             ))}
           </div>
@@ -453,10 +425,10 @@ export default function Portada() {
       {/* FOOTER */}
       <footer style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 'clamp(28px,4vw,44px)', position: 'relative', zIndex: 2 }}>
         {[
-          { href: 'https://wa.me/526625486432',       icon: <IconWhatsApp />,  label: 'WhatsApp 662 548 6432', bg: 'rgba(37,211,102,.16)',  border: 'rgba(37,211,102,.5)',  color: '#eafff3' },
-          { href: 'https://instagram.com/denog.mx',   icon: <IconInstagram />, label: 'denog.mx',              bg: 'rgba(214,41,118,.16)',  border: 'rgba(214,41,118,.5)',  color: '#ffe3f1' },
-          { href: 'https://facebook.com/Denogmx',     icon: <IconFacebook />,  label: 'Denog mx',               bg: 'rgba(24,119,242,.16)',  border: 'rgba(24,119,242,.5)',  color: '#e2edff' },
-          { href: 'https://tiktok.com/@denog.mx',     icon: <IconTikTok />,    label: '@denog.mx',              bg: 'rgba(254,44,85,.16)',   border: 'rgba(254,44,85,.5)',   color: '#ffe6ec' },
+          { href: 'https://wa.me/526625486432',       icon: <IconWhatsApp />,  label: 'WhatsApp 662 548 6432', bg: 'rgba(37,211,102,.08)',  border: 'rgba(37,211,102,.35)',  color: '#1f8a4c' },
+          { href: 'https://instagram.com/denog.mx',   icon: <IconInstagram />, label: 'denog.mx',              bg: 'rgba(214,41,118,.08)',  border: 'rgba(214,41,118,.35)',  color: '#b3225f' },
+          { href: 'https://facebook.com/Denogmx',     icon: <IconFacebook />,  label: 'Denog mx',               bg: 'rgba(24,119,242,.08)',  border: 'rgba(24,119,242,.35)',  color: '#1361c4' },
+          { href: 'https://tiktok.com/@denog.mx',     icon: <IconTikTok />,    label: '@denog.mx',              bg: 'rgba(254,44,85,.08)',   border: 'rgba(254,44,85,.35)',   color: '#c41338' },
         ].map(({ href, icon, label, bg, border, color }) => (
           <a key={href} href={href} target="_blank" rel="noreferrer" style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,

@@ -10,6 +10,7 @@ import { IconHouse, IconCart } from '../components/mercadito/HeaderIcons';
 import MenuUsuario from '../components/mercadito/MenuUsuario';
 import { emojiPara } from '../../lib/mercadito/categorias';
 import { leerCarrito, guardarCarrito, agregarAlCarrito, calcularTotales, CARRITO_EVENTO } from '../../lib/mercadito/carritoUtils';
+import { irAInicio, volverSeguro } from '../../lib/mercadito/navegacion';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -20,7 +21,7 @@ const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionD
 
 const botonCaja = { flex: 'none', width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
 const botonGris = { ...botonCaja, background: 'rgba(0,0,0,0.05)', border: '1.5px solid rgba(0,0,0,0.08)', color: '#2a2118' };
-const botonNaranja = { ...botonCaja, background: '#c1502e' };
+const botonNaranja = { ...botonCaja, background: '#c1553a' };
 
 export default function MercaditoCatalogo() {
   const router = useRouter();
@@ -88,8 +89,8 @@ export default function MercaditoCatalogo() {
         <div style={{ background: '#fbf8f3', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '16px 18px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div onClick={() => router.push('/')} style={{ ...botonGris, fontSize: 20 }}>←</div>
-              <div onClick={() => router.push('/cliente')} style={botonNaranja} title="Inicio del cliente">
+              <div onClick={() => volverSeguro(router, '/')} style={{ ...botonGris, fontSize: 20 }}>←</div>
+              <div onClick={() => irAInicio(router, cliente)} style={botonNaranja} title="Inicio">
                 <IconHouse size={18} fill="#fff" />
               </div>
             </div>
@@ -98,15 +99,15 @@ export default function MercaditoCatalogo() {
               <div style={{ fontFamily: 'var(--font-baloo2)', color: '#2a2118', fontWeight: 700, fontSize: 19 }}>Mercadito</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div onClick={() => router.push('/mercadito/carrito')} style={{ ...botonCaja, position: 'relative', background: 'rgba(193,80,46,0.13)' }} title="Carrito">
-                <IconCart size={18} fill="#c1502e" />
+              <div onClick={() => router.push('/mercadito/carrito')} style={{ ...botonCaja, position: 'relative', background: 'rgba(193,85,58,0.13)' }} title="Carrito">
+                <IconCart size={18} fill="#c1553a" />
                 {totalArticulos > 0 && (
-                  <span style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, background: '#c1502e', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fbf8f3' }}>
+                  <span style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, background: '#c1553a', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fbf8f3' }}>
                     {totalArticulos}
                   </span>
                 )}
               </div>
-              <MenuUsuario cliente={cliente} />
+              <MenuUsuario cliente={cliente} onLogin={setCliente} />
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.03)', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '10px 14px' }}>

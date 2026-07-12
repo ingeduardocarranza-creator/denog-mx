@@ -6,8 +6,9 @@ import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
 import ProductoCard from '../components/mercadito/ProductoCard';
 import TarjetaCliente from '../components/cliente/TarjetaCliente';
+import { IconHouse, IconUser, IconCart } from '../components/mercadito/HeaderIcons';
 import { emojiPara } from '../../lib/mercadito/categorias';
-import { leerCarrito, guardarCarrito, agregarAlCarrito, calcularTotales } from '../../lib/mercadito/carritoUtils';
+import { leerCarrito, guardarCarrito, agregarAlCarrito, calcularTotales, CARRITO_EVENTO } from '../../lib/mercadito/carritoUtils';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -15,6 +16,10 @@ const supabase = createClient(
 );
 
 const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const botonCaja = { flex: 'none', width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
+const botonGris = { ...botonCaja, background: 'rgba(0,0,0,0.05)', border: '1.5px solid rgba(0,0,0,0.08)', color: '#2a2118' };
+const botonNaranja = { ...botonCaja, background: '#c1502e' };
 
 export default function MercaditoCatalogo() {
   const router = useRouter();
@@ -36,7 +41,20 @@ export default function MercaditoCatalogo() {
       setProductos(data || []);
       setCargando(false);
     })();
+
+    // El carrito puede cambiar desde otra pestaña (evento "storage") o desde
+    // esta misma sin recargar (evento propio que dispara guardarCarrito) —
+    // en ambos casos refrescamos el badge/cantidades al instante.
+    const onCambio = () => setCart(leerCarrito());
+    window.addEventListener(CARRITO_EVENTO, onCambio);
+    window.addEventListener('storage', onCambio);
+    return () => {
+      window.removeEventListener(CARRITO_EVENTO, onCambio);
+      window.removeEventListener('storage', onCambio);
+    };
   }, []);
+
+  const cantidadEnCarrito = (productoId) => cart.find((l) => l.productoId === productoId)?.cantidad || 0;
 
   const categorias = useMemo(() => {
     const unicas = [...new Set(productos.map((p) => p.categoria).filter(Boolean))];
@@ -65,18 +83,28 @@ export default function MercaditoCatalogo() {
         {/* Header */}
         <div style={{ background: '#fbf8f3', borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '16px 18px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div onClick={() => router.push('/')} style={{ color: '#2a2118', fontSize: 20, cursor: 'pointer' }}>←</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div onClick={() => router.push('/')} style={{ ...botonGris, fontSize: 20 }}>←</div>
+              <div onClick={() => router.push('/cliente')} style={botonNaranja} title="Inicio del cliente">
+                <IconHouse size={18} fill="#fff" />
+              </div>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <Image src="/assets/logodenog.png" alt="Denog" width={191} height={120} style={{ height: 120, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(193,85,58,0.35))' }} />
               <div style={{ fontFamily: 'var(--font-baloo2)', color: '#2a2118', fontWeight: 700, fontSize: 19 }}>Mercadito</div>
             </div>
-            <div onClick={() => router.push('/mercadito/carrito')} style={{ position: 'relative', flex: 'none', width: 44, height: 44, borderRadius: '50%', background: 'rgba(193,85,58,0.1)', border: '1.5px solid rgba(193,85,58,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2a2118', fontSize: 22, cursor: 'pointer' }}>
-              🛒
-              {totalArticulos > 0 && (
-                <span style={{ position: 'absolute', top: -6, right: -6, background: '#c1553a', color: '#fff', fontSize: 10, fontWeight: 800, borderRadius: 999, padding: '2px 6px', border: '1.5px solid #fbf8f3' }}>
-                  {totalArticulos}
-                </span>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div onClick={() => router.push('/mercadito/carrito')} style={{ ...botonCaja, position: 'relative', background: 'rgba(193,80,46,0.13)' }} title="Carrito">
+                <IconCart size={18} fill="#c1502e" />
+                {totalArticulos > 0 && (
+                  <span style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, background: '#c1502e', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fbf8f3' }}>
+                    {totalArticulos}
+                  </span>
+                )}
+              </div>
+              <div onClick={() => router.push('/cliente/detalle')} style={botonGris} title="Usuario del cliente">
+                <IconUser size={18} fill="#2a2118" />
+              </div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.03)', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '10px 14px' }}>
@@ -120,7 +148,7 @@ export default function MercaditoCatalogo() {
             ) : productosFiltrados.length === 0 ? (
               <div style={{ gridColumn: '1 / -1', color: 'rgba(42,33,24,0.4)', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>No hay productos que coincidan.</div>
             ) : (
-              productosFiltrados.map((p) => <ProductoCard key={p.id} producto={p} onAdd={agregar} />)
+              productosFiltrados.map((p) => <ProductoCard key={p.id} producto={p} onAdd={agregar} enCarrito={cantidadEnCarrito(p.id)} />)
             )}
           </div>
         </div>

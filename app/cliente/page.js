@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import TarjetaCliente from '../components/cliente/TarjetaCliente'
+import { IconCart } from '../components/mercadito/HeaderIcons'
+import { leerCarrito, calcularTotales, CARRITO_EVENTO } from '../../lib/mercadito/carritoUtils'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -21,6 +23,7 @@ export default function ClienteInicio() {
   const [pagos, setPagos] = useState([])
   const [pedidosMercadito, setPedidosMercadito] = useState([])
   const [productosDestacados, setProductosDestacados] = useState([])
+  const [carritoMercaditoCount, setCarritoMercaditoCount] = useState(0)
   const router = useRouter()
 
   useEffect(() => {
@@ -28,6 +31,8 @@ export default function ClienteInicio() {
     if (!datos) { router.push('/'); return }
     const c = JSON.parse(datos)
     setCliente(c)
+
+    setCarritoMercaditoCount(calcularTotales(leerCarrito()).totalArticulos)
 
     fetch(`/api/cliente/pedidos?cliente_id=${c.id}`)
       .then(r => r.json())
@@ -53,6 +58,18 @@ export default function ClienteInicio() {
     supabase.from('productos_tienda').select('id, nombre, precio_venta, imagen_url')
       .eq('activo', true).eq('mostrar_en_mercadito', true).order('id', { ascending: false }).limit(8)
       .then(({ data }) => setProductosDestacados(data || []))
+  }, [])
+
+  // Badge del carrito del Mercadito: se mantiene en tiempo real aunque el
+  // cliente agregue productos desde otra pestaña o vuelva de /mercadito.
+  useEffect(() => {
+    const actualizarCarrito = () => setCarritoMercaditoCount(calcularTotales(leerCarrito()).totalArticulos)
+    window.addEventListener(CARRITO_EVENTO, actualizarCarrito)
+    window.addEventListener('storage', actualizarCarrito)
+    return () => {
+      window.removeEventListener(CARRITO_EVENTO, actualizarCarrito)
+      window.removeEventListener('storage', actualizarCarrito)
+    }
   }, [])
 
   // ---- Agrupar pedidos (Encargos) por entrega — misma lógica que ya existía ----
@@ -122,9 +139,19 @@ export default function ClienteInicio() {
             <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 20, ...fk }}>USA Compras</div>
             <div style={{ color: '#c1553a', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', marginTop: 2 }}>MY HAPPY SHOPPING</div>
           </div>
-          <button onClick={salir} style={{ color: '#2a2118', fontSize: 13, fontWeight: 700, border: '1.5px solid rgba(0,0,0,0.2)', borderRadius: 12, padding: '9px 16px', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
-            Salir
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={() => router.push('/mercadito/carrito')} title="Tu carrito" style={{ position: 'relative', flex: 'none', width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(193,80,46,0.13)', border: 'none', cursor: 'pointer' }}>
+              <IconCart size={18} fill="#c1502e" />
+              {carritoMercaditoCount > 0 && (
+                <span style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, background: '#c1502e', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fbf8f3' }}>
+                  {carritoMercaditoCount}
+                </span>
+              )}
+            </button>
+            <button onClick={salir} style={{ color: '#2a2118', fontSize: 13, fontWeight: 700, border: '1.5px solid rgba(0,0,0,0.2)', borderRadius: 12, padding: '9px 16px', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
+              Salir
+            </button>
+          </div>
         </div>
 
         {/* Saludo */}

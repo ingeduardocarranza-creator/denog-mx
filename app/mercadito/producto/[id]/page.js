@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import TarjetaCliente from '../../../components/cliente/TarjetaCliente';
-import { leerCarrito, guardarCarrito, agregarAlCarrito } from '../../../../lib/mercadito/carritoUtils';
+import { leerCarrito, guardarCarrito, agregarAlCarrito, CARRITO_EVENTO } from '../../../../lib/mercadito/carritoUtils';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -24,6 +24,7 @@ export default function FichaProducto() {
   const [fotoActiva, setFotoActiva] = useState(null);
   const [cantidad, setCantidad] = useState(1);
   const [agregado, setAgregado] = useState(false);
+  const [enCarrito, setEnCarrito] = useState(0);
 
   const [resenas, setResenas] = useState([]);
   const [cliente, setCliente] = useState(null);
@@ -50,6 +51,18 @@ export default function FichaProducto() {
         .order('creado_en', { ascending: false });
       setResenas(r || []);
     })();
+
+    const actualizarEnCarrito = () => {
+      const linea = leerCarrito().find((l) => String(l.productoId) === String(id));
+      setEnCarrito(linea?.cantidad || 0);
+    };
+    actualizarEnCarrito();
+    window.addEventListener(CARRITO_EVENTO, actualizarEnCarrito);
+    window.addEventListener('storage', actualizarEnCarrito);
+    return () => {
+      window.removeEventListener(CARRITO_EVENTO, actualizarEnCarrito);
+      window.removeEventListener('storage', actualizarEnCarrito);
+    };
   }, [id]);
 
   if (cargando) {
@@ -64,6 +77,7 @@ export default function FichaProducto() {
   }
 
   const stock = Number(producto.stock) || 0;
+  const disponibleParaAgregar = Math.max(0, stock - enCarrito);
   const stockLabel = stock <= 0 ? '❌ Agotado' : stock <= 3 ? `⚠️ Últimas piezas (${stock})` : '✅ En stock';
   const miniaturas = [producto.imagen_url, ...(producto.galeria || [])].filter(Boolean);
   const avgStars = resenas.length ? resenas.reduce((a, r) => a + r.estrellas, 0) / resenas.length : 0;
@@ -153,16 +167,19 @@ export default function FichaProducto() {
           💬 Compartir este producto por WhatsApp
         </a>
 
-        {stock > 0 && (
+        {disponibleParaAgregar > 0 ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 20 }}>
               <div style={{ color: 'rgba(42,33,24,0.65)', fontSize: 13, fontWeight: 600 }}>Cantidad</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div onClick={() => setCantidad((c) => Math.max(1, c - 1))} style={{ width: 30, height: 30, borderRadius: 9, background: 'rgba(0,0,0,0.06)', color: '#2a2118', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>−</div>
-                <div style={{ color: '#2a2118', fontSize: 15, fontWeight: 700, width: 20, textAlign: 'center' }}>{cantidad}</div>
-                <div onClick={() => setCantidad((c) => Math.min(stock, c + 1))} style={{ width: 30, height: 30, borderRadius: 9, background: 'rgba(0,0,0,0.06)', color: '#2a2118', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>+</div>
+                <div style={{ color: '#2a2118', fontSize: 15, fontWeight: 700, width: 20, textAlign: 'center' }}>{Math.min(cantidad, disponibleParaAgregar)}</div>
+                <div onClick={() => setCantidad((c) => Math.min(disponibleParaAgregar, c + 1))} style={{ width: 30, height: 30, borderRadius: 9, background: 'rgba(0,0,0,0.06)', color: '#2a2118', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>+</div>
               </div>
             </div>
+            {enCarrito > 0 && (
+              <div style={{ color: 'rgba(42,33,24,0.4)', fontSize: 11, marginTop: 6 }}>Ya tienes {enCarrito} en tu carrito · quedan {disponibleParaAgregar} disponibles</div>
+            )}
             <button
               type="button"
               onClick={agregarAlCarritoYVolver}
@@ -171,6 +188,10 @@ export default function FichaProducto() {
               {agregado ? '✅ Agregado al carrito' : 'Agregar al carrito'}
             </button>
           </>
+        ) : stock > 0 && (
+          <div style={{ color: 'rgba(42,33,24,0.5)', fontSize: 12.5, marginTop: 20, textAlign: 'center', background: 'rgba(0,0,0,0.03)', borderRadius: 12, padding: 12 }}>
+            Ya tienes todo el stock disponible ({stock}) en tu carrito.
+          </div>
         )}
 
         {/* Reseñas */}

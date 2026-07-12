@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono, Fredoka, Plus_Jakarta_Sans, Baloo_2, Poppins } from "next/font/google";
 import "./globals.css";
+import FloatingSocialBar from "./components/FloatingSocialBar";
 
 const fredoka = Fredoka({
   variable: "--font-fredoka",
@@ -55,7 +56,10 @@ export default function RootLayout({ children }) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${fredoka.variable} ${plusJakarta.variable} ${baloo2.variable} ${poppins.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <FloatingSocialBar />
+      </body>
     </html>
   );
 }

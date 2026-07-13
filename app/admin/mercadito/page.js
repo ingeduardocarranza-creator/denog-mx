@@ -186,8 +186,6 @@ export default function MercaditoAdmin() {
     aplicarCambio(p.id, { estado: 'aprobado', anticipo_estado: 'autorizado_sin_anticipo' }, 'Autorizado sin anticipo — venta aprobada'));
   const marcarEsperandoAnticipo = (p) =>
     aplicarCambio(p.id, { estado: 'esperando_anticipo', anticipo_estado: 'esperando' }, 'Marcado esperando anticipo');
-  const agregarAPedido = (p) => ejecutarConArmado(p.id, 'agregarAPedido', () =>
-    aplicarCambio(p.id, { estado: 'agregado' }, 'Agregado a su cuenta — pendiente de cobrar en punto de venta'));
 
   const iniciarCancel = (id) => { setCancelingId(id); setCancelDraft(''); };
   const abortarCancel = () => { setCancelingId(null); setCancelDraft(''); };
@@ -286,7 +284,7 @@ export default function MercaditoAdmin() {
   const totalPendiente = TAB_ORDER.filter((t) => !['todos', 'agregado', 'entregado', 'cancelado'].includes(t)).reduce((a, t) => a + (conteosPorEstado[t] || 0), 0);
 
   const pedidosResumenDia = useMemo(() =>
-    pedidos.filter((p) => ['confirmado', 'esperando_anticipo', 'aprobado'].includes(p.estado)),
+    pedidos.filter((p) => ['confirmado', 'esperando_anticipo', 'aprobado', 'agregado'].includes(p.estado)),
   [pedidos]);
 
   if (!usuario) return null;
@@ -300,7 +298,7 @@ export default function MercaditoAdmin() {
             Gestión de pedidos enviados desde el Mercadito (invitados por WhatsApp, clientes agregados a su próxima entrega). Mismo flujo y permisos para admin y colaborador.
           </p>
           <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-            El stock ya se descontó del catálogo al enviarse el pedido. Aquí es la <b>segunda confirmación</b>: revisar disponibilidad real, gestionar el anticipo (si aplica) y aprobar o cancelar. Al aprobar y &quot;Agregar a su pedido&quot;, se crea un registro en el Estado de Cuenta del cliente bajo el título <b>&quot;Compras de tu Mercadito&quot;</b>. El catálogo (fotos, precio, stock) se administra en <b>Operaciones → Catálogo</b>, con el interruptor &quot;Mostrar en Mercadito&quot;.
+            El stock ya se descontó del catálogo al enviarse el pedido. Aquí es la <b>segunda confirmación</b>: revisar disponibilidad real, gestionar el anticipo (si aplica) y aprobar o cancelar. En cuanto queda <b>Aprobado</b>, ya está anotado en el Estado de Cuenta del cliente y listo para cobrarse en el punto de venta — no hace falta ningún paso extra. El catálogo (fotos, precio, stock) se administra en <b>Operaciones → Catálogo</b>, con el interruptor &quot;Mostrar en Mercadito&quot;.
           </p>
         </div>
 
@@ -491,7 +489,7 @@ export default function MercaditoAdmin() {
                       Cancelado: {p.motivo_cancelacion}
                     </div>
                   )}
-                  {p.estado === 'agregado' && (
+                  {(p.estado === 'aprobado' || p.estado === 'agregado') && (
                     <div style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 10, padding: '10px 14px', color: '#6ee7b7', fontSize: 13 }}>
                       ✅ Anotado en su Estado de Cuenta — {saldoDe(p) > 0 ? 'pendiente de cobrar' : 'ya cubierto'} en el punto de venta cuando pase a recoger.
                     </div>
@@ -556,19 +554,7 @@ export default function MercaditoAdmin() {
                           <button type="button" onClick={() => iniciarCancel(p.id)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl bg-transparent text-red-300 border border-red-800/60">🚫 Cancelar pedido</button>
                         </>
                       )}
-                      {p.estado === 'aprobado' && (
-                        <>
-                          {saldoDe(p) > 0 && (
-                            <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: '#3b82f6', color: '#fff' }}>
-                              💳 Registrar pago
-                            </button>
-                          )}
-                          <button type="button" onClick={() => agregarAPedido(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={estaArmado(p.id, 'agregarAPedido') ? { background: '#facc15', color: '#3a2a00' } : { background: '#22c55e', color: '#06281d' }}>
-                            {estaArmado(p.id, 'agregarAPedido') ? '⚠️ ¿Confirmar? Toca de nuevo' : '📦 Agregar a su cuenta'}
-                          </button>
-                        </>
-                      )}
-                      {p.estado === 'agregado' && saldoDe(p) > 0 && (
+                      {(p.estado === 'aprobado' || p.estado === 'agregado') && saldoDe(p) > 0 && (
                         <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: '#3b82f6', color: '#fff' }}>
                           💳 Registrar pago
                         </button>

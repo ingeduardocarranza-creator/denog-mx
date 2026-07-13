@@ -55,10 +55,14 @@ export default function EncargosEntrega({
   const [discountType, setDiscountType] = useState('percent');
   const [discountDraft, setDiscountDraft] = useState('');
 
-  const totalApartadosFragil = bloquesEntregas.reduce(
+  const totalApartadosFragilEncargo = bloquesEntregas.reduce(
     (sum, b) => sum + b.pedidos.filter((p) => p.apartado_fragil && productosSeleccionados[p.id]).length,
     0
   );
+  const totalApartadosFragilMercadito = pedidosMercadito
+    .filter((pm) => mercaditoSeleccionado[pm.id])
+    .reduce((sum, pm) => sum + (pm.items || []).filter((it) => it.apartado_fragil).length, 0);
+  const totalApartadosFragil = totalApartadosFragilEncargo + totalApartadosFragilMercadito;
 
   const totalPiezas = bloquesEntregas.reduce(
     (sum, b) =>
@@ -436,30 +440,50 @@ export default function EncargosEntrega({
               {pedidosMercadito.map((pm) => {
                 const checked = !!mercaditoSeleccionado[pm.id];
                 const cubierto = pm.saldo <= 0;
+                const itemsFragiles = (pm.items || []).filter((it) => it.apartado_fragil).length;
                 return (
-                  <div key={pm.id} className="flex items-center gap-3 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <button
-                      type="button"
-                      onClick={() => setMercaditoSeleccionado({ ...mercaditoSeleccionado, [pm.id]: !checked })}
-                      style={{
-                        flex: 'none', width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
-                        border: checked ? 'none' : '2px solid rgba(255,255,255,0.3)',
-                        background: checked ? '#8b5cf6' : 'transparent', color: '#fff', fontSize: 15, fontWeight: 800, lineHeight: 1,
-                      }}
-                    >
-                      {checked ? '✓' : ''}
-                    </button>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, opacity: checked ? 1 : 0.6 }}>
-                        {pm.folio} · {(pm.items || []).map((it) => `${it.cantidad}x ${it.nombre}`).join(', ')}
+                  <div key={pm.id} className="py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setMercaditoSeleccionado({ ...mercaditoSeleccionado, [pm.id]: !checked })}
+                        style={{
+                          flex: 'none', width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
+                          border: checked ? 'none' : '2px solid rgba(255,255,255,0.3)',
+                          background: checked ? '#8b5cf6' : 'transparent', color: '#fff', fontSize: 15, fontWeight: 800, lineHeight: 1,
+                        }}
+                      >
+                        {checked ? '✓' : ''}
+                      </button>
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, opacity: checked ? 1 : 0.6 }}>{pm.folio}</span>
+                        {itemsFragiles > 0 && (
+                          <span style={{ flex: 'none', background: '#facc15', color: '#0f172a', borderRadius: 7, padding: '3px 9px', fontSize: 10.5, fontWeight: 900, letterSpacing: '0.03em', whiteSpace: 'nowrap' }}>
+                            ⚠ {itemsFragiles} FRÁGIL
+                          </span>
+                        )}
                       </div>
-                      <div style={{ fontSize: 12, color: cubierto ? '#4ade80' : 'rgba(255,255,255,0.5)', marginTop: 2 }}>
-                        Total $ {money(pm.total)} · Pagado $ {money(pm.pagado)}
-                        {cubierto ? ' · ✓ cubierto por anticipo' : ` · Saldo $ ${money(pm.saldo)}`}
+                      <div style={{ fontSize: 15, fontWeight: 800, color: checked ? (cubierto ? '#4ade80' : '#c4b5fd') : 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap' }}>
+                        $ {money(pm.saldo)}
                       </div>
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: checked ? (cubierto ? '#4ade80' : '#c4b5fd') : 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap' }}>
-                      $ {money(pm.saldo)}
+
+                    <div style={{ marginLeft: 36, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {(pm.items || []).map((it, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'rgba(255,255,255,0.6)' }}>
+                          <span>{it.cantidad}x {it.nombre}</span>
+                          {it.apartado_fragil && (
+                            <span style={{ flex: 'none', background: 'rgba(250,204,21,0.16)', color: '#facc15', borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 800, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>
+                              ⚠ FRÁGIL — no empacar, dejar en área de cuidado
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ marginLeft: 36, fontSize: 12, color: cubierto ? '#4ade80' : 'rgba(255,255,255,0.5)', marginTop: 6 }}>
+                      Total $ {money(pm.total)} · Pagado $ {money(pm.pagado)}
+                      {cubierto ? ' · ✓ cubierto por anticipo' : ` · Saldo $ ${money(pm.saldo)}`}
                     </div>
                   </div>
                 );

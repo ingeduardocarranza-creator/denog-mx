@@ -9,9 +9,13 @@ export default function DogWalker({
   loopStart = 0,
   loopEnd   = 0,
   shadow    = 'drop-shadow(0 6px 16px rgba(130,87,245,.5))',
+  once      = false,
+  onEnded,
 }) {
   const canvasRef = useRef(null)
   const videoRef  = useRef(null)
+  const onEndedRef = useRef(onEnded)
+  useEffect(() => { onEndedRef.current = onEnded }, [onEnded])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -139,12 +143,27 @@ export default function DogWalker({
     video.addEventListener('loadedmetadata', () => {
       if (ls > 0) { try { video.currentTime = ls } catch (_) {} }
     })
+    let terminado = false
+    const avisarTerminado = () => {
+      if (terminado) return
+      terminado = true
+      try { video.pause() } catch (_) {}
+      onEndedRef.current?.()
+    }
     video.addEventListener('timeupdate', () => {
-      const end = le > 0 ? le : video.duration
+      // video.duration puede venir NaN/Infinity en este archivo si no se
+      // pasa un loopEnd explícito — por eso el fin real de una pasada única
+      // se detecta con el evento nativo "ended" (abajo), no aquí.
+      const end = le > 0 ? le : (once ? 0 : video.duration)
       if (end && video.currentTime >= end - 0.04) {
-        try { video.currentTime = ls } catch (_) {}
+        if (once) avisarTerminado()
+        else { try { video.currentTime = ls } catch (_) {} }
       }
     })
+    // Con `once`, el <video> no tiene loop nativo (ver abajo), así que al
+    // llegar al final real dispara "ended" — fuente de verdad más confiable
+    // que comparar contra video.duration.
+    if (once) video.addEventListener('ended', avisarTerminado)
     tryPlay()
 
     if ('requestVideoFrameCallback' in video) video.requestVideoFrameCallback(frame)
@@ -153,8 +172,9 @@ export default function DogWalker({
     return () => {
       video.removeEventListener('loadeddata', tryPlay)
       video.removeEventListener('canplay', tryPlay)
+      video.removeEventListener('ended', avisarTerminado)
     }
-  }, [src, bg, crop, loopStart, loopEnd])
+  }, [src, bg, crop, loopStart, loopEnd, once])
 
   return (
     <>
@@ -168,7 +188,7 @@ export default function DogWalker({
         ref={videoRef}
         src={src}
         muted
-        loop
+        loop={!once}
         autoPlay
         playsInline
         crossOrigin="anonymous"

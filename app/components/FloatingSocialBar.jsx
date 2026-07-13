@@ -1,5 +1,9 @@
 'use client';
+import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import dynamic from 'next/dynamic';
+
+const DogWalker = dynamic(() => import('./DogWalker'), { ssr: false });
 
 const IconWhatsApp = () => (
   <svg viewBox="0 0 24 24" fill="#fff">
@@ -22,8 +26,8 @@ const IconTikTok = () => (
   </svg>
 );
 
-const REDES = [
-  { href: 'https://wa.me/526625486432', label: 'WhatsApp', clase: 'denog-fab--whatsapp', icon: <IconWhatsApp /> },
+const WHATSAPP = { href: 'https://wa.me/526625486432', label: 'WhatsApp', clase: 'denog-fab--whatsapp', icon: <IconWhatsApp /> };
+const RESTO = [
   { href: 'https://instagram.com/denog.mx', label: 'Instagram', clase: 'denog-fab--instagram', icon: <IconInstagram /> },
   { href: 'https://facebook.com/Denogmx', label: 'Facebook', clase: 'denog-fab--facebook', icon: <IconFacebook /> },
   { href: 'https://tiktok.com/@denog.mx', label: 'TikTok', clase: 'denog-fab--tiktok', icon: <IconTikTok /> },
@@ -34,6 +38,27 @@ const REDES = [
 // barra solo estorbaría sobre menús y modales.
 export default function FloatingSocialBar() {
   const pathname = usePathname();
+
+  // El perrito se suma a la barra (arriba de Instagram) cada vez que se
+  // entra al Mercadito, se reproduce completo una sola vez y desaparece.
+  const [mostrarPerrito, setMostrarPerrito] = useState(false);
+  const [perritoSaliendo, setPerritoSaliendo] = useState(false);
+
+  useEffect(() => {
+    if (pathname === '/mercadito' || pathname === '/cliente') {
+      setMostrarPerrito(true);
+      setPerritoSaliendo(false);
+    } else {
+      setMostrarPerrito(false);
+      setPerritoSaliendo(false);
+    }
+  }, [pathname]);
+
+  const onPerritoTermino = () => {
+    setPerritoSaliendo(true);
+    setTimeout(() => setMostrarPerrito(false), 400);
+  };
+
   if (pathname?.startsWith('/admin') || pathname?.startsWith('/pos')) return null;
 
   // El catálogo del Mercadito (/mercadito) tiene su propia barra fija de
@@ -62,8 +87,9 @@ export default function FloatingSocialBar() {
           justify-content: center;
           text-decoration: none;
           box-shadow: 0 6px 18px rgba(0,0,0,0.22);
-          transition: transform .15s ease;
+          transition: transform .15s ease, opacity .4s ease;
           flex: none;
+          overflow: hidden;
         }
         .denog-fab:hover { transform: scale(1.07); }
         .denog-fab svg { width: 55%; height: 55%; display: block; }
@@ -71,6 +97,7 @@ export default function FloatingSocialBar() {
         .denog-fab--facebook { background: #1877F2; }
         .denog-fab--tiktok { background: #000; }
         .denog-fab--instagram { background: linear-gradient(135deg, #feda75 0%, #fa7e1e 25%, #d62976 55%, #962fbf 80%, #4f5bd5 100%); }
+        .denog-fab--perrito { background: #fff; border: 1.5px solid rgba(193,85,58,0.15); }
 
         @media (max-width: 900px) {
           .denog-fab-wrap { right: 16px; bottom: calc(16px + env(safe-area-inset-bottom) + var(--fab-raise, 0px)); gap: 10px; }
@@ -82,7 +109,27 @@ export default function FloatingSocialBar() {
         }
       `}</style>
       <div className="denog-fab-wrap" style={{ '--fab-raise': elevada ? '66px' : '0px' }}>
-        {REDES.map((r) => (
+        {mostrarPerrito && (
+          <div
+            className="denog-fab denog-fab--perrito"
+            title="¡Hola! 🐶"
+            style={{ opacity: perritoSaliendo ? 0 : 1, transform: perritoSaliendo ? 'scale(0.85)' : 'scale(1)' }}
+          >
+            <DogWalker
+              src="/assets/dog-green.mp4"
+              bg="green"
+              crop="0.26,0.02,0.76,1.0"
+              height="34px"
+              shadow="none"
+              once
+              onEnded={onPerritoTermino}
+            />
+          </div>
+        )}
+        <a href={WHATSAPP.href} target="_blank" rel="noreferrer" title={WHATSAPP.label} className={`denog-fab ${WHATSAPP.clase}`}>
+          {WHATSAPP.icon}
+        </a>
+        {RESTO.map((r) => (
           <a key={r.label} href={r.href} target="_blank" rel="noreferrer" title={r.label} className={`denog-fab ${r.clase}`}>
             {r.icon}
           </a>

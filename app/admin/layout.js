@@ -16,7 +16,7 @@ const grupos = [
   {
     label: 'MERCADITO',
     items: [
-      { label: 'Pedidos',  icon: '🛍️', href: '/admin/mercadito' },
+      { label: 'Pedidos',  icon: '🛍️', href: '/admin/mercadito', badgeKey: 'mercadito' },
       { label: 'Reportes', icon: '📊', href: '/admin/mercadito/reportes' },
     ],
   },

@@ -16,10 +16,12 @@ const STATUS_META = {
   confirmado: { label: 'Confirmado (stock ok)', color: '#38bdf8', icon: '📋' },
   esperando_anticipo: { label: 'Esperando anticipo', color: '#facc15', icon: '⏳' },
   aprobado: { label: 'Aprobado', color: '#34d399', icon: '✅' },
-  agregado: { label: 'Agregado a entrega', color: '#22c55e', icon: '📦' },
+  agregado: { label: 'Agregado a su cuenta', color: '#22c55e', icon: '📦' },
+  entregado: { label: 'Entregado y cobrado', color: '#a3e635', icon: '🏁' },
   cancelado: { label: 'Cancelado', color: '#ef4444', icon: '🚫' },
 };
-const TAB_ORDER = ['todos', 'nuevo', 'confirmado', 'esperando_anticipo', 'aprobado', 'agregado', 'cancelado'];
+const TAB_ORDER = ['todos', 'nuevo', 'confirmado', 'esperando_anticipo', 'aprobado', 'agregado', 'entregado', 'cancelado'];
+const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Terminal'];
 
 const pillStyle = (color, bg) => ({
   display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -91,6 +93,61 @@ export default function MercaditoAdmin() {
 
   useEffect(() => { cargarPedidos(); }, []);
 
+  // Cuánto se ha cobrado de verdad por pedido — para que "saldo pendiente"
+  // sea un número real y no solo un estado manual sin dinero detrás.
+  const [pagosPorPedido, setPagosPorPedido] = useState({});
+  const cargarPagos = async () => {
+    const { data } = await supabase.from('pagos').select('pedido_mercadito_id, monto').not('pedido_mercadito_id', 'is', null);
+    const mapa = {};
+    (data || []).forEach((p) => { mapa[p.pedido_mercadito_id] = (mapa[p.pedido_mercadito_id] || 0) + Number(p.monto || 0); });
+    setPagosPorPedido(mapa);
+  };
+  useEffect(() => { cargarPagos(); }, [pedidos.length]);
+
+  const pagadoDe = (p) => pagosPorPedido[p.id] || 0;
+  const saldoDe = (p) => Math.max(0, totalPedido(p) - pagadoDe(p));
+
+  const [formPagoAbierto, setFormPagoAbierto] = useState(null);
+  const [formPago, setFormPago] = useState({ monto: '', metodo: 'Efectivo' });
+  const [errorPago, setErrorPago] = useState('');
+
+  const abrirFormPago = (p) => {
+    setFormPagoAbierto(p.id);
+    setFormPago({ monto: String(saldoDe(p) || ''), metodo: 'Efectivo' });
+    setErrorPago('');
+  };
+  const cerrarFormPago = () => { setFormPagoAbierto(null); setErrorPago(''); };
+
+  // Registra el pago con fecha/método/monto reales en `pagos` (nada de
+  // limbo). Si el pedido todavía no tenía anticipo gestionado, este mismo
+  // pago es el que lo aprueba — ya no se puede tocar "Anticipo recibido"
+  // sin que quede un peso registrado detrás.
+  const registrarPago = async (p) => {
+    const monto = Number(formPago.monto);
+    if (!monto || monto <= 0) { setErrorPago('Escribe un monto válido.'); return; }
+    const saldo = saldoDe(p);
+    if (monto > saldo + 0.5) { setErrorPago(`Ese monto supera el saldo pendiente ($${money(saldo)}).`); return; }
+
+    const { error } = await supabase.from('pagos').insert({
+      cliente_id: p.cliente_id,
+      pedido_mercadito_id: p.id,
+      entrega_id: null,
+      monto,
+      metodo: formPago.metodo,
+      tipo: 'Anticipo',
+      vendedor_id: usuario?.id || null,
+    });
+    if (error) { setErrorPago('No se pudo registrar el pago.'); return; }
+
+    if (p.estado === 'confirmado' || p.estado === 'esperando_anticipo') {
+      await aplicarCambio(p.id, { estado: 'aprobado', anticipo_estado: 'recibido' }, `Anticipo recibido: $${money(monto)} (${formPago.metodo})`);
+    } else {
+      await aplicarCambio(p.id, {}, `Pago registrado: $${money(monto)} (${formPago.metodo})`);
+    }
+    await cargarPagos();
+    cerrarFormPago();
+  };
+
   const aplicarCambio = async (id, patch, historialLabel) => {
     const actual = pedidos.find((p) => p.id === id);
     if (!actual) return;
@@ -125,14 +182,12 @@ export default function MercaditoAdmin() {
     aplicarCambio(p.id, { estado: 'confirmado' }, 'Stock confirmado disponible'));
   const cancelarSinStock = (p) =>
     aplicarCambio(p.id, { estado: 'cancelado', motivo_cancelacion: 'Sin stock disponible al revisar bodega.' }, 'Cancelado: sin stock disponible');
-  const anticipoRecibido = (p) => ejecutarConArmado(p.id, 'anticipoRecibido', () =>
-    aplicarCambio(p.id, { estado: 'aprobado', anticipo_estado: 'recibido' }, 'Anticipo recibido — venta aprobada'));
   const autorizarSinAnticipo = (p) => ejecutarConArmado(p.id, 'autorizarSinAnticipo', () =>
     aplicarCambio(p.id, { estado: 'aprobado', anticipo_estado: 'autorizado_sin_anticipo' }, 'Autorizado sin anticipo — venta aprobada'));
   const marcarEsperandoAnticipo = (p) =>
     aplicarCambio(p.id, { estado: 'esperando_anticipo', anticipo_estado: 'esperando' }, 'Marcado esperando anticipo');
   const agregarAPedido = (p) => ejecutarConArmado(p.id, 'agregarAPedido', () =>
-    aplicarCambio(p.id, { estado: 'agregado' }, 'Agregado a su próxima entrega'));
+    aplicarCambio(p.id, { estado: 'agregado' }, 'Agregado a su cuenta — pendiente de cobrar en punto de venta'));
 
   const iniciarCancel = (id) => { setCancelingId(id); setCancelDraft(''); };
   const abortarCancel = () => { setCancelingId(null); setCancelDraft(''); };
@@ -201,7 +256,7 @@ export default function MercaditoAdmin() {
   const activosPorCliente = useMemo(() => {
     const map = {};
     pedidos.forEach((p) => {
-      if (p.estado === 'agregado' || p.estado === 'cancelado') return;
+      if (p.estado === 'agregado' || p.estado === 'entregado' || p.estado === 'cancelado') return;
       const key = nombrePedido(p);
       (map[key] = map[key] || []).push(p.folio);
     });
@@ -228,7 +283,7 @@ export default function MercaditoAdmin() {
     return estados.map((t) => ({ t, ...STATUS_META[t], count: conteosPorEstado[t] || 0, width: `${((conteosPorEstado[t] || 0) / max) * 100}%` }));
   }, [conteosPorEstado]);
 
-  const totalPendiente = TAB_ORDER.filter((t) => t !== 'todos' && t !== 'agregado' && t !== 'cancelado').reduce((a, t) => a + (conteosPorEstado[t] || 0), 0);
+  const totalPendiente = TAB_ORDER.filter((t) => !['todos', 'agregado', 'entregado', 'cancelado'].includes(t)).reduce((a, t) => a + (conteosPorEstado[t] || 0), 0);
 
   const pedidosResumenDia = useMemo(() =>
     pedidos.filter((p) => ['confirmado', 'esperando_anticipo', 'aprobado'].includes(p.estado)),
@@ -381,6 +436,15 @@ export default function MercaditoAdmin() {
                   </div>
                   <div className="flex justify-end text-sm font-bold text-white">Total: ${money(total)}</div>
 
+                  {(pagadoDe(p) > 0 || ['esperando_anticipo', 'aprobado', 'agregado'].includes(p.estado)) && p.estado !== 'entregado' && p.estado !== 'cancelado' && (
+                    <div className="flex justify-end gap-3 text-[11.5px]">
+                      <span className="text-emerald-400 font-bold">Pagado: ${money(pagadoDe(p))}</span>
+                      <span className={saldoDe(p) > 0 ? 'text-amber-300 font-bold' : 'text-emerald-400 font-bold'}>
+                        {saldoDe(p) > 0 ? `Saldo pendiente: $${money(saldoDe(p))}` : '✓ Cubierto por anticipo'}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Historial */}
                   {(p.historial || []).length > 0 && (
                     <div>
@@ -429,7 +493,28 @@ export default function MercaditoAdmin() {
                   )}
                   {p.estado === 'agregado' && (
                     <div style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 10, padding: '10px 14px', color: '#6ee7b7', fontSize: 13 }}>
-                      ✅ Agregado a tu próxima entrega — registrado en &quot;Compras de tu Mercadito&quot;.
+                      ✅ Anotado en su Estado de Cuenta — {saldoDe(p) > 0 ? 'pendiente de cobrar' : 'ya cubierto'} en el punto de venta cuando pase a recoger.
+                    </div>
+                  )}
+                  {p.estado === 'entregado' && (
+                    <div style={{ background: 'rgba(163,230,53,0.1)', border: '1px solid rgba(163,230,53,0.35)', borderRadius: 10, padding: '10px 14px', color: '#d9f99d', fontSize: 13 }}>
+                      🏁 Cobrado y entregado en el punto de venta.
+                    </div>
+                  )}
+
+                  {/* Registrar pago (anticipo o liquidación) */}
+                  {formPagoAbierto === p.id && (
+                    <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 10, padding: 14 }}>
+                      <div className="text-[11px] font-bold text-emerald-300 mb-2">Registrar pago — saldo pendiente ${money(saldoDe(p))}</div>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <input type="number" value={formPago.monto} onChange={(e) => setFormPago((f) => ({ ...f, monto: e.target.value }))} placeholder="Monto" className="w-28 bg-[#1e2533] border border-slate-700 rounded-lg px-2.5 py-1.5 text-[12px] text-white focus:outline-none" />
+                        <select value={formPago.metodo} onChange={(e) => setFormPago((f) => ({ ...f, metodo: e.target.value }))} className="bg-[#1e2533] border border-slate-700 rounded-lg px-2 py-1.5 text-[11.5px] text-white focus:outline-none">
+                          {METODOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        <button type="button" onClick={() => registrarPago(p)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11.5px] font-bold px-3 py-1.5 rounded-lg">Guardar pago</button>
+                        <button type="button" onClick={cerrarFormPago} className="bg-transparent text-slate-400 border border-slate-700 text-[11.5px] font-bold px-3 py-1.5 rounded-lg">Cancelar</button>
+                      </div>
+                      {errorPago && <div className="text-[11px] text-red-300 mt-2">{errorPago}</div>}
                     </div>
                   )}
 
@@ -456,8 +541,8 @@ export default function MercaditoAdmin() {
                       )}
                       {(p.estado === 'confirmado' || p.estado === 'esperando_anticipo') && (
                         <>
-                          <button type="button" onClick={() => anticipoRecibido(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={estaArmado(p.id, 'anticipoRecibido') ? { background: '#facc15', color: '#3a2a00' } : { background: '#34d399', color: '#06281d' }}>
-                            {estaArmado(p.id, 'anticipoRecibido') ? '⚠️ ¿Confirmar? Toca de nuevo' : '💰 Anticipo recibido'}
+                          <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: '#34d399', color: '#06281d' }}>
+                            💰 Registrar anticipo
                           </button>
                           <button type="button" onClick={() => autorizarSinAnticipo(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={estaArmado(p.id, 'autorizarSinAnticipo') ? { background: '#facc15', color: '#3a2a00' } : { background: '#3b82f6', color: '#fff' }}>
                             {estaArmado(p.id, 'autorizarSinAnticipo') ? '⚠️ ¿Confirmar? Toca de nuevo' : '🟡 Autorizar pedido sin anticipo'}
@@ -472,8 +557,20 @@ export default function MercaditoAdmin() {
                         </>
                       )}
                       {p.estado === 'aprobado' && (
-                        <button type="button" onClick={() => agregarAPedido(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={estaArmado(p.id, 'agregarAPedido') ? { background: '#facc15', color: '#3a2a00' } : { background: '#22c55e', color: '#06281d' }}>
-                          {estaArmado(p.id, 'agregarAPedido') ? '⚠️ ¿Confirmar? Toca de nuevo' : '📦 Agregar a su pedido'}
+                        <>
+                          {saldoDe(p) > 0 && (
+                            <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: '#3b82f6', color: '#fff' }}>
+                              💳 Registrar pago
+                            </button>
+                          )}
+                          <button type="button" onClick={() => agregarAPedido(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={estaArmado(p.id, 'agregarAPedido') ? { background: '#facc15', color: '#3a2a00' } : { background: '#22c55e', color: '#06281d' }}>
+                            {estaArmado(p.id, 'agregarAPedido') ? '⚠️ ¿Confirmar? Toca de nuevo' : '📦 Agregar a su cuenta'}
+                          </button>
+                        </>
+                      )}
+                      {p.estado === 'agregado' && saldoDe(p) > 0 && (
+                        <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: '#3b82f6', color: '#fff' }}>
+                          💳 Registrar pago
                         </button>
                       )}
                     </div>

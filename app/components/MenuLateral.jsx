@@ -59,7 +59,19 @@ export default function MenuLateral({ grupos, children }) {
     return () => clearInterval(intervalo)
   }, [])
 
-  const badges = { domicilios: domiciliosPendientes }
+  const [mercaditoPendientes, setMercaditoPendientes] = useState(0)
+  useEffect(() => {
+    const verificar = async () => {
+      const res  = await fetch('/api/mercadito/pendientes')
+      const data = await res.json()
+      if (data.ok) setMercaditoPendientes(data.count)
+    }
+    verificar()
+    const intervalo = setInterval(verificar, 60000)
+    return () => clearInterval(intervalo)
+  }, [])
+
+  const badges = { domicilios: domiciliosPendientes, mercadito: mercaditoPendientes }
 
   const salir = () => { localStorage.removeItem('cliente'); router.push('/') }
 

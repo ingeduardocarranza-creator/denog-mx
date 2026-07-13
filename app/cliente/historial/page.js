@@ -73,7 +73,7 @@ export default function HistorialCompras() {
     })
 
   const mercaditoEntregado = pedidosMercadito
-    .filter(p => p.estado === 'agregado')
+    .filter(p => p.estado === 'entregado')
     .sort((a, b) => new Date(b.actualizado_en || b.creado_en) - new Date(a.actualizado_en || a.creado_en))
     .map(p => {
       const primerItem = p.items?.[0]?.nombre || 'Producto'

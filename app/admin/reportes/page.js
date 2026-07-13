@@ -186,7 +186,7 @@ export default function Reportes() {
         porTransaccion[pagoId] = {
           pago_id: pagoId,
           vendedor: v.clientes?.nombre || 'Sin nombre',
-          metodo: v.pagos?.metodo || '—',
+          metodo: v.pagos?.metodo && v.pagos_2?.metodo ? `${v.pagos.metodo} + ${v.pagos_2.metodo}` : (v.pagos?.metodo || '—'),
           hora: new Date(v.creado_en).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Hermosillo' }),
           articulos: [],
           total: 0

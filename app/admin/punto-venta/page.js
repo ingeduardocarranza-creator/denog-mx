@@ -40,6 +40,9 @@ export default function PuntoDeVenta() {
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [bloquesEntregas, setBloquesEntregas] = useState([]);
 
+  const [pedidosMercaditoCliente, setPedidosMercaditoCliente] = useState([]);
+  const [mercaditoSeleccionado, setMercaditoSeleccionado] = useState({});
+
   const [listaAnticipos, setListaAnticipos] = useState([]);
   const [anticiposDisponibles, setAnticiposDisponibles] = useState(0);
 
@@ -140,6 +143,8 @@ export default function PuntoDeVenta() {
     setModo(nuevoModo);
     setClienteSeleccionado(null);
     setBloquesEntregas([]);
+    setPedidosMercaditoCliente([]);
+    setMercaditoSeleccionado({});
     setAnticiposDisponibles(0);
     setListaAnticipos([]);
     setProductosSeleccionados({});
@@ -158,6 +163,8 @@ export default function PuntoDeVenta() {
   const limpiarClienteEncargo = () => {
     setClienteSeleccionado(null);
     setBloquesEntregas([]);
+    setPedidosMercaditoCliente([]);
+    setMercaditoSeleccionado({});
     setListaAnticipos([]);
     setAnticiposDisponibles(0);
     setProductosSeleccionados({});
@@ -180,6 +187,33 @@ export default function PuntoDeVenta() {
       .not('estado', 'in', '("Pagado","Entregado","no_llego")');
 
     const historialPedidos = pedidosDb || [];
+
+    // Pedidos de Mercadito de este cliente, listos para cobrar/recoger —
+    // junto con lo que ya se les haya pagado, para saber el saldo real.
+    const { data: mercaditoDb } = await supabase
+      .from('pedidos_mercadito')
+      .select('id, folio, items, creado_en')
+      .eq('cliente_id', cliente.id)
+      .in('estado', ['aprobado', 'agregado']);
+
+    const idsMercadito = (mercaditoDb || []).map((m) => m.id);
+    let pagosMercadito = [];
+    if (idsMercadito.length > 0) {
+      const { data: pagosMercaditoDb } = await supabase
+        .from('pagos')
+        .select('pedido_mercadito_id, monto')
+        .in('pedido_mercadito_id', idsMercadito);
+      pagosMercadito = pagosMercaditoDb || [];
+    }
+    const pedidosMercaditoConSaldo = (mercaditoDb || []).map((pm) => {
+      const total = (pm.items || []).reduce((s, it) => s + (Number(it.precio_unitario) || 0) * (Number(it.cantidad) || 0), 0);
+      const pagado = pagosMercadito.filter((pg) => pg.pedido_mercadito_id === pm.id).reduce((s, pg) => s + Number(pg.monto || 0), 0);
+      return { ...pm, total, pagado, saldo: Math.max(0, total - pagado) };
+    });
+    setPedidosMercaditoCliente(pedidosMercaditoConSaldo);
+    const seleccionMercaditoInicial = {};
+    pedidosMercaditoConSaldo.forEach((pm) => { seleccionMercaditoInicial[pm.id] = true; });
+    setMercaditoSeleccionado(seleccionMercaditoInicial);
 
     const { data: pagosDb } = await supabase
       .from('pagos')
@@ -253,10 +287,14 @@ export default function PuntoDeVenta() {
     }
   });
 
+  const sumaMercaditoSeleccionado = pedidosMercaditoCliente
+    .filter((pm) => mercaditoSeleccionado[pm.id])
+    .reduce((s, pm) => s + pm.saldo, 0);
+
   const totalesEncargoTienda = calcularTotalesCarrito(carritoEncargoTienda, { tipo: null, valor: 0 });
   const totalesVentaTienda = calcularTotalesCarrito(carritoVentaTienda, descuentoVentaTienda);
   const subtotalTienda = modo === 'modo1' ? totalesEncargoTienda.total : modo === 'modo2' ? totalesVentaTienda.total : 0;
-  const totalGeneral = modo === 'modo1' ? (sumaEncargosTotalNeto + subtotalTienda) : subtotalTienda;
+  const totalGeneral = modo === 'modo1' ? (sumaEncargosTotalNeto + sumaMercaditoSeleccionado + subtotalTienda) : subtotalTienda;
 
   const procesarCobroFinal = async ({ metodo1: m1, monto1, metodo2: m2, monto2 }) => {
     setLoading(true);
@@ -287,15 +325,41 @@ export default function PuntoDeVenta() {
     try {
       const clienteIdFinal = modo === 'modo1' ? clienteSeleccionado?.id : null;
 
-      // Distribuir el pago entre entregas en orden cronológico (más vieja primero).
-      // Los productos de tienda agregados aquí se liquidan como una venta aparte
-      // (con su propio pago y ventas_tienda), nunca como anticipo. Sobrante real
-      // después de cubrir bloques + tienda-extra → anticipo nuevo.
-      if (modo === 'modo1' && clienteSeleccionado) {
-        // Total recibido en efectivo/transferencia en esta transacción
-        let montoRecibido = (monto1 > 0 ? monto1 : 0) + (monto2 > 0 && m2 ? monto2 : 0);
-        const metodoFinal = m1 || 'Transferencia';
+      // "Billetera" de lo recibido en esta transacción, por método real —
+      // cada bloque que se cubre puede consumir de uno o de los dos métodos,
+      // y cada parte queda registrada con su método verdadero (antes todo se
+      // etiquetaba bajo el primer método, aunque una parte fuera de otro).
+      const restante = {};
+      if (monto1 > 0) restante[m1 || 'Transferencia'] = (restante[m1 || 'Transferencia'] || 0) + monto1;
+      if (monto2 > 0 && m2) restante[m2] = (restante[m2] || 0) + monto2;
+      const totalRestante = () => Object.values(restante).reduce((a, b) => a + b, 0);
 
+      // Aplica `monto` contra lo que queda en la billetera, insertando una
+      // fila en `pagos` por cada método que realmente se usó. Devuelve los
+      // pagos insertados (id + método + monto) para poder enlazarlos donde
+      // haga falta (ej. ventas_tienda).
+      const aplicarPago = async (monto, campos) => {
+        const insertados = [];
+        let porCubrir = monto;
+        for (const metodo of Object.keys(restante)) {
+          if (porCubrir <= 0) break;
+          if (restante[metodo] <= 0) continue;
+          const usar = Math.min(restante[metodo], porCubrir);
+          if (usar <= 0) continue;
+          const { data } = await supabase.from('pagos').insert({ ...campos, monto: usar, metodo }).select('id').single();
+          insertados.push({ metodo, monto: usar, id: data?.id || null });
+          restante[metodo] -= usar;
+          porCubrir -= usar;
+        }
+        return insertados;
+      };
+
+      // Distribuir el pago entre entregas y pedidos de Mercadito en orden
+      // cronológico (más viejo primero). Los productos de tienda agregados
+      // aquí se liquidan como una venta aparte (con su propio pago y
+      // ventas_tienda), nunca como anticipo. Sobrante real después de cubrir
+      // todo → anticipo nuevo.
+      if (modo === 'modo1' && clienteSeleccionado) {
         // Ordenar bloques por fecha de entrega, más viejo primero
         const bloquesOrdenados = [...bloquesEntregas].sort((a, b) =>
           new Date(a.entrega.fecha_entrega) - new Date(b.entrega.fecha_entrega)
@@ -348,87 +412,74 @@ export default function PuntoDeVenta() {
           }
 
           // Aplicar el monto recibido en esta transacción a esta entrega
-          if (netoBloque > 0 && montoRecibido > 0) {
-            const montoAplicar = Math.min(montoRecibido, netoBloque);
-            await supabase.from('pagos').insert({
-              cliente_id: clienteIdFinal,
-              entrega_id: entregaId,
-              monto: montoAplicar,
-              metodo: metodoFinal,
-              tipo: 'Venta Liquidación',
-              vendedor_id: colaborador?.id || null
+          if (netoBloque > 0 && totalRestante() > 0) {
+            const montoAplicar = Math.min(totalRestante(), netoBloque);
+            await aplicarPago(montoAplicar, {
+              cliente_id: clienteIdFinal, entrega_id: entregaId, tipo: 'Venta Liquidación', vendedor_id: colaborador?.id || null,
             });
-            montoRecibido -= montoAplicar;
+          }
+        }
+
+        // Pedidos de Mercadito seleccionados para esta visita, más viejo
+        // primero — si ya estaban cubiertos por anticipo (saldo 0), se
+        // entregan sin cobrar de más; si no alcanza el dinero para cubrir
+        // uno completo, se queda tal cual (no se marca entregado sin pagar).
+        const mercaditoOrdenado = pedidosMercaditoCliente
+          .filter((pm) => mercaditoSeleccionado[pm.id])
+          .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
+
+        for (const pm of mercaditoOrdenado) {
+          let saldoPm = pm.saldo;
+          if (saldoPm > 0 && totalRestante() > 0) {
+            const montoAplicar = Math.min(totalRestante(), saldoPm);
+            await aplicarPago(montoAplicar, {
+              cliente_id: clienteIdFinal, pedido_mercadito_id: pm.id, entrega_id: null, tipo: 'Venta Liquidación', vendedor_id: colaborador?.id || null,
+            });
+            saldoPm -= montoAplicar;
+          }
+          if (saldoPm <= 0.5) {
+            await supabase.from('pedidos_mercadito').update({ estado: 'entregado', actualizado_en: new Date().toISOString() }).eq('id', pm.id);
           }
         }
 
         // Productos de tienda agregados durante el Encargo: venta liquidada
         // aparte, con su propio pago y filas en ventas_tienda (costo snapshot).
-        if (carritoEncargoTienda.length > 0 && montoRecibido > 0) {
-          const montoAplicarTienda = Math.min(montoRecibido, totalesEncargoTienda.total);
+        if (carritoEncargoTienda.length > 0 && totalRestante() > 0) {
+          const montoAplicarTienda = Math.min(totalRestante(), totalesEncargoTienda.total);
           if (montoAplicarTienda > 0) {
-            const { data: pagoTienda } = await supabase.from('pagos').insert({
-              cliente_id: clienteIdFinal,
-              entrega_id: null,
-              monto: montoAplicarTienda,
-              metodo: metodoFinal,
-              tipo: 'Venta Liquidación',
-              vendedor_id: colaborador?.id || null
-            }).select('id').single();
-            montoRecibido -= montoAplicarTienda;
+            const pagosTienda = await aplicarPago(montoAplicarTienda, {
+              cliente_id: clienteIdFinal, entrega_id: null, tipo: 'Venta Liquidación', vendedor_id: colaborador?.id || null,
+            });
 
             const detalleVenta = construirVentaItems(carritoEncargoTienda, { tipo: null, valor: 0 }, {
-              pagoId: pagoTienda?.id || null,
+              pagoId: pagosTienda[0]?.id || null,
               vendedorId: colaborador?.id || null,
             });
+            if (pagosTienda[1]) detalleVenta.forEach((v) => { v.pago_id_2 = pagosTienda[1].id; });
             await supabase.from('ventas_tienda').insert(detalleVenta);
           }
         }
 
         // Si sobró dinero después de cubrir todo → anticipo para la próxima
-        if (montoRecibido > 0.5) {
-          await supabase.from('pagos').insert({
-            cliente_id: clienteIdFinal,
-            entrega_id: null,
-            monto: montoRecibido,
-            metodo: metodoFinal,
-            tipo: 'Anticipo',
-            vendedor_id: colaborador?.id || null
+        if (totalRestante() > 0.5) {
+          await aplicarPago(totalRestante(), {
+            cliente_id: clienteIdFinal, entrega_id: null, tipo: 'Anticipo', vendedor_id: colaborador?.id || null,
           });
         }
       } else {
-        // Modo tienda: registrar pago simple, con cliente opcional
+        // Modo tienda: registrar pago(s), con cliente opcional
         const clienteIdTiendaFinal = clienteTienda?.id ?? null;
-        let pagoIdTienda = null;
-        if (monto1 > 0) {
-          const { data: pago1 } = await supabase.from('pagos').insert({
-            cliente_id: clienteIdTiendaFinal,
-            entrega_id: null,
-            monto: monto1,
-            metodo: m1,
-            tipo: 'Venta Liquidación',
-            vendedor_id: colaborador?.id || null
-          }).select('id').single();
-          pagoIdTienda = pago1?.id || pagoIdTienda;
-        }
-        if (monto2 > 0 && m2) {
-          const { data: pago2 } = await supabase.from('pagos').insert({
-            cliente_id: clienteIdTiendaFinal,
-            entrega_id: null,
-            monto: monto2,
-            metodo: m2,
-            tipo: 'Venta Liquidación',
-            vendedor_id: colaborador?.id || null
-          }).select('id').single();
-          pagoIdTienda = pago2?.id || pagoIdTienda;
-        }
+        const pagosTienda = await aplicarPago(totalRestante(), {
+          cliente_id: clienteIdTiendaFinal, entrega_id: null, tipo: 'Venta Liquidación', vendedor_id: colaborador?.id || null,
+        });
 
         // Registrar detalle de venta por cada línea del carrito de Tienda
         if (modo === 'modo2' && carritoVentaTienda.length > 0) {
           const detalleVenta = construirVentaItems(carritoVentaTienda, descuentoVentaTienda, {
-            pagoId: pagoIdTienda,
+            pagoId: pagosTienda[0]?.id || null,
             vendedorId: colaborador?.id || null,
           });
+          if (pagosTienda[1]) detalleVenta.forEach((v) => { v.pago_id_2 = pagosTienda[1].id; });
           await supabase.from('ventas_tienda').insert(detalleVenta);
         }
       }
@@ -825,6 +876,10 @@ export default function PuntoDeVenta() {
             setCart={setCarritoEncargoTienda}
             sumaEncargosTotalNeto={sumaEncargosTotalNeto}
             desgloseTicketEncargos={desgloseTicketEncargos}
+            pedidosMercadito={pedidosMercaditoCliente}
+            mercaditoSeleccionado={mercaditoSeleccionado}
+            setMercaditoSeleccionado={setMercaditoSeleccionado}
+            sumaMercaditoSeleccionado={sumaMercaditoSeleccionado}
             loading={loading}
             onCobrar={() => {
               if (!clienteSeleccionado) return;

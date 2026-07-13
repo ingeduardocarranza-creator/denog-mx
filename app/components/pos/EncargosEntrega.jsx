@@ -39,6 +39,10 @@ export default function EncargosEntrega({
   setCart,
   sumaEncargosTotalNeto,
   desgloseTicketEncargos,
+  pedidosMercadito = [],
+  mercaditoSeleccionado = {},
+  setMercaditoSeleccionado,
+  sumaMercaditoSeleccionado = 0,
   onCobrar,
   loading,
 }) {
@@ -145,7 +149,7 @@ export default function EncargosEntrega({
     [cart]
   );
   const storeCount = cart.reduce((a, l) => a + l.cantidad, 0);
-  const total = sumaEncargosTotalNeto + montoTiendaExtra;
+  const total = sumaEncargosTotalNeto + sumaMercaditoSeleccionado + montoTiendaExtra;
   const editLinea = cart.find((l) => l.id === editId) || null;
 
   return (
@@ -420,6 +424,49 @@ export default function EncargosEntrega({
             </div>
           );
         })}
+
+        {/* Pedidos de Mercadito pendientes de este cliente */}
+        {pedidosMercadito.length > 0 && (
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#111827', border: '1px solid rgba(168,154,248,0.35)' }}>
+            <div className="flex items-center gap-2 px-5 py-3.5" style={{ background: 'rgba(168,154,248,0.1)', borderBottom: '1px solid rgba(168,154,248,0.25)' }}>
+              <span style={{ fontSize: 16 }}>🛍️</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: '#c4b5fd' }}>SU MERCADITO — pendiente de recoger</span>
+            </div>
+            <div className="px-5">
+              {pedidosMercadito.map((pm) => {
+                const checked = !!mercaditoSeleccionado[pm.id];
+                const cubierto = pm.saldo <= 0;
+                return (
+                  <div key={pm.id} className="flex items-center gap-3 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <button
+                      type="button"
+                      onClick={() => setMercaditoSeleccionado({ ...mercaditoSeleccionado, [pm.id]: !checked })}
+                      style={{
+                        flex: 'none', width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
+                        border: checked ? 'none' : '2px solid rgba(255,255,255,0.3)',
+                        background: checked ? '#8b5cf6' : 'transparent', color: '#fff', fontSize: 15, fontWeight: 800, lineHeight: 1,
+                      }}
+                    >
+                      {checked ? '✓' : ''}
+                    </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, opacity: checked ? 1 : 0.6 }}>
+                        {pm.folio} · {(pm.items || []).map((it) => `${it.cantidad}x ${it.nombre}`).join(', ')}
+                      </div>
+                      <div style={{ fontSize: 12, color: cubierto ? '#4ade80' : 'rgba(255,255,255,0.5)', marginTop: 2 }}>
+                        Total $ {money(pm.total)} · Pagado $ {money(pm.pagado)}
+                        {cubierto ? ' · ✓ cubierto por anticipo' : ` · Saldo $ ${money(pm.saldo)}`}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: checked ? (cubierto ? '#4ade80' : '#c4b5fd') : 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap' }}>
+                      $ {money(pm.saldo)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* DERECHA sticky */}
@@ -531,6 +578,12 @@ export default function EncargosEntrega({
               <div key={idx} className="flex items-center justify-between">
                 <div style={{ fontSize: 14, fontWeight: 700 }}>Encargo · Entrega {formatearFecha(item.fecha)}</div>
                 <div style={{ fontSize: 15, fontWeight: 800 }}>$ {money(item.montoNeto)}</div>
+              </div>
+            ))}
+            {pedidosMercadito.filter((pm) => mercaditoSeleccionado[pm.id]).map((pm) => (
+              <div key={pm.id} className="flex items-center justify-between">
+                <div style={{ fontSize: 14, fontWeight: 700 }}>Mercadito · {pm.folio}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#c4b5fd' }}>$ {money(pm.saldo)}</div>
               </div>
             ))}
             {lineasTienda.length > 0 && (

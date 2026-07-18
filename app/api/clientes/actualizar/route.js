@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
+import { requerirAdmin } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,6 +10,9 @@ const supabase = createClient(
 )
 
 export async function PUT(req) {
+  if (!requerirAdmin(req)) {
+    return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  }
   try {
     const { id, nombre, usuario, telefono, celular_contacto, limite_credito, requiere_anticipo, activo, password } = await req.json()
 

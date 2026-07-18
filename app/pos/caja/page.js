@@ -266,7 +266,7 @@ export default function CajaPage() {
               <div style={{ fontSize: 15, fontWeight: 700 }}>{colaborador?.nombre || 'Colaborador'}</div>
             </div>
             <button
-              onClick={() => { localStorage.removeItem('colaborador'); router.push('/') }}
+              onClick={() => { fetch('/api/auth/logout', { method: 'POST' }); localStorage.removeItem('colaborador'); router.push('/') }}
               style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
             >
               ⎋ Cerrar sesión
@@ -601,6 +601,7 @@ export default function CajaPage() {
             </button>
             <button
               onClick={() => {
+                fetch('/api/auth/logout', { method: 'POST' })
                 localStorage.removeItem('colaborador')
                 router.push('/')
               }}

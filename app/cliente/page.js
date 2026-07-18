@@ -103,7 +103,7 @@ export default function ClienteInicio() {
     return `${d.getDate()} de ${meses[d.getMonth()]}`
   }
 
-  const salir = () => { localStorage.removeItem('cliente'); router.push('/') }
+  const salir = () => { fetch('/api/auth/logout', { method: 'POST' }); localStorage.removeItem('cliente'); router.push('/') }
 
   if (cargando) return (
     <TarjetaCliente>

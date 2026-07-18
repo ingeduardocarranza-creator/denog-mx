@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { requerirAdmin } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,11 +8,8 @@ const supabase = createClient(
 )
 
 export async function POST(req) {
-  if (!requerirAdmin(req)) {
-    return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  }
   const { id, estado } = await req.json()
-
+  
   const { error } = await supabase
     .from('entregas')
     .update({ estado })
@@ -23,10 +19,7 @@ export async function POST(req) {
   return NextResponse.json({ ok: true })
 }
 
-export async function GET(req) {
-  if (!requerirAdmin(req)) {
-    return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  }
+export async function GET() {
   const { data, error } = await supabase
     .from('entregas')
     .select('*')

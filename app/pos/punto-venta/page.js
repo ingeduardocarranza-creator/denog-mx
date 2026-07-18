@@ -1134,7 +1134,7 @@ const horariosDelDia = (f) => {
             </div>
             <div style={{ textAlign: 'center' }}>
               <button
-                onClick={() => { fetch('/api/auth/logout', { method: 'POST' }); localStorage.removeItem('colaborador'); window.location.href = '/' }}
+                onClick={() => { localStorage.removeItem('colaborador'); window.location.href = '/' }}
                 style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: '13px', padding: '8px', cursor: 'pointer', marginTop: '12px' }}
               >
                 🚪 Cerrar sesión
@@ -1150,7 +1150,7 @@ const horariosDelDia = (f) => {
       <div style={{ fontSize: 50, marginBottom: 16 }}>✅</div>
       <div style={{ color: 'white', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Turno cerrado</div>
       <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 24 }}>Hasta luego, {colaborador?.nombre?.split(' ')[0]}</div>
-      <button onClick={() => { fetch('/api/auth/logout', { method: 'POST' }); localStorage.removeItem('cliente'); window.location.href = '/' }}
+      <button onClick={() => { localStorage.removeItem('cliente'); window.location.href = '/' }}
         style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '11px 24px', color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
         Cerrar sesión
       </button>
@@ -1200,7 +1200,7 @@ const horariosDelDia = (f) => {
                 style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '6px 12px', color: '#f59e0b', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                 💰 Caja
               </button>
-              <button onClick={() => { fetch('/api/auth/logout', { method: 'POST' }); localStorage.removeItem('cliente'); window.location.href = '/' }}
+              <button onClick={() => { localStorage.removeItem('cliente'); window.location.href = '/' }}
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '6px 12px', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer' }}>
                 Salir
               </button>

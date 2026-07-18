@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { requerirAdmin } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,9 +8,6 @@ const supabase = createClient(
 )
 
 export async function GET(req) {
-  if (!requerirAdmin(req)) {
-    return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  }
   const { searchParams } = new URL(req.url)
   const entrega_id = searchParams.get('entrega_id')
   const cliente_id = searchParams.get('cliente_id')

@@ -68,7 +68,6 @@ export default function Portada() {
   }
 
   const cerrarSesionPortada = () => {
-    fetch('/api/auth/logout', { method: 'POST' })
     localStorage.removeItem('cliente')
     setSesionActiva(null)
   }

@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { requerirStaff } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -8,10 +7,7 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 )
 
-export async function GET(req) {
-  if (!requerirStaff(req)) {
-    return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  }
+export async function GET() {
   const { data, error } = await supabase
     .from('clientes')
     .select('id, nombre, usuario, telefono, activo, rol, direccion, colonia, referencias, celular_contacto, limite_credito, requiere_anticipo')

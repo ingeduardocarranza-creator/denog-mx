@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { requerirStaff } from '@/lib/auth/session'
+import { requerirStaff, requerirAdmin } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -62,11 +62,30 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  const body = await req.json()
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const {
+    tipo,
+    billetes_1000, billetes_500, billetes_200, billetes_100, billetes_50, billetes_20,
+    monedas_20, monedas_10, monedas_5, monedas_2, monedas_1, monedas_50c,
+    total_contado, total_esperado, diferencia, justificacion,
+    total_efectivo, total_transferencia, total_terminal, total_retiros,
+  } = await req.json()
+
+  if (!['apertura', 'corte'].includes(tipo)) {
+    return NextResponse.json({ ok: false, mensaje: 'Tipo inválido' })
+  }
+
   const { data, error } = await supabase
     .from('cortes_caja')
-    .insert([body])
+    .insert([{
+      colaborador_id: sesion.id,
+      tipo,
+      billetes_1000, billetes_500, billetes_200, billetes_100, billetes_50, billetes_20,
+      monedas_20, monedas_10, monedas_5, monedas_2, monedas_1, monedas_50c,
+      total_contado, total_esperado, diferencia, justificacion,
+      total_efectivo, total_transferencia, total_terminal, total_retiros,
+    }])
     .select()
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true, corte: data[0] })

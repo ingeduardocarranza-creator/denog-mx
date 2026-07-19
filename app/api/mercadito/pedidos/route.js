@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
-import { requerirStaff } from '@/lib/auth/session'
+import { obtenerSesion } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -53,7 +53,8 @@ async function obtenerOCrearClientePorTelefono(telefono, nombre) {
 // sobrevendan. Si alguna línea falla a mitad del proceso, revierte las que
 // ya se habían descontado.
 export async function POST(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesion = obtenerSesion(req)
+  const esCliente = sesion && sesion.rol === 'cliente'
   try {
     const body = await req.json()
     const { items, cliente_id, invitado } = body
@@ -63,6 +64,10 @@ export async function POST(req) {
     }
     if (!cliente_id && !(invitado?.nombre && invitado?.telefono)) {
       return NextResponse.json({ ok: false, mensaje: 'Falta identificar al cliente o los datos de invitado.' })
+    }
+    // A logged-in client can only order as themselves.
+    if (esCliente && cliente_id && String(sesion.id) !== String(cliente_id)) {
+      return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
     }
 
     const ids = items.map((it) => it.producto_id)

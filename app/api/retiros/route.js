@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { requerirStaff } from '@/lib/auth/session'
+import { requerirStaff, requerirAdmin } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -41,16 +41,19 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  const body = await req.json()
-  const esConfirmado = (body.estado || 'pendiente') === 'confirmado'
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const { monto, motivo, estado: estadoSolicitado } = await req.json()
+  // Only admins can create a retiro already confirmed; vendors always go through approval.
+  const esAdmin = sesion.rol === 'admin'
+  const estado = esAdmin && estadoSolicitado === 'confirmado' ? 'confirmado' : 'pendiente'
   const { data, error } = await supabase
     .from('retiros_caja')
     .insert([{
-      monto: body.monto,
-      motivo: body.motivo,
-      estado: body.estado || 'pendiente',
-      ...(esConfirmado ? { confirmado_en: new Date().toISOString() } : {})
+      monto,
+      motivo,
+      estado,
+      ...(estado === 'confirmado' ? { confirmado_en: new Date().toISOString() } : {})
     }])
     .select()
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })

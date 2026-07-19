@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
 export default function Reportes() {
   const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Hermosillo' })
@@ -278,15 +278,19 @@ export default function Reportes() {
     setCargando(false)
   }
 
-  const exportarExcel = () => {
+  const exportarExcel = async () => {
     const ahora = new Date()
     const fechaStr = `${ahora.getFullYear()}${String(ahora.getMonth()+1).padStart(2,'0')}${String(ahora.getDate()).padStart(2,'0')}`
-    const wb = XLSX.utils.book_new()
+    const wb = new ExcelJS.Workbook()
+
+    const agregarHoja = (nombre, filas) => {
+      const ws = wb.addWorksheet(nombre)
+      filas.forEach(f => ws.addRow(f))
+    }
 
     if (seccion === 'estado') {
-      // ── Hoja 1: Pedidos ───────────────────────────────────────────
       const filPedidos = rawPedidos.filter(p => p.cliente_id)
-      const hojaPedidos = [
+      agregarHoja('Pedidos', [
         ['Cliente','Descripción','Cantidad','Precio USD','Tipo de cambio','Impuesto %','Costo MXN','Precio venta','Utilidad','Estado','Entrega','Fecha captura'],
         ...filPedidos.map(p => [
           p.clientes?.nombre || '',
@@ -302,11 +306,9 @@ export default function Reportes() {
           p.entregas?.fecha_entrega || '',
           p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
         ])
-      ]
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaPedidos), 'Pedidos')
+      ])
 
-      // ── Hoja 2: Pagos ─────────────────────────────────────────────
-      const hojaPagos = [
+      agregarHoja('Pagos', [
         ['Cliente','Fecha','Monto','Método','Tipo','Entrega'],
         ...rawPagos.map(p => [
           p.clientes?.nombre || '(Tienda)',
@@ -316,12 +318,10 @@ export default function Reportes() {
           p.tipo || '',
           p.entrega_id || '',
         ])
-      ]
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaPagos), 'Pagos')
+      ])
 
-      // ── Hoja 3: Resumen ───────────────────────────────────────────
       const m = metricasEC
-      const hojaResumen = m ? [
+      agregarHoja('Resumen', m ? [
         ['Concepto','Valor'],
         ['Venta total', m.ventaTotal || 0],
         ['Costo total', m.costoTotal || 0],
@@ -330,11 +330,9 @@ export default function Reportes() {
         ['Total cobrado', m.cobradoTotal || 0],
         ['Anticipos', m.totalAnticipos || 0],
         ['Por cobrar', m.pendiente || 0],
-      ] : [['Sin datos cargados']]
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaResumen), 'Resumen')
+      ] : [['Sin datos cargados']])
     } else {
-      // ── Hoja 1: Pagos del día ─────────────────────────────────────
-      const hojaPagos = [
+      agregarHoja('Pagos', [
         ['Cliente','Fecha','Monto','Método','Tipo','Entrega'],
         ...rawPagos.map(p => [
           p.clientes?.nombre || '(Tienda)',
@@ -344,28 +342,30 @@ export default function Reportes() {
           p.tipo || '',
           p.entrega_id || '',
         ])
-      ]
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaPagos), 'Pagos')
+      ])
 
-      // ── Hoja 2: Resumen por cliente (entregas) ────────────────────
-      const hojaResumenClientes = [
+      agregarHoja('Resumen clientes', [
         ['Cliente','Artículos','Método(s)','Total pagado'],
         ...resumenClientesEntregas.map(c => [c.nombre, c.numArticulos, c.metodos, c.totalPagado])
-      ]
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaResumenClientes), 'Resumen clientes')
+      ])
 
-      // ── Hoja 3: Totales del día ────────────────────────────────────
-      const hojaTotales = [
+      agregarHoja('Totales', [
         ['Concepto','Valor'],
         ['Total cobrado entregas', metricasDelDia.totalCobradoEntregas],
         ['Anticipos recibidos', metricasDelDia.totalAnticipos],
         ['Ventas tienda', metricasDelDia.totalTienda],
         ['Total del día', metricasDelDia.totalGeneral],
-      ]
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hojaTotales), 'Totales')
+      ])
     }
 
-    XLSX.writeFile(wb, `Denog_Reporte_${fechaStr}.xlsx`)
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Denog_Reporte_${fechaStr}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const hayDatos = seccion === 'estado'

@@ -86,6 +86,32 @@ export default function Pedidos() {
     })
   }, [form.precio_usd, form.precio_venta_unitario, form.cantidad, tc, estado])
 
+  const sugerirConIA = async (url) => {
+    const imagenUrl = url || form.imagen_url
+    if (!imagenUrl) return
+    setSugiriendoIA(true)
+    try {
+      const res = await fetch('/api/pedidos/sugerir-nombre', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imagen_url: imagenUrl }),
+      }).then(r => r.json())
+      if (res.ok) {
+        setForm(f => ({
+          ...f,
+          descripcion: res.descripcion || f.descripcion,
+          categoria: res.categoria || f.categoria,
+        }))
+      } else {
+        setMsg('Error IA: ' + (res.mensaje || 'Sin respuesta'))
+      }
+    } catch (err) {
+      setMsg('No se pudo conectar con IA: ' + err.message)
+    } finally {
+      setSugiriendoIA(false)
+    }
+  }
+
   const subirFotoPedido = async (file) => {
     if (!file || !file.type.startsWith('image/')) return
     if (file.size > 15 * 1024 * 1024) { setMsg('La foto pesa más de 15MB.'); return }
@@ -102,35 +128,11 @@ export default function Pedidos() {
       const up = await fetch(datos.signedUrl, { method: 'PUT', body: formData })
       if (!up.ok) throw new Error('Error al subir')
       setForm(f => ({ ...f, imagen_url: datos.publicUrl }))
+      sugerirConIA(datos.publicUrl)
     } catch (err) {
       setMsg('Error al subir la foto: ' + err.message)
     } finally {
       setSubiendoFoto(false)
-    }
-  }
-
-  const sugerirConIA = async () => {
-    if (!form.imagen_url) return
-    setSugiriendoIA(true)
-    try {
-      const res = await fetch('/api/pedidos/sugerir-nombre', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imagen_url: form.imagen_url }),
-      }).then(r => r.json())
-      if (res.ok) {
-        setForm(f => ({
-          ...f,
-          descripcion: res.descripcion || f.descripcion,
-          categoria: res.categoria || f.categoria,
-        }))
-      } else {
-        setMsg('Error IA: ' + (res.mensaje || 'Sin respuesta'))
-      }
-    } catch (err) {
-      setMsg('No se pudo conectar con IA: ' + err.message)
-    } finally {
-      setSugiriendoIA(false)
     }
   }
 
@@ -377,7 +379,7 @@ export default function Pedidos() {
                   <button type="button" onClick={() => sugerirConIA()}
                     disabled={sugiriendoIA}
                     className="flex-1 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-sm py-2 px-3 rounded-xl font-medium">
-                    {sugiriendoIA ? 'Analizando...' : '✨ Sugerir nombre con IA'}
+                    {sugiriendoIA ? 'Analizando...' : form.descripcion ? '✨ Re-analizar' : '✨ Sugerir nombre con IA'}
                   </button>
                   <button type="button" onClick={() => setForm(f => ({ ...f, imagen_url: '' }))}
                     className="bg-gray-700 hover:bg-gray-600 text-white text-sm py-2 px-3 rounded-xl">

@@ -1,11 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-)
 
 export default function Anticipos() {
   const [clientes, setClientes] = useState([])
@@ -29,13 +23,14 @@ export default function Anticipos() {
   useEffect(() => { cargarDatos() }, [])
 
   const cargarDatos = async () => {
-    const { data: cl } = await supabase.from('clientes').select('*').order('nombre')
-    const { data: en } = await supabase.from('entregas').select('*').order('fecha_entrega', { ascending: false })
-    const { data: an, error: anError } = await supabase.from('pagos').select('*, clientes!pagos_cliente_id_fkey(nombre)').eq('tipo', 'Anticipo').order('creado_en', { ascending: false })
-    console.log('Anticipos:', an, 'Error:', anError)
-    setClientes(cl || [])
-    setEntregas(en || [])
-    setAnticipos(an || [])
+    const [clRes, enRes, anRes] = await Promise.all([
+      fetch('/api/clientes/listar').then(r => r.json()),
+      fetch('/api/entregas').then(r => r.json()),
+      fetch('/api/anticipos').then(r => r.json()),
+    ])
+    setClientes(clRes.clientes || [])
+    setEntregas(enRes.entregas || [])
+    setAnticipos(anRes.anticipos || [])
   }
 
   const registrarAnticipo = async (modo = 'limpiar') => {
@@ -43,35 +38,22 @@ export default function Anticipos() {
       setMensaje({ tipo: 'error', texto: 'Llena los campos obligatorios' }); return
     }
 
-    // Validar que la entrega no esté completamente entregada
-    if (entregaSeleccionada) {
-      const { data: pedidosEntrega } = await supabase
-        .from('pedidos')
-        .select('estado')
-        .eq('cliente_id', clienteSeleccionado)
-        .eq('entrega_id', entregaSeleccionada)
-
-      if (pedidosEntrega && pedidosEntrega.length > 0) {
-        const todosEntregados = pedidosEntrega.every(p => p.estado?.toLowerCase() === 'entregado')
-        if (todosEntregados) {
-          setMensaje({ tipo: 'error', texto: '⚠️ No se puede registrar — todos los pedidos de esta entrega ya fueron entregados y pagados.' })
-          return
-        }
-      }
-    }
-
     setLoading(true)
     const horaActual = new Date().toLocaleTimeString('es-MX', { hour12: false })
-    const { error } = await supabase.from('pagos').insert({
-      cliente_id: clienteSeleccionado,
-      entrega_id: entregaSeleccionada || null,
-      monto: Number(monto),
-      metodo: metodoPago,
-      tipo: 'Anticipo',
-      creado_en: `${fechaAnticipo}T${horaActual}.000Z`
+    const res = await fetch('/api/anticipos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cliente_id: clienteSeleccionado,
+        entrega_id: entregaSeleccionada || null,
+        monto: Number(monto),
+        metodo: metodoPago,
+        creado_en: `${fechaAnticipo}T${horaActual}.000Z`,
+      }),
     })
+    const data = await res.json()
     setLoading(false)
-    if (error) { setMensaje({ tipo: 'error', texto: 'Error al registrar' }); return }
+    if (!data.ok) { setMensaje({ tipo: 'error', texto: data.mensaje || 'Error al registrar' }); return }
     setMensaje({ tipo: 'exito', texto: '✓ Anticipo registrado' })
     if (modo === 'limpiar') {
       setClienteSeleccionado(''); setEntregaSeleccionada(''); setMonto('')
@@ -84,13 +66,21 @@ export default function Anticipos() {
 
   const eliminarAnticipo = async (id) => {
     if (!confirm('¿Eliminar este anticipo?')) return
-    await supabase.from('pagos').delete().eq('id', id)
+    await fetch('/api/anticipos', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
     cargarDatos()
   }
 
   const guardarEdicion = async (id) => {
     if (!montoEditar || Number(montoEditar) <= 0) return
-    await supabase.from('pagos').update({ monto: Number(montoEditar) }).eq('id', id)
+    await fetch('/api/anticipos', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, monto: Number(montoEditar) }),
+    })
     setEditando(null)
     cargarDatos()
   }

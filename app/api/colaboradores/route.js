@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
+import { requerirAdmin } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -8,7 +9,8 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 )
 
-export async function GET() {
+export async function GET(req) {
+  if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const { data, error } = await supabase
     .from('clientes')
     .select('id, nombre, usuario, rol, activo, creado_en')
@@ -19,6 +21,7 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   try {
     const { nombre, usuario, password, rol } = await req.json()
     if (!nombre || !usuario || !password || !rol)
@@ -40,6 +43,7 @@ export async function POST(req) {
 }
 
 export async function PUT(req) {
+  if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   try {
     const { id, nombre, usuario, rol, activo, password } = await req.json()
     if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })

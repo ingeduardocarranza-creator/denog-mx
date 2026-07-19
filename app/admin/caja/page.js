@@ -110,7 +110,17 @@ export default function AdminCaja() {
   const todasAperturas = cortes.filter(c => c.tipo === 'apertura').sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en))
   const fondoDia = todasAperturas.length > 0 ? (todasAperturas[0]?.total_contado || 0) : 0
   const retirosConfirmadosDia = retiros.filter(r => r.estado === 'confirmado').reduce((s, r) => s + r.monto, 0)
-  const fondoActualDia = Math.max(0, fondoDia - retirosConfirmadosDia)
+
+  // Fondo actual: si hay un corte del día, el fondo arranca desde ese corte (no desde la apertura inicial)
+  const ultimoCorteHoy = cortes.filter(c => c.tipo === 'corte').sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en))[0]
+  const retirosPostCorte = ultimoCorteHoy
+    ? retiros.filter(r => r.estado === 'confirmado' && new Date(r.creado_en) > new Date(ultimoCorteHoy.creado_en)).reduce((s, r) => s + r.monto, 0)
+    : 0
+  const fondoActualDia = turnoActivo
+    ? fondoActualTurno
+    : ultimoCorteHoy
+    ? Math.max(0, (ultimoCorteHoy.total_contado || 0) - retirosPostCorte)
+    : Math.max(0, fondoDia - retirosConfirmadosDia)
 
   // Historial: una fila por turno, emparejando por timestamp.
   // Ordenamos aperturas y cortes ASC; el corte de una apertura es el que ocurre
@@ -192,7 +202,11 @@ export default function AdminCaja() {
           <div>
             <div style={{ color: '#f59e0b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>💵 Fondo en caja</div>
             <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 3 }}>
-              {fmt(fondoDia)} fondo inicial del día − {fmt(retirosConfirmadosDia)} retiros confirmados
+              {turnoActivo
+                ? `${fmt(fondoInicial)} fondo inicial − ${fmt(retirosConfirmadosTurno)} retiros del turno`
+                : ultimoCorteHoy
+                ? `${fmt(ultimoCorteHoy.total_contado)} corte − ${fmt(retirosPostCorte)} retiros post-corte`
+                : `${fmt(fondoDia)} fondo inicial − ${fmt(retirosConfirmadosDia)} retiros confirmados`}
             </div>
           </div>
           <div style={{ color: '#f59e0b', fontSize: 28, fontWeight: 900 }}>{fmt(fondoActualDia)}</div>

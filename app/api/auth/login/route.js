@@ -20,17 +20,17 @@ export async function POST(req) {
       .single()
 
     if (error || !data) {
-      return NextResponse.json({ ok: false, mensaje: 'Usuario no encontrado' })
+      return NextResponse.json({ ok: false, mensaje: 'Usuario o contraseña incorrectos' })
     }
 
     if (!data.activo) {
-      return NextResponse.json({ ok: false, mensaje: 'Usuario inactivo' })
+      return NextResponse.json({ ok: false, mensaje: 'Usuario o contraseña incorrectos' })
     }
 
     const passwordValido = await bcrypt.compare(password, data.password_hash)
 
     if (!passwordValido) {
-      return NextResponse.json({ ok: false, mensaje: 'Contraseña incorrecta' })
+      return NextResponse.json({ ok: false, mensaje: 'Usuario o contraseña incorrectos' })
     }
 
     const respuesta = NextResponse.json({

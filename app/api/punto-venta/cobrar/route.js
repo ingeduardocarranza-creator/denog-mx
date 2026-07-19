@@ -29,6 +29,7 @@ export async function POST(req) {
       carritoVentaTienda,
       descuentoVentaTienda,
       clienteTiendaId,
+      vendedorTiendaId,
     } = await req.json()
 
     const colaboradorId = sesion.id
@@ -159,14 +160,15 @@ export async function POST(req) {
     } else {
       // Modo tienda: simple payment + ventas_tienda
       const clienteIdTienda = clienteTiendaId ?? null
+      const vendedorIdTienda = vendedorTiendaId ?? colaboradorId
       const pagosTienda = await aplicarPago(totalRestante(), {
-        cliente_id: clienteIdTienda || null, entrega_id: null, tipo: 'Venta Liquidación', vendedor_id: colaboradorId,
+        cliente_id: clienteIdTienda || null, entrega_id: null, tipo: 'Venta Liquidación', vendedor_id: vendedorIdTienda,
       })
 
       if (carritoVentaTienda?.length > 0) {
         const detalleVenta = construirVentaItems(carritoVentaTienda, descuentoVentaTienda || { tipo: null, valor: 0 }, {
           pagoId: pagosTienda[0]?.id || null,
-          vendedorId: colaboradorId,
+          vendedorId: vendedorIdTienda,
         })
         if (pagosTienda[1]) detalleVenta.forEach(v => { v.pago_id_2 = pagosTienda[1].id })
         await supabase.from('ventas_tienda').insert(detalleVenta)

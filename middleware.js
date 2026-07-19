@@ -10,7 +10,8 @@ function leerSesionEdge(req) {
   if (!token) return null
   try {
     const [, payload] = token.split('.')
-    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString())
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const decoded = JSON.parse(atob(base64))
     if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) return null
     return decoded
   } catch {

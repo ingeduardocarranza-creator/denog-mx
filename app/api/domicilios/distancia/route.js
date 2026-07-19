@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
+import { requerirStaff } from '@/lib/auth/session'
 
 const ORIGEN = 'Paseo de los Alamos 160A, Nueva Galicia, Hermosillo, Sonora, Mexico'
 const LIMITE_KM = 15
 
 export async function POST(req) {
+  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   try {
     const { direccion, colonia } = await req.json()
     const destino = `${direccion}, ${colonia}, Hermosillo, Sonora, Mexico`

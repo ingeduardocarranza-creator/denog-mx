@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requerirStaff, requerirAdmin } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -7,7 +8,8 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 )
 
-export async function GET() {
+export async function GET(req) {
+  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const { data, error } = await supabase
     .from('categorias_pedidos')
     .select('*')
@@ -19,6 +21,7 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const { nombre } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ ok: false, mensaje: 'Nombre requerido' })
 
@@ -33,6 +36,7 @@ export async function POST(req) {
 }
 
 export async function PUT(req) {
+  if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const { id, activo } = await req.json()
   if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })
 

@@ -73,7 +73,11 @@ export default function MenuLateral({ grupos, children }) {
 
   const badges = { domicilios: domiciliosPendientes, mercadito: mercaditoPendientes }
 
-  const salir = () => { localStorage.removeItem('cliente'); router.push('/') }
+  const salir = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    localStorage.removeItem('cliente')
+    router.push('/')
+  }
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#04060e' }}>

@@ -1200,7 +1200,7 @@ const horariosDelDia = (f) => {
                 style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '6px 12px', color: '#f59e0b', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                 💰 Caja
               </button>
-              <button onClick={() => { localStorage.removeItem('cliente'); window.location.href = '/' }}
+              <button onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }); localStorage.removeItem('cliente'); window.location.href = '/' }}
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '6px 12px', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer' }}>
                 Salir
               </button>

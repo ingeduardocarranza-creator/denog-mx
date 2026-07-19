@@ -47,6 +47,7 @@ export default function EncargosEntrega({
   loading,
 }) {
   const [query, setQuery] = useState('');
+  const [fotoModal, setFotoModal] = useState(null);
 
   const [menuId, setMenuId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -384,6 +385,18 @@ export default function EncargosEntrega({
                       >
                         ×{p.cantidad || 1}
                       </div>
+                      {p.imagen_url && (
+                        <img
+                          src={p.imagen_url}
+                          alt={p.descripcion}
+                          onClick={() => setFotoModal({ url: p.imagen_url, descripcion: p.descripcion })}
+                          style={{
+                            flex: 'none', width: 48, height: 48, objectFit: 'cover', borderRadius: 10, cursor: 'zoom-in',
+                            border: p.apartado_fragil ? '2px solid #facc15' : '1px solid rgba(255,255,255,0.15)',
+                            background: '#1e293b', opacity: checked ? 1 : 0.4,
+                          }}
+                        />
+                      )}
                       <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <span
                           style={{
@@ -703,6 +716,26 @@ export default function EncargosEntrega({
               onCancelar={cerrarModalLinea}
             />
           </div>
+        </div>
+      )}
+      {fotoModal && (
+        <div
+          onClick={() => setFotoModal(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}
+        >
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 14, textAlign: 'center', maxWidth: 500 }}>{fotoModal.descripcion}</div>
+          <img
+            src={fotoModal.url}
+            alt={fotoModal.descripcion}
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.7)' }}
+          />
+          <button
+            onClick={() => setFotoModal(null)}
+            style={{ marginTop: 20, background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '10px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Cerrar
+          </button>
         </div>
       )}
     </div>

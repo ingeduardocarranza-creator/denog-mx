@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
+import { requerirStaff } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -52,6 +53,7 @@ async function obtenerOCrearClientePorTelefono(telefono, nombre) {
 // sobrevendan. Si alguna línea falla a mitad del proceso, revierte las que
 // ya se habían descontado.
 export async function POST(req) {
+  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   try {
     const body = await req.json()
     const { items, cliente_id, invitado } = body

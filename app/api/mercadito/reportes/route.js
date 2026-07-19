@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requerirStaff } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -22,6 +23,7 @@ function claveBucket(fecha, periodo) {
 }
 
 export async function GET(req) {
+  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   try {
     const { searchParams } = new URL(req.url)
     const periodo = searchParams.get('periodo') === 'mes' ? 'mes' : 'semana'

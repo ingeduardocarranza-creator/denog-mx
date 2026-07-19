@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requerirStaff } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -21,6 +22,7 @@ const EXT_POR_TIPO = {
 // navegador a Supabase Storage (no pasa por esta función), para no chocar
 // con el límite de tamaño de body de las funciones serverless de Vercel.
 export async function POST(req) {
+  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const { tipo, carpeta } = await req.json()
   const ext = EXT_POR_TIPO[tipo]
   if (!ext) {

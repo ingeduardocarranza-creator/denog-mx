@@ -19,6 +19,7 @@ export default function DetalleCuenta() {
   const [domicilios, setDomicilios] = useState([])
   const [pagos, setPagos] = useState([])
   const [pedidosMercadito, setPedidosMercadito] = useState([])
+  const [fotoModal, setFotoModal] = useState(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -125,14 +126,21 @@ export default function DetalleCuenta() {
                   <div style={{ color: 'rgba(42,33,24,0.6)', fontSize: 13, fontWeight: 600 }}>Pedido · llega {formatearFecha(entrega.fecha)}</div>
                   <div style={{ background: pill.bg, color: pill.color, fontSize: 12, fontWeight: 700, borderRadius: 999, padding: '4px 10px' }}>{pill.label}</div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
                   {entrega.items.map(p => (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                        <div style={{ color: '#2a2118', fontSize: 14.5 }}>{p.cantidad}x {p.descripcion}</div>
-                        {p.apartado_fragil && badgeFragil}
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {p.imagen_url && (
+                        <img src={p.imagen_url} alt={p.descripcion}
+                          onClick={() => setFotoModal({ url: p.imagen_url, descripcion: p.descripcion })}
+                          style={{ flex: 'none', width: 52, height: 52, objectFit: 'cover', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)', background: '#f5f0eb', cursor: 'pointer' }} />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                          <div style={{ color: '#2a2118', fontSize: 14 }}>{p.cantidad}x {p.descripcion}</div>
+                          <div style={{ color: '#2a2118', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{money(p.precio_venta)}</div>
+                        </div>
+                        {p.apartado_fragil && <div style={{ marginTop: 3 }}>{badgeFragil}</div>}
                       </div>
-                      <div style={{ color: '#2a2118', fontSize: 14.5, fontWeight: 700, flexShrink: 0 }}>{money(p.precio_venta)}</div>
                     </div>
                   ))}
                   {costoEnvio > 0 && (
@@ -212,6 +220,20 @@ export default function DetalleCuenta() {
           </div>
         )}
       </div>
+
+      {fotoModal && (
+        <div onClick={() => setFotoModal(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 14, textAlign: 'center', maxWidth: 320 }}>{fotoModal.descripcion}</div>
+          <img src={fotoModal.url} alt={fotoModal.descripcion}
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.7)' }} />
+          <button onClick={() => setFotoModal(null)}
+            style={{ marginTop: 24, background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 12, padding: '12px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+            Cerrar
+          </button>
+        </div>
+      )}
     </TarjetaCliente>
   )
 }

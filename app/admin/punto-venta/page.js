@@ -1,15 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import TiendaTienda from '../../components/pos/TiendaTienda';
 import EncargosEntrega from '../../components/pos/EncargosEntrega';
-import { construirVentaItems, calcularTotalesCarrito } from '../../../lib/pos/tiendaUtils';
+import { calcularTotalesCarrito } from '../../../lib/pos/tiendaUtils';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+async function cargarDatosIniciales() {
+  const [clRes, prRes, enRes] = await Promise.all([
+    fetch('/api/clientes/listar').then(r => r.json()),
+    fetch('/api/productos?stock=true').then(r => r.json()),
+    fetch('/api/entregas').then(r => r.json()),
+  ])
+  return {
+    clientes: clRes.clientes || [],
+    productos: prRes.productos || [],
+    entregas: enRes.entregas || [],
+  }
+}
 
 
 const formatearFecha = (fecha) => {
@@ -65,21 +72,11 @@ export default function PuntoDeVenta() {
   const [colaborador, setColaborador] = useState(null);
 
   useEffect(() => {
-    async function cargarDatosPOS() {
-      const { data: cl } = await supabase.from('clientes').select('*');
-      
-      const { data: pr } = await supabase
-        .from('productos_tienda')
-        .select('*')
-        .eq('activo', true)
-        .gt('stock', 0);
-
-      const { data: en } = await supabase.from('entregas').select('*');
-      setTodosClientes(cl || []);
-      setTodosProductos(pr || []);
-      setTodasEntregas(en || []);
-    }
-    cargarDatosPOS();
+    cargarDatosIniciales().then(({ clientes, productos, entregas }) => {
+      setTodosClientes(clientes)
+      setTodosProductos(productos)
+      setTodasEntregas(entregas)
+    })
   }, []);
 
   useEffect(() => {
@@ -180,49 +177,16 @@ export default function PuntoDeVenta() {
     setModalDosMetodos(false);
     setTicketListo(null);
 
-    const { data: pedidosDb } = await supabase
-      .from('pedidos')
-      .select('*')
-      .eq('cliente_id', cliente.id)
-      .not('estado', 'in', '("Pagado","Entregado","no_llego")');
+    const res = await fetch(`/api/punto-venta/cliente?cliente_id=${cliente.id}`).then(r => r.json())
+    const historialPedidos = res.pedidos || []
+    const pedidosMercaditoConSaldo = res.mercadito || []
+    const pagos = res.anticipos || []
 
-    const historialPedidos = pedidosDb || [];
-
-    // Pedidos de Mercadito de este cliente, listos para cobrar/recoger —
-    // junto con lo que ya se les haya pagado, para saber el saldo real.
-    const { data: mercaditoDb } = await supabase
-      .from('pedidos_mercadito')
-      .select('id, folio, items, creado_en')
-      .eq('cliente_id', cliente.id)
-      .in('estado', ['aprobado', 'agregado']);
-
-    const idsMercadito = (mercaditoDb || []).map((m) => m.id);
-    let pagosMercadito = [];
-    if (idsMercadito.length > 0) {
-      const { data: pagosMercaditoDb } = await supabase
-        .from('pagos')
-        .select('pedido_mercadito_id, monto')
-        .in('pedido_mercadito_id', idsMercadito);
-      pagosMercadito = pagosMercaditoDb || [];
-    }
-    const pedidosMercaditoConSaldo = (mercaditoDb || []).map((pm) => {
-      const total = (pm.items || []).reduce((s, it) => s + (Number(it.precio_unitario) || 0) * (Number(it.cantidad) || 0), 0);
-      const pagado = pagosMercadito.filter((pg) => pg.pedido_mercadito_id === pm.id).reduce((s, pg) => s + Number(pg.monto || 0), 0);
-      return { ...pm, total, pagado, saldo: Math.max(0, total - pagado) };
-    });
     setPedidosMercaditoCliente(pedidosMercaditoConSaldo);
     const seleccionMercaditoInicial = {};
     pedidosMercaditoConSaldo.forEach((pm) => { seleccionMercaditoInicial[pm.id] = true; });
     setMercaditoSeleccionado(seleccionMercaditoInicial);
 
-    const { data: pagosDb } = await supabase
-      .from('pagos')
-      .select('id, monto, creado_en, entrega_id')
-      .eq('cliente_id', cliente.id)
-      .eq('tipo', 'Anticipo')
-      .order('creado_en', { ascending: true });
-
-    const pagos = pagosDb || [];
     setListaAnticipos(pagos);
 
     const totalAnticipos = pagos.reduce((acc, p) => acc + Number(p.monto), 0);
@@ -323,207 +287,78 @@ export default function PuntoDeVenta() {
     };
 
     try {
-      const clienteIdFinal = modo === 'modo1' ? clienteSeleccionado?.id : null;
-
-      // "Billetera" de lo recibido en esta transacción, por método real —
-      // cada bloque que se cubre puede consumir de uno o de los dos métodos,
-      // y cada parte queda registrada con su método verdadero (antes todo se
-      // etiquetaba bajo el primer método, aunque una parte fuera de otro).
-      const restante = {};
-      if (monto1 > 0) restante[m1 || 'Transferencia'] = (restante[m1 || 'Transferencia'] || 0) + monto1;
-      if (monto2 > 0 && m2) restante[m2] = (restante[m2] || 0) + monto2;
-      const totalRestante = () => Object.values(restante).reduce((a, b) => a + b, 0);
-
-      // Aplica `monto` contra lo que queda en la billetera, insertando una
-      // fila en `pagos` por cada método que realmente se usó. Devuelve los
-      // pagos insertados (id + método + monto) para poder enlazarlos donde
-      // haga falta (ej. ventas_tienda).
-      const aplicarPago = async (monto, campos) => {
-        const insertados = [];
-        let porCubrir = monto;
-        for (const metodo of Object.keys(restante)) {
-          if (porCubrir <= 0) break;
-          if (restante[metodo] <= 0) continue;
-          const usar = Math.min(restante[metodo], porCubrir);
-          if (usar <= 0) continue;
-          const { data } = await supabase.from('pagos').insert({ ...campos, monto: usar, metodo }).select('id').single();
-          insertados.push({ metodo, monto: usar, id: data?.id || null });
-          restante[metodo] -= usar;
-          porCubrir -= usar;
-        }
-        return insertados;
-      };
-
-      // Distribuir el pago entre entregas y pedidos de Mercadito en orden
-      // cronológico (más viejo primero). Los productos de tienda agregados
-      // aquí se liquidan como una venta aparte (con su propio pago y
-      // ventas_tienda), nunca como anticipo. Sobrante real después de cubrir
-      // todo → anticipo nuevo.
-      if (modo === 'modo1' && clienteSeleccionado) {
-        // Ordenar bloques por fecha de entrega, más viejo primero
-        const bloquesOrdenados = [...bloquesEntregas].sort((a, b) =>
-          new Date(a.entrega.fecha_entrega) - new Date(b.entrega.fecha_entrega)
-        );
-
-        for (const bloque of bloquesOrdenados) {
-          const entregaId = bloque.entrega.id;
-
-          // Calcular neto de esta entrega: pedidos seleccionados - anticipos aplicados
-          const totalPedidosBloque = bloque.pedidos
+      const bloquesOrdenados = [...bloquesEntregas]
+        .sort((a, b) => new Date(a.entrega.fecha_entrega) - new Date(b.entrega.fecha_entrega))
+        .map(bloque => ({
+          entregaId: bloque.entrega.id,
+          pedidoIds: bloque.pedidos.filter(p => productosSeleccionados[p.id]).map(p => p.id),
+          totalPedidosBloque: bloque.pedidos
             .filter(p => productosSeleccionados[p.id])
-            .reduce((s, p) => s + (Number(p.precio_venta) || 0), 0);
+            .reduce((s, p) => s + (Number(p.precio_venta) || 0), 0),
+          anticiposDeEstaEntrega: listaAnticipos
+            .filter(a => a.entrega_id === bloque.entrega.id)
+            .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en)),
+        }));
 
-          if (totalPedidosBloque === 0) continue;
+      const anticiposGenerales = listaAnticipos
+        .filter(a => !a.entrega_id)
+        .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
 
-          // Consumir anticipos de esta entrega primero
-          const anticiposDeEstaEntrega = listaAnticipos
-            .filter(a => a.entrega_id === entregaId)
-            .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
+      const mercaditoPayload = pedidosMercaditoCliente
+        .filter(pm => mercaditoSeleccionado[pm.id])
+        .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en))
+        .map(pm => ({ id: pm.id, saldo: pm.saldo }));
 
-          let netoBloque = totalPedidosBloque;
-          for (const anticipo of anticiposDeEstaEntrega) {
-            if (netoBloque <= 0) break;
-            const montoAnticipo = Number(anticipo.monto);
-            if (montoAnticipo <= netoBloque) {
-              await supabase.from('pagos').delete().eq('id', anticipo.id);
-              netoBloque -= montoAnticipo;
-            } else {
-              await supabase.from('pagos').update({ monto: montoAnticipo - netoBloque }).eq('id', anticipo.id);
-              netoBloque = 0;
-            }
-          }
+      const res = await fetch('/api/punto-venta/cobrar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modo,
+          clienteId: clienteSeleccionado?.id ?? null,
+          metodo1: m1 || 'Transferencia',
+          monto1,
+          metodo2: m2 || null,
+          monto2,
+          bloquesOrdenados,
+          anticiposGenerales,
+          mercadito: mercaditoPayload,
+          carritoEncargoTienda,
+          totalEncargoTienda: totalesEncargoTienda.total,
+          carritoVentaTienda,
+          descuentoVentaTienda,
+          clienteTiendaId: clienteTienda?.id ?? null,
+        }),
+      });
 
-          // Aplicar anticipos generales (sin entrega_id) si aún queda saldo
-          if (netoBloque > 0) {
-            const anticiposGenerales = listaAnticipos
-              .filter(a => !a.entrega_id)
-              .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
-            for (const anticipo of anticiposGenerales) {
-              if (netoBloque <= 0) break;
-              const montoAnticipo = Number(anticipo.monto);
-              if (montoAnticipo <= netoBloque) {
-                await supabase.from('pagos').delete().eq('id', anticipo.id);
-                netoBloque -= montoAnticipo;
-              } else {
-                await supabase.from('pagos').update({ monto: montoAnticipo - netoBloque }).eq('id', anticipo.id);
-                netoBloque = 0;
-              }
-            }
-          }
-
-          // Aplicar el monto recibido en esta transacción a esta entrega
-          if (netoBloque > 0 && totalRestante() > 0) {
-            const montoAplicar = Math.min(totalRestante(), netoBloque);
-            await aplicarPago(montoAplicar, {
-              cliente_id: clienteIdFinal, entrega_id: entregaId, tipo: 'Venta Liquidación', vendedor_id: colaborador?.id || null,
-            });
-          }
-        }
-
-        // Pedidos de Mercadito seleccionados para esta visita, más viejo
-        // primero — si ya estaban cubiertos por anticipo (saldo 0), se
-        // entregan sin cobrar de más; si no alcanza el dinero para cubrir
-        // uno completo, se queda tal cual (no se marca entregado sin pagar).
-        const mercaditoOrdenado = pedidosMercaditoCliente
-          .filter((pm) => mercaditoSeleccionado[pm.id])
-          .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
-
-        for (const pm of mercaditoOrdenado) {
-          let saldoPm = pm.saldo;
-          if (saldoPm > 0 && totalRestante() > 0) {
-            const montoAplicar = Math.min(totalRestante(), saldoPm);
-            await aplicarPago(montoAplicar, {
-              cliente_id: clienteIdFinal, pedido_mercadito_id: pm.id, entrega_id: null, tipo: 'Venta Liquidación', vendedor_id: colaborador?.id || null,
-            });
-            saldoPm -= montoAplicar;
-          }
-          if (saldoPm <= 0.5) {
-            await supabase.from('pedidos_mercadito').update({ estado: 'entregado', actualizado_en: new Date().toISOString() }).eq('id', pm.id);
-          }
-        }
-
-        // Productos de tienda agregados durante el Encargo: venta liquidada
-        // aparte, con su propio pago y filas en ventas_tienda (costo snapshot).
-        if (carritoEncargoTienda.length > 0 && totalRestante() > 0) {
-          const montoAplicarTienda = Math.min(totalRestante(), totalesEncargoTienda.total);
-          if (montoAplicarTienda > 0) {
-            const pagosTienda = await aplicarPago(montoAplicarTienda, {
-              cliente_id: clienteIdFinal, entrega_id: null, tipo: 'Venta Liquidación', vendedor_id: colaborador?.id || null,
-            });
-
-            const detalleVenta = construirVentaItems(carritoEncargoTienda, { tipo: null, valor: 0 }, {
-              pagoId: pagosTienda[0]?.id || null,
-              vendedorId: colaborador?.id || null,
-            });
-            if (pagosTienda[1]) detalleVenta.forEach((v) => { v.pago_id_2 = pagosTienda[1].id; });
-            await supabase.from('ventas_tienda').insert(detalleVenta);
-          }
-        }
-
-        // Si sobró dinero después de cubrir todo → anticipo para la próxima
-        if (totalRestante() > 0.5) {
-          await aplicarPago(totalRestante(), {
-            cliente_id: clienteIdFinal, entrega_id: null, tipo: 'Anticipo', vendedor_id: colaborador?.id || null,
-          });
-        }
-      } else {
-        // Modo tienda: registrar pago(s), con cliente opcional
-        const clienteIdTiendaFinal = clienteTienda?.id ?? null;
-        const pagosTienda = await aplicarPago(totalRestante(), {
-          cliente_id: clienteIdTiendaFinal, entrega_id: null, tipo: 'Venta Liquidación', vendedor_id: colaborador?.id || null,
-        });
-
-        // Registrar detalle de venta por cada línea del carrito de Tienda
-        if (modo === 'modo2' && carritoVentaTienda.length > 0) {
-          const detalleVenta = construirVentaItems(carritoVentaTienda, descuentoVentaTienda, {
-            pagoId: pagosTienda[0]?.id || null,
-            vendedorId: colaborador?.id || null,
-          });
-          if (pagosTienda[1]) detalleVenta.forEach((v) => { v.pago_id_2 = pagosTienda[1].id; });
-          await supabase.from('ventas_tienda').insert(detalleVenta);
-        }
-      }
-
-      // 3) Marcar pedidos como Entregado
-      if (modo === 'modo1' && clienteSeleccionado) {
-        for (const b of bloquesEntregas) {
-          for (const p of b.pedidos) {
-            if (productosSeleccionados[p.id]) {
-              await supabase.from('pedidos').update({ estado: 'Entregado' }).eq('id', p.id);
-            }
-          }
-        }
-      }
-
-      // 4) Actualizar stock de productos tienda
-      if (modo === 'modo1') {
-        for (const linea of carritoEncargoTienda) {
-          if (linea.origen !== 'catalogo' || linea.stockDisponible == null) continue;
-          const nuevoStock = Math.max(0, linea.stockDisponible - linea.cantidad);
-          await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', linea.productoId);
-        }
-      }
-      if (modo === 'modo2') {
-        for (const linea of carritoVentaTienda) {
-          if (linea.origen !== 'catalogo' || linea.stockDisponible == null) continue;
-          const nuevoStock = Math.max(0, linea.stockDisponible - linea.cantidad);
-          await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', linea.productoId);
-        }
-      }
+      const resultado = await res.json();
+      if (!resultado.ok) throw new Error(resultado.mensaje || 'Error al cobrar');
 
       setMensaje({ tipo: 'exito', texto: totalGeneral === 0 ? '¡Pedido entregado! Cubierto con anticipos' : '¡Cobro registrado con éxito en caja!' });
       setTicketListo(infoTicket);
 
-      const { data: pr } = await supabase.from('productos_tienda').select('*').eq('activo', true).gt('stock', 0);
-      setTodosProductos(pr || []);
+      const prRes = await fetch('/api/productos?stock=true').then(r => r.json());
+      setTodosProductos(prRes.productos || []);
 
+      // Reset all customer and cart state
+      setClienteSeleccionado(null);
+      setBusquedaCliente('');
       setBloquesEntregas([]);
+      setProductosSeleccionados({});
+      setPedidosMercaditoCliente([]);
+      setMercaditoSeleccionado({});
+      setListaAnticipos([]);
+      setAnticiposDisponibles(0);
       setCarritoEncargoTienda([]);
       setCarritoVentaTienda([]);
       setDescuentoVentaTienda({ tipo: null, valor: 0 });
       setClienteTienda(null);
+      setMostrarModalCobro(false);
       setModalMonto1('');
+      setModalRecibido('');
+      setModalRecibidoSplit('');
       setModalDosMetodos(false);
+      setModalMetodo1('Efectivo');
+      setModalMetodo2('Transferencia');
     } catch (err) {
       setMensaje({ tipo: 'error', texto: 'Error de conexión.' });
     } finally {

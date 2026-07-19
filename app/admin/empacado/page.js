@@ -9,6 +9,7 @@ export default function Empacado() {
   const [tab, setTab] = useState('empacado') // 'empacado' | 'nollego'
   const [indice, setIndice] = useState(0)
   const [procesando, setProcesando] = useState(false)
+  const [fotoModal, setFotoModal] = useState(null)
 
   useEffect(() => {
     fetch('/api/entregas').then(r => r.json()).then(d => {
@@ -31,7 +32,8 @@ export default function Empacado() {
     setCargando(true)
     const res = await fetch(`/api/reportes/pedidos?entrega_id=${entregaId}`)
     const data = await res.json()
-    setPedidos(data.ok ? data.pedidos || [] : [])
+    const ps = data.ok ? data.pedidos || [] : []
+    setPedidos(ps)
     setIndice(0)
     setCargando(false)
   }
@@ -268,6 +270,11 @@ export default function Empacado() {
                       }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
+                            {item.imagen_url && (
+                              <img src={item.imagen_url} alt={item.descripcion}
+                                onClick={() => setFotoModal({ url: item.imagen_url, descripcion: item.descripcion })}
+                                style={{ flex: 'none', width: 64, height: 64, objectFit: 'cover', borderRadius: 10, border: item.apartado_fragil ? '2px solid #facc15' : '1px solid rgba(255,255,255,0.15)', background: '#1e293b', cursor: 'zoom-in' }} />
+                            )}
                             <div style={{ flex: 'none', minWidth: 40, height: 40, padding: '0 8px', borderRadius: 10, background: 'rgba(59,130,246,0.15)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800 }}>×{item.cantidad || 1}</div>
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 17, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff' }}>{item.descripcion}</div>
@@ -287,6 +294,13 @@ export default function Empacado() {
                             </button>
                           </div>
                         </div>
+                        {item.apartado_fragil && item.imagen_url && (
+                          <div style={{ marginTop: 10 }}>
+                            <img src={item.imagen_url} alt={item.descripcion}
+                              onClick={() => setFotoModal({ url: item.imagen_url, descripcion: item.descripcion })}
+                              style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 10, border: '1px solid rgba(250,204,21,0.4)', background: '#1e293b', cursor: 'zoom-in' }} />
+                          </div>
+                        )}
                         {item.apartado_fragil && (
                           <div style={{ marginTop: 10, background: 'rgba(250,204,21,0.14)', border: '1px solid rgba(250,204,21,0.4)', borderRadius: 10, padding: '9px 13px', fontSize: 13, fontWeight: 600, color: '#facc15', display: 'flex', alignItems: 'center', gap: 8 }}>
                             ⚠️ Artículo frágil / apartado — empacar con cuidado
@@ -381,6 +395,20 @@ export default function Empacado() {
         </div>
       )}
 
+      {/* Lightbox */}
+      {fotoModal && (
+        <div onClick={() => setFotoModal(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 14, textAlign: 'center', maxWidth: 500 }}>{fotoModal.descripcion}</div>
+          <img src={fotoModal.url} alt={fotoModal.descripcion}
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.7)' }} />
+          <button onClick={() => setFotoModal(null)}
+            style={{ marginTop: 20, background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '10px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+            Cerrar
+          </button>
+        </div>
+      )}
     </div>
   )
 }

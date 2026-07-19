@@ -44,7 +44,9 @@ export async function POST(req) {
         cliente_id, entrega_id, descripcion, lugar_compra,
         cantidad, fecha_compra, precio_usd, tipo_cambio,
         impuesto_pct, costo_mxn, precio_venta, utilidad,
-        notas, categoria: body.categoria || null, estado: 'comprado', apartado_fragil: body.apartado_fragil || false
+        notas, categoria: body.categoria || null, estado: 'comprado',
+        apartado_fragil: body.apartado_fragil || false,
+        imagen_url: body.imagen_url || null
       }])
       .select()
       .single()

@@ -12,8 +12,10 @@ export default function Pedidos() {
     cliente_id: '', entrega_id: '', descripcion: '', categoria: '',
     lugar_compra: 'Ross', cantidad: 1, fecha_compra: hoy,
     precio_usd: '', precio_venta_unitario: '', notas: '',
-    vendedor_id: ''
+    vendedor_id: '', imagen_url: ''
   })
+  const [subiendoFoto, setSubiendoFoto] = useState(false)
+  const [sugiriendoIA, setSugiriendoIA] = useState(false)
   const [calc, setCalc] = useState({
     costo_unitario: 0, impuesto: 0,
     costo_total: 0, venta_total: 0,
@@ -84,6 +86,54 @@ export default function Pedidos() {
     })
   }, [form.precio_usd, form.precio_venta_unitario, form.cantidad, tc, estado])
 
+  const subirFotoPedido = async (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    if (file.size > 15 * 1024 * 1024) { setMsg('La foto pesa más de 15MB.'); return }
+    setSubiendoFoto(true)
+    try {
+      const datos = await fetch('/api/catalogo/subir-imagen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: file.type, carpeta: 'pedidos' }),
+      }).then(r => r.json())
+      if (!datos.ok) throw new Error(datos.mensaje)
+      const formData = new FormData()
+      formData.append('', file, file.name)
+      const up = await fetch(datos.signedUrl, { method: 'PUT', body: formData })
+      if (!up.ok) throw new Error('Error al subir')
+      setForm(f => ({ ...f, imagen_url: datos.publicUrl }))
+    } catch (err) {
+      setMsg('Error al subir la foto: ' + err.message)
+    } finally {
+      setSubiendoFoto(false)
+    }
+  }
+
+  const sugerirConIA = async () => {
+    if (!form.imagen_url) return
+    setSugiriendoIA(true)
+    try {
+      const res = await fetch('/api/pedidos/sugerir-nombre', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imagen_url: form.imagen_url }),
+      }).then(r => r.json())
+      if (res.ok) {
+        setForm(f => ({
+          ...f,
+          descripcion: res.descripcion || f.descripcion,
+          categoria: res.categoria || f.categoria,
+        }))
+      } else {
+        setMsg('Error IA: ' + (res.mensaje || 'Sin respuesta'))
+      }
+    } catch (err) {
+      setMsg('No se pudo conectar con IA: ' + err.message)
+    } finally {
+      setSugiriendoIA(false)
+    }
+  }
+
   const guardar = async (capturarOtro = false) => {
     if (!form.cliente_id || !form.entrega_id || !form.descripcion) {
       setMsg('Cliente, entrega y descripción son obligatorios'); return
@@ -108,7 +158,8 @@ export default function Pedidos() {
         precio_venta: calc.venta_total,
         utilidad: calc.utilidad,
         notas: form.notas,
-        vendedor_id: form.vendedor_id || null
+        vendedor_id: form.vendedor_id || null,
+        imagen_url: form.imagen_url || null
       })
     })
     const data = await res.json()
@@ -126,14 +177,15 @@ export default function Pedidos() {
           precio_usd: '',
           precio_venta_unitario: '',
           notas: '',
-          vendedor_id: form.vendedor_id
+          vendedor_id: form.vendedor_id,
+          imagen_url: ''
         })
       } else {
         setForm({
           cliente_id: '', entrega_id: '', descripcion: '', categoria: '',
           lugar_compra: 'Ross', cantidad: 1, fecha_compra: hoy,
           precio_usd: '', precio_venta_unitario: '', notas: '',
-          vendedor_id: ''
+          vendedor_id: '', imagen_url: ''
         })
       }
     } else {
@@ -199,6 +251,7 @@ export default function Pedidos() {
       vendedor_id: p.vendedor_id || '',
       categoria: p.categoria || '',
       apartado_fragil: p.apartado_fragil || false,
+      imagen_url: p.imagen_url || '',
     })
     setPedidoMsg('')
   }
@@ -312,6 +365,47 @@ export default function Pedidos() {
               <option value="">— ¿Quién tomó este pedido? —</option>
               {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre} ({v.rol === 'admin' ? 'Admin' : 'Vendedor'})</option>)}
             </select>
+          </div>
+
+          {/* Foto del producto */}
+          <div className="mb-4">
+            <label className="text-gray-400 text-sm block mb-1">Foto del producto</label>
+            {form.imagen_url ? (
+              <div className="relative">
+                <img src={form.imagen_url} alt="Producto" className="w-full max-h-48 object-contain rounded-xl border border-gray-700 bg-gray-900" />
+                <div className="flex gap-2 mt-2">
+                  <button type="button" onClick={() => sugerirConIA()}
+                    disabled={sugiriendoIA}
+                    className="flex-1 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-sm py-2 px-3 rounded-xl font-medium">
+                    {sugiriendoIA ? 'Analizando...' : '✨ Sugerir nombre con IA'}
+                  </button>
+                  <button type="button" onClick={() => setForm(f => ({ ...f, imagen_url: '' }))}
+                    className="bg-gray-700 hover:bg-gray-600 text-white text-sm py-2 px-3 rounded-xl">
+                    Quitar foto
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) subirFotoPedido(f) }}
+                onPaste={e => { const f = e.clipboardData.files[0]; if (f) subirFotoPedido(f) }}
+                className="border-2 border-dashed border-gray-600 rounded-xl p-6 text-center cursor-pointer hover:border-purple-500 transition-colors"
+                tabIndex={0}
+              >
+                {subiendoFoto ? (
+                  <p className="text-gray-400 text-sm">Subiendo foto...</p>
+                ) : (
+                  <>
+                    <p className="text-gray-400 text-sm mb-2">Arrastra la foto aquí, pega con Ctrl+V / Cmd+V</p>
+                    <label className="cursor-pointer">
+                      <span className="bg-gray-700 hover:bg-gray-600 text-white text-sm py-2 px-4 rounded-xl">Seleccionar foto</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) subirFotoPedido(e.target.files[0]) }} />
+                    </label>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="mb-4">

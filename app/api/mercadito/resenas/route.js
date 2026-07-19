@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requerirStaff } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -11,6 +12,7 @@ const supabase = createClient(
 // (pedido en pedidos_mercadito con estado "agregado" que contenga ese
 // producto) — no se confía en lo que mande el navegador.
 export async function POST(req) {
+  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   try {
     const { producto_id, cliente_id, estrellas, comentario } = await req.json()
 

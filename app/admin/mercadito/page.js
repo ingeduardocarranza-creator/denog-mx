@@ -2,12 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
 
 const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -56,15 +50,8 @@ export default function MercaditoAdmin() {
     setUsuario(JSON.parse(datos));
   }, []);
 
-  // Stock del catálogo (productos_tienda — el mismo inventario que usa el
-  // POS presencial y el catálogo público del Mercadito), solo para el cruce
-  // de inventario en cada línea de pedido.
+  // Stock del catálogo, solo para cruce de inventario en cada línea de pedido.
   const [stockPorProducto, setStockPorProducto] = useState({});
-  useEffect(() => {
-    supabase.from('productos_tienda').select('id, stock').then(({ data }) => {
-      setStockPorProducto(Object.fromEntries((data || []).map((p) => [p.id, Number(p.stock) || 0])));
-    });
-  }, []);
 
   // ---------- Panel de pedidos ----------
   const [pedidos, setPedidos] = useState([]);
@@ -82,27 +69,19 @@ export default function MercaditoAdmin() {
   const [undoSnapshot, setUndoSnapshot] = useState(null);
   const [showDaily, setShowDaily] = useState(false);
 
+  const [pagosPorPedido, setPagosPorPedido] = useState({});
+
   const cargarPedidos = async () => {
-    const { data, error } = await supabase
-      .from('pedidos_mercadito')
-      .select('*, clientes(nombre, telefono)')
-      .order('creado_en', { ascending: false });
-    if (!error && data) setPedidos(data);
+    const res = await fetch('/api/admin/mercadito').then(r => r.json());
+    if (res.ok) {
+      setPedidos(res.pedidos);
+      setPagosPorPedido(res.pagosPorPedido);
+      setStockPorProducto(res.stockPorProducto);
+    }
     setCargandoPedidos(false);
   };
 
   useEffect(() => { cargarPedidos(); }, []);
-
-  // Cuánto se ha cobrado de verdad por pedido — para que "saldo pendiente"
-  // sea un número real y no solo un estado manual sin dinero detrás.
-  const [pagosPorPedido, setPagosPorPedido] = useState({});
-  const cargarPagos = async () => {
-    const { data } = await supabase.from('pagos').select('pedido_mercadito_id, monto').not('pedido_mercadito_id', 'is', null);
-    const mapa = {};
-    (data || []).forEach((p) => { mapa[p.pedido_mercadito_id] = (mapa[p.pedido_mercadito_id] || 0) + Number(p.monto || 0); });
-    setPagosPorPedido(mapa);
-  };
-  useEffect(() => { cargarPagos(); }, [pedidos.length]);
 
   const pagadoDe = (p) => pagosPorPedido[p.id] || 0;
   const saldoDe = (p) => Math.max(0, totalPedido(p) - pagadoDe(p));
@@ -118,33 +97,27 @@ export default function MercaditoAdmin() {
   };
   const cerrarFormPago = () => { setFormPagoAbierto(null); setErrorPago(''); };
 
-  // Registra el pago con fecha/método/monto reales en `pagos` (nada de
-  // limbo). Si el pedido todavía no tenía anticipo gestionado, este mismo
-  // pago es el que lo aprueba — ya no se puede tocar "Anticipo recibido"
-  // sin que quede un peso registrado detrás.
   const registrarPago = async (p) => {
     const monto = Number(formPago.monto);
     if (!monto || monto <= 0) { setErrorPago('Escribe un monto válido.'); return; }
     const saldo = saldoDe(p);
     if (monto > saldo + 0.5) { setErrorPago(`Ese monto supera el saldo pendiente ($${money(saldo)}).`); return; }
 
-    const { error } = await supabase.from('pagos').insert({
-      cliente_id: p.cliente_id,
-      pedido_mercadito_id: p.id,
-      entrega_id: null,
-      monto,
-      metodo: formPago.metodo,
-      tipo: 'Anticipo',
-      vendedor_id: usuario?.id || null,
-    });
-    if (error) { setErrorPago('No se pudo registrar el pago.'); return; }
+    const res = await fetch('/api/admin/mercadito/pago', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pedidoId: p.id,
+        clienteId: p.cliente_id,
+        monto,
+        metodo: formPago.metodo,
+        estadoActual: p.estado,
+        actorNombre: usuario?.nombre || null,
+      }),
+    }).then(r => r.json());
 
-    if (p.estado === 'confirmado' || p.estado === 'esperando_anticipo') {
-      await aplicarCambio(p.id, { estado: 'aprobado', anticipo_estado: 'recibido' }, `Anticipo recibido: $${money(monto)} (${formPago.metodo})`);
-    } else {
-      await aplicarCambio(p.id, {}, `Pago registrado: $${money(monto)} (${formPago.metodo})`);
-    }
-    await cargarPagos();
+    if (!res.ok) { setErrorPago('No se pudo registrar el pago.'); return; }
+    await cargarPedidos();
     cerrarFormPago();
   };
 
@@ -152,23 +125,32 @@ export default function MercaditoAdmin() {
     const actual = pedidos.find((p) => p.id === id);
     if (!actual) return;
     setUndoSnapshot({ order: actual, label: historialLabel || 'última acción' });
-    const nuevoHistorial = historialLabel
-      ? [...(actual.historial || []), { ts: new Date().toISOString(), label: historialLabel, actor_id: usuario?.id || null, actor_nombre: usuario?.nombre || null }]
-      : (actual.historial || []);
-    const { error } = await supabase
-      .from('pedidos_mercadito')
-      .update({ ...patch, historial: nuevoHistorial, actualizado_en: new Date().toISOString() })
-      .eq('id', id);
-    if (!error) cargarPedidos();
+    await fetch('/api/admin/mercadito', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, patch, historialLabel, actorNombre: usuario?.nombre || null }),
+    });
+    cargarPedidos();
   };
 
   const deshacer = async () => {
     if (!undoSnapshot) return;
     const { order } = undoSnapshot;
-    await supabase.from('pedidos_mercadito').update({
-      estado: order.estado, anticipo_estado: order.anticipo_estado, motivo_cancelacion: order.motivo_cancelacion,
-      items: order.items, historial: order.historial, notas_internas: order.notas_internas,
-    }).eq('id', order.id);
+    await fetch('/api/admin/mercadito', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: order.id,
+        patch: {
+          estado: order.estado,
+          anticipo_estado: order.anticipo_estado,
+          motivo_cancelacion: order.motivo_cancelacion,
+          items: order.items,
+          notas_internas: order.notas_internas,
+        },
+        historialCompleto: order.historial,
+      }),
+    });
     setUndoSnapshot(null);
     cargarPedidos();
   };
@@ -199,26 +181,36 @@ export default function MercaditoAdmin() {
   const cambiarCantidad = async (p, idx, delta) => {
     const items = [...(p.items || [])];
     items[idx] = { ...items[idx], cantidad: Math.max(1, (items[idx].cantidad || 1) + delta) };
-    const { error } = await supabase.from('pedidos_mercadito').update({ items }).eq('id', p.id);
-    if (!error) cargarPedidos();
+    await fetch('/api/admin/mercadito', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.id, patch: { items } }),
+    });
+    cargarPedidos();
   };
 
   const toggleFragil = async (p, idx) => {
     const items = [...(p.items || [])];
     items[idx] = { ...items[idx], apartado_fragil: !items[idx].apartado_fragil };
-    const { error } = await supabase.from('pedidos_mercadito').update({ items }).eq('id', p.id);
-    if (!error) cargarPedidos();
+    await fetch('/api/admin/mercadito', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.id, patch: { items } }),
+    });
+    cargarPedidos();
   };
 
   const agregarNota = async (p) => {
     const texto = (noteDrafts[p.id] || '').trim();
     if (!texto) return;
     const notas = [...(p.notas_internas || []), { ts: new Date().toISOString(), author_id: usuario?.id || null, author_nombre: usuario?.nombre || null, text: texto }];
-    const { error } = await supabase.from('pedidos_mercadito').update({ notas_internas: notas }).eq('id', p.id);
-    if (!error) {
-      setNoteDrafts((d) => ({ ...d, [p.id]: '' }));
-      cargarPedidos();
-    }
+    await fetch('/api/admin/mercadito', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.id, patch: { notas_internas: notas } }),
+    });
+    setNoteDrafts((d) => ({ ...d, [p.id]: '' }));
+    cargarPedidos();
   };
 
   const enviarWhatsapp = (p) => {

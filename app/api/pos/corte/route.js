@@ -15,11 +15,13 @@ export async function GET(req) {
     .limit(1)
     .single();
 
-  // 2. Jalar los pagos cruzando la información con el nombre del cliente
+  // 2. Jalar solo los pagos desde que abrió el turno actual
+  const desdeApertura = corte?.abierto_en || new Date().toISOString()
   const { data: ventas } = await supabase
     .from('pagos')
     .select('id, cliente_id, monto, metodo, tipo, creado_en, clientes(nombre)')
     .eq('tipo', 'Venta Liquidación')
+    .gte('creado_en', desdeApertura)
     .order('creado_en', { ascending: false });
 
   const pagosFormateados = (ventas || []).map(v => {

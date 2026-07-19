@@ -37,5 +37,5 @@ export async function POST(req) {
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
 
   const { data: pub } = supabase.storage.from('productos').getPublicUrl(path)
-  return NextResponse.json({ ok: true, path, token: data.token, publicUrl: pub.publicUrl })
+  return NextResponse.json({ ok: true, path, token: data.token, signedUrl: data.signedUrl, publicUrl: pub.publicUrl })
 }

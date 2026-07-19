@@ -1,12 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
 
 export default function CatalogoTienda() {
   const [productos, setProductos] = useState([]);
@@ -68,10 +62,10 @@ export default function CatalogoTienda() {
       const datos = await res.json();
       if (!datos.ok) throw new Error(datos.mensaje || 'No se pudo preparar la subida.');
 
-      const { error: subeError } = await supabase.storage
-        .from('productos')
-        .uploadToSignedUrl(datos.path, datos.token, file);
-      if (subeError) throw subeError;
+      const formData = new FormData();
+      formData.append('', file, file.name);
+      const subeRes = await fetch(datos.signedUrl, { method: 'PUT', body: formData });
+      if (!subeRes.ok) throw new Error('Error al subir la foto al servidor.');
 
       setImagenUrl(datos.publicUrl);
     } catch (err) {
@@ -100,8 +94,10 @@ export default function CatalogoTienda() {
       });
       const datos = await res.json();
       if (!datos.ok) throw new Error(datos.mensaje || 'No se pudo preparar la subida.');
-      const { error: subeError } = await supabase.storage.from('productos').uploadToSignedUrl(datos.path, datos.token, file);
-      if (subeError) throw subeError;
+      const formData = new FormData();
+      formData.append('', file, file.name);
+      const subeRes = await fetch(datos.signedUrl, { method: 'PUT', body: formData });
+      if (!subeRes.ok) throw new Error('Error al subir la foto al servidor.');
       setGaleria((g) => { const next = [...g]; next[idx] = datos.publicUrl; return next; });
     } catch (err) {
       setMensaje({ tipo: 'error', texto: 'Error al subir la foto: ' + err.message });
@@ -111,18 +107,12 @@ export default function CatalogoTienda() {
   };
   const quitarFotoGaleria = (idx) => setGaleria((g) => g.filter((_, i) => i !== idx));
 
-  // 1. CARGAR DATOS DESDE SUPABASE Y EXTRAER CATEGORÍAS EXISTENTES
+  // 1. CARGAR DATOS Y EXTRAER CATEGORÍAS EXISTENTES
   const cargarProductosYCategorias = async () => {
-    const { data, error } = await supabase
-      .from('productos_tienda')
-      .select('*, creador:clientes(nombre)')
-      .order('id', { ascending: false });
-    
-    if (!error && data) {
-      setProductos(data);
-      
-      // Recolectar las categorías que ya existan en la base de datos para que nunca se borren de la lista
-      const catsExistentes = data.map(p => p.categoria).filter(Boolean);
+    const res = await fetch('/api/admin/catalogo').then(r => r.json());
+    if (res.ok) {
+      setProductos(res.productos);
+      const catsExistentes = res.productos.map(p => p.categoria).filter(Boolean);
       const categoriasUnicas = [...new Set([...listaCategorias, ...catsExistentes])];
       setListaCategorias(categoriasUnicas);
     }
@@ -170,23 +160,14 @@ export default function CatalogoTienda() {
     };
 
     try {
-      if (editandoId) {
-        const { error } = await supabase
-          .from('productos_tienda')
-          .update(datosProducto)
-          .eq('id', editandoId);
+      const res = await fetch('/api/admin/catalogo', {
+        method: editandoId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editandoId ? { id: editandoId, ...datosProducto } : datosProducto),
+      }).then(r => r.json());
 
-        if (error) throw error;
-        setMensaje({ tipo: 'exito', texto: '¡Artículo actualizado correctamente!' });
-      } else {
-        const { error } = await supabase
-          .from('productos_tienda')
-          .insert([datosProducto]);
-
-        if (error) throw error;
-        setMensaje({ tipo: 'exito', texto: '¡Artículo registrado en el stock disponible!' });
-      }
-
+      if (!res.ok) throw new Error(res.mensaje || 'Error al guardar');
+      setMensaje({ tipo: 'exito', texto: editandoId ? '¡Artículo actualizado correctamente!' : '¡Artículo registrado en el stock disponible!' });
       limpiarFormulario();
       cargarProductosYCategorias();
     } catch (err) {
@@ -214,21 +195,21 @@ export default function CatalogoTienda() {
   };
 
   const cambiarEstadoActivo = async (id, estadoActual) => {
-    const { error } = await supabase
-      .from('productos_tienda')
-      .update({ activo: !estadoActual })
-      .eq('id', id);
-
-    if (!error) cargarProductosYCategorias();
+    await fetch('/api/admin/catalogo', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, activo: !estadoActual }),
+    });
+    cargarProductosYCategorias();
   };
 
   const toggleMercadito = async (id, estadoActual) => {
-    const { error } = await supabase
-      .from('productos_tienda')
-      .update({ mostrar_en_mercadito: !estadoActual })
-      .eq('id', id);
-
-    if (!error) cargarProductosYCategorias();
+    await fetch('/api/admin/catalogo', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, mostrar_en_mercadito: !estadoActual }),
+    });
+    cargarProductosYCategorias();
   };
 
   const limpiarFormulario = () => {

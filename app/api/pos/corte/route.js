@@ -1,9 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server'
+import { requerirStaff } from '@/lib/auth/session';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-export async function GET() {
+export async function GET(req) {
+  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   // 1. Obtener los datos del corte abierto
   const { data: corte } = await supabase
     .from('cortes_caja')
@@ -54,6 +56,7 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const { efectivoContado, diferencia } = await req.json();
   const { data: corte } = await supabase
     .from('cortes_caja')

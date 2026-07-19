@@ -2,12 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
 
 const GALERIA_SLOTS = 2; // + foto principal = 3 fotos en total
 
@@ -40,13 +34,10 @@ export default function CatalogoColaborador() {
   const [editandoEraPendiente, setEditandoEraPendiente] = useState(false);
 
   const cargarProductos = async () => {
-    const { data, error } = await supabase
-      .from('productos_tienda')
-      .select('id, nombre, categoria, codigo_barras, descripcion, imagen_url, galeria, pendiente_aprobacion')
-      .order('id', { ascending: false });
-    if (!error && data) {
-      setProductos(data);
-      const catsExistentes = data.map((p) => p.categoria).filter(Boolean);
+    const res = await fetch('/api/admin/catalogo').then(r => r.json());
+    if (res.ok) {
+      setProductos(res.productos);
+      const catsExistentes = res.productos.map((p) => p.categoria).filter(Boolean);
       setListaCategorias((prev) => [...new Set([...prev, ...catsExistentes])]);
     }
   };
@@ -81,8 +72,10 @@ export default function CatalogoColaborador() {
       });
       const datos = await res.json();
       if (!datos.ok) throw new Error(datos.mensaje || 'No se pudo preparar la subida.');
-      const { error: subeError } = await supabase.storage.from('productos').uploadToSignedUrl(datos.path, datos.token, file);
-      if (subeError) throw subeError;
+      const formData = new FormData();
+      formData.append('', file, file.name);
+      const subeRes = await fetch(datos.signedUrl, { method: 'PUT', body: formData });
+      if (!subeRes.ok) throw new Error('Error al subir la foto al servidor.');
       if (slot === 'principal') setImagenUrl(datos.publicUrl);
       else setGaleria((g) => { const next = [...g]; next[slot] = datos.publicUrl; return next; });
     } catch (err) {
@@ -122,23 +115,17 @@ export default function CatalogoColaborador() {
     };
 
     try {
-      if (editandoId) {
-        const { error } = await supabase.from('productos_tienda').update(datosProducto).eq('id', editandoId);
-        if (error) throw error;
-        setMensaje({ tipo: 'exito', texto: '¡Producto actualizado!' });
-      } else {
-        const { error } = await supabase.from('productos_tienda').insert([{
-          ...datosProducto,
-          costo: 0,
-          precio_venta: 0,
-          stock: 0,
-          activo: false,
-          pendiente_aprobacion: true,
-          creado_por: usuario?.id || null,
-        }]);
-        if (error) throw error;
-        setMensaje({ tipo: 'exito', texto: '¡Producto enviado! Un admin debe completar el precio y el stock antes de que aparezca en el catálogo.' });
-      }
+      const res = await fetch('/api/admin/catalogo', {
+        method: editandoId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editandoId
+          ? { id: editandoId, ...datosProducto }
+          : { ...datosProducto, costo: 0, precio_venta: 0, stock: 0, activo: false, pendiente_aprobacion: true }
+        ),
+      }).then(r => r.json());
+
+      if (!res.ok) throw new Error(res.mensaje || 'Error al guardar');
+      setMensaje({ tipo: 'exito', texto: editandoId ? '¡Producto actualizado!' : '¡Producto enviado! Un admin debe completar el precio y el stock antes de que aparezca en el catálogo.' });
       limpiarFormulario();
       cargarProductos();
     } catch (err) {

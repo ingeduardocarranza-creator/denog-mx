@@ -27,9 +27,11 @@ export async function GET(req) {
 
 // Create a new product
 export async function POST(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const body = await req.json()
   const datos = Object.fromEntries(CAMPOS_PERMITIDOS.filter(k => k in body).map(k => [k, body[k]]))
+  datos.creado_por = sesion.id
   const { data, error } = await supabase.from('productos_tienda').insert([datos]).select('id').single()
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true, id: data.id })

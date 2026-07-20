@@ -34,6 +34,8 @@ export default function CapturarLote() {
   const [guardando, setGuardando] = useState(false)
   const [salvados, setSalvados] = useState({})
   const [editando, setEditando] = useState(false)
+  const [nuevoClienteForm, setNuevoClienteForm] = useState(null) // {nombre, telefono} | null
+  const [creandoCliente, setCreandoCliente] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -52,9 +54,13 @@ export default function CapturarLote() {
 
   const tc = parseFloat(config.tipo_cambio) || 0
   const imp = parseFloat(config.impuesto_pct) || 0
-  const usd = parseFloat(form.precio_usd) || 0
-  const costoMxn = usd > 0 && tc > 0 ? usd * (1 + imp / 100) * tc : 0
-  const venta = parseFloat(form.precio_venta) || 0
+  const cant = Number(form.cantidad) || 1
+  const usdUnit = parseFloat(form.precio_usd) || 0
+  const costoMxnUnit = usdUnit > 0 && tc > 0 ? usdUnit * (1 + imp / 100) * tc : 0
+  const costoMxn = costoMxnUnit * cant
+  const ventaUnit = parseFloat(form.precio_venta) || 0
+  const venta = ventaUnit * cant
+  const usd = usdUnit * cant
   const utilidad = venta > 0 && costoMxn > 0 ? venta - costoMxn : 0
 
   const clientesFilt = useMemo(() => {
@@ -62,6 +68,33 @@ export default function CapturarLote() {
     if (!q || form.cliente_id) return []
     return clientes.filter(c => c.rol === 'cliente' && (c.nombre?.toLowerCase().includes(q) || c.telefono?.includes(q))).slice(0, 6)
   }, [clientes, busq, form.cliente_id])
+
+  const crearClienteInline = async () => {
+    if (!nuevoClienteForm?.nombre || !nuevoClienteForm?.telefono) return
+    setCreandoCliente(true)
+    try {
+      const res = await fetch('/api/clientes/crear', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: nuevoClienteForm.nombre,
+          telefono: nuevoClienteForm.telefono,
+          usuario: nuevoClienteForm.telefono,
+          password: nuevoClienteForm.telefono,
+          limite_credito: 0,
+          requiere_anticipo: false,
+        })
+      }).then(r => r.json())
+      if (res.ok) {
+        setClientes(prev => [...prev, res.cliente])
+        setForm(p => ({ ...p, cliente_id: res.cliente.id }))
+        setBusq(res.cliente.nombre)
+        setNuevoClienteForm(null)
+      } else {
+        alert('Error al crear cliente: ' + res.mensaje)
+      }
+    } catch (err) { alert(err.message) }
+    setCreandoCliente(false)
+  }
 
   const procesarFoto = useCallback(async (idx) => {
     if (procesandoRef.current.has(idx)) return
@@ -145,8 +178,8 @@ export default function CapturarLote() {
       setForm({
         cliente_id: saved.cliente_id || '',
         cantidad: saved.cantidad || 1,
-        precio_usd: saved.precio_usd || '',
-        precio_venta: saved.precio_venta || '',
+        precio_usd: saved._precio_usd_unit ?? '',
+        precio_venta: saved._precio_venta_unit ?? '',
         descripcion: saved.descripcion || '',
         categoria: saved.categoria || '',
       })
@@ -170,7 +203,7 @@ export default function CapturarLote() {
       descripcion: form.descripcion,
       categoria: form.categoria || null,
       lugar_compra: config.lugar_compra,
-      cantidad: Number(form.cantidad) || 1,
+      cantidad: cant,
       fecha_compra: config.fecha_compra,
       precio_usd: usd || null,
       tipo_cambio: tc || null,
@@ -181,6 +214,8 @@ export default function CapturarLote() {
       imagen_url: cola[indice]?.imagen_url || null,
       notas: null,
     }
+    // _unit fields stored only in salvados for form restoration when going back
+    const salvadoExtra = { _precio_usd_unit: usdUnit, _precio_venta_unit: ventaUnit }
     try {
       if (editando && salvados[indice]) {
         const res = await fetch('/api/pedidos/actualizar-pedido', {
@@ -188,7 +223,7 @@ export default function CapturarLote() {
           body: JSON.stringify({ id: salvados[indice].id, ...body })
         }).then(r => r.json())
         if (res.ok) {
-          setSalvados(p => ({ ...p, [indice]: { ...body, id: salvados[indice].id } }))
+          setSalvados(p => ({ ...p, [indice]: { ...body, ...salvadoExtra, id: salvados[indice].id } }))
           setEditando(false)
           avanzar()
         } else alert('Error: ' + res.mensaje)
@@ -198,7 +233,7 @@ export default function CapturarLote() {
           body: JSON.stringify(body)
         }).then(r => r.json())
         if (res.ok) {
-          setSalvados(p => ({ ...p, [indice]: { ...body, id: res.pedido.id } }))
+          setSalvados(p => ({ ...p, [indice]: { ...body, ...salvadoExtra, id: res.pedido.id } }))
           avanzar()
         } else alert('Error: ' + res.mensaje)
       }
@@ -421,10 +456,10 @@ export default function CapturarLote() {
               <input
                 style={{ ...inp, borderColor: form.cliente_id ? '#3b82f6' : 'rgba(255,255,255,0.12)' }}
                 type="text" value={busq}
-                onChange={e => { setBusq(e.target.value); setForm(p => ({ ...p, cliente_id: '' })) }}
+                onChange={e => { setBusq(e.target.value); setForm(p => ({ ...p, cliente_id: '' })); setNuevoClienteForm(null) }}
                 placeholder="Buscar por nombre o teléfono..."
                 disabled={procesando} />
-              {clientesFilt.length > 0 && (
+              {(clientesFilt.length > 0 || (busq.trim() && !form.cliente_id)) && !nuevoClienteForm && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1e293b', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, marginTop: 4, zIndex: 20, overflow: 'hidden' }}>
                   {clientesFilt.map(c => (
                     <div key={c.id}
@@ -436,9 +471,41 @@ export default function CapturarLote() {
                       <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{c.telefono}</span>
                     </div>
                   ))}
+                  <div
+                    onClick={() => setNuevoClienteForm({ nombre: busq.trim(), telefono: '' })}
+                    style={{ padding: '10px 14px', fontSize: 14, cursor: 'pointer', color: '#34d399', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, borderTop: clientesFilt.length > 0 ? '1px solid rgba(255,255,255,0.08)' : 'none' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(52,211,153,0.12)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    ＋ Crear cliente nuevo
+                  </div>
                 </div>
               )}
             </div>
+            {/* Mini-form para crear cliente */}
+            {nuevoClienteForm && (
+              <div style={{ marginTop: 10, background: 'rgba(52,211,153,0.07)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Nuevo cliente</div>
+                <input style={inp} type="text" placeholder="Nombre completo"
+                  value={nuevoClienteForm.nombre}
+                  onChange={e => setNuevoClienteForm(p => ({ ...p, nombre: e.target.value }))} />
+                <input style={inp} type="tel" placeholder="Celular (10 dígitos)"
+                  value={nuevoClienteForm.telefono}
+                  onChange={e => setNuevoClienteForm(p => ({ ...p, telefono: e.target.value }))} />
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+                  El usuario y contraseña iniciales serán el número de celular. Límite de crédito: $0.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setNuevoClienteForm(null)} disabled={creandoCliente}
+                    style={{ flex: 1, background: 'transparent', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    Cancelar
+                  </button>
+                  <button onClick={crearClienteInline} disabled={creandoCliente || !nuevoClienteForm.nombre || !nuevoClienteForm.telefono}
+                    style={{ flex: 2, background: creandoCliente ? 'rgba(52,211,153,0.3)' : '#34d399', color: '#0f172a', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+                    {creandoCliente ? 'Creando...' : '✓ Crear y seleccionar'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Cantidad */}
@@ -451,28 +518,34 @@ export default function CapturarLote() {
 
           {/* Costo USD */}
           <div>
-            <label style={lbl}>Costo USD</label>
+            <label style={lbl}>Costo USD <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>por pieza</span></label>
             <input style={inp} type="number" step="0.01" value={form.precio_usd}
               onChange={e => setForm(p => ({ ...p, precio_usd: e.target.value }))}
               placeholder="0.00" disabled={procesando} />
-            {costoMxn > 0 && (
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 5 }}>
-                = ${fmt(costoMxn)} MXN · TC {config.tipo_cambio} · {config.impuesto_pct}% imp.
+            {costoMxnUnit > 0 && (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 5, lineHeight: 1.6 }}>
+                1 pza = ${fmt(costoMxnUnit)} MXN
+                {cant > 1 && <span style={{ color: '#facc15', fontWeight: 700 }}> · {cant} pzas = ${fmt(costoMxn)} MXN</span>}
               </div>
             )}
           </div>
 
           {/* Precio de venta */}
           <div>
-            <label style={lbl}>Precio de venta MXN</label>
+            <label style={lbl}>Precio de venta MXN <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>por pieza</span></label>
             <input
               style={{ ...inp, borderColor: form.precio_venta ? '#3b82f6' : 'rgba(255,255,255,0.12)' }}
               type="number" step="0.01" value={form.precio_venta}
               onChange={e => setForm(p => ({ ...p, precio_venta: e.target.value }))}
               placeholder="0.00" disabled={procesando} />
+            {ventaUnit > 0 && cant > 1 && (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 5 }}>
+                Total {cant} pzas = <span style={{ color: '#3b82f6', fontWeight: 700 }}>${fmt(venta)} MXN</span>
+              </div>
+            )}
             {utilidad !== 0 && (
-              <div style={{ fontSize: 12, color: utilidad > 0 ? '#34d399' : '#ef4444', marginTop: 5 }}>
-                Utilidad: ${fmt(utilidad)} MXN {costoMxn > 0 ? `(${((utilidad / costoMxn) * 100).toFixed(0)}%)` : ''}
+              <div style={{ fontSize: 12, color: utilidad > 0 ? '#34d399' : '#ef4444', marginTop: 4 }}>
+                Utilidad total: ${fmt(utilidad)} MXN {costoMxn > 0 ? `(${((utilidad / costoMxn) * 100).toFixed(0)}%)` : ''}
               </div>
             )}
           </div>
@@ -495,7 +568,7 @@ export default function CapturarLote() {
 
           {/* Config summary */}
           <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 11, color: 'rgba(255,255,255,0.3)', lineHeight: 1.8 }}>
-            TC: {config.tipo_cambio} · {config.impuesto_pct}% imp. · {config.lugar_compra} · {config.fecha_compra}
+            TC: {config.tipo_cambio} · Imp: {config.impuesto_pct}% · {config.lugar_compra} · {config.fecha_compra}
           </div>
         </div>
       </div>

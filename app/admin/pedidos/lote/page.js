@@ -19,7 +19,7 @@ export default function CapturarLote() {
   const [categorias, setCategorias] = useState([])
 
   const [config, setConfig] = useState({
-    tipo_cambio: '', impuesto_pct: '8', lugar_compra: 'Ross',
+    tipo_cambio: '', impuesto_pct: '8.6', lugar_compra: 'Ross',
     fecha_compra: HOY, entrega_id: '', vendedor_id: ''
   })
 
@@ -237,9 +237,12 @@ export default function CapturarLote() {
               onChange={e => setConfig(p => ({ ...p, tipo_cambio: e.target.value }))} placeholder="Ej: 17.50" />
           </div>
           <div>
-            <label style={lbl}>Impuesto %</label>
-            <input style={inp} type="number" step="0.1" value={config.impuesto_pct}
-              onChange={e => setConfig(p => ({ ...p, impuesto_pct: e.target.value }))} placeholder="Ej: 8" />
+            <label style={lbl}>Impuesto</label>
+            <select style={inp} value={config.impuesto_pct}
+              onChange={e => setConfig(p => ({ ...p, impuesto_pct: e.target.value }))}>
+              <option value="8.6">Arizona 8.6%</option>
+              <option value="7.75">California 7.75%</option>
+            </select>
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

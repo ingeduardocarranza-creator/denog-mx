@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 
 export default function Pedidos() {
   const hoy = new Date().toISOString().split('T')[0]
@@ -308,13 +309,17 @@ export default function Pedidos() {
         </div>
 
         {/* Pestañas */}
-        <div className="flex gap-2 mb-5">
+        <div className="flex gap-2 mb-5 flex-wrap">
           {[['capturar', '📝 Capturar'], ['ver', '📋 Ver / Editar']].map(([key, lbl]) => (
             <button key={key} onClick={() => { setPestana(key); setPagina(1) }}
               className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${pestana === key ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
               {lbl}
             </button>
           ))}
+          <Link href="/admin/pedidos/lote"
+            className="px-5 py-2 rounded-xl text-sm font-semibold bg-emerald-700 text-white hover:bg-emerald-600 transition-all">
+            📦 Captura en lote
+          </Link>
         </div>
 
         {pestana === 'capturar' && (

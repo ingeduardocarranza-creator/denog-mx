@@ -6,7 +6,7 @@ export default function Empacado() {
   const [entregaId, setEntregaId] = useState('')
   const [pedidos, setPedidos] = useState([])
   const [cargando, setCargando] = useState(false)
-  const [tab, setTab] = useState('empacado') // 'empacado' | 'nollego'
+  const [tab, setTab] = useState('empacado') // 'empacado' | 'nollego' | 'fragil' | 'pendiente'
   const [indice, setIndice] = useState(0)
   const [procesando, setProcesando] = useState(false)
   const [fotoModal, setFotoModal] = useState(null)
@@ -56,33 +56,45 @@ export default function Empacado() {
       porCliente[cid].todos.push(p)
     })
     return Object.values(porCliente).map(c => {
-      const items = c.todos.filter(it => it.estado !== 'no_llego')
-      const noLlegoItems = c.todos.filter(it => it.estado === 'no_llego')
-      const piezasBolsa = items.filter(it => !it.apartado_fragil).reduce((s, it) => s + (it.cantidad || 1), 0)
-      const piezasFragil = items.filter(it => it.apartado_fragil).reduce((s, it) => s + (it.cantidad || 1), 0)
+      const noLlegoItems   = c.todos.filter(it => it.estado === 'no_llego')
+      const fragilItems    = c.todos.filter(it => it.apartado_fragil && it.estado !== 'no_llego')
+      const pendienteItems = c.todos.filter(it => it.estado === 'pendiente' && !it.apartado_fragil)
+      const items          = c.todos.filter(it => !it.apartado_fragil && it.estado !== 'no_llego' && it.estado !== 'pendiente')
+      const piezasBolsa    = items.reduce((s, it) => s + (it.cantidad || 1), 0)
+      const piezasFragil   = fragilItems.reduce((s, it) => s + (it.cantidad || 1), 0)
       let status
-      if (items.length === 0) status = 'sin_llegar'
-      else if (items.every(it => it.estado === 'empacado')) status = 'empacado'
+      if (items.length === 0 && fragilItems.length === 0 && pendienteItems.length === 0) status = 'sin_llegar'
+      else if (pendienteItems.length === 0 && items.every(it => it.estado === 'empacado')) status = 'empacado'
       else status = 'pendiente'
-      return { ...c, items, noLlegoItems, piezasBolsa, piezasFragil, status }
+      return { ...c, items, noLlegoItems, fragilItems, pendienteItems, piezasBolsa, piezasFragil, status }
     }).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
   }, [pedidos])
 
-  const total = clientes.length
-  const countEmpacados = clientes.filter(c => c.status === 'empacado').length
-  const countSinLlegar = clientes.filter(c => c.status === 'sin_llegar').length
+  const total           = clientes.length
+  const countEmpacados  = clientes.filter(c => c.status === 'empacado').length
+  const countSinLlegar  = clientes.filter(c => c.status === 'sin_llegar').length
   const countPendientes = total - countEmpacados - countSinLlegar
   const pct = (n) => total > 0 ? `${(n / total) * 100}%` : '0%'
 
   const clamp = (i) => Math.max(0, Math.min(total - 1, i))
-  const irA = (i) => setIndice(clamp(i))
+  const irA   = (i) => setIndice(clamp(i))
   const cliente = clientes[indice] || null
 
   const noLlegoTodos = useMemo(() => {
     const flat = []
-    clientes.forEach(c => {
-      c.noLlegoItems.forEach(it => flat.push({ ...it, clienteNombre: c.nombre }))
-    })
+    clientes.forEach(c => c.noLlegoItems.forEach(it => flat.push({ ...it, clienteNombre: c.nombre })))
+    return flat
+  }, [clientes])
+
+  const fragilTodos = useMemo(() => {
+    const flat = []
+    clientes.forEach(c => c.fragilItems.forEach(it => flat.push({ ...it, clienteNombre: c.nombre })))
+    return flat
+  }, [clientes])
+
+  const pendienteTodos = useMemo(() => {
+    const flat = []
+    clientes.forEach(c => c.pendienteItems.forEach(it => flat.push({ ...it, clienteNombre: c.nombre })))
     return flat
   }, [clientes])
 
@@ -102,8 +114,9 @@ export default function Empacado() {
 
   const quitarDeLista = (id) => setPedidos(prev => prev.filter(p => p.id !== id))
 
-  const toggleFragil = (p) => actualizarPedido(p, { apartado_fragil: !p.apartado_fragil })
-  const toggleNoLlego = (p) => actualizarPedido(p, { estado: p.estado === 'no_llego' ? 'comprado' : 'no_llego' })
+  const toggleFragil    = (p) => actualizarPedido(p, { apartado_fragil: !p.apartado_fragil })
+  const toggleNoLlego   = (p) => actualizarPedido(p, { estado: p.estado === 'no_llego' ? 'comprado' : 'no_llego' })
+  const togglePendiente = (p) => actualizarPedido(p, { estado: p.estado === 'pendiente' ? 'comprado' : 'pendiente' })
 
   const marcarClienteEmpacado = async () => {
     if (!cliente || procesando) return
@@ -149,6 +162,25 @@ export default function Empacado() {
 
   const navBtnStyle = { background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, padding: '10px 14px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }
 
+  const tabBtn = (key, label, count, color = '#3b82f6') => (
+    <button key={key} onClick={() => setTab(key)}
+      style={{
+        background: tab === key ? `rgba(${color === '#3b82f6' ? '59,130,246' : color === '#facc15' ? '250,204,21' : color === '#f97316' ? '249,115,22' : '251,191,36'},0.14)` : 'transparent',
+        color: tab === key ? color : 'rgba(255,255,255,0.55)',
+        border: 'none',
+        borderBottom: tab === key ? `2px solid ${color}` : '2px solid transparent',
+        borderRadius: '10px 10px 0 0',
+        padding: '12px 18px', fontSize: 15,
+        fontWeight: tab === key ? 700 : 600,
+        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+      {label}
+      {count > 0 && (
+        <span style={{ background: color, color: color === '#facc15' ? '#0f172a' : '#fff', borderRadius: 999, padding: '2px 8px', fontSize: 12, fontWeight: 800, minWidth: 20, textAlign: 'center' }}>{count}</span>
+      )}
+    </button>
+  )
+
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: '#ffffff', fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", padding: '28px 32px 64px' }}>
 
@@ -168,18 +200,11 @@ export default function Empacado() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <button onClick={() => setTab('empacado')}
-          style={{ background: tab === 'empacado' ? 'rgba(59,130,246,0.14)' : 'transparent', color: tab === 'empacado' ? '#3b82f6' : 'rgba(255,255,255,0.55)', border: 'none', borderBottom: tab === 'empacado' ? '2px solid #3b82f6' : '2px solid transparent', borderRadius: '10px 10px 0 0', padding: '12px 18px', fontSize: 15, fontWeight: tab === 'empacado' ? 700 : 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-          📦 Empacado
-        </button>
-        <button onClick={() => setTab('nollego')}
-          style={{ background: tab === 'nollego' ? 'rgba(59,130,246,0.14)' : 'transparent', color: tab === 'nollego' ? '#3b82f6' : 'rgba(255,255,255,0.55)', border: 'none', borderBottom: tab === 'nollego' ? '2px solid #3b82f6' : '2px solid transparent', borderRadius: '10px 10px 0 0', padding: '12px 18px', fontSize: 15, fontWeight: tab === 'nollego' ? 700 : 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-          ⚠️ Artículos sin llegar
-          {noLlegoTodos.length > 0 && (
-            <span style={{ background: '#ef4444', color: '#fff', borderRadius: 999, padding: '2px 8px', fontSize: 12, fontWeight: 800, minWidth: 20, textAlign: 'center' }}>{noLlegoTodos.length}</span>
-          )}
-        </button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap' }}>
+        {tabBtn('empacado',  '📦 Empacado', 0, '#3b82f6')}
+        {tabBtn('fragil',    '⚠️ Artículos frágiles', fragilTodos.length, '#facc15')}
+        {tabBtn('pendiente', '⏸ Pendientes', pendienteTodos.length, '#f97316')}
+        {tabBtn('nollego',   '❌ Sin llegar', noLlegoTodos.length, '#ef4444')}
       </div>
 
       {cargando && <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.4)' }}>Cargando...</div>}
@@ -262,18 +287,15 @@ export default function Empacado() {
                       </div>
                     </div>
 
+                    {/* Lista de artículos normales */}
                     {cliente.items.map(item => (
-                      <div key={item.id} style={{
-                        padding: '12px 14px', borderRadius: 12,
-                        background: item.apartado_fragil ? 'rgba(250,204,21,0.08)' : 'rgba(255,255,255,0.04)',
-                        border: item.apartado_fragil ? '1px solid rgba(250,204,21,0.3)' : '1px solid rgba(255,255,255,0.07)',
-                      }}>
+                      <div key={item.id} style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
                             {item.imagen_url && (
                               <img src={item.imagen_url} alt={item.descripcion}
                                 onClick={() => setFotoModal({ url: item.imagen_url, descripcion: item.descripcion })}
-                                style={{ flex: 'none', width: 64, height: 64, objectFit: 'cover', borderRadius: 10, border: item.apartado_fragil ? '2px solid #facc15' : '1px solid rgba(255,255,255,0.15)', background: '#1e293b', cursor: 'zoom-in' }} />
+                                style={{ flex: 'none', width: 64, height: 64, objectFit: 'cover', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: '#1e293b', cursor: 'zoom-in' }} />
                             )}
                             <div style={{ flex: 'none', minWidth: 40, height: 40, padding: '0 8px', borderRadius: 10, background: 'rgba(59,130,246,0.15)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800 }}>×{item.cantidad || 1}</div>
                             <div style={{ minWidth: 0 }}>
@@ -281,45 +303,74 @@ export default function Empacado() {
                               <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>Cantidad: {item.cantidad || 1} pza(s)</div>
                             </div>
                           </div>
-                          <div style={{ display: 'flex', gap: 8, flex: 'none' }}>
+                          <div style={{ display: 'flex', gap: 6, flex: 'none', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <button onClick={() => toggleFragil(item)}
-                              style={item.apartado_fragil
-                                ? { background: '#facc15', color: '#0f172a', border: '1px solid #facc15', borderRadius: 10, padding: '10px 14px', fontSize: 14, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }
-                                : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, padding: '10px 14px', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              style={{ background: 'rgba(250,204,21,0.08)', color: '#facc15', border: '1px solid rgba(250,204,21,0.3)', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                               ⚠️ Frágil
                             </button>
+                            <button onClick={() => togglePendiente(item)}
+                              style={{ background: 'rgba(249,115,22,0.08)', color: '#f97316', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              ⏸ Pendiente
+                            </button>
                             <button onClick={() => toggleNoLlego(item)}
-                              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, padding: '10px 14px', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                               ❌ No llegó
                             </button>
                           </div>
                         </div>
-                        {item.apartado_fragil && item.imagen_url && (
-                          <div style={{ marginTop: 10 }}>
-                            <img src={item.imagen_url} alt={item.descripcion}
-                              onClick={() => setFotoModal({ url: item.imagen_url, descripcion: item.descripcion })}
-                              style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 10, border: '1px solid rgba(250,204,21,0.4)', background: '#1e293b', cursor: 'zoom-in' }} />
-                          </div>
-                        )}
-                        {item.apartado_fragil && (
-                          <div style={{ marginTop: 10, background: 'rgba(250,204,21,0.14)', border: '1px solid rgba(250,204,21,0.4)', borderRadius: 10, padding: '9px 13px', fontSize: 13, fontWeight: 600, color: '#facc15', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            ⚠️ Artículo frágil / apartado — empacar con cuidado
-                          </div>
-                        )}
                       </div>
                     ))}
 
-                    {cliente.items.length === 0 && (
+                    {cliente.items.length === 0 && cliente.fragilItems.length === 0 && cliente.pendienteItems.length === 0 && (
                       <div style={{ textAlign: 'center', padding: '28px 20px', color: 'rgba(255,255,255,0.4)', fontSize: 15 }}>
-                        Todos los artículos de este cliente están marcados como "No llegó".
+                        Todos los artículos están en sin llegar, frágiles o pendientes.
                       </div>
                     )}
                   </div>
 
+                  {/* Movidos a Frágiles */}
+                  {cliente.fragilItems.length > 0 && (
+                    <div style={{ padding: '0 20px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#facc15', padding: '0 6px 2px' }}>⚠️ Artículos frágiles</div>
+                      {cliente.fragilItems.map(it => (
+                        <div key={it.id} style={{ background: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.3)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                            {it.imagen_url && (
+                              <img src={it.imagen_url} alt={it.descripcion}
+                                onClick={() => setFotoModal({ url: it.imagen_url, descripcion: it.descripcion })}
+                                style={{ flex: 'none', width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(250,204,21,0.4)', cursor: 'zoom-in' }} />
+                            )}
+                            <div style={{ fontSize: 14, color: '#facc15', fontWeight: 600 }}>{it.descripcion} · ×{it.cantidad || 1}</div>
+                          </div>
+                          <button onClick={() => toggleFragil(it)}
+                            style={{ background: 'transparent', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            ↩ Quitar frágil
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Movidos a Pendientes */}
+                  {cliente.pendienteItems.length > 0 && (
+                    <div style={{ padding: '0 20px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#f97316', padding: '0 6px 2px' }}>⏸ Artículos pendientes</div>
+                      {cliente.pendienteItems.map(it => (
+                        <div key={it.id} style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ fontSize: 14, color: '#f97316', fontWeight: 600 }}>{it.descripcion} · ×{it.cantidad || 1}</div>
+                          <button onClick={() => togglePendiente(it)}
+                            style={{ background: 'transparent', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            ↩ Regresar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Movidos a sin llegar */}
                   {cliente.noLlegoItems.length > 0 && (
                     <div style={{ padding: '0 20px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#ef4444', padding: '0 6px 2px' }}>Movidos a "Artículos sin llegar"</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#ef4444', padding: '0 6px 2px' }}>❌ Sin llegar</div>
                       {cliente.noLlegoItems.map(it => (
                         <div key={it.id} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>
@@ -350,6 +401,88 @@ export default function Empacado() {
                 </div>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* ============ TAB ARTÍCULOS FRÁGILES ============ */}
+      {!cargando && tab === 'fragil' && (
+        <div style={{ maxWidth: 920, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 }}>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Artículos frágiles</h2>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>{fragilTodos.length} artículo(s) en esta entrega</div>
+          </div>
+
+          {fragilTodos.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {fragilTodos.map(row => (
+                <div key={row.id} style={{ background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.28)', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
+                    {row.imagen_url && (
+                      <img src={row.imagen_url} alt={row.descripcion}
+                        onClick={() => setFotoModal({ url: row.imagen_url, descripcion: row.descripcion })}
+                        style={{ flex: 'none', width: 72, height: 72, objectFit: 'cover', borderRadius: 10, border: '2px solid rgba(250,204,21,0.5)', cursor: 'zoom-in' }} />
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 16, fontWeight: 700 }}>{row.descripcion}</div>
+                      <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', marginTop: 3 }}>
+                        <span style={{ color: '#facc15', fontWeight: 600 }}>Cliente:</span> {row.clienteNombre} · Cant. {row.cantidad || 1}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => toggleFragil(row)}
+                    style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '11px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    ↩ Quitar frágil
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(255,255,255,0.4)' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>Ningún artículo marcado como frágil.</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============ TAB PENDIENTES ============ */}
+      {!cargando && tab === 'pendiente' && (
+        <div style={{ maxWidth: 920, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 }}>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Artículos pendientes</h2>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>{pendienteTodos.length} artículo(s) en esta entrega</div>
+          </div>
+
+          {pendienteTodos.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {pendienteTodos.map(row => (
+                <div key={row.id} style={{ background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.28)', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
+                    {row.imagen_url && (
+                      <img src={row.imagen_url} alt={row.descripcion}
+                        onClick={() => setFotoModal({ url: row.imagen_url, descripcion: row.descripcion })}
+                        style={{ flex: 'none', width: 60, height: 60, objectFit: 'cover', borderRadius: 10, border: '1px solid rgba(249,115,22,0.4)', cursor: 'zoom-in' }} />
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 16, fontWeight: 700 }}>{row.descripcion}</div>
+                      <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', marginTop: 3 }}>
+                        <span style={{ color: '#f97316', fontWeight: 600 }}>Cliente:</span> {row.clienteNombre} · Cant. {row.cantidad || 1}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => togglePendiente(row)}
+                    style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '11px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    ↩ Regresar a lista
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(255,255,255,0.4)' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>Ningún artículo marcado como pendiente.</div>
+            </div>
           )}
         </div>
       )}

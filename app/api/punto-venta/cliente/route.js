@@ -21,7 +21,7 @@ export async function GET(req) {
       .from('pedidos')
       .select('*')
       .eq('cliente_id', cliente_id)
-      .not('estado', 'in', '("Pagado","Entregado","no_llego")'),
+      .not('estado', 'in', '("Pagado","Entregado","Cancelado","no_llego","pendiente")'),
 
     supabase
       .from('pedidos_mercadito')

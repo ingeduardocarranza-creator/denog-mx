@@ -17,6 +17,7 @@ export async function GET(req) {
     .from('pedidos')
     .select('*, entregas(fecha_entrega, estado)')
     .eq('cliente_id', cliente_id)
+    .not('estado', 'in', '("Cancelado","no_llego","pendiente")')
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
 

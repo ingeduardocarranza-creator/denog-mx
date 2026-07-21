@@ -32,6 +32,7 @@ export async function GET(req) {
         .select('descripcion, precio_venta, cantidad, entrega_id')
         .eq('cliente_id', d.cliente_id)
         .in('entrega_id', d.entrega_ids || [])
+        .not('estado', 'in', '("Cancelado","no_llego","pendiente")')
 
       const { data: anticipos } = await supabase
         .from('pagos')

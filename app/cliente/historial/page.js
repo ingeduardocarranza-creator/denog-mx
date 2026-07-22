@@ -128,8 +128,9 @@ export default function HistorialCompras() {
                   >
                     <div>
                       <div style={{ color: '#2a2118', fontSize: 14, fontWeight: 600 }}>{h.nombre}</div>
-                      <div style={{ color: 'rgba(42,33,24,0.5)', fontSize: 12, marginTop: 2 }}>
-                        Entregado · {formatearFecha(h.fecha)}{h.folio ? ` · ${h.folio}` : ''}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4 }}>
+                        <div style={{ background: 'rgba(22,163,74,0.13)', color: '#15803d', fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '2px 8px' }}>✓ Entregado</div>
+                        <div style={{ color: 'rgba(42,33,24,0.5)', fontSize: 12 }}>{formatearFecha(h.fecha)}{h.folio ? ` · ${h.folio}` : ''}</div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

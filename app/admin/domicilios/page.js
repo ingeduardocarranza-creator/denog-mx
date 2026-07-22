@@ -183,11 +183,12 @@ const horariosDelDia = (fecha) => {
 
   const cancelarDomicilio = async (id) => {
     if (!confirm('¿Cancelar este domicilio?')) return
-    await fetch('/api/domicilios/actualizar', {
+    const res = await fetch('/api/domicilios/actualizar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, estado: 'cancelado' })
-    })
+    }).then(r => r.json())
+    if (!res.ok) { alert('Error al cancelar: ' + (res.mensaje || 'intenta de nuevo')); return }
     cargar()
   }
 

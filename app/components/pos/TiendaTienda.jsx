@@ -59,6 +59,70 @@ export default function TiendaTienda({
   const [clientePickerOpen, setClientePickerOpen] = useState(false);
   const [clienteQuery, setClienteQuery] = useState('');
 
+  const domFormVacio = { nombre: '', telefono: '', direccion: '', colonia: '', referencias: '', fecha_preferida: '', horario: '', costo_envio: '', forma_pago: 'contra_entrega', pago_anticipado: '', metodo_pago_ant: 'Transferencia', notas: '' }
+  const [modalDom, setModalDom] = useState(false)
+  const [domForm, setDomForm] = useState(domFormVacio)
+  const [agendando, setAgendando] = useState(false)
+
+  const horariosDom = (fecha) => {
+    if (!fecha) return []
+    const dia = new Date(fecha + 'T12:00:00').getDay()
+    if (dia === 0) return []
+    if (dia === 6) return ['10:00am - 1:00pm', '2:00pm - 5:00pm']
+    return ['10:00am - 1:30pm', '3:00pm - 7:00pm']
+  }
+
+  const agendarDomicilio = async () => {
+    if (!domForm.nombre || !domForm.telefono || !domForm.direccion || !domForm.colonia || !domForm.fecha_preferida || !domForm.horario || !domForm.costo_envio) {
+      alert('Completa todos los campos obligatorios'); return
+    }
+    setAgendando(true)
+    const { lineas } = calcularTotalesCarrito(cart, { tipo: null, valor: 0 })
+    const itemsTienda = lineas.map(({ linea }) => ({
+      productoId: linea.productoId || null,
+      nombre: linea.nombre,
+      precio: linea.precio,
+      cantidad: linea.cantidad,
+      stockDisponible: linea.stockDisponible ?? null,
+      origen: linea.origen,
+    }))
+    const subtotal = lineas.reduce((s, { subtotal: st }) => s + st, 0)
+    const costoEnvio = parseFloat(domForm.costo_envio) || 0
+    const total = subtotal + costoEnvio
+    const pagoAnt = domForm.forma_pago === 'anticipado' ? (parseFloat(domForm.pago_anticipado) || 0) : 0
+
+    const res = await fetch('/api/domicilios/crear', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        es_externo: true,
+        nombre_externo: domForm.nombre,
+        telefono_externo: domForm.telefono,
+        direccion: domForm.direccion,
+        colonia: domForm.colonia,
+        referencias: domForm.referencias,
+        fecha_preferida: domForm.fecha_preferida,
+        horario: domForm.horario,
+        notas: domForm.notas,
+        costo_envio: costoEnvio,
+        subtotal, total,
+        items_tienda: itemsTienda,
+        forma_pago_ext: domForm.forma_pago,
+        pago_anticipado_ext: pagoAnt,
+        metodo_pago_ext: domForm.forma_pago === 'anticipado' ? domForm.metodo_pago_ant : null,
+      })
+    }).then(r => r.json())
+
+    setAgendando(false)
+    if (res.ok) {
+      setCart([])
+      setModalDom(false)
+      setDomForm(domFormVacio)
+      alert('✅ Domicilio agendado. El stock fue descontado automáticamente.')
+    } else {
+      alert('Error: ' + res.mensaje)
+    }
+  }
+
   const categorias = useMemo(() => {
     const unicas = [...new Set((productos || []).map((p) => p.categoria).filter(Boolean))];
     return ['Todos', ...unicas];
@@ -436,6 +500,15 @@ export default function TiendaTienda({
           >
             {loading ? 'Procesando…' : `Cobrar $ ${money(total)}`}
           </button>
+          {!carritoVacio && (
+            <button
+              type="button"
+              onClick={() => setModalDom(true)}
+              style={{ width: '100%', border: '1px solid rgba(251,191,36,0.4)', borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', marginTop: 8 }}
+            >
+              🚚 Agendar a domicilio
+            </button>
+          )}
         </div>
       </div>
 
@@ -520,6 +593,153 @@ export default function TiendaTienda({
                 onConfirmar={guardarDescuentoVenta}
                 onCancelar={() => setVentaDiscountOpen(false)}
               />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
+      {/* MODAL: Agendar domicilio externo */}
+      {modalDom && (
+        <div onClick={e => { if (e.target === e.currentTarget) setModalDom(false) }}
+          style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(8,12,24,0.82)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ width: '100%', maxWidth: 500, background: '#0f172a', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 20, padding: 24, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 30px 70px rgba(0,0,0,0.7)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 800 }}>🚚 Agendar a domicilio</div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginTop: 3 }}>{cart.length} artículo(s) · ${money(calcularTotalesCarrito(cart, { tipo: null, valor: 0 }).total)}</div>
+              </div>
+              <button onClick={() => setModalDom(false)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 10, width: 34, height: 34, color: 'rgba(255,255,255,0.6)', fontSize: 18, cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {/* Datos del cliente externo */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              {[
+                { label: 'Nombre *', key: 'nombre', placeholder: 'Nombre completo' },
+                { label: 'Teléfono *', key: 'telefono', placeholder: '662 000 0000' },
+                { label: 'Calle y número *', key: 'direccion', placeholder: 'Blvd. Morelos #432' },
+                { label: 'Colonia *', key: 'colonia', placeholder: 'Villa del Real' },
+                { label: 'Referencias', key: 'referencias', placeholder: 'Casa azul, cerca de...' },
+              ].map(f => (
+                <div key={f.key} style={{ gridColumn: f.key === 'referencias' ? '1 / -1' : undefined }}>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>{f.label}</label>
+                  <input type="text" value={domForm[f.key]} onChange={e => setDomForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    placeholder={f.placeholder}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+              ))}
+            </div>
+
+            {/* Fecha y horario */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Fecha *</label>
+                <input type="date" value={domForm.fecha_preferida}
+                  onChange={e => setDomForm(p => ({ ...p, fecha_preferida: e.target.value, horario: '' }))}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                {domForm.fecha_preferida && new Date(domForm.fecha_preferida + 'T12:00:00').getDay() === 0 && (
+                  <div style={{ color: '#f87171', fontSize: 11, marginTop: 4 }}>⚠️ No hay servicio los domingos</div>
+                )}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Horario *</label>
+                <select value={domForm.horario} onChange={e => setDomForm(p => ({ ...p, horario: e.target.value }))}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none' }}>
+                  <option value="">-- Horario --</option>
+                  {horariosDom(domForm.fecha_preferida).map(h => <option key={h} value={h} style={{ background: '#0f172a' }}>{h}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Costo de envío */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Costo de envío *</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[50, 70, 100].map(n => (
+                  <button key={n} type="button" onClick={() => setDomForm(p => ({ ...p, costo_envio: String(n) }))}
+                    style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `2px solid ${domForm.costo_envio === String(n) ? 'rgba(251,191,36,0.7)' : 'rgba(255,255,255,0.1)'}`, background: domForm.costo_envio === String(n) ? 'rgba(251,191,36,0.12)' : 'rgba(255,255,255,0.03)', color: domForm.costo_envio === String(n) ? '#fbbf24' : 'rgba(255,255,255,0.5)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+                    ${n}
+                  </button>
+                ))}
+                <input type="number" value={domForm.costo_envio} onChange={e => setDomForm(p => ({ ...p, costo_envio: e.target.value }))}
+                  placeholder="Otro"
+                  style={{ width: 70, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 10px', color: '#fff', fontSize: 13, outline: 'none', textAlign: 'center' }} />
+              </div>
+            </div>
+
+            {/* Forma de pago */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Forma de pago</label>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                {[['contra_entrega', '📦 Contra entrega'], ['anticipado', '✅ Anticipado']].map(([val, lbl]) => (
+                  <button key={val} type="button" onClick={() => setDomForm(p => ({ ...p, forma_pago: val }))}
+                    style={{ flex: 1, padding: '11px 8px', borderRadius: 10, border: `2px solid ${domForm.forma_pago === val ? 'rgba(52,211,153,0.6)' : 'rgba(255,255,255,0.1)'}`, background: domForm.forma_pago === val ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.03)', color: domForm.forma_pago === val ? '#34d399' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+              {domForm.forma_pago === 'anticipado' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Monto pagado</label>
+                    <input type="number" value={domForm.pago_anticipado} onChange={e => setDomForm(p => ({ ...p, pago_anticipado: e.target.value }))}
+                      placeholder="0.00"
+                      style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Método</label>
+                    <select value={domForm.metodo_pago_ant} onChange={e => setDomForm(p => ({ ...p, metodo_pago_ant: e.target.value }))}
+                      style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none' }}>
+                      {['Transferencia', 'Efectivo', 'Terminal'].map(m => <option key={m} value={m} style={{ background: '#0f172a' }}>{m}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Notas */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Notas (opcional)</label>
+              <input type="text" value={domForm.notas} onChange={e => setDomForm(p => ({ ...p, notas: e.target.value }))}
+                placeholder="Instrucciones especiales..."
+                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+
+            {/* Resumen */}
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px', marginBottom: 16, fontSize: 13 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: 'rgba(255,255,255,0.5)' }}>Artículos</span>
+                <span>${money(calcularTotalesCarrito(cart, { tipo: null, valor: 0 }).total)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: 'rgba(255,255,255,0.5)' }}>Envío</span>
+                <span>${money(parseFloat(domForm.costo_envio) || 0)}</span>
+              </div>
+              {domForm.forma_pago === 'anticipado' && parseFloat(domForm.pago_anticipado) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#34d399' }}>Ya pagó</span>
+                  <span style={{ color: '#34d399' }}>−${money(parseFloat(domForm.pago_anticipado) || 0)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8, marginTop: 4 }}>
+                <span>Por cobrar al entregar</span>
+                <span style={{ color: '#fbbf24' }}>${money(
+                  calcularTotalesCarrito(cart, { tipo: null, valor: 0 }).total +
+                  (parseFloat(domForm.costo_envio) || 0) -
+                  (domForm.forma_pago === 'anticipado' ? (parseFloat(domForm.pago_anticipado) || 0) : 0)
+                )}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setModalDom(false)}
+                style={{ flex: 1, background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, padding: 13, color: 'rgba(255,255,255,0.5)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={agendarDomicilio} disabled={agendando}
+                style={{ flex: 2, background: agendando ? 'rgba(251,191,36,0.3)' : '#fbbf24', border: 'none', borderRadius: 12, padding: 13, color: '#0f172a', fontSize: 14, fontWeight: 800, cursor: agendando ? 'wait' : 'pointer' }}>
+                {agendando ? 'Agendando...' : '🚚 Confirmar domicilio'}
+              </button>
             </div>
           </div>
         </div>

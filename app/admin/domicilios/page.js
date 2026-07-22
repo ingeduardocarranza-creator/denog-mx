@@ -74,8 +74,11 @@ export default function Domicilios() {
   }
 
   const getTotalAPagar = (d) => {
+    if (d.es_externo) return Math.max(0, (d.total || 0) - (d.pago_anticipado_ext || 0))
     return Math.max(0, (d.total || 0) - getTotalAnticipos(d))
   }
+
+  const getNombreCliente = (d) => d.es_externo ? d.nombre_externo : d.clientes?.nombre
 
   const entregasCliente = Object.values(
     pedidosCliente.reduce((acc, p) => {
@@ -190,6 +193,20 @@ const horariosDelDia = (fecha) => {
 
   const registrarPago = async (d, { metodo1: m1, monto1, metodo2: m2, monto2 }) => {
     const totalAPagar = getTotalAPagar(d)
+
+    // External domicilio: simple path — record payment info and mark as entregado
+    if (d.es_externo) {
+      const montoTotal = monto1 + (monto2 || 0)
+      const metodoLabel = monto2 > 0 ? `${m1} + ${m2}` : m1
+      await fetch('/api/domicilios/actualizar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: d.id, estado: 'entregado', monto_cobrado_ext: montoTotal, metodo_cobrado_ext: metodoLabel })
+      })
+      setCobrando(null)
+      setModalMonto1(''); setModalDosMetodos(false); setModalMetodo1('Efectivo'); setModalRecibido(''); setModalMetodo2('Transferencia')
+      cargar()
+      return
+    }
 
     if (totalAPagar === 0) {
       for (const entrega_id of (d.entrega_ids || [])) {
@@ -325,7 +342,7 @@ const horariosDelDia = (fecha) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
             <div>
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 4 }}>Cobro · Domicilio</div>
-              <div style={{ color: 'white', fontSize: 18, fontWeight: 800 }}>{d.clientes?.nombre}</div>
+              <div style={{ color: 'white', fontSize: 18, fontWeight: 800 }}>{getNombreCliente(d)}</div>
               <div style={{ color: 'white', fontSize: 44, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1.1, marginTop: 6 }}>{fmt(totalAPagar)}</div>
             </div>
             <button onClick={() => setCobrando(null)}
@@ -646,12 +663,31 @@ const horariosDelDia = (fecha) => {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
-                  <div style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>{d.clientes?.nombre}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>{getNombreCliente(d)}</div>
+                    {d.es_externo && (
+                      <span style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, border: '1px solid rgba(251,191,36,0.3)' }}>
+                        🚲 Cliente externo
+                      </span>
+                    )}
+                  </div>
                   <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>📍 {d.direccion}, Col. {d.colonia}</div>
                   <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>📝 {d.referencias}</div>
                   <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>📱 {d.celular_contacto}</div>
                   <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>📅 {formatearFecha(d.fecha_preferida)} · 🕐 {d.horario}</div>
                   {d.notas && <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>📝 {d.notas}</div>}
+                  {d.es_externo && d.items_tienda?.length > 0 && (
+                    <div style={{ marginTop: 6 }}>
+                      {d.items_tienda.map((it, i) => (
+                        <div key={i} style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>
+                          • {it.nombre} ×{it.cantidad} — {fmt(it.precio * it.cantidad)}
+                        </div>
+                      ))}
+                      {d.es_externo && d.forma_pago_ext === 'anticipado' && d.pago_anticipado_ext > 0 && (
+                        <div style={{ color: '#34d399', fontSize: 11, marginTop: 3 }}>✅ Anticipo: {fmt(d.pago_anticipado_ext)} ({d.metodo_pago_ext})</div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
                   <div style={{ color: d.estado === 'cancelado' ? '#f87171' : d.estado === 'entregado' ? '#4ade80' : d.estado === 'en_camino' ? '#fbbf24' : d.estado === 'confirmado' ? '#10b981' : '#f59e0b', fontSize: 11, fontWeight: 600, marginBottom: 4 }}>
@@ -698,14 +734,20 @@ const horariosDelDia = (fecha) => {
               )}
 
               {d.estado === 'en_camino' && cobrando !== d.id && (
-                <button onClick={() => {
-                  const totalAPagar = getTotalAPagar(d)
-                  setCobrando(d.id)
-                  setModalMonto1(''); setModalDosMetodos(false); setModalMetodo1('Efectivo'); setModalRecibido(''); setModalMetodo2('Transferencia')
-                }}
-                  style={{ width: '100%', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '10px', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                  {getTotalAPagar(d) === 0 ? '✅ Marcar como entregado (cubierto por anticipos)' : '💳 Registrar cobro y marcar entregado'}
-                </button>
+                d.es_externo && d.forma_pago_ext === 'anticipado' ? (
+                  <button onClick={() => cambiarEstado(d.id, 'entregado')}
+                    style={{ width: '100%', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '10px', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    ✅ Marcar como entregado (ya pagó anticipado)
+                  </button>
+                ) : (
+                  <button onClick={() => {
+                    setCobrando(d.id)
+                    setModalMonto1(''); setModalDosMetodos(false); setModalMetodo1('Efectivo'); setModalRecibido(''); setModalMetodo2('Transferencia')
+                  }}
+                    style={{ width: '100%', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '10px', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    {getTotalAPagar(d) === 0 ? '✅ Marcar como entregado (cubierto por anticipos)' : '💳 Registrar cobro y marcar entregado'}
+                  </button>
+                )
               )}
 
             </div>

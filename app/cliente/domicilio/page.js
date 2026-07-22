@@ -56,13 +56,20 @@ export default function Domicilio() {
       fetch(`/api/clientes/direcciones?cliente_id=${c.id}`).then(r => r.json()),
     ]).then(([dPedidos, dDomicilios, dAnticipos, dDirs]) => {
       if (dPedidos.ok) {
-        const pendientes = dPedidos.pedidos.filter(p => p.estado?.toLowerCase() !== 'entregado')
+        const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+        const atrasados = dPedidos.pedidos.filter(p => {
+          if (p.estado?.toLowerCase() === 'entregado') return false
+          const fecha = p.entregas?.fecha_entrega
+          if (!fecha) return false
+          return new Date(fecha + 'T12:00:00') < hoy
+        })
         const entregasUnicas = Object.values(
-          pendientes.reduce((acc, p) => {
-            const fecha = p.entregas?.fecha_entrega
-            if (!acc[fecha]) acc[fecha] = { fecha, entrega_id: p.entrega_id, items: [], total: 0 }
-            acc[fecha].items.push(p)
-            acc[fecha].total += p.precio_venta || 0
+          atrasados.reduce((acc, p) => {
+            const key = p.entrega_id || p.entregas?.fecha_entrega
+            if (!key) return acc
+            if (!acc[key]) acc[key] = { fecha: p.entregas?.fecha_entrega, entrega_id: p.entrega_id, items: [], total: 0 }
+            acc[key].items.push(p)
+            acc[key].total += p.precio_venta || 0
             return acc
           }, {})
         ).sort((a, b) => new Date(a.fecha) - new Date(b.fecha))

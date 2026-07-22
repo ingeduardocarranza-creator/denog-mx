@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { requerirStaff } from '@/lib/auth/session'
+import { requerirStaff, requerirDuenoOStaff } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,7 +9,14 @@ const supabase = createClient(
 )
 
 export async function POST(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  // Pedidos externos (POS tienda) solo staff. Pedidos de clientes: el propio cliente o staff.
+  const body2 = await req.clone().json().catch(() => ({}))
+  const esExterno = !!body2.es_externo
+  if (esExterno) {
+    if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  } else {
+    if (!requerirDuenoOStaff(req, String(body2.cliente_id))) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  }
   try {
     const body = await req.json()
     const {

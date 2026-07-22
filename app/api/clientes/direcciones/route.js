@@ -20,6 +20,33 @@ export async function GET(req) {
     .order('creado_en', { ascending: false })
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
+
+  // Auto-migrar dirección legacy de clientes si la nueva tabla está vacía
+  if (data.length === 0) {
+    const { data: cli } = await supabase
+      .from('clientes')
+      .select('direccion, colonia, referencias, celular_contacto')
+      .eq('id', cliente_id)
+      .single()
+
+    if (cli?.direccion?.trim()) {
+      const { data: migrada } = await supabase
+        .from('direcciones_clientes')
+        .insert({
+          cliente_id,
+          alias: 'Mi dirección',
+          direccion: cli.direccion.trim(),
+          colonia: cli.colonia?.trim() || '',
+          referencias: cli.referencias?.trim() || null,
+          celular_contacto: cli.celular_contacto?.trim() || null,
+        })
+        .select()
+        .single()
+
+      if (migrada) return NextResponse.json({ ok: true, direcciones: [migrada] })
+    }
+  }
+
   return NextResponse.json({ ok: true, direcciones: data })
 }
 

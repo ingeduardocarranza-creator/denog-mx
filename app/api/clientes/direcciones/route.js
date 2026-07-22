@@ -23,14 +23,16 @@ export async function GET(req) {
 
   // Auto-migrar dirección legacy de clientes si la nueva tabla está vacía
   if (data.length === 0) {
-    const { data: cli } = await supabase
+    const { data: cli, error: cliErr } = await supabase
       .from('clientes')
       .select('direccion, colonia, referencias, celular_contacto')
       .eq('id', cliente_id)
       .single()
 
+    if (cliErr) return NextResponse.json({ ok: false, mensaje: 'Error leyendo cliente: ' + cliErr.message })
+
     if (cli?.direccion?.trim()) {
-      const { data: migrada } = await supabase
+      const { data: migrada, error: insErr } = await supabase
         .from('direcciones_clientes')
         .insert({
           cliente_id,
@@ -43,7 +45,11 @@ export async function GET(req) {
         .select()
         .single()
 
+      if (insErr) return NextResponse.json({ ok: false, mensaje: 'Error migrando dirección: ' + insErr.message })
       if (migrada) return NextResponse.json({ ok: true, direcciones: [migrada] })
+    } else {
+      // Sin dirección en clientes — devolvemos info para debug
+      return NextResponse.json({ ok: true, direcciones: [], _debug: { cli_encontrado: !!cli, tiene_direccion: !!(cli?.direccion) } })
     }
   }
 

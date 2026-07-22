@@ -181,14 +181,34 @@ const horariosDelDia = (fecha) => {
     cargar()
   }
 
-  const cancelarDomicilio = async (id) => {
+  const cancelarDomicilio = async (d) => {
     if (!confirm('¿Cancelar este domicilio?')) return
     const res = await fetch('/api/domicilios/actualizar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, estado: 'cancelado' })
+      body: JSON.stringify({ id: d.id, estado: 'cancelado' })
     }).then(r => r.json())
     if (!res.ok) { alert('Error al cancelar: ' + (res.mensaje || 'intenta de nuevo')); return }
+
+    const nombre = getNombreCliente(d)
+    const fechaStr = d.fecha_preferida ? formatearFecha(d.fecha_preferida) : null
+    const msg = [
+      `Hola ${nombre} 👋`,
+      ``,
+      `Te informamos que tu domicilio${fechaStr ? ` agendado para el ${fechaStr}` : ''} ha sido cancelado. 😔`,
+      ``,
+      `Por favor comunícate con nosotros para volver a reagendar tu entrega en la fecha que más te convenga — con gusto te ayudamos a encontrar el mejor horario. 📅`,
+      ``,
+      `¡Gracias por tu comprensión y seguimos en contacto!`,
+      `— Denog USA Compras 📦`,
+    ].join('\n')
+
+    try {
+      await navigator.clipboard.writeText(msg)
+      alert('✅ Domicilio cancelado. Mensaje copiado — ve a WhatsApp y pégalo.')
+    } catch {
+      prompt('Copia este mensaje y envíalo por WhatsApp:', msg)
+    }
     cargar()
   }
 
@@ -714,7 +734,7 @@ const horariosDelDia = (fecha) => {
                       <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>Zona larga · 5.1+ km</div>
                     </button>
                   </div>
-                  <button onClick={() => cancelarDomicilio(d.id)}
+                  <button onClick={() => cancelarDomicilio(d)}
                     style={{ width: '100%', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 8, padding: '7px', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>
                     ❌ Cancelar domicilio
                   </button>
@@ -727,7 +747,7 @@ const horariosDelDia = (fecha) => {
                     style={{ flex: 1, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '8px', color: '#fbbf24', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                     🚚 Marcar en camino
                   </button>
-                  <button onClick={() => cancelarDomicilio(d.id)}
+                  <button onClick={() => cancelarDomicilio(d)}
                     style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 8, padding: '8px 12px', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>
                     ❌ Cancelar
                   </button>

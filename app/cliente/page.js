@@ -22,6 +22,7 @@ export default function ClienteInicio() {
   const [pagos, setPagos] = useState([])
   const [pedidosMercadito, setPedidosMercadito] = useState([])
   const [productosDestacados, setProductosDestacados] = useState([])
+  const [domiciliosActivos, setDomiciliosActivos] = useState([])
   const router = useRouter()
 
   useEffect(() => {
@@ -47,6 +48,12 @@ export default function ClienteInicio() {
     fetch(`/api/cliente/mercadito?cliente_id=${c.id}`)
       .then(r => r.json())
       .then(d => { if (d.ok) setPedidosMercadito(d.pedidos || []) })
+
+    fetch(`/api/domicilios/listar?cliente_id=${c.id}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) setDomiciliosActivos((d.domicilios || []).filter(dom => ['pendiente','confirmado','en_camino'].includes(dom.estado)))
+      })
 
     // Productos destacados del catálogo público del Mercadito (mismo criterio
     // que la tira de la portada) — no depende de que el cliente ya haya
@@ -169,6 +176,86 @@ export default function ClienteInicio() {
             </button>
           </div>
         </div>
+
+        {/* Status domicilios activos */}
+        {domiciliosActivos.map(dom => {
+          const statusInfo = {
+            pendiente:  { label: '⏳ Pendiente de confirmar', color: '#a3432b', bg: 'rgba(193,85,58,0.08)' },
+            confirmado: { label: '✓ Confirmado',              color: '#2e7d4f', bg: 'rgba(46,125,79,0.08)' },
+            en_camino:  { label: '🚚 En camino',              color: '#1a6fa0', bg: 'rgba(37,130,198,0.08)' },
+          }[dom.estado] || { label: dom.estado, color: '#2a2118', bg: 'rgba(0,0,0,0.05)' }
+
+          const totalProd = (dom.productos_detalle || []).reduce((s, p) => s + (p.precio_venta || 0), 0)
+          const totalMerc = (dom.mercadito_detalle || []).reduce((s, mp) =>
+            s + (mp.items || []).reduce((ss, it) => ss + (Number(it.precio_unitario)||0)*(Number(it.cantidad)||0), 0), 0)
+          const totalAnticipo = (dom.anticipos_detalle || []).reduce((s, a) => s + (a.monto || 0), 0)
+          const costoEnvio = dom.costo_envio || 0
+          const totalDom = totalProd + totalMerc + costoEnvio
+          const porPagar = Math.max(0, totalDom - totalAnticipo)
+
+          const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+          const fechaStr = dom.fecha_preferida
+            ? (() => { const d = new Date(dom.fecha_preferida+'T12:00:00'); return `${d.getDate()} ${meses[d.getMonth()]}` })()
+            : null
+
+          return (
+            <div key={dom.id} style={{ background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 18, padding: 18, marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#2a2118' }}>🚚 Tu domicilio</div>
+                <div style={{ background: statusInfo.bg, borderRadius: 999, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: statusInfo.color }}>{statusInfo.label}</div>
+              </div>
+
+              {fechaStr && (
+                <div style={{ fontSize: 13, color: 'rgba(42,33,24,0.6)', fontWeight: 600, marginBottom: 10 }}>
+                  {fechaStr}{dom.horario ? ` · ${dom.horario}` : ''}
+                </div>
+              )}
+
+              {(dom.productos_detalle || []).length > 0 && (
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(42,33,24,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>📦 Tu pedido de EE.UU.</div>
+                  {dom.productos_detalle.map((p, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <div style={{ fontSize: 13, color: '#2a2118' }}>{p.cantidad}x {p.descripcion}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#2a2118' }}>{money(p.precio_venta)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(dom.mercadito_detalle || []).map((mp, i) => (
+                <div key={i} style={{ marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(42,33,24,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>🛍️ Mercadito agregado</div>
+                  {(mp.items || []).map((it, j) => (
+                    <div key={j} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <div style={{ fontSize: 13, color: '#2a2118' }}>{it.cantidad}x {it.nombre}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#2a2118' }}>{money((it.precio_unitario||0)*(it.cantidad||0))}</div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              <div style={{ borderTop: '1.5px solid rgba(0,0,0,0.06)', marginTop: 10, paddingTop: 10 }}>
+                {costoEnvio > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <div style={{ fontSize: 13, color: 'rgba(42,33,24,0.6)' }}>Costo de envío</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#2a2118' }}>{money(costoEnvio)}</div>
+                  </div>
+                )}
+                {totalAnticipo > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <div style={{ fontSize: 13, color: 'rgba(42,33,24,0.6)' }}>Anticipo pagado</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#2e7d4f' }}>− {money(totalAnticipo)}</div>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#2a2118' }}>Por pagar</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#c1553a' }}>{money(porPagar)}</div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
 
         {/* Qué quieres hacer */}
         <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 16, marginBottom: 12 }}>¿Qué quieres hacer?</div>

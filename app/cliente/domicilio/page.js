@@ -35,6 +35,8 @@ export default function Domicilio() {
   const [form, setForm] = useState(FORM_VACIO)
   const [guardando, setGuardando] = useState(false)
   const [eliminando, setEliminando] = useState(null)
+  const [editandoId, setEditandoId] = useState(null)
+  const [formEditar, setFormEditar] = useState(FORM_VACIO)
 
   const [horario, setHorario] = useState('')
   const [notas, setNotas] = useState('')
@@ -121,6 +123,30 @@ export default function Domicilio() {
       } else {
         setError(res.mensaje || 'No se pudo guardar')
       }
+    } finally { setGuardando(false) }
+  }
+
+  const iniciarEdicion = (d) => {
+    setEditandoId(d.id)
+    setFormEditar({ alias: d.alias || '', calle: d.direccion, colonia: d.colonia, referencias: d.referencias || '', celular: d.celular_contacto || '' })
+    setMostrarFormNueva(false)
+    setError('')
+  }
+
+  const guardarEdicion = async () => {
+    if (!formEditar.calle.trim() || !formEditar.colonia.trim()) { setError('Calle y colonia son obligatorias'); return }
+    setGuardando(true); setError('')
+    try {
+      const res = await fetch('/api/clientes/direcciones', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editandoId, cliente_id: cliente.id, alias: formEditar.alias || null, direccion: formEditar.calle, colonia: formEditar.colonia, referencias: formEditar.referencias, celular_contacto: formEditar.celular }),
+      }).then(r => r.json())
+      if (res.ok) {
+        setDirecciones(direcciones.map(d => d.id === editandoId ? res.direccion : d))
+        setEditandoId(null)
+        setFormEditar(FORM_VACIO)
+      } else { setError(res.mensaje || 'No se pudo guardar') }
     } finally { setGuardando(false) }
   }
 
@@ -281,20 +307,51 @@ export default function Domicilio() {
             <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 15, marginBottom: 12 }}>📍 Dirección de entrega</div>
 
             {direcciones.map(d => (
-              <div key={d.id} onClick={() => { setDirIdSeleccionada(d.id); setMostrarFormNueva(false) }}
-                style={{ background: '#fff', border: dirIdSeleccionada === d.id ? '2px solid #c1553a' : '1.5px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 16, marginBottom: 10, cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                <div style={{ flex: 'none', width: 20, height: 20, borderRadius: 10, border: dirIdSeleccionada === d.id ? '6px solid #c1553a' : '2px solid rgba(0,0,0,0.2)', background: '#fff', marginTop: 2 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {d.alias && <div style={{ fontSize: 13, fontWeight: 800, color: '#2a2118', marginBottom: 2 }}>{d.alias}</div>}
-                  <div style={{ fontSize: 14, color: '#2a2118', lineHeight: 1.6 }}>{d.direccion}, {d.colonia}</div>
-                  {d.referencias && <div style={{ fontSize: 12, color: 'rgba(42,33,24,0.5)', marginTop: 2 }}>{d.referencias}</div>}
-                  {d.celular_contacto && <div style={{ fontSize: 12, color: 'rgba(42,33,24,0.5)' }}>Cel: {d.celular_contacto}</div>}
-                </div>
-                <button onClick={e => { e.stopPropagation(); eliminarDireccion(d.id) }}
-                  disabled={eliminando === d.id}
-                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: 'rgba(42,33,24,0.3)', fontWeight: 700, padding: '0 4px', flexShrink: 0 }}>
-                  {eliminando === d.id ? '…' : '✕'}
-                </button>
+              <div key={d.id}>
+                {editandoId === d.id ? (
+                  <div style={{ background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 16, padding: 18, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                      <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 15 }}>Editar dirección</div>
+                      <button onClick={() => { setEditandoId(null); setFormEditar(FORM_VACIO); setError('') }} style={{ color: 'rgba(42,33,24,0.4)', fontSize: 13, fontWeight: 700, background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
+                    </div>
+                    <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Nombre / alias (opcional)</div>
+                    <input value={formEditar.alias} onChange={e => setFormEditar(f => ({...f, alias: e.target.value}))} placeholder="Ej: Casa, Trabajo, Mamá" style={inputStyle} />
+                    <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Calle y número *</div>
+                    <input value={formEditar.calle} onChange={e => setFormEditar(f => ({...f, calle: e.target.value}))} placeholder="Ej: Blvd. Morelos #432" style={inputStyle} />
+                    <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Colonia *</div>
+                    <input value={formEditar.colonia} onChange={e => setFormEditar(f => ({...f, colonia: e.target.value}))} placeholder="Ej: Villa del Real" style={inputStyle} />
+                    <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Referencias</div>
+                    <input value={formEditar.referencias} onChange={e => setFormEditar(f => ({...f, referencias: e.target.value}))} placeholder="Color de casa, cerca de..." style={inputStyle} />
+                    <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Celular</div>
+                    <input value={formEditar.celular} onChange={e => setFormEditar(f => ({...f, celular: e.target.value}))} placeholder="662 000 0000" style={{ ...inputStyle, marginBottom: 16 }} />
+                    <button onClick={guardarEdicion} disabled={guardando}
+                      style={{ width: '100%', background: '#c1553a', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 12, padding: 13, cursor: guardando ? 'default' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'inherit' }}>
+                      {guardando ? 'Guardando…' : 'Guardar cambios'}
+                    </button>
+                  </div>
+                ) : (
+                  <div onClick={() => { setDirIdSeleccionada(d.id); setMostrarFormNueva(false); setEditandoId(null) }}
+                    style={{ background: '#fff', border: dirIdSeleccionada === d.id ? '2px solid #c1553a' : '1.5px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 16, marginBottom: 10, cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ flex: 'none', width: 20, height: 20, borderRadius: 10, border: dirIdSeleccionada === d.id ? '6px solid #c1553a' : '2px solid rgba(0,0,0,0.2)', background: '#fff', marginTop: 2 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {d.alias && <div style={{ fontSize: 13, fontWeight: 800, color: '#2a2118', marginBottom: 2 }}>{d.alias}</div>}
+                      <div style={{ fontSize: 14, color: '#2a2118', lineHeight: 1.6 }}>{d.direccion}, {d.colonia}</div>
+                      {d.referencias && <div style={{ fontSize: 12, color: 'rgba(42,33,24,0.5)', marginTop: 2 }}>{d.referencias}</div>}
+                      {d.celular_contacto && <div style={{ fontSize: 12, color: 'rgba(42,33,24,0.5)' }}>Cel: {d.celular_contacto}</div>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
+                      <button onClick={e => { e.stopPropagation(); iniciarEdicion(d) }}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, color: '#c1553a', fontWeight: 700, padding: 0, fontFamily: 'inherit' }}>
+                        Editar
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); eliminarDireccion(d.id) }}
+                        disabled={eliminando === d.id}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: 'rgba(42,33,24,0.3)', fontWeight: 700, padding: 0, fontFamily: 'inherit' }}>
+                        {eliminando === d.id ? '…' : '✕'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
 

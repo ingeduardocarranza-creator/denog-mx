@@ -70,6 +70,22 @@ export async function POST(req) {
   return NextResponse.json({ ok: true, direccion: data })
 }
 
+export async function PATCH(req) {
+  const { id, cliente_id, alias, direccion, colonia, referencias, celular_contacto } = await req.json()
+  if (!requerirDuenoOStaff(req, String(cliente_id))) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  if (!direccion?.trim() || !colonia?.trim()) return NextResponse.json({ ok: false, mensaje: 'Dirección y colonia son obligatorias' })
+
+  const { data, error } = await supabase
+    .from('direcciones_clientes')
+    .update({ alias: alias?.trim() || null, direccion: direccion.trim(), colonia: colonia.trim(), referencias: referencias?.trim() || null, celular_contacto: celular_contacto?.trim() || null })
+    .eq('id', id)
+    .eq('cliente_id', cliente_id)
+    .select().single()
+
+  if (error) return NextResponse.json({ ok: false, mensaje: error.message })
+  return NextResponse.json({ ok: true, direccion: data })
+}
+
 export async function DELETE(req) {
   const { id, cliente_id } = await req.json()
   if (!requerirDuenoOStaff(req, String(cliente_id))) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })

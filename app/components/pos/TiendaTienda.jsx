@@ -597,8 +597,6 @@ export default function TiendaTienda({
           </div>
         </div>
       )}
-    </div>
-
       {/* MODAL: Agendar domicilio externo */}
       {modalDom && (
         <div onClick={e => { if (e.target === e.currentTarget) setModalDom(false) }}

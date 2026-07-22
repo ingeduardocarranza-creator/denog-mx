@@ -17,7 +17,7 @@ function generarDiasDisponibles() {
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
   const ahora = new Date()
   const minutos = ahora.getHours() * 60 + ahora.getMinutes()
-  const empezarDesde = minutos >= 16 * 60 + 15 ? 2 : 1
+  const empezarDesde = minutos >= 16 * 60 + 15 ? 1 : 0
   for (let i = empezarDesde; dias.length < 14; i++) {
     const d = new Date(hoy); d.setDate(hoy.getDate() + i)
     if (d.getDay() !== 0) dias.push(d)

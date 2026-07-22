@@ -50,5 +50,17 @@ export async function POST(req) {
     .eq('id', id)
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
+
+  // Insert payment into pagos so corte de caja picks it up
+  if (monto_cobrado_ext) {
+    await supabase.from('pagos').insert({
+      cliente_id: null,
+      entrega_id: null,
+      tipo: 'Venta Liquidación',
+      monto: monto_cobrado_ext,
+      metodo: metodo_cobrado_ext || 'Efectivo',
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }

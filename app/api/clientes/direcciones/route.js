@@ -13,24 +13,18 @@ export async function GET(req) {
   const cliente_id = searchParams.get('cliente_id')
   if (!requerirDuenoOStaff(req, cliente_id)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
 
-  const { data, error } = await supabase
-    .from('direcciones_clientes')
-    .select('*')
-    .eq('cliente_id', cliente_id)
-    .order('creado_en', { ascending: false })
+  const [{ data, error }, { data: cli, error: cliErr }] = await Promise.all([
+    supabase.from('direcciones_clientes').select('*').eq('cliente_id', cliente_id).order('creado_en', { ascending: false }),
+    supabase.from('clientes').select('nombre, celular_contacto, telefono').eq('id', cliente_id).single(),
+  ])
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
+  if (cliErr) return NextResponse.json({ ok: false, mensaje: 'Error leyendo cliente: ' + cliErr.message })
+
+  const perfil = { nombre: cli?.nombre || '', celular: cli?.celular_contacto?.trim() || cli?.telefono?.trim() || '' }
 
   // Auto-migrar dirección legacy de clientes si la nueva tabla está vacía
   if (data.length === 0) {
-    const { data: cli, error: cliErr } = await supabase
-      .from('clientes')
-      .select('direccion, colonia, referencias, celular_contacto')
-      .eq('id', cliente_id)
-      .single()
-
-    if (cliErr) return NextResponse.json({ ok: false, mensaje: 'Error leyendo cliente: ' + cliErr.message })
-
     if (cli?.direccion?.trim()) {
       const { data: migrada, error: insErr } = await supabase
         .from('direcciones_clientes')
@@ -46,14 +40,13 @@ export async function GET(req) {
         .single()
 
       if (insErr) return NextResponse.json({ ok: false, mensaje: 'Error migrando dirección: ' + insErr.message })
-      if (migrada) return NextResponse.json({ ok: true, direcciones: [migrada] })
+      if (migrada) return NextResponse.json({ ok: true, direcciones: [migrada], perfil })
     } else {
-      // Sin dirección en clientes — devolvemos info para debug
-      return NextResponse.json({ ok: true, direcciones: [], _debug: { cli_encontrado: !!cli, tiene_direccion: !!(cli?.direccion) } })
+      return NextResponse.json({ ok: true, direcciones: [], perfil })
     }
   }
 
-  return NextResponse.json({ ok: true, direcciones: data })
+  return NextResponse.json({ ok: true, direcciones: data, perfil })
 }
 
 export async function POST(req) {

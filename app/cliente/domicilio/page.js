@@ -50,6 +50,7 @@ export default function Domicilio() {
   // Direcciones (tabla compartida con app)
   const [direcciones, setDirecciones] = useState([])
   const [dirIdSeleccionada, setDirIdSeleccionada] = useState(null)
+  const [perfilCliente, setPerfilCliente] = useState({ nombre: '', celular: '' })
   const [mostrarFormNueva, setMostrarFormNueva] = useState(false)
   const [form, setForm] = useState(FORM_VACIO)
   const [guardando, setGuardando] = useState(false)
@@ -105,6 +106,7 @@ export default function Domicilio() {
         const dirs = dDirs.direcciones || []
         setDirecciones(dirs)
         if (dirs.length > 0) setDirIdSeleccionada(dirs[0].id)
+        if (dDirs.perfil) setPerfilCliente(dDirs.perfil)
       }
       setCargando(false)
     })
@@ -409,7 +411,7 @@ export default function Domicilio() {
                 </button>
               </div>
             ) : (
-              <button onClick={() => { setMostrarFormNueva(true); setDirIdSeleccionada(null); setError('') }}
+              <button onClick={() => { setMostrarFormNueva(true); setDirIdSeleccionada(null); setError(''); setForm({ ...FORM_VACIO, celular: perfilCliente.celular }) }}
                 style={{ width: '100%', background: 'transparent', border: '1.5px dashed #c1553a', borderRadius: 14, padding: '14px 18px', color: '#c1553a', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 4, fontFamily: 'inherit' }}>
                 + Agregar dirección
               </button>

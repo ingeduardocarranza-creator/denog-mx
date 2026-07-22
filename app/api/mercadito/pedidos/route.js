@@ -57,7 +57,7 @@ export async function POST(req) {
   const esCliente = sesion && sesion.rol === 'cliente'
   try {
     const body = await req.json()
-    const { items, cliente_id, invitado } = body
+    const { items, cliente_id, invitado, domicilio_id } = body
 
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ ok: false, mensaje: 'El carrito está vacío.' })
@@ -124,6 +124,7 @@ export async function POST(req) {
         estado: 'nuevo',
         historial: [{ ts: new Date().toISOString(), label: actorLabel, actor_id: null }],
         notas_internas: [],
+        domicilio_id: domicilio_id || null,
       }])
       .select()
       .single()

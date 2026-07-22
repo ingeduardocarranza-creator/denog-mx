@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { requerirStaff } from '@/lib/auth/session'
+import { requerirStaff, requerirDuenoOStaff } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,10 +9,16 @@ const supabase = createClient(
 )
 
 export async function GET(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const { searchParams } = new URL(req.url)
   const cliente_id = searchParams.get('cliente_id')
   const fecha = searchParams.get('fecha')
+
+  // Clientes pueden ver solo sus propios domicilios; staff ve todos
+  if (cliente_id) {
+    if (!requerirDuenoOStaff(req, cliente_id)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  } else {
+    if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  }
 
   let query = supabase
     .from('domicilios')
@@ -42,10 +48,16 @@ export async function GET(req) {
         .in('entrega_id', d.entrega_ids || [])
         .order('creado_en', { ascending: true })
 
+      const { data: mercadito } = await supabase
+        .from('pedidos_mercadito')
+        .select('id, items, estado')
+        .eq('domicilio_id', d.id)
+
       return {
         ...d,
         productos_detalle: pedidos || [],
-        anticipos_detalle: anticipos || []
+        anticipos_detalle: anticipos || [],
+        mercadito_detalle: mercadito || [],
       }
     })
   )

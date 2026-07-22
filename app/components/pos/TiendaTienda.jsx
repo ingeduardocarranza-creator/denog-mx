@@ -81,7 +81,7 @@ export default function TiendaTienda({
     const itemsTienda = lineas.map(({ linea }) => ({
       productoId: linea.productoId || null,
       nombre: linea.nombre,
-      precio: linea.precio,
+      precio: linea.precioUnitario,
       cantidad: linea.cantidad,
       stockDisponible: linea.stockDisponible ?? null,
       origen: linea.origen,

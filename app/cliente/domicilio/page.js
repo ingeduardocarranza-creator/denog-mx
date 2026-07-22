@@ -1,8 +1,14 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 import TarjetaCliente from '../../components/cliente/TarjetaCliente'
 import BotonCarrito from '../../components/mercadito/BotonCarrito'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+)
 
 const HORARIOS = [
   { value: '12-3', label: '12:00 pm – 3:00 pm' },
@@ -57,6 +63,12 @@ export default function Domicilio() {
   const [eliminando, setEliminando] = useState(null)
   const [editandoId, setEditandoId] = useState(null)
   const [formEditar, setFormEditar] = useState(FORM_VACIO)
+
+  // Paso 3 — upsell Mercadito
+  const [domicilioId, setDomicilioId] = useState(null)
+  const [productosUpsell, setProductosUpsell] = useState([])
+  const [carritoUpsell, setCarritoUpsell] = useState({})
+  const [enviandoMercadito, setEnviandoMercadito] = useState(false)
 
   const [diasDisponibles] = useState(() => generarDiasDisponibles())
   const [fechaSeleccionada, setFechaSeleccionada] = useState(() => {
@@ -217,8 +229,39 @@ export default function Domicilio() {
       }),
     }).then(r => r.json())
     setEnviando(false)
-    if (res.ok) setConfirmado(true)
-    else setError(res.mensaje || 'No se pudo enviar tu solicitud.')
+    if (res.ok) {
+      setDomicilioId(res.domicilio?.id || null)
+      const { data: prods } = await supabase
+        .from('productos_tienda')
+        .select('id, nombre, precio_venta, imagen_url, stock')
+        .eq('activo', true)
+        .eq('mostrar_en_mercadito', true)
+        .gt('stock', 0)
+        .order('id', { ascending: false })
+        .limit(20)
+      setProductosUpsell(prods || [])
+      setPaso(3)
+    } else {
+      setError(res.mensaje || 'No se pudo enviar tu solicitud.')
+    }
+  }
+
+  const agregarMercadito = async () => {
+    const items = Object.entries(carritoUpsell)
+      .filter(([, qty]) => qty > 0)
+      .map(([id, qty]) => {
+        const p = productosUpsell.find(x => x.id === Number(id))
+        return { producto_id: Number(id), nombre: p?.nombre, cantidad: qty, precio_unitario: p?.precio_venta }
+      })
+    if (!items.length) { router.push('/cliente'); return }
+    setEnviandoMercadito(true)
+    await fetch('/api/mercadito/pedidos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items, cliente_id: cliente.id, domicilio_id: domicilioId }),
+    })
+    setEnviandoMercadito(false)
+    router.push('/cliente')
   }
 
   if (cargando) return (
@@ -229,18 +272,59 @@ export default function Domicilio() {
     </TarjetaCliente>
   )
 
-  if (confirmado) return (
-    <TarjetaCliente>
-      <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '22px 20px', textAlign: 'center' }}>
-        <div style={{ fontSize: 56, marginBottom: 18 }}>✅</div>
-        <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 22, marginBottom: 10, ...fk }}>¡Domicilio confirmado!</div>
-        <div style={{ color: 'rgba(42,33,24,0.6)', fontSize: 14.5, lineHeight: 1.6, maxWidth: 280, marginBottom: 26 }}>Te avisaremos por WhatsApp cuando tu pedido esté en camino.</div>
-        <button onClick={() => router.push('/cliente')} style={{ background: '#c1553a', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px 28px', cursor: 'pointer', fontFamily: 'inherit' }}>
-          Volver al inicio
-        </button>
-      </div>
-    </TarjetaCliente>
-  )
+  if (paso === 3) {
+    const totalUpsell = Object.entries(carritoUpsell).reduce((s, [id, qty]) => {
+      const p = productosUpsell.find(x => x.id === Number(id))
+      return s + (p?.precio_venta || 0) * qty
+    }, 0)
+    const money = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    return (
+      <TarjetaCliente>
+        <div style={{ padding: '22px 20px 40px' }}>
+          <div style={{ textAlign: 'center', marginBottom: 22 }}>
+            <div style={{ fontSize: 48, marginBottom: 10 }}>✅</div>
+            <div style={{ color: '#2a2118', fontWeight: 800, fontSize: 20, ...fk, marginBottom: 6 }}>¡Domicilio confirmado!</div>
+            <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 13.5, lineHeight: 1.5 }}>¿Quieres agregar algo del Mercadito a tu entrega?</div>
+          </div>
+
+          {productosUpsell.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {productosUpsell.map(p => {
+                const qty = carritoUpsell[p.id] || 0
+                return (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: '12px 14px' }}>
+                    <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: '#2a2118', marginBottom: 2 }}>{p.nombre}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#c1553a' }}>{money(p.precio_venta)}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                      {qty > 0 && <button onClick={() => setCarritoUpsell(c => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) }))} style={{ width: 30, height: 30, borderRadius: 999, border: '1.5px solid rgba(0,0,0,0.15)', background: '#fff', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>−</button>}
+                      {qty > 0 && <span style={{ fontSize: 14, fontWeight: 700, color: '#2a2118', minWidth: 16, textAlign: 'center' }}>{qty}</span>}
+                      <button onClick={() => setCarritoUpsell(c => ({ ...c, [p.id]: (c[p.id] || 0) + 1 }))} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: '#c1553a', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>+</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {totalUpsell > 0 && (
+            <div style={{ background: 'rgba(193,85,58,0.06)', borderRadius: 12, padding: '10px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#2a2118' }}>Total Mercadito</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#c1553a' }}>{money(totalUpsell)}</div>
+            </div>
+          )}
+
+          <button onClick={agregarMercadito} disabled={enviandoMercadito || totalUpsell === 0} style={{ width: '100%', background: totalUpsell > 0 ? '#c1553a' : 'rgba(0,0,0,0.08)', color: totalUpsell > 0 ? '#fff' : 'rgba(42,33,24,0.35)', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: totalUpsell > 0 ? 'pointer' : 'default', fontFamily: 'inherit', marginBottom: 10 }}>
+            {enviandoMercadito ? 'Agregando...' : 'Agregar a mi entrega'}
+          </button>
+          <button onClick={() => router.push('/cliente')} style={{ width: '100%', background: 'transparent', color: 'rgba(42,33,24,0.5)', fontWeight: 600, fontSize: 14, border: 'none', borderRadius: 14, padding: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>
+            No por ahora
+          </button>
+        </div>
+      </TarjetaCliente>
+    )
+  }
 
   return (
     <TarjetaCliente>
@@ -252,7 +336,7 @@ export default function Domicilio() {
             <div>
               <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 19, ...fk }}>🚚 Pedir domicilio</div>
               <div style={{ color: 'rgba(42,33,24,0.5)', fontSize: 12.5, marginTop: 1 }}>
-                {paso === 1 ? 'Paso 1 de 2 · Selecciona tus entregas' : 'Paso 2 de 2 · Datos de entrega'}
+                {paso === 1 ? 'Paso 1 de 3 · Selecciona tus entregas' : 'Paso 2 de 3 · Datos de entrega'}
               </div>
             </div>
           </button>
@@ -261,7 +345,8 @@ export default function Domicilio() {
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
           <div style={{ flex: 1, height: 6, borderRadius: 999, background: '#c1553a' }} />
-          <div style={{ flex: 1, height: 6, borderRadius: 999, background: paso === 2 ? '#c1553a' : 'rgba(0,0,0,0.1)' }} />
+          <div style={{ flex: 1, height: 6, borderRadius: 999, background: paso >= 2 ? '#c1553a' : 'rgba(0,0,0,0.1)' }} />
+          <div style={{ flex: 1, height: 6, borderRadius: 999, background: paso >= 3 ? '#c1553a' : 'rgba(0,0,0,0.1)' }} />
         </div>
 
         {error && (

@@ -23,6 +23,7 @@ export default function ClienteInicio() {
   const [pedidosMercadito, setPedidosMercadito] = useState([])
   const [productosDestacados, setProductosDestacados] = useState([])
   const [domiciliosActivos, setDomiciliosActivos] = useState([])
+  const [abiertosDom, setAbiertosDom] = useState({})
   const router = useRouter()
 
   useEffect(() => {
@@ -185,18 +186,32 @@ export default function ClienteInicio() {
             en_camino:  { label: '🚚 En camino',              color: '#1a6fa0', bg: 'rgba(37,130,198,0.08)' },
           }[dom.estado] || { label: dom.estado, color: '#2a2118', bg: 'rgba(0,0,0,0.05)' }
 
-          const totalProd = (dom.productos_detalle || []).reduce((s, p) => s + (p.precio_venta || 0), 0)
+          const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+          const fmtFecha = (f) => { const d = new Date(f+'T12:00:00'); return `${d.getDate()} ${meses[d.getMonth()]}` }
+
+          // Agrupar productos por entrega
+          const gruposEntrega = Object.values(
+            (dom.productos_detalle || []).reduce((acc, p) => {
+              const key = p.entrega_id
+              if (!acc[key]) acc[key] = { entrega_id: key, fecha: p.entregas?.fecha_entrega, items: [], total: 0 }
+              acc[key].items.push(p)
+              acc[key].total += p.precio_venta || 0
+              return acc
+            }, {})
+          ).sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+
           const totalMerc = (dom.mercadito_detalle || []).reduce((s, mp) =>
             s + (mp.items || []).reduce((ss, it) => ss + (Number(it.precio_unitario)||0)*(Number(it.cantidad)||0), 0), 0)
+          const totalProd = gruposEntrega.reduce((s, g) => s + g.total, 0)
           const totalAnticipo = (dom.anticipos_detalle || []).reduce((s, a) => s + (a.monto || 0), 0)
           const costoEnvio = dom.costo_envio || 0
-          const totalDom = totalProd + totalMerc + costoEnvio
-          const porPagar = Math.max(0, totalDom - totalAnticipo)
+          const subtotal = totalProd + totalMerc
+          const total = subtotal + costoEnvio
+          const porPagar = Math.max(0, total - totalAnticipo)
 
-          const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
-          const fechaStr = dom.fecha_preferida
-            ? (() => { const d = new Date(dom.fecha_preferida+'T12:00:00'); return `${d.getDate()} ${meses[d.getMonth()]}` })()
-            : null
+          const fechaStr = dom.fecha_preferida ? fmtFecha(dom.fecha_preferida) : null
+          const toggleKey = (k) => setAbiertosDom(prev => ({ ...prev, [`${dom.id}_${k}`]: !prev[`${dom.id}_${k}`] }))
+          const isOpen = (k) => !!abiertosDom[`${dom.id}_${k}`]
 
           return (
             <div key={dom.id} style={{ background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 18, padding: 18, marginBottom: 18 }}>
@@ -211,45 +226,79 @@ export default function ClienteInicio() {
                 </div>
               )}
 
-              {(dom.productos_detalle || []).length > 0 && (
-                <div style={{ marginBottom: 6 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(42,33,24,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>📦 Tu pedido de EE.UU.</div>
-                  {dom.productos_detalle.map((p, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <div style={{ fontSize: 13, color: '#2a2118' }}>{p.cantidad}x {p.descripcion}</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#2a2118' }}>{money(p.precio_venta)}</div>
+              {/* Estados de cuenta colapsables por entrega */}
+              {gruposEntrega.map((g) => (
+                <div key={g.entrega_id} style={{ marginBottom: 4 }}>
+                  <button onClick={() => toggleKey(`e_${g.entrega_id}`)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.03)', border: 'none', borderRadius: 10, padding: '9px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12 }}>📦</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#2a2118' }}>Estado de cuenta{g.fecha ? ` · ${fmtFecha(g.fecha)}` : ''}</span>
                     </div>
-                  ))}
-                </div>
-              )}
-
-              {(dom.mercadito_detalle || []).map((mp, i) => (
-                <div key={i} style={{ marginBottom: 6 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(42,33,24,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>🛍️ Mercadito agregado</div>
-                  {(mp.items || []).map((it, j) => (
-                    <div key={j} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <div style={{ fontSize: 13, color: '#2a2118' }}>{it.cantidad}x {it.nombre}</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#2a2118' }}>{money((it.precio_unitario||0)*(it.cantidad||0))}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#2a2118' }}>{money(g.total)}</span>
+                      <span style={{ fontSize: 11, color: 'rgba(42,33,24,0.4)', transform: isOpen(`e_${g.entrega_id}`) ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
                     </div>
-                  ))}
+                  </button>
+                  {isOpen(`e_${g.entrega_id}`) && (
+                    <div style={{ padding: '8px 12px 4px' }}>
+                      {g.items.map((p, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <div style={{ fontSize: 12.5, color: '#2a2118' }}>{p.cantidad}x {p.descripcion}</div>
+                          <div style={{ fontSize: 12.5, fontWeight: 700, color: '#2a2118', flexShrink: 0, marginLeft: 8 }}>{money(p.precio_venta)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
 
+              {/* Mercadito colapsable */}
+              {(dom.mercadito_detalle || []).length > 0 && (
+                <div style={{ marginBottom: 4 }}>
+                  <button onClick={() => toggleKey('merc')} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.03)', border: 'none', borderRadius: 10, padding: '9px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12 }}>🛍️</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#2a2118' }}>Mercadito</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#2a2118' }}>{money(totalMerc)}</span>
+                      <span style={{ fontSize: 11, color: 'rgba(42,33,24,0.4)', transform: isOpen('merc') ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
+                    </div>
+                  </button>
+                  {isOpen('merc') && (
+                    <div style={{ padding: '8px 12px 4px' }}>
+                      {(dom.mercadito_detalle || []).map((mp, i) =>
+                        (mp.items || []).map((it, j) => (
+                          <div key={`${i}-${j}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <div style={{ fontSize: 12.5, color: '#2a2118' }}>{it.cantidad}x {it.nombre}</div>
+                            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#2a2118', flexShrink: 0, marginLeft: 8 }}>{money((it.precio_unitario||0)*(it.cantidad||0))}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ borderTop: '1.5px solid rgba(0,0,0,0.06)', marginTop: 10, paddingTop: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <div style={{ fontSize: 13, color: 'rgba(42,33,24,0.6)' }}>Subtotal</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#2a2118' }}>{money(subtotal)}</div>
+                </div>
                 {costoEnvio > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                     <div style={{ fontSize: 13, color: 'rgba(42,33,24,0.6)' }}>Costo de envío</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#2a2118' }}>{money(costoEnvio)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2a2118' }}>{money(costoEnvio)}</div>
                   </div>
                 )}
                 {totalAnticipo > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                     <div style={{ fontSize: 13, color: 'rgba(42,33,24,0.6)' }}>Anticipo pagado</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#2e7d4f' }}>− {money(totalAnticipo)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2e7d4f' }}>− {money(totalAnticipo)}</div>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#2a2118' }}>Por pagar</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#2a2118' }}>Total</div>
                   <div style={{ fontSize: 16, fontWeight: 800, color: '#c1553a' }}>{money(porPagar)}</div>
                 </div>
               </div>

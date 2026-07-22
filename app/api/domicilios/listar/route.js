@@ -35,7 +35,7 @@ export async function GET(req) {
     data.map(async (d) => {
       const { data: pedidos } = await supabase
         .from('pedidos')
-        .select('descripcion, precio_venta, cantidad, entrega_id')
+        .select('descripcion, precio_venta, cantidad, entrega_id, entregas(fecha_entrega)')
         .eq('cliente_id', d.cliente_id)
         .in('entrega_id', d.entrega_ids || [])
         .not('estado', 'in', '("Cancelado","no_llego","pendiente")')

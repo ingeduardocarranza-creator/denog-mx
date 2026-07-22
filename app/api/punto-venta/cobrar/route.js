@@ -58,15 +58,26 @@ export async function POST(req) {
     }
 
     if (modo === 'modo1' && clienteId) {
+      // Verify order totals from DB — never trust client-supplied totalPedidosBloque
+      const todosLosPedidoIds = (bloquesOrdenados || []).flatMap(b => b.pedidoIds || [])
+      const { data: pedidosDB } = await supabase
+        .from('pedidos')
+        .select('id, precio_venta')
+        .in('id', todosLosPedidoIds)
+      const precioPorPedido = Object.fromEntries((pedidosDB || []).map(p => [p.id, p.precio_venta || 0]))
+
       // Track which general anticipos have been consumed across blocks
       const anticiposGeneralesMutables = (anticiposGenerales || []).map(a => ({ ...a }))
 
       for (const bloque of (bloquesOrdenados || [])) {
-        const { entregaId, pedidoIds, totalPedidosBloque, anticiposDeEstaEntrega } = bloque
-        if (!totalPedidosBloque || totalPedidosBloque === 0) continue
+        const { entregaId, pedidoIds, anticiposDeEstaEntrega } = bloque
+
+        // Calculate verified total from DB prices (ignores client-supplied value)
+        const totalVerificado = (pedidoIds || []).reduce((s, id) => s + (precioPorPedido[id] || 0), 0)
+        if (!totalVerificado || totalVerificado === 0) continue
 
         // Consume anticipos of this delivery
-        let netoBloque = totalPedidosBloque
+        let netoBloque = totalVerificado
         for (const anticipo of (anticiposDeEstaEntrega || [])) {
           if (netoBloque <= 0) break
           const montoAnticipo = Number(anticipo.monto)
@@ -150,11 +161,16 @@ export async function POST(req) {
         await supabase.from('pedidos').update({ estado: 'Entregado' }).eq('id', id)
       }
 
-      // Update stock for tienda items in encargo
-      for (const linea of (carritoEncargoTienda || [])) {
-        if (linea.origen !== 'catalogo' || linea.stockDisponible == null) continue
-        const nuevoStock = Math.max(0, linea.stockDisponible - linea.cantidad)
-        await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', linea.productoId)
+      // Update stock for tienda items in encargo — re-query DB stock to avoid client manipulation
+      const idsEncargo = (carritoEncargoTienda || []).filter(l => l.origen === 'catalogo' && l.productoId).map(l => l.productoId)
+      if (idsEncargo.length > 0) {
+        const { data: stocksEncargo } = await supabase.from('productos_tienda').select('id, stock').in('id', idsEncargo)
+        const stockMapEncargo = Object.fromEntries((stocksEncargo || []).map(p => [p.id, p.stock ?? 0]))
+        for (const linea of (carritoEncargoTienda || [])) {
+          if (linea.origen !== 'catalogo' || !linea.productoId) continue
+          const nuevoStock = Math.max(0, (stockMapEncargo[linea.productoId] ?? 0) - linea.cantidad)
+          await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', linea.productoId)
+        }
       }
 
     } else {
@@ -174,11 +190,16 @@ export async function POST(req) {
         await supabase.from('ventas_tienda').insert(detalleVenta)
       }
 
-      // Update stock for tienda sale
-      for (const linea of (carritoVentaTienda || [])) {
-        if (linea.origen !== 'catalogo' || linea.stockDisponible == null) continue
-        const nuevoStock = Math.max(0, linea.stockDisponible - linea.cantidad)
-        await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', linea.productoId)
+      // Update stock for tienda sale — re-query DB stock to avoid client manipulation
+      const idsTienda = (carritoVentaTienda || []).filter(l => l.origen === 'catalogo' && l.productoId).map(l => l.productoId)
+      if (idsTienda.length > 0) {
+        const { data: stocksTienda } = await supabase.from('productos_tienda').select('id, stock').in('id', idsTienda)
+        const stockMapTienda = Object.fromEntries((stocksTienda || []).map(p => [p.id, p.stock ?? 0]))
+        for (const linea of (carritoVentaTienda || [])) {
+          if (linea.origen !== 'catalogo' || !linea.productoId) continue
+          const nuevoStock = Math.max(0, (stockMapTienda[linea.productoId] ?? 0) - linea.cantidad)
+          await supabase.from('productos_tienda').update({ stock: nuevoStock }).eq('id', linea.productoId)
+        }
       }
     }
 

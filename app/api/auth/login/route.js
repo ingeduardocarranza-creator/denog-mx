@@ -15,7 +15,13 @@ const MAX_INTENTOS = 5
 const VENTANA_MS = 15 * 60 * 1000
 
 function obtenerIp(req) {
-  return req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'desconocida'
+  // x-real-ip is set by Vercel's edge and cannot be spoofed by the client.
+  // Fall back to the last entry of x-forwarded-for (also Vercel-appended, not client-controlled).
+  return (
+    req.headers.get('x-real-ip') ||
+    req.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ||
+    'desconocida'
+  )
 }
 
 function estaBloqueda(ip) {

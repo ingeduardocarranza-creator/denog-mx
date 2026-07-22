@@ -5,10 +5,29 @@ import TarjetaCliente from '../../components/cliente/TarjetaCliente'
 import BotonCarrito from '../../components/mercadito/BotonCarrito'
 
 const HORARIOS = [
-  { value: '9-12',  label: '9:00 am – 12:00 pm' },
-  { value: '12-3',  label: '12:00 pm – 3:00 pm' },
-  { value: '3-6',   label: '3:00 pm – 6:00 pm' },
+  { value: '12-3', label: '12:00 pm – 3:00 pm' },
+  { value: '3-5',  label: '3:00 pm – 5:00 pm' },
 ]
+
+const DIAS_SEMANA = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
+const MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+
+function generarDiasDisponibles() {
+  const dias = []
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+  const ahora = new Date()
+  const minutos = ahora.getHours() * 60 + ahora.getMinutes()
+  const empezarDesde = minutos >= 16 * 60 + 15 ? 2 : 1
+  for (let i = empezarDesde; dias.length < 14; i++) {
+    const d = new Date(hoy); d.setDate(hoy.getDate() + i)
+    if (d.getDay() !== 0) dias.push(d)
+    if (i > 30) break
+  }
+  return dias
+}
+function isoFecha(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
 
 const money = (n) => `$${Math.round(n || 0).toLocaleString('es-MX')}`
 const fk = { fontFamily: 'var(--font-baloo2)' }
@@ -38,6 +57,11 @@ export default function Domicilio() {
   const [editandoId, setEditandoId] = useState(null)
   const [formEditar, setFormEditar] = useState(FORM_VACIO)
 
+  const [diasDisponibles] = useState(() => generarDiasDisponibles())
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(() => {
+    const dias = generarDiasDisponibles()
+    return dias.length > 0 ? isoFecha(dias[0]) : ''
+  })
   const [horario, setHorario] = useState('')
   const [notas, setNotas] = useState('')
 
@@ -185,7 +209,7 @@ export default function Domicilio() {
         entrega_ids: entregasSeleccionadas.map(e => e.entrega_id),
         direccion: dir.direccion, colonia: dir.colonia,
         referencias: dir.referencias || '', celular_contacto: dir.celular_contacto || '',
-        fecha_preferida: entregasSeleccionadas[0]?.fecha || null,
+        fecha_preferida: fechaSeleccionada || null,
         horario: HORARIOS.find(h => h.value === horario)?.label || horario,
         notas, distancia_km: null, costo_envio: null, subtotal: seleccionTotal, total: null,
       }),
@@ -391,8 +415,25 @@ export default function Domicilio() {
               </button>
             )}
 
+            {/* Fecha */}
+            <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 15, marginTop: 22, marginBottom: 10 }}>Fecha de entrega</div>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 18, scrollbarWidth: 'none' }}>
+              {diasDisponibles.map(d => {
+                const iso = isoFecha(d)
+                const activo = fechaSeleccionada === iso
+                return (
+                  <div key={iso} onClick={() => setFechaSeleccionada(iso)}
+                    style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', background: activo ? '#c1553a' : '#fff', border: activo ? '2px solid #c1553a' : '1.5px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: '10px 14px', cursor: 'pointer', minWidth: 58 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: activo ? '#fff' : 'rgba(42,33,24,0.5)', textTransform: 'uppercase' }}>{DIAS_SEMANA[d.getDay()]}</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: activo ? '#fff' : '#2a2118', margin: '2px 0' }}>{d.getDate()}</div>
+                    <div style={{ fontSize: 11, color: activo ? '#fff' : 'rgba(42,33,24,0.5)' }}>{MESES_CORTO[d.getMonth()]}</div>
+                  </div>
+                )
+              })}
+            </div>
+
             {/* Horario */}
-            <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 15, marginTop: 22, marginBottom: 10 }}>Horario de entrega</div>
+            <div style={{ color: '#2a2118', fontWeight: 700, fontSize: 15, marginBottom: 10 }}>Horario de entrega</div>
             {HORARIOS.map(h => (
               <div key={h.value} onClick={() => setHorario(h.value)}
                 style={{ background: '#fff', border: horario === h.value ? '2px solid #c1553a' : '1.5px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: '15px 16px', marginBottom: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>

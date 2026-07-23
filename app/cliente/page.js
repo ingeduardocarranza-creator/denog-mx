@@ -302,6 +302,11 @@ export default function ClienteInicio() {
                   <div style={{ fontSize: 16, fontWeight: 800, color: '#c1553a' }}>{money(porPagar)}</div>
                 </div>
               </div>
+              {dom.estado === 'pendiente' && (
+                <div style={{ marginTop: 12, background: 'rgba(193,85,58,0.05)', borderRadius: 10, padding: '9px 12px', fontSize: 12, color: 'rgba(42,33,24,0.6)', lineHeight: 1.5 }}>
+                  📝 Te confirmaremos la disponibilidad{(dom.mercadito_detalle||[]).length > 0 ? ' del Mercadito' : ''} y el costo de envío por WhatsApp.
+                </div>
+              )}
             </div>
           )
         })}

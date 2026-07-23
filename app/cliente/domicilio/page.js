@@ -324,9 +324,9 @@ export default function Domicilio() {
                 <button onClick={() => setCarritoUpsell(c => ({ ...c, [productoDetalle.id]: Math.min(productoDetalle.stock, (c[productoDetalle.id] || 0) + 1) }))}
                   style={{ width: 44, height: 44, borderRadius: 22, border: 'none', background: '#c1553a', fontSize: 22, fontWeight: 700, cursor: 'pointer', color: '#fff', fontFamily: 'inherit' }}>+</button>
               </div>
-              <button onClick={() => setProductoDetalle(null)}
-                style={{ width: '100%', background: qty > 0 ? '#c1553a' : 'rgba(0,0,0,0.08)', color: qty > 0 ? '#fff' : 'rgba(42,33,24,0.35)', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                {qty > 0 ? `Agregar ${qty} · ${moneyU(qty * productoDetalle.precio_venta)}` : 'Volver al Mercadito'}
+              <button onClick={() => setProductoDetalle(null)} disabled={qty === 0}
+                style={{ width: '100%', background: qty > 0 ? '#c1553a' : 'rgba(0,0,0,0.1)', color: qty > 0 ? '#fff' : 'rgba(42,33,24,0.3)', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: qty > 0 ? 'pointer' : 'default', fontFamily: 'inherit' }}>
+                {qty > 0 ? `Agregar ${qty} artículo${qty > 1 ? 's' : ''} · ${moneyU(qty * productoDetalle.precio_venta)}` : 'Elige una cantidad'}
               </button>
             </div>
           </div>
@@ -354,7 +354,7 @@ export default function Domicilio() {
           </div>
 
           {/* Categorías */}
-          <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+          <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
             {categoriasUpsell.map(cat => (
               <button key={cat} onClick={() => setCategoriaUpsell(cat)}
                 style={{ flexShrink: 0, padding: '6px 14px', borderRadius: 999, border: categoriaUpsell === cat ? 'none' : '1.5px solid rgba(0,0,0,0.1)', background: categoriaUpsell === cat ? '#c1553a' : 'rgba(0,0,0,0.04)', color: categoriaUpsell === cat ? '#fff' : 'rgba(42,33,24,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -396,8 +396,18 @@ export default function Domicilio() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <span style={{ fontSize: 13, fontWeight: 800, color: '#c1553a' }}>{moneyU(p.precio_venta)}</span>
                           {!agotado && (
-                            <button onClick={e => { e.stopPropagation(); setCarritoUpsell(c => ({ ...c, [p.id]: Math.min(p.stock, (c[p.id] || 0) + 1) })) }}
-                              style={{ width: 28, height: 28, borderRadius: 14, background: '#c1553a', border: 'none', color: '#fff', fontSize: 18, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>+</button>
+                            qty > 0 ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }} onClick={e => e.stopPropagation()}>
+                                <button onClick={e => { e.stopPropagation(); setCarritoUpsell(c => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) })) }}
+                                  style={{ width: 24, height: 24, borderRadius: 12, border: '1.5px solid #c1553a', background: '#fff', color: '#c1553a', fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>−</button>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: '#2a2118', minWidth: 14, textAlign: 'center' }}>{qty}</span>
+                                <button onClick={e => { e.stopPropagation(); setCarritoUpsell(c => ({ ...c, [p.id]: Math.min(p.stock, (c[p.id] || 0) + 1) })) }}
+                                  style={{ width: 24, height: 24, borderRadius: 12, border: 'none', background: '#c1553a', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>+</button>
+                              </div>
+                            ) : (
+                              <button onClick={e => { e.stopPropagation(); setCarritoUpsell(c => ({ ...c, [p.id]: 1 })) }}
+                                style={{ width: 28, height: 28, borderRadius: 14, background: '#c1553a', border: 'none', color: '#fff', fontSize: 18, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>+</button>
+                            )
                           )}
                         </div>
                       </div>
@@ -433,10 +443,15 @@ export default function Domicilio() {
             )}
             <button onClick={agregarMercadito} disabled={enviandoMercadito}
               style={{ width: '100%', background: totalUpsell > 0 ? '#c1553a' : 'rgba(0,0,0,0.08)', color: totalUpsell > 0 ? '#fff' : 'rgba(42,33,24,0.35)', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: totalUpsell > 0 ? 'pointer' : 'default', fontFamily: 'inherit', marginBottom: 8 }}>
-              {enviandoMercadito ? 'Agregando...' : totalUpsell > 0 ? `Agregar ${moneyU(totalUpsell)} a mi entrega` : 'Listo, sin Mercadito'}
+              {(() => {
+                if (enviandoMercadito) return 'Agregando...'
+                if (totalUpsell === 0) return 'Listo, sin Mercadito'
+                const totalArt = Object.values(carritoUpsell).reduce((s, q) => s + q, 0)
+                return `Agregar: ${totalArt} artículo${totalArt > 1 ? 's' : ''} · ${moneyU(totalUpsell)}`
+              })()}
             </button>
             <button onClick={() => router.push('/cliente')}
-              style={{ width: '100%', background: 'transparent', color: 'rgba(42,33,24,0.5)', fontWeight: 600, fontSize: 14, border: 'none', padding: '10px', cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ width: '100%', background: '#fff', border: '1.5px solid rgba(0,0,0,0.12)', color: '#2a2118', fontWeight: 600, fontSize: 14, borderRadius: 14, padding: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>
               No por ahora
             </button>
           </div>

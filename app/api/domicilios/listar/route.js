@@ -52,6 +52,7 @@ export async function GET(req) {
         .from('pedidos_mercadito')
         .select('id, items, estado')
         .eq('domicilio_id', d.id)
+        .neq('estado', 'cancelado')
 
       return {
         ...d,

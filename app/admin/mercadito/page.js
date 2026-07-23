@@ -377,6 +377,9 @@ export default function MercaditoAdmin() {
                         <span style={p.cliente_id ? pillStyle('#34d399') : pillStyle('rgba(255,255,255,0.6)', 'rgba(255,255,255,0.08)')}>
                           {p.cliente_id ? '✅ Cliente' : '👤 Invitado'}
                         </span>
+                        {p.domicilio_id && (
+                          <span style={pillStyle('#f59e0b', 'rgba(245,158,11,0.15)')}>🏠 Domicilio</span>
+                        )}
                         {p.anticipo_estado && (
                           <span style={pillStyle(p.anticipo_estado === 'recibido' ? '#34d399' : p.anticipo_estado === 'autorizado_sin_anticipo' ? '#facc15' : '#3b82f6', 'rgba(255,255,255,0.05)')}>
                             {p.anticipo_estado === 'recibido' ? '💰 Anticipo recibido' : p.anticipo_estado === 'autorizado_sin_anticipo' ? '🟡 Autorizado sin anticipo' : '⏳ Esperando anticipo'}
@@ -492,8 +495,15 @@ export default function MercaditoAdmin() {
                     </div>
                   )}
 
+                  {/* Nota cuando el Mercadito va incluido en un domicilio */}
+                  {p.domicilio_id && !['cancelado', 'entregado'].includes(p.estado) && (
+                    <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 10, padding: '10px 14px', color: '#fcd34d', fontSize: 13 }}>
+                      🏠 Este pedido va incluido en un domicilio — el cobro se centraliza desde la sección de <b>Domicilios</b>, no desde aquí.
+                    </div>
+                  )}
+
                   {/* Registrar pago (anticipo o liquidación) */}
-                  {formPagoAbierto === p.id && (
+                  {formPagoAbierto === p.id && !p.domicilio_id && (
                     <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 10, padding: 14 }}>
                       <div className="text-[11px] font-bold text-emerald-300 mb-2">Registrar pago — saldo pendiente ${money(saldoDe(p))}</div>
                       <div className="flex flex-wrap gap-2 items-center">
@@ -531,9 +541,11 @@ export default function MercaditoAdmin() {
                       )}
                       {(p.estado === 'confirmado' || p.estado === 'esperando_anticipo') && (
                         <>
-                          <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: '#34d399', color: '#06281d' }}>
-                            💰 Registrar anticipo
-                          </button>
+                          {!p.domicilio_id && (
+                            <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: '#34d399', color: '#06281d' }}>
+                              💰 Registrar anticipo
+                            </button>
+                          )}
                           <button type="button" onClick={() => autorizarSinAnticipo(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={estaArmado(p.id, 'autorizarSinAnticipo') ? { background: '#facc15', color: '#3a2a00' } : { background: '#3b82f6', color: '#fff' }}>
                             {estaArmado(p.id, 'autorizarSinAnticipo') ? '⚠️ ¿Confirmar? Toca de nuevo' : '🟡 Autorizar pedido sin anticipo'}
                           </button>
@@ -546,7 +558,7 @@ export default function MercaditoAdmin() {
                           <button type="button" onClick={() => iniciarCancel(p.id)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl bg-transparent text-red-300 border border-red-800/60">🚫 Cancelar pedido</button>
                         </>
                       )}
-                      {(p.estado === 'aprobado' || p.estado === 'agregado') && saldoDe(p) > 0 && (
+                      {(p.estado === 'aprobado' || p.estado === 'agregado') && saldoDe(p) > 0 && !p.domicilio_id && (
                         <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: '#3b82f6', color: '#fff' }}>
                           💳 Registrar pago
                         </button>

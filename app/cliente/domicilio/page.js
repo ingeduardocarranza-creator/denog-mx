@@ -241,8 +241,7 @@ export default function Domicilio() {
         .eq('activo', true)
         .eq('mostrar_en_mercadito', true)
         .gt('stock', 0)
-        .order('id', { ascending: false })
-        .limit(20)
+        .order('nombre', { ascending: true })
       setProductosUpsell(prods || [])
       setPaso(3)
     } else {
@@ -257,7 +256,7 @@ export default function Domicilio() {
         const p = productosUpsell.find(x => x.id === Number(id))
         return { producto_id: Number(id), nombre: p?.nombre, cantidad: qty, precio_unitario: p?.precio_venta }
       })
-    if (!items.length) { router.push('/cliente'); return }
+    if (!items.length) { setConfirmado(true); return }
     setEnviandoMercadito(true)
     await fetch('/api/mercadito/pedidos', {
       method: 'POST',
@@ -265,13 +264,29 @@ export default function Domicilio() {
       body: JSON.stringify({ items, cliente_id: cliente.id, domicilio_id: domicilioId }),
     })
     setEnviandoMercadito(false)
-    router.push('/cliente')
+    setConfirmado(true)
   }
 
   if (cargando) return (
     <TarjetaCliente>
       <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ color: 'rgba(42,33,24,0.4)', fontSize: 14 }}>Cargando...</div>
+      </div>
+    </TarjetaCliente>
+  )
+
+  if (paso === 3 && confirmado) return (
+    <TarjetaCliente>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '40px 28px', textAlign: 'center' }}>
+        <div style={{ fontSize: 72, marginBottom: 20 }}>✅</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#2a2118', marginBottom: 12, ...fk }}>¡Domicilio confirmado!</div>
+        <div style={{ fontSize: 15, color: 'rgba(42,33,24,0.6)', lineHeight: 1.6, marginBottom: 32, maxWidth: 340 }}>
+          Te avisaremos por WhatsApp cuando tu pedido esté en camino.
+        </div>
+        <button onClick={() => router.push('/cliente')}
+          style={{ width: '100%', maxWidth: 340, background: '#c1553a', color: '#fff', fontWeight: 700, fontSize: 16, border: 'none', borderRadius: 16, padding: '17px', cursor: 'pointer', fontFamily: 'inherit' }}>
+          Volver al inicio
+        </button>
       </div>
     </TarjetaCliente>
   )
@@ -450,7 +465,7 @@ export default function Domicilio() {
                 })()}
               </button>
             )}
-            <button onClick={() => router.push('/cliente')}
+            <button onClick={() => setConfirmado(true)}
               style={{ width: '100%', background: '#fff', border: '1.5px solid rgba(0,0,0,0.12)', color: '#2a2118', fontWeight: 600, fontSize: 14, borderRadius: 14, padding: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>
               No por ahora
             </button>

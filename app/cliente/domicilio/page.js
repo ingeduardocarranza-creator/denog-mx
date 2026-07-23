@@ -237,7 +237,7 @@ export default function Domicilio() {
       setDomicilioId(res.domicilio?.id || null)
       const { data: prods } = await supabase
         .from('productos_tienda')
-        .select('id, nombre, precio_venta, imagen_url, stock')
+        .select('id, nombre, precio_venta, imagen_url, stock, categoria, descripcion')
         .eq('activo', true)
         .eq('mostrar_en_mercadito', true)
         .gt('stock', 0)
@@ -441,15 +441,15 @@ export default function Domicilio() {
                 <span style={{ fontSize: 14, fontWeight: 800, color: '#c1553a' }}>{moneyU(totalUpsell)}</span>
               </button>
             )}
-            <button onClick={agregarMercadito} disabled={enviandoMercadito}
-              style={{ width: '100%', background: totalUpsell > 0 ? '#c1553a' : 'rgba(0,0,0,0.08)', color: totalUpsell > 0 ? '#fff' : 'rgba(42,33,24,0.35)', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: totalUpsell > 0 ? 'pointer' : 'default', fontFamily: 'inherit', marginBottom: 8 }}>
-              {(() => {
-                if (enviandoMercadito) return 'Agregando...'
-                if (totalUpsell === 0) return 'Listo, sin Mercadito'
-                const totalArt = Object.values(carritoUpsell).reduce((s, q) => s + q, 0)
-                return `Agregar: ${totalArt} artículo${totalArt > 1 ? 's' : ''} · ${moneyU(totalUpsell)}`
-              })()}
-            </button>
+            {totalUpsell > 0 && (
+              <button onClick={agregarMercadito} disabled={enviandoMercadito}
+                style={{ width: '100%', background: '#c1553a', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: enviandoMercadito ? 'default' : 'pointer', fontFamily: 'inherit', marginBottom: 8, opacity: enviandoMercadito ? 0.7 : 1 }}>
+                {enviandoMercadito ? 'Agregando...' : (() => {
+                  const totalArt = Object.values(carritoUpsell).reduce((s, q) => s + q, 0)
+                  return `Agregar: ${totalArt} artículo${totalArt > 1 ? 's' : ''} · ${moneyU(totalUpsell)}`
+                })()}
+              </button>
+            )}
             <button onClick={() => router.push('/cliente')}
               style={{ width: '100%', background: '#fff', border: '1.5px solid rgba(0,0,0,0.12)', color: '#2a2118', fontWeight: 600, fontSize: 14, borderRadius: 14, padding: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>
               No por ahora

@@ -263,7 +263,7 @@ export default function Domicilio() {
       const res = await fetch('/api/mercadito/pedidos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, cliente_id: cliente.id, domicilio_id: domicilioId }),
+        body: JSON.stringify({ items, cliente_id: cliente.id }),
       })
       const data = await res.json()
       if (!data.ok) setError(data.mensaje || 'El Mercadito no se pudo guardar, pero tu domicilio ya está confirmado.')

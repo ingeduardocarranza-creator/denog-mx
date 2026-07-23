@@ -339,9 +339,9 @@ export default function Domicilio() {
                 <button onClick={() => setCarritoUpsell(c => ({ ...c, [productoDetalle.id]: Math.min(productoDetalle.stock, (c[productoDetalle.id] || 0) + 1) }))}
                   style={{ width: 44, height: 44, borderRadius: 22, border: 'none', background: '#c1553a', fontSize: 22, fontWeight: 700, cursor: 'pointer', color: '#fff', fontFamily: 'inherit' }}>+</button>
               </div>
-              <button onClick={() => setProductoDetalle(null)} disabled={qty === 0}
-                style={{ width: '100%', background: qty > 0 ? '#c1553a' : 'rgba(0,0,0,0.1)', color: qty > 0 ? '#fff' : 'rgba(42,33,24,0.3)', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: qty > 0 ? 'pointer' : 'default', fontFamily: 'inherit' }}>
-                {qty > 0 ? `Agregar ${qty} artículo${qty > 1 ? 's' : ''} · ${moneyU(qty * productoDetalle.precio_venta)}` : 'Elige una cantidad'}
+              <button onClick={() => setProductoDetalle(null)}
+                style={{ width: '100%', background: qty > 0 ? '#c1553a' : 'rgba(0,0,0,0.08)', color: qty > 0 ? '#fff' : 'rgba(42,33,24,0.45)', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                {qty > 0 ? `Agregar ${qty} artículo${qty > 1 ? 's' : ''} · ${moneyU(qty * productoDetalle.precio_venta)}` : '← Regresar sin agregar'}
               </button>
             </div>
           </div>
@@ -355,8 +355,8 @@ export default function Domicilio() {
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
           {/* Header */}
           <div style={{ padding: '20px 20px 10px', textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: '#2a2118', ...fk, marginBottom: 4 }}>✅ ¡Domicilio confirmado!</div>
-            <div style={{ fontSize: 13.5, color: 'rgba(42,33,24,0.55)' }}>¿Quieres agregar algo del Mercadito?</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#2a2118', ...fk, marginBottom: 4 }}>🛍️ ¿Algo del Mercadito?</div>
+            <div style={{ fontSize: 13.5, color: 'rgba(42,33,24,0.55)' }}>Agrégalo a tu entrega y lo llevamos junto con tu pedido.</div>
           </div>
 
           {/* Buscador */}
@@ -388,7 +388,7 @@ export default function Domicilio() {
                   const qty = carritoUpsell[p.id] || 0
                   const agotado = p.stock <= 0
                   return (
-                    <div key={p.id} onClick={() => !agotado && setProductoDetalle(p)}
+                    <div key={p.id} onClick={() => !agotado && (qty === 0 ? setCarritoUpsell(c => ({ ...c, [p.id]: 1 })) : setProductoDetalle(p))}
                       style={{ background: '#fff', borderRadius: 16, border: `1.5px solid ${qty > 0 ? '#c1553a' : 'rgba(0,0,0,0.08)'}`, overflow: 'hidden', cursor: agotado ? 'default' : 'pointer', opacity: agotado ? 0.55 : 1, position: 'relative' }}>
                       <div style={{ position: 'relative' }}>
                         {p.imagen_url

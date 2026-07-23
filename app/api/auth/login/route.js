@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
-import { ponerCookieSesion } from '@/lib/auth/session'
+import { ponerCookieSesion, firmarSesion } from '@/lib/auth/session'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -76,7 +76,8 @@ export async function POST(req) {
     }
 
     limpiarFallo(ip)
-    const respuesta = NextResponse.json({ ok: true, rol: data.rol, nombre: data.nombre, id: data.id })
+    const token = firmarSesion({ id: data.id, rol: data.rol, nombre: data.nombre })
+    const respuesta = NextResponse.json({ ok: true, rol: data.rol, nombre: data.nombre, id: data.id, token })
     return ponerCookieSesion(respuesta, { id: data.id, rol: data.rol, nombre: data.nombre })
   } catch (err) {
     return NextResponse.json({ ok: false, mensaje: 'Error del servidor' })

@@ -51,6 +51,15 @@ export async function POST(req) {
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
 
+  // Cancel any linked Mercadito orders when domicilio is cancelled
+  if (estado === 'cancelado') {
+    await supabase
+      .from('pedidos_mercadito')
+      .update({ estado: 'cancelado', motivo_cancelacion: 'Domicilio cancelado' })
+      .eq('domicilio_id', id)
+      .not('estado', 'in', '("cancelado","entregado")')
+  }
+
   // Insert payment into pagos so corte de caja picks it up
   if (monto_cobrado_ext) {
     await supabase.from('pagos').insert({

@@ -69,6 +69,10 @@ export default function Domicilio() {
   const [productosUpsell, setProductosUpsell] = useState([])
   const [carritoUpsell, setCarritoUpsell] = useState({})
   const [enviandoMercadito, setEnviandoMercadito] = useState(false)
+  const [productoDetalle, setProductoDetalle] = useState(null)
+  const [categoriaUpsell, setCategoriaUpsell] = useState('Todos')
+  const [busquedaUpsell, setBusquedaUpsell] = useState('')
+  const [mostrarResumenUpsell, setMostrarResumenUpsell] = useState(false)
 
   const [diasDisponibles] = useState(() => generarDiasDisponibles())
   const [fechaSeleccionada, setFechaSeleccionada] = useState(() => {
@@ -273,54 +277,169 @@ export default function Domicilio() {
   )
 
   if (paso === 3) {
+    const moneyU = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     const totalUpsell = Object.entries(carritoUpsell).reduce((s, [id, qty]) => {
       const p = productosUpsell.find(x => x.id === Number(id))
       return s + (p?.precio_venta || 0) * qty
     }, 0)
-    const money = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const categoriasUpsell = ['Todos', ...new Set(productosUpsell.map(p => p.categoria).filter(Boolean))]
+    const productosFiltrados = productosUpsell.filter(p => {
+      const matchCat = categoriaUpsell === 'Todos' || p.categoria === categoriaUpsell
+      const matchBus = !busquedaUpsell.trim() || p.nombre.toLowerCase().includes(busquedaUpsell.trim().toLowerCase())
+      return matchCat && matchBus
+    })
+    const itemsCarrito = Object.entries(carritoUpsell).filter(([, q]) => q > 0)
+
+    // Vista de detalle de producto
+    if (productoDetalle) {
+      const qty = carritoUpsell[productoDetalle.id] || 0
+      return (
+        <TarjetaCliente>
+          <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+            <div style={{ padding: '16px 20px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+              <button onClick={() => setProductoDetalle(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, fontFamily: 'inherit' }}>
+                <span style={{ fontSize: 18, color: '#2a2118' }}>←</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#2a2118' }}>Mercadito</span>
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 160 }}>
+              {productoDetalle.imagen_url
+                ? <img src={productoDetalle.imagen_url} alt={productoDetalle.nombre} style={{ width: '100%', height: 260, objectFit: 'cover', display: 'block' }} />
+                : <div style={{ width: '100%', height: 200, background: 'rgba(193,85,58,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48 }}>🛍️</div>
+              }
+              <div style={{ padding: '20px 20px 0' }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#2a2118', marginBottom: 6, ...fk }}>{productoDetalle.nombre}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#c1553a', marginBottom: 12 }}>{moneyU(productoDetalle.precio_venta)}</div>
+                {productoDetalle.descripcion && <div style={{ fontSize: 14, color: 'rgba(42,33,24,0.65)', lineHeight: 1.6 }}>{productoDetalle.descripcion}</div>}
+                {productoDetalle.stock <= 3 && productoDetalle.stock > 0 && (
+                  <div style={{ fontSize: 12, color: '#a3432b', fontWeight: 600, marginTop: 10 }}>⚠️ Solo quedan {productoDetalle.stock} en stock</div>
+                )}
+              </div>
+            </div>
+            <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid rgba(0,0,0,0.07)', padding: '14px 20px 24px', maxWidth: 430, margin: '0 auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, marginBottom: 14 }}>
+                <button onClick={() => setCarritoUpsell(c => ({ ...c, [productoDetalle.id]: Math.max(0, (c[productoDetalle.id] || 0) - 1) }))}
+                  style={{ width: 44, height: 44, borderRadius: 22, border: `1.5px solid ${qty > 0 ? '#c1553a' : 'rgba(0,0,0,0.15)'}`, background: '#fff', fontSize: 22, fontWeight: 700, cursor: 'pointer', color: qty > 0 ? '#c1553a' : 'rgba(0,0,0,0.3)', fontFamily: 'inherit' }}>−</button>
+                <span style={{ fontSize: 22, fontWeight: 800, color: '#2a2118', minWidth: 32, textAlign: 'center' }}>{qty}</span>
+                <button onClick={() => setCarritoUpsell(c => ({ ...c, [productoDetalle.id]: Math.min(productoDetalle.stock, (c[productoDetalle.id] || 0) + 1) }))}
+                  style={{ width: 44, height: 44, borderRadius: 22, border: 'none', background: '#c1553a', fontSize: 22, fontWeight: 700, cursor: 'pointer', color: '#fff', fontFamily: 'inherit' }}>+</button>
+              </div>
+              <button onClick={() => setProductoDetalle(null)}
+                style={{ width: '100%', background: qty > 0 ? '#c1553a' : 'rgba(0,0,0,0.08)', color: qty > 0 ? '#fff' : 'rgba(42,33,24,0.35)', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                {qty > 0 ? `Agregar ${qty} · ${moneyU(qty * productoDetalle.precio_venta)}` : 'Volver al Mercadito'}
+              </button>
+            </div>
+          </div>
+        </TarjetaCliente>
+      )
+    }
+
+    // Vista de grid principal
     return (
       <TarjetaCliente>
-        <div style={{ padding: '22px 20px 40px' }}>
-          <div style={{ textAlign: 'center', marginBottom: 22 }}>
-            <div style={{ fontSize: 48, marginBottom: 10 }}>✅</div>
-            <div style={{ color: '#2a2118', fontWeight: 800, fontSize: 20, ...fk, marginBottom: 6 }}>¡Domicilio confirmado!</div>
-            <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 13.5, lineHeight: 1.5 }}>¿Quieres agregar algo del Mercadito a tu entrega?</div>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+          {/* Header */}
+          <div style={{ padding: '20px 20px 10px', textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#2a2118', ...fk, marginBottom: 4 }}>✅ ¡Domicilio confirmado!</div>
+            <div style={{ fontSize: 13.5, color: 'rgba(42,33,24,0.55)' }}>¿Quieres agregar algo del Mercadito?</div>
           </div>
 
-          {productosUpsell.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-              {productosUpsell.map(p => {
-                const qty = carritoUpsell[p.id] || 0
-                return (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: '12px 14px' }}>
-                    <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600, color: '#2a2118', marginBottom: 2 }}>{p.nombre}</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#c1553a' }}>{money(p.precio_venta)}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                      {qty > 0 && <button onClick={() => setCarritoUpsell(c => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) }))} style={{ width: 30, height: 30, borderRadius: 999, border: '1.5px solid rgba(0,0,0,0.15)', background: '#fff', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>−</button>}
-                      {qty > 0 && <span style={{ fontSize: 14, fontWeight: 700, color: '#2a2118', minWidth: 16, textAlign: 'center' }}>{qty}</span>}
-                      <button onClick={() => setCarritoUpsell(c => ({ ...c, [p.id]: (c[p.id] || 0) + 1 }))} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: '#c1553a', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>+</button>
-                    </div>
-                  </div>
-                )
-              })}
+          {/* Buscador */}
+          <div style={{ padding: '0 16px 10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.05)', borderRadius: 12, padding: '0 12px' }}>
+              <span style={{ fontSize: 14, color: 'rgba(42,33,24,0.4)' }}>🔍</span>
+              <input value={busquedaUpsell} onChange={e => setBusquedaUpsell(e.target.value)}
+                placeholder="Buscar producto..." style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 14, color: '#2a2118', padding: '10px 0', fontFamily: 'inherit' }} />
             </div>
-          )}
+          </div>
 
-          {totalUpsell > 0 && (
-            <div style={{ background: 'rgba(193,85,58,0.06)', borderRadius: 12, padding: '10px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#2a2118' }}>Total Mercadito</div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#c1553a' }}>{money(totalUpsell)}</div>
-            </div>
-          )}
+          {/* Categorías */}
+          <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+            {categoriasUpsell.map(cat => (
+              <button key={cat} onClick={() => setCategoriaUpsell(cat)}
+                style={{ flexShrink: 0, padding: '6px 14px', borderRadius: 999, border: categoriaUpsell === cat ? 'none' : '1.5px solid rgba(0,0,0,0.1)', background: categoriaUpsell === cat ? '#c1553a' : 'rgba(0,0,0,0.04)', color: categoriaUpsell === cat ? '#fff' : 'rgba(42,33,24,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {cat}
+              </button>
+            ))}
+          </div>
 
-          <button onClick={agregarMercadito} disabled={enviandoMercadito || totalUpsell === 0} style={{ width: '100%', background: totalUpsell > 0 ? '#c1553a' : 'rgba(0,0,0,0.08)', color: totalUpsell > 0 ? '#fff' : 'rgba(42,33,24,0.35)', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: totalUpsell > 0 ? 'pointer' : 'default', fontFamily: 'inherit', marginBottom: 10 }}>
-            {enviandoMercadito ? 'Agregando...' : 'Agregar a mi entrega'}
-          </button>
-          <button onClick={() => router.push('/cliente')} style={{ width: '100%', background: 'transparent', color: 'rgba(42,33,24,0.5)', fontWeight: 600, fontSize: 14, border: 'none', borderRadius: 14, padding: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>
-            No por ahora
-          </button>
+          {/* Grid de productos */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px', paddingBottom: 180 }}>
+            {productosFiltrados.length === 0 ? (
+              <div style={{ padding: '40px 0', textAlign: 'center', color: 'rgba(42,33,24,0.4)', fontSize: 14 }}>No hay productos que coincidan.</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {productosFiltrados.map(p => {
+                  const qty = carritoUpsell[p.id] || 0
+                  const agotado = p.stock <= 0
+                  return (
+                    <div key={p.id} onClick={() => !agotado && setProductoDetalle(p)}
+                      style={{ background: '#fff', borderRadius: 16, border: `1.5px solid ${qty > 0 ? '#c1553a' : 'rgba(0,0,0,0.08)'}`, overflow: 'hidden', cursor: agotado ? 'default' : 'pointer', opacity: agotado ? 0.55 : 1, position: 'relative' }}>
+                      <div style={{ position: 'relative' }}>
+                        {p.imagen_url
+                          ? <img src={p.imagen_url} alt={p.nombre} style={{ width: '100%', height: 130, objectFit: 'cover', display: 'block' }} />
+                          : <div style={{ width: '100%', height: 130, background: 'rgba(193,85,58,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🛍️</div>
+                        }
+                        {qty > 0 && (
+                          <div style={{ position: 'absolute', top: 8, right: 8, background: '#c1553a', borderRadius: 999, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ color: '#fff', fontSize: 11, fontWeight: 800 }}>{qty}</span>
+                          </div>
+                        )}
+                        {agotado && (
+                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(42,33,24,0.5)' }}>Agotado</span>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ padding: '10px 10px 12px' }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: '#2a2118', marginBottom: 6, lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.nombre}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: '#c1553a' }}>{moneyU(p.precio_venta)}</span>
+                          {!agotado && (
+                            <button onClick={e => { e.stopPropagation(); setCarritoUpsell(c => ({ ...c, [p.id]: Math.min(p.stock, (c[p.id] || 0) + 1) })) }}
+                              style={{ width: 28, height: 28, borderRadius: 14, background: '#c1553a', border: 'none', color: '#fff', fontSize: 18, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>+</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Barra fija inferior */}
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid rgba(0,0,0,0.07)', padding: '12px 20px 24px', maxWidth: 430, margin: '0 auto' }}>
+            {totalUpsell > 0 && mostrarResumenUpsell && (
+              <div style={{ background: 'rgba(0,0,0,0.03)', borderRadius: 12, padding: '10px 12px', marginBottom: 10 }}>
+                {itemsCarrito.map(([id, qty]) => {
+                  const p = productosUpsell.find(x => x.id === Number(id))
+                  if (!p) return null
+                  return (
+                    <div key={id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, color: '#2a2118' }}>{qty}x {p.nombre}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#2a2118', marginLeft: 8, flexShrink: 0 }}>{moneyU(qty * p.precio_venta)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {totalUpsell > 0 && (
+              <button onClick={() => setMostrarResumenUpsell(v => !v)}
+                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 10px', fontFamily: 'inherit' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#2a2118' }}>🛍️ {mostrarResumenUpsell ? 'Ocultar' : 'Ver'} mi selección</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#c1553a' }}>{moneyU(totalUpsell)}</span>
+              </button>
+            )}
+            <button onClick={agregarMercadito} disabled={enviandoMercadito}
+              style={{ width: '100%', background: totalUpsell > 0 ? '#c1553a' : 'rgba(0,0,0,0.08)', color: totalUpsell > 0 ? '#fff' : 'rgba(42,33,24,0.35)', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14, padding: '14px', cursor: totalUpsell > 0 ? 'pointer' : 'default', fontFamily: 'inherit', marginBottom: 8 }}>
+              {enviandoMercadito ? 'Agregando...' : totalUpsell > 0 ? `Agregar ${moneyU(totalUpsell)} a mi entrega` : 'Listo, sin Mercadito'}
+            </button>
+            <button onClick={() => router.push('/cliente')}
+              style={{ width: '100%', background: 'transparent', color: 'rgba(42,33,24,0.5)', fontWeight: 600, fontSize: 14, border: 'none', padding: '10px', cursor: 'pointer', fontFamily: 'inherit' }}>
+              No por ahora
+            </button>
+          </div>
         </div>
       </TarjetaCliente>
     )

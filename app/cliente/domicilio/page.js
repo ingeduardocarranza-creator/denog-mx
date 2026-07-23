@@ -258,13 +258,21 @@ export default function Domicilio() {
       })
     if (!items.length) { setConfirmado(true); return }
     setEnviandoMercadito(true)
-    await fetch('/api/mercadito/pedidos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items, cliente_id: cliente.id, domicilio_id: domicilioId }),
-    })
-    setEnviandoMercadito(false)
-    setConfirmado(true)
+    setError('')
+    try {
+      const res = await fetch('/api/mercadito/pedidos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, cliente_id: cliente.id, domicilio_id: domicilioId }),
+      })
+      const data = await res.json()
+      if (!data.ok) setError(data.mensaje || 'El Mercadito no se pudo guardar, pero tu domicilio ya está confirmado.')
+    } catch (e) {
+      setError('Error de conexión. Tu domicilio ya está confirmado.')
+    } finally {
+      setEnviandoMercadito(false)
+      setConfirmado(true)
+    }
   }
 
   if (cargando) return (
@@ -280,9 +288,10 @@ export default function Domicilio() {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '40px 28px', textAlign: 'center' }}>
         <div style={{ fontSize: 72, marginBottom: 20 }}>✅</div>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#2a2118', marginBottom: 12, ...fk }}>¡Domicilio confirmado!</div>
-        <div style={{ fontSize: 15, color: 'rgba(42,33,24,0.6)', lineHeight: 1.6, marginBottom: 32, maxWidth: 340 }}>
+        <div style={{ fontSize: 15, color: 'rgba(42,33,24,0.6)', lineHeight: 1.6, marginBottom: error ? 12 : 32, maxWidth: 340 }}>
           Te avisaremos por WhatsApp cuando tu pedido esté en camino.
         </div>
+        {error && <div style={{ background: 'rgba(239,68,68,0.08)', border: '1.5px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '10px 14px', color: '#c0392b', fontSize: 13, marginBottom: 20, maxWidth: 340, width: '100%' }}>{error}</div>}
         <button onClick={() => router.push('/cliente')}
           style={{ width: '100%', maxWidth: 340, background: '#c1553a', color: '#fff', fontWeight: 700, fontSize: 16, border: 'none', borderRadius: 16, padding: '17px', cursor: 'pointer', fontFamily: 'inherit' }}>
           Volver al inicio
@@ -436,24 +445,28 @@ export default function Domicilio() {
           {/* Barra fija inferior */}
           <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid rgba(0,0,0,0.07)', padding: '12px 20px 24px', maxWidth: 430, margin: '0 auto' }}>
             {totalUpsell > 0 && mostrarResumenUpsell && (
-              <div style={{ background: 'rgba(0,0,0,0.03)', borderRadius: 12, padding: '10px 12px', marginBottom: 10 }}>
+              <div style={{ background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.15)', borderRadius: 14, padding: '12px 14px', marginBottom: 12 }}>
                 {itemsCarrito.map(([id, qty]) => {
                   const p = productosUpsell.find(x => x.id === Number(id))
                   if (!p) return null
                   return (
-                    <div key={id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 12, color: '#2a2118' }}>{qty}x {p.nombre}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#2a2118', marginLeft: 8, flexShrink: 0 }}>{moneyU(qty * p.precio_venta)}</span>
+                    <div key={id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 14, color: '#2a2118', flex: 1, lineHeight: 1.4 }}>{qty}× {p.nombre}</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: '#c1553a', marginLeft: 10, flexShrink: 0 }}>{moneyU(qty * p.precio_venta)}</span>
                     </div>
                   )
                 })}
+                <div style={{ borderTop: '1px solid rgba(193,85,58,0.15)', marginTop: 6, paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(42,33,24,0.55)' }}>Total Mercadito</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: '#c1553a' }}>{moneyU(totalUpsell)}</span>
+                </div>
               </div>
             )}
             {totalUpsell > 0 && (
               <button onClick={() => setMostrarResumenUpsell(v => !v)}
-                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 10px', fontFamily: 'inherit' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#2a2118' }}>🛍️ {mostrarResumenUpsell ? 'Ocultar' : 'Ver'} mi selección</span>
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#c1553a' }}>{moneyU(totalUpsell)}</span>
+                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.03)', border: 'none', borderRadius: 12, cursor: 'pointer', padding: '11px 14px', marginBottom: 10, fontFamily: 'inherit' }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#2a2118' }}>🛍️ {mostrarResumenUpsell ? 'Ocultar resumen' : 'Ver mi selección'}</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: '#c1553a' }}>{moneyU(totalUpsell)} {mostrarResumenUpsell ? '▴' : '▾'}</span>
               </button>
             )}
             {totalUpsell > 0 && (

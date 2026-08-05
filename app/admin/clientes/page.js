@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '../../../lib/supabase'
 
 const iStyle = 'w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm outline-none'
 const lStyle = 'text-gray-400 text-xs block mb-1'
@@ -27,8 +26,9 @@ export default function Clientes() {
   useEffect(() => { cargarClientes() }, [])
 
   const cargarClientes = async () => {
-    const { data } = await supabase.from('clientes').select('*').order('nombre')
-    if (data) setClientes(data)
+    const res = await fetch('/api/clientes/listar?activo=todos')
+    const data = await res.json()
+    if (data.ok) setClientes(data.clientes)
   }
 
   // ── Generación de usuario ──────────────────────────────────────

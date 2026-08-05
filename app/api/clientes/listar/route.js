@@ -10,12 +10,17 @@ const supabase = createClient(
 
 export async function GET(req) {
   if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  const { data, error } = await supabase
+  const { searchParams } = new URL(req.url)
+  const incluirInactivos = searchParams.get('activo') === 'todos'
+
+  let query = supabase
     .from('clientes')
     .select('id, nombre, usuario, telefono, activo, rol, direccion, colonia, referencias, celular_contacto, limite_credito, requiere_anticipo')
-    .eq('activo', true)
     .order('nombre')
 
+  if (!incluirInactivos) query = query.eq('activo', true)
+
+  const { data, error } = await query
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true, clientes: data })
 }

@@ -442,6 +442,20 @@ export default function Portada() {
           </a>
         ))}
       </footer>
+
+      {/* Datos legales — Meta compara el nombre del negocio en el sitio contra
+          los documentos fiscales al verificar la cuenta de WhatsApp Business.
+          Dejar visible la razón social evita que rechacen "Denog" como nombre
+          para mostrar. No quitar. */}
+      <p style={{
+        marginTop: 18, position: 'relative', zIndex: 2,
+        fontSize: 12, lineHeight: 1.6, color: 'rgba(42,33,24,0.55)',
+      }}>
+        Denog es una marca operada por <strong style={{ fontWeight: 600 }}>Andrea Verónica Pérez Valenzuela</strong>,
+        Persona Física con Actividad Empresarial · Hermosillo, Sonora, México
+        <br />
+        <a href="/privacidad" style={{ color: 'inherit' }}>Aviso de privacidad</a>
+      </p>
     </div>
     </>
   )

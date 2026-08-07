@@ -5,6 +5,12 @@ import { GRUPOS_COLABORADOR } from '../../lib/menuColaborador'
 
 const grupos = [
   {
+    label: 'WHATSAPP',
+    items: [
+      { label: 'Pendientes', icon: '🔔', href: '/admin/pendientes', badgeKey: 'pendientes' },
+    ],
+  },
+  {
     label: 'OPERACIONES',
     items: [
       { label: 'Punto de venta', icon: '🏪', href: '/admin/punto-venta' },

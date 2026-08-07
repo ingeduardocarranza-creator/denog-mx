@@ -71,7 +71,19 @@ export default function MenuLateral({ grupos, children }) {
     return () => clearInterval(intervalo)
   }, [])
 
-  const badges = { domicilios: domiciliosPendientes, mercadito: mercaditoPendientes }
+  const [pendientesWhatsApp, setPendientesWhatsApp] = useState(0)
+  useEffect(() => {
+    const verificar = async () => {
+      const res  = await fetch('/api/pendientes/count')
+      const data = await res.json()
+      if (data.ok) setPendientesWhatsApp(data.count)
+    }
+    verificar()
+    const intervalo = setInterval(verificar, 20000)
+    return () => clearInterval(intervalo)
+  }, [])
+
+  const badges = { domicilios: domiciliosPendientes, mercadito: mercaditoPendientes, pendientes: pendientesWhatsApp }
 
   const salir = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })

@@ -13,10 +13,13 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              // connect.facebook.net: SDK del diálogo de Embedded Signup en
+              // /admin/conectar-whatsapp (B7) — coexistencia de WhatsApp.
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https://*.supabase.co",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://graph.facebook.com https://*.facebook.com",
+              "frame-src https://www.facebook.com https://web.facebook.com https://staticxx.facebook.com",
               "font-src 'self'",
               "frame-ancestors 'none'",
             ].join('; '),

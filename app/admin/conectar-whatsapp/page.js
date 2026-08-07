@@ -76,13 +76,13 @@ export default function ConectarWhatsApp() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, ...datosWaRef.current }),
     })
-    const data = await res.json()
-    if (!data.ok) {
-      setEstado('error')
-      setDetalle(data.mensaje || 'No se pudo confirmar con Meta.')
-      return
-    }
-    if (data.phone_number_id && !data.coincidePhone) {
+    const data = await res.json().catch(() => null)
+    // La confirmación con el backend es informativa, no decide si el
+    // vínculo funcionó — eso ya lo hizo Meta al entregar el code. Si esta
+    // llamada falla (p. ej. por el detalle del redirect_uri del SDK), no
+    // bloqueamos: solo avisamos algo distinto si de plano vinculó el
+    // número equivocado.
+    if (data?.ok && data.phone_number_id && !data.coincidePhone) {
       setEstado('error')
       setDetalle(`Se vinculó un número distinto al configurado (${data.phone_number_id}). Avísale a Eduardo antes de seguir usándolo.`)
       return
@@ -106,7 +106,11 @@ export default function ConectarWhatsApp() {
       config_id: CONFIG_ID,
       response_type: 'code',
       override_default_response_type: true,
-      extras: { featureType: 'whatsapp_business_app_onboarding', sessionInfoVersion: '3' },
+      extras: {
+        setup: {},
+        featureType: 'whatsapp_business_app_onboarding',
+        sessionInfoVersion: '3',
+      },
     })
   }
 

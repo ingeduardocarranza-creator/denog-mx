@@ -20,6 +20,10 @@ export async function POST(req) {
       client_id: process.env.NEXT_PUBLIC_WHATSAPP_APP_ID,
       client_secret: process.env.WHATSAPP_APP_SECRET,
       code,
+      // El code vino del diálogo del SDK (popup), no de una redirección de
+      // página completa — Meta exige repetir aquí el mismo redirect_uri
+      // (vacío) que se usó implícitamente, si no rechaza el intercambio.
+      redirect_uri: '',
     })
     const res = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?${params}`)
     const data = await res.json()

@@ -221,6 +221,32 @@ lleguen los primeros mensajes de prueba** y ajustar `app/api/whatsapp/webhook/ro
 el nombre del campo es distinto. Si esto no funciona, el barrido de "sin responder" sigue
 funcionando igual (se basa en si el cliente volvió a escribir, no solo en el eco).
 
+## 11 bis. Trampas de la coexistencia (aprendidas a la mala)
+
+- **La API ocupa uno de los 5 espacios de dispositivo.** WhatsApp permite el celular
+  "cerebro" + 4 dispositivos vinculados. Si los 5 están ocupados, la conexión con la API
+  falla en silencio: el número queda "Sin conexión" y el código de verificación para
+  revincularlo **nunca llega**. Solución: desvincular un dispositivo (Ajustes →
+  Dispositivos vinculados) y reintentar. Esto costó una sesión entera de diagnóstico.
+- Si la app no se abre en el celular "cerebro" por más de 14 días, la coexistencia se
+  desconecta sola.
+- WhatsApp para Windows y WearOS no funcionan en coexistencia. Web y Mac sí, pero se
+  desvinculan al conectar la API y hay que volver a vincularlos.
+- Los mensajes de grupos no llegan a la API (para Denog no importa: el grupo es solo de
+  difusión de fotos).
+- La cuenta de WhatsApp también debe estar suscrita a la app. Si el webhook está bien
+  configurado pero no llega nada, verificar con
+  `POST /{WABA_ID}/subscribed_apps` desde el Explorador de la API Graph.
+- **La cuenta de Denog es de tipo "SMB"** (negocio pequeño con app de WhatsApp Business).
+  Para ese tipo Meta bloquea el registro por API: `POST /{PHONE_ID}/register` devuelve
+  *"Register endpoint is not available for SMB businesses"*. Tampoco hay botón en
+  WhatsApp Manager. **El único camino es el Embedded Signup de coexistencia**, que se
+  lanza desde una página propia (ver B7), no desde ninguna pantalla de Meta.
+- Diagnóstico útil: `GET /{PHONE_ID}?fields=status,platform_type,code_verification_status`.
+  Si `platform_type` es `ON_PREMISE` y `status` es `DISCONNECTED`, el número quedó atado
+  a la API vieja (dada de baja por Meta) y hace falta rehacer el onboarding por
+  coexistencia.
+
 ## 12. Qué falta para encenderlo
 
 1. Correr en Supabase (SQL editor, en este orden) las migraciones que faltan:

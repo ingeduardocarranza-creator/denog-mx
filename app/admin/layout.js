@@ -8,6 +8,7 @@ const grupos = [
     label: 'WHATSAPP',
     items: [
       { label: 'Pendientes', icon: '🔔', href: '/admin/pendientes', badgeKey: 'pendientes' },
+      { label: 'Conectar WhatsApp', icon: '🔗', href: '/admin/conectar-whatsapp' },
     ],
   },
   {

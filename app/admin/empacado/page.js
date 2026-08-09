@@ -1,6 +1,12 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 
+const TIPO_EMPAQUE = {
+  chico:   { label: 'Chico',   sub: 'Bolsa blanca o cartón', icon: '🥡', color: '#60a5fa' },
+  mediano: { label: 'Mediano', sub: 'Bolsa blanca',          icon: '🛍️', color: '#facc15' },
+  grande:  { label: 'Grande',  sub: 'Bolsa TJ Maxx',         icon: '🛒', color: '#fb923c' },
+}
+
 export default function Empacado() {
   const [entregas, setEntregas] = useState([])
   const [entregaId, setEntregaId] = useState('')
@@ -66,7 +72,8 @@ export default function Empacado() {
       if (items.length === 0 && fragilItems.length === 0 && pendienteItems.length === 0) status = 'sin_llegar'
       else if (pendienteItems.length === 0 && items.every(it => it.estado === 'empacado')) status = 'empacado'
       else status = 'pendiente'
-      return { ...c, items, noLlegoItems, fragilItems, pendienteItems, piezasBolsa, piezasFragil, status }
+      const tipoEmpaque = items.find(it => it.tipo_empaque)?.tipo_empaque || null
+      return { ...c, items, noLlegoItems, fragilItems, pendienteItems, piezasBolsa, piezasFragil, status, tipoEmpaque }
     }).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
   }, [pedidos])
 
@@ -117,6 +124,14 @@ export default function Empacado() {
   const toggleFragil    = (p) => actualizarPedido(p, { apartado_fragil: !p.apartado_fragil })
   const toggleNoLlego   = (p) => actualizarPedido(p, { estado: p.estado === 'no_llego' ? 'comprado' : 'no_llego' })
   const togglePendiente = (p) => actualizarPedido(p, { estado: p.estado === 'pendiente' ? 'comprado' : 'pendiente' })
+
+  const setTipoEmpaqueCliente = async (tipo) => {
+    if (!cliente || procesando) return
+    const nuevoTipo = cliente.tipoEmpaque === tipo ? null : tipo
+    for (const item of cliente.items) {
+      await actualizarPedido(item, { tipo_empaque: nuevoTipo })
+    }
+  }
 
   const marcarClienteEmpacado = async () => {
     if (!cliente || procesando) return
@@ -259,6 +274,32 @@ export default function Empacado() {
                     </div>
                     <div style={{ flex: 'none', background: pillPorStatus[cliente.status].bg, color: pillPorStatus[cliente.status].color, borderRadius: 999, padding: '8px 16px', fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>
                       {pillPorStatus[cliente.status].label}
+                    </div>
+                  </div>
+
+                  {/* Selector de tipo de empaque */}
+                  <div style={{ padding: '16px 20px 0' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>Tipo de empaque de esta bolsa</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {Object.entries(TIPO_EMPAQUE).map(([key, meta]) => {
+                        const activo = cliente.tipoEmpaque === key
+                        return (
+                          <button key={key} onClick={() => setTipoEmpaqueCliente(key)}
+                            style={{
+                              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                              padding: '12px 10px', borderRadius: 12, cursor: 'pointer',
+                              background: activo ? `${meta.color}26` : 'rgba(255,255,255,0.04)',
+                              border: `1.5px solid ${activo ? meta.color : 'rgba(255,255,255,0.14)'}`,
+                              color: activo ? meta.color : 'rgba(255,255,255,0.7)',
+                            }}>
+                            <span style={{ fontSize: 18 }}>{meta.icon}</span>
+                            <span style={{ textAlign: 'left' }}>
+                              <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.2 }}>{meta.label}</div>
+                              <div style={{ fontSize: 11, fontWeight: 500, opacity: 0.75, lineHeight: 1.2 }}>{meta.sub}</div>
+                            </span>
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
 

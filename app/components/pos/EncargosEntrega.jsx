@@ -20,6 +20,12 @@ const formatearFechaCorta = (fecha) => {
   return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`;
 };
 
+const TIPO_EMPAQUE = {
+  chico:   { label: 'Chico',   sub: 'Bolsa blanca o cartón', icon: '🥡', color: '#60a5fa' },
+  mediano: { label: 'Mediano', sub: 'Bolsa blanca',          icon: '🛍️', color: '#facc15' },
+  grande:  { label: 'Grande',  sub: 'Bolsa TJ Maxx',         icon: '🛒', color: '#fb923c' },
+};
+
 const iniciales = (nombre) =>
   (nombre || '').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase();
 
@@ -64,6 +70,10 @@ export default function EncargosEntrega({
     .filter((pm) => mercaditoSeleccionado[pm.id])
     .reduce((sum, pm) => sum + (pm.items || []).filter((it) => it.apartado_fragil).length, 0);
   const totalApartadosFragil = totalApartadosFragilEncargo + totalApartadosFragilMercadito;
+
+  const tipoEmpaquePrincipal = bloquesEntregas
+    .flatMap((b) => b.pedidos)
+    .find((p) => p.tipo_empaque)?.tipo_empaque || null;
 
   const totalPiezas = bloquesEntregas.reduce(
     (sum, b) =>
@@ -223,6 +233,23 @@ export default function EncargosEntrega({
                   </div>
                 </div>
               </div>
+              {tipoEmpaquePrincipal && (
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    background: `${TIPO_EMPAQUE[tipoEmpaquePrincipal].color}22`,
+                    border: `1.5px solid ${TIPO_EMPAQUE[tipoEmpaquePrincipal].color}`,
+                    color: TIPO_EMPAQUE[tipoEmpaquePrincipal].color,
+                    borderRadius: 12, padding: '9px 16px', flex: 'none',
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>{TIPO_EMPAQUE[tipoEmpaquePrincipal].icon}</span>
+                  <span>
+                    <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.2 }}>{TIPO_EMPAQUE[tipoEmpaquePrincipal].label}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.85, lineHeight: 1.2 }}>{TIPO_EMPAQUE[tipoEmpaquePrincipal].sub}</div>
+                  </span>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={onCambiarCliente}
@@ -319,6 +346,7 @@ export default function EncargosEntrega({
           );
           const totalDescuentoAnticipos = anticiposDeEsteBloque.reduce((acc, a) => acc + Number(a.monto), 0);
           const subtotalFinalEntrega = Math.max(0, subtotalArticulos - totalDescuentoAnticipos);
+          const tipoEmpaqueBloque = bloque.pedidos.find((p) => p.tipo_empaque)?.tipo_empaque || null;
 
           return (
             <div
@@ -336,11 +364,26 @@ export default function EncargosEntrega({
                 <span style={{ fontSize: 15, fontWeight: 800, color: bloque.atrasada ? '#fca5a5' : '#fff', letterSpacing: '0.02em' }}>
                   ENTREGA: {formatearFecha(bloque.entrega.fecha_entrega)}
                 </span>
-                {bloque.atrasada && (
-                  <span style={{ background: '#ef4444', color: '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 800, letterSpacing: '0.04em' }}>
-                    ATRASADA
-                  </span>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {tipoEmpaqueBloque && (
+                    <span
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        background: `${TIPO_EMPAQUE[tipoEmpaqueBloque].color}22`,
+                        color: TIPO_EMPAQUE[tipoEmpaqueBloque].color,
+                        border: `1px solid ${TIPO_EMPAQUE[tipoEmpaqueBloque].color}`,
+                        borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 800,
+                      }}
+                    >
+                      {TIPO_EMPAQUE[tipoEmpaqueBloque].icon} {TIPO_EMPAQUE[tipoEmpaqueBloque].label}
+                    </span>
+                  )}
+                  {bloque.atrasada && (
+                    <span style={{ background: '#ef4444', color: '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 800, letterSpacing: '0.04em' }}>
+                      ATRASADA
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="px-5">

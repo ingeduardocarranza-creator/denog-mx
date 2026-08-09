@@ -140,7 +140,7 @@ export default function Clientes() {
             <div className="text-gray-400 text-sm">{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</div>
           </div>
           <button onClick={() => { setMostrarForm(f => !f); setMsg('') }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium">
+            className="bg-[#c1553a] hover:bg-[#9b3f28] text-white px-4 py-2 rounded-xl text-sm font-medium">
             {mostrarForm ? 'Cancelar' : '+ Nuevo cliente'}
           </button>
         </div>
@@ -165,7 +165,7 @@ export default function Clientes() {
               <div>
                 <label className={lStyle}>
                   Usuario portal *
-                  {!usuarioManual && <span className="text-indigo-400 ml-1">(auto-generado)</span>}
+                  {!usuarioManual && <span className="text-[#dd8a6c] ml-1">(auto-generado)</span>}
                 </label>
                 <input type="text" value={nuevo.usuario}
                   onChange={e => { setUsuarioManual(true); setNuevo({...nuevo, usuario: e.target.value.toLowerCase().replace(/\s/g, '.')}) }}
@@ -255,7 +255,7 @@ export default function Clientes() {
                     </div>
                     <div className="flex justify-end">
                       <button onClick={() => isEditing ? setEditando(null) : abrirEdicion(c)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${isEditing ? 'bg-gray-700 text-gray-400 border-gray-600' : 'bg-indigo-900/30 text-indigo-400 border-indigo-800/50 hover:bg-indigo-900/50'}`}>
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${isEditing ? 'bg-gray-700 text-gray-400 border-gray-600' : 'bg-[#4a1b0c]/30 text-[#dd8a6c] border-[#6d2a19]/50 hover:bg-[#4a1b0c]/50'}`}>
                         {isEditing ? 'Cerrar' : '✏️ Editar'}
                       </button>
                     </div>

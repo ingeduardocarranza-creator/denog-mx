@@ -187,14 +187,14 @@ export default function CatalogoColaborador() {
               <div className="space-y-1">
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-slate-400 font-bold">Categoría</label>
-                  <button type="button" onClick={() => setMostrarCreadorCat(!mostrarCreadorCat)} className="text-[11px] text-blue-400 hover:underline font-bold">
+                  <button type="button" onClick={() => setMostrarCreadorCat(!mostrarCreadorCat)} className="text-[11px] text-[#dd8a6c] hover:underline font-bold">
                     {mostrarCreadorCat ? 'Cancelar' : '+ Nueva categoría'}
                   </button>
                 </div>
                 {mostrarCreadorCat ? (
                   <div className="flex gap-2 p-2 bg-[#111520] rounded-xl border border-slate-800">
                     <input type="text" placeholder="Nombre de categoría…" value={nuevaCategoriaInput} onChange={(e) => setNuevaCategoriaInput(e.target.value)} className="w-full bg-[#1e2533] border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
-                    <button type="button" onClick={agregarCategoriaALista} className="bg-blue-600 text-white font-bold px-3 py-1.5 rounded-lg">Añadir</button>
+                    <button type="button" onClick={agregarCategoriaALista} className="bg-[#c1553a] text-white font-bold px-3 py-1.5 rounded-lg">Añadir</button>
                   </div>
                 ) : (
                   <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none">
@@ -223,7 +223,7 @@ export default function CatalogoColaborador() {
                     <div className="w-16 h-16 rounded-lg bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-xl">📦</div>
                   )}
                   <div className="flex-1 space-y-1.5">
-                    <label className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl cursor-pointer transition-all">
+                    <label className="block w-full text-center bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-2.5 rounded-xl cursor-pointer transition-all">
                       {subiendoSlot === 'principal' ? 'Subiendo…' : imagenUrl ? '📷 Cambiar foto' : '📷 Tomar / subir foto'}
                       <input type="file" accept="image/*" onChange={subirFoto('principal')} disabled={subiendoSlot !== null} className="hidden" />
                     </label>
@@ -255,7 +255,7 @@ export default function CatalogoColaborador() {
               </div>
 
               <div className="pt-2 flex gap-2">
-                <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all uppercase tracking-wider shadow-md">
+                <button type="submit" disabled={loading} className="w-full bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-3 rounded-xl transition-all uppercase tracking-wider shadow-md">
                   {loading ? 'Guardando…' : editandoId ? 'Guardar cambios' : 'Enviar producto'}
                 </button>
                 {editandoId && (
@@ -312,7 +312,7 @@ export default function CatalogoColaborador() {
                         )}
                       </td>
                       <td className="p-3 text-center">
-                        <button onClick={() => iniciarEdicion(p)} className="bg-[#1e2533] hover:bg-blue-600 hover:text-white border border-slate-700 text-slate-300 px-2.5 py-1 rounded-md font-bold transition-all">
+                        <button onClick={() => iniciarEdicion(p)} className="bg-[#1e2533] hover:bg-[#c1553a] hover:text-white border border-slate-700 text-slate-300 px-2.5 py-1 rounded-md font-bold transition-all">
                           Editar
                         </button>
                       </td>

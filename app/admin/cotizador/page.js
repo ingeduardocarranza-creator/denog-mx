@@ -76,9 +76,9 @@ export default function Cotizador() {
             <div style={{ display: 'flex', gap: 6, marginBottom: taxTipo === 'denog' ? 10 : 0 }}>
               {taxBtns.map(btn => {
                 const activo = taxTipo === btn.id
-                const colorActivo = btn.id === 'denog' ? '#f59e0b' : '#818cf8'
-                const bgActivo = btn.id === 'denog' ? 'rgba(245,158,11,0.15)' : 'rgba(99,102,241,0.2)'
-                const borderActivo = btn.id === 'denog' ? 'rgba(245,158,11,0.35)' : 'rgba(99,102,241,0.4)'
+                const colorActivo = btn.id === 'denog' ? '#f59e0b' : '#dd8a6c'
+                const bgActivo = btn.id === 'denog' ? 'rgba(245,158,11,0.15)' : 'rgba(193,85,58,0.2)'
+                const borderActivo = btn.id === 'denog' ? 'rgba(245,158,11,0.35)' : 'rgba(193,85,58,0.4)'
                 return (
                   <button key={btn.id} onClick={() => setTaxTipo(btn.id)}
                     style={{ flex: 1, background: activo ? bgActivo : 'rgba(255,255,255,0.03)', border: `1px solid ${activo ? borderActivo : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, padding: '7px 4px', cursor: 'pointer' }}>
@@ -109,7 +109,7 @@ export default function Cotizador() {
             </div>
             <input type="range" min="5" max="80" value={ganancia}
               onChange={e => setGanancia(parseFloat(e.target.value))}
-              style={{ width: '100%', marginTop: 8, accentColor: '#818cf8' }} />
+              style={{ width: '100%', marginTop: 8, accentColor: '#dd8a6c' }} />
           </div>
         </div>
 
@@ -135,7 +135,7 @@ export default function Cotizador() {
         </div>
 
         {/* Precio final */}
-        <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 18, padding: 24, textAlign: 'center' }}>
+        <div style={{ background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 18, padding: 24, textAlign: 'center' }}>
           <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Precio de venta al cliente</div>
           <div style={{ color: 'white', fontSize: 56, fontWeight: 800, letterSpacing: -1, lineHeight: 1 }}>
             {`$${precioRedondeado.toLocaleString('es-MX')}`}
@@ -154,7 +154,7 @@ export default function Cotizador() {
             <div style={{ width: 1, background: 'rgba(255,255,255,0.1)' }} />
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginBottom: 2 }}>Margen</div>
-              <div style={{ color: '#818cf8', fontSize: 14, fontWeight: 600 }}>{ganancia}%</div>
+              <div style={{ color: '#dd8a6c', fontSize: 14, fontWeight: 600 }}>{ganancia}%</div>
             </div>
           </div>
         </div>

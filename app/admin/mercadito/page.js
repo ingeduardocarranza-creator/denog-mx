@@ -304,7 +304,7 @@ export default function MercaditoAdmin() {
           <div className="bg-[#111827] rounded-2xl border border-white/10 p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-400">{totalPendiente} por atender</span>
-              <button type="button" onClick={() => setShowDaily(true)} className="text-[11px] font-bold text-blue-400 hover:underline">🖨️ Ver resumen del día</button>
+              <button type="button" onClick={() => setShowDaily(true)} className="text-[11px] font-bold text-[#dd8a6c] hover:underline">🖨️ Ver resumen del día</button>
             </div>
             <div className="space-y-1.5">
               {chartRows.map((r) => (
@@ -342,7 +342,7 @@ export default function MercaditoAdmin() {
                 return (
                   <button key={t} type="button" onClick={() => setTab(t)}
                     className="px-3 py-1.5 rounded-xl text-[11.5px] font-bold border transition-all"
-                    style={activo ? { background: 'rgba(59,130,246,0.18)', color: '#fff', border: '1px solid rgba(59,130,246,0.5)' } : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    style={activo ? { background: 'rgba(193,85,58,0.18)', color: '#fff', border: '1px solid rgba(193,85,58,0.5)' } : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
                     {label} <span className="ml-1 bg-red-600/80 rounded-full px-1.5 text-[9.5px]">{conteosPorEstado[t]}</span>
                   </button>
                 );
@@ -419,7 +419,7 @@ export default function MercaditoAdmin() {
                           ) : (
                             <span className="text-slate-400 text-xs flex-none">{it.cantidad}x</span>
                           )}
-                          <span className="text-blue-300 text-xs font-bold w-16 text-right flex-none">${money(it.precio_unitario)}</span>
+                          <span className="text-[#dd8a6c] text-xs font-bold w-16 text-right flex-none">${money(it.precio_unitario)}</span>
                           <button type="button" onClick={() => toggleFragil(p, idx)} className="flex-none px-2.5 py-1 rounded-lg text-[11px] font-bold" style={it.apartado_fragil ? { background: 'rgba(250,204,21,0.18)', color: '#facc15', border: '1px solid rgba(250,204,21,0.5)' } : { background: 'transparent', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.16)' }}>
                             ⚠️ Frágil
                           </button>
@@ -595,7 +595,7 @@ export default function MercaditoAdmin() {
                 </div>
               ))}
             </div>
-            <button type="button" onClick={() => window.print()} className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs">🖨️ Imprimir</button>
+            <button type="button" onClick={() => window.print()} className="w-full mt-4 bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-2.5 rounded-xl text-xs">🖨️ Imprimir</button>
           </div>
         </div>
       )}

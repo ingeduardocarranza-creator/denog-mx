@@ -239,14 +239,14 @@ export default function TiendaTienda({
           <button
             type="button"
             onClick={() => setSubtab('monto')}
-            style={{ flex: 1, background: subtab === 'monto' ? 'rgba(59,130,246,0.16)' : 'transparent', color: subtab === 'monto' ? '#3b82f6' : 'rgba(255,255,255,0.55)', border: 'none', borderRadius: 11, padding: 13, fontSize: 15, fontWeight: subtab === 'monto' ? 800 : 700, cursor: 'pointer' }}
+            style={{ flex: 1, background: subtab === 'monto' ? 'rgba(193,85,58,0.16)' : 'transparent', color: subtab === 'monto' ? '#c1553a' : 'rgba(255,255,255,0.55)', border: 'none', borderRadius: 11, padding: 13, fontSize: 15, fontWeight: subtab === 'monto' ? 800 : 700, cursor: 'pointer' }}
           >
             💵 Monto
           </button>
           <button
             type="button"
             onClick={() => setSubtab('productos')}
-            style={{ flex: 1, background: subtab === 'productos' ? 'rgba(59,130,246,0.16)' : 'transparent', color: subtab === 'productos' ? '#3b82f6' : 'rgba(255,255,255,0.55)', border: 'none', borderRadius: 11, padding: 13, fontSize: 15, fontWeight: subtab === 'productos' ? 800 : 700, cursor: 'pointer' }}
+            style={{ flex: 1, background: subtab === 'productos' ? 'rgba(193,85,58,0.16)' : 'transparent', color: subtab === 'productos' ? '#c1553a' : 'rgba(255,255,255,0.55)', border: 'none', borderRadius: 11, padding: 13, fontSize: 15, fontWeight: subtab === 'productos' ? 800 : 700, cursor: 'pointer' }}
           >
             🔎 Productos
           </button>
@@ -285,7 +285,7 @@ export default function TiendaTienda({
               type="button"
               onClick={agregarMonto}
               disabled={!montoValido}
-              style={{ width: '100%', maxWidth: 420, border: 'none', borderRadius: 12, padding: 15, fontSize: 16, fontWeight: 800, cursor: montoValido ? 'pointer' : 'not-allowed', background: montoValido ? '#3b82f6' : 'rgba(59,130,246,0.25)', color: montoValido ? '#fff' : 'rgba(255,255,255,0.5)' }}
+              style={{ width: '100%', maxWidth: 420, border: 'none', borderRadius: 12, padding: 15, fontSize: 16, fontWeight: 800, cursor: montoValido ? 'pointer' : 'not-allowed', background: montoValido ? '#c1553a' : 'rgba(193,85,58,0.25)', color: montoValido ? '#fff' : 'rgba(255,255,255,0.5)' }}
             >
               ＋ Agregar a la venta
             </button>
@@ -293,7 +293,7 @@ export default function TiendaTienda({
         ) : (
           <div style={{ padding: '20px 22px 24px' }}>
             <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid #3b82f6', borderRadius: 12, padding: '12px 16px' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid #c1553a', borderRadius: 12, padding: '12px 16px' }}>
                 <span style={{ fontSize: 16, opacity: 0.7 }}>🔍</span>
                 <input
                   type="text"
@@ -320,9 +320,9 @@ export default function TiendaTienda({
                     type="button"
                     onClick={() => setActiveCat(cat)}
                     style={{
-                      background: activo ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.05)',
-                      color: activo ? '#3b82f6' : 'rgba(255,255,255,0.7)',
-                      border: `1px solid ${activo ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.12)'}`,
+                      background: activo ? 'rgba(193,85,58,0.18)' : 'rgba(255,255,255,0.05)',
+                      color: activo ? '#c1553a' : 'rgba(255,255,255,0.7)',
+                      border: `1px solid ${activo ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.12)'}`,
                       borderRadius: 999,
                       padding: '8px 16px',
                       fontSize: 13,
@@ -351,7 +351,7 @@ export default function TiendaTienda({
                   <button
                     type="button"
                     onClick={() => agregarProducto(p)}
-                    style={{ flex: 'none', width: 38, height: 38, borderRadius: 10, background: '#3b82f6', color: '#fff', border: 'none', fontSize: 20, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}
+                    style={{ flex: 'none', width: 38, height: 38, borderRadius: 10, background: '#c1553a', color: '#fff', border: 'none', fontSize: 20, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}
                   >
                     ＋
                   </button>
@@ -373,13 +373,13 @@ export default function TiendaTienda({
                     key={v.id}
                     type="button"
                     onClick={() => setVendedorTienda(v)}
-                    style={{ flex: 1, minWidth: 80, background: activo ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${activo ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, padding: '8px 6px', cursor: 'pointer' }}
+                    style={{ flex: 1, minWidth: 80, background: activo ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${activo ? 'rgba(193,85,58,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, padding: '8px 6px', cursor: 'pointer' }}
                   >
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: activo ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: activo ? '#3b82f6' : 'rgba(255,255,255,0.5)', fontWeight: 700, margin: '0 auto 5px' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: activo ? 'rgba(193,85,58,0.3)' : 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: activo ? '#c1553a' : 'rgba(255,255,255,0.5)', fontWeight: 700, margin: '0 auto 5px' }}>
                       {iniciales}
                     </div>
-                    <div style={{ color: activo ? '#3b82f6' : 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: activo ? 600 : 400 }}>{v.nombre.split(' ')[0]}</div>
-                    {v.id === colaborador?.id && <div style={{ color: activo ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.2)', fontSize: 9 }}>En sesión</div>}
+                    <div style={{ color: activo ? '#c1553a' : 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: activo ? 600 : 400 }}>{v.nombre.split(' ')[0]}</div>
+                    {v.id === colaborador?.id && <div style={{ color: activo ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.2)', fontSize: 9 }}>En sesión</div>}
                   </button>
                 );
               })}
@@ -418,7 +418,7 @@ export default function TiendaTienda({
                 <button
                   type="button"
                   onClick={() => setMenuId((m) => (m === linea.id ? null : linea.id))}
-                  style={{ flex: 'none', width: 32, height: 32, borderRadius: 8, background: menuId === linea.id ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)', color: menuId === linea.id ? '#3b82f6' : 'rgba(255,255,255,0.7)', border: 'none', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}
+                  style={{ flex: 'none', width: 32, height: 32, borderRadius: 8, background: menuId === linea.id ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.06)', color: menuId === linea.id ? '#c1553a' : 'rgba(255,255,255,0.7)', border: 'none', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}
                 >
                   ⋮
                 </button>
@@ -436,7 +436,7 @@ export default function TiendaTienda({
               </div>
               {menuId === linea.id && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                  <button type="button" onClick={() => abrirEditarPrecio(linea)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(59,130,246,0.14)', border: '1px solid rgba(59,130,246,0.4)', color: '#3b82f6', fontSize: 12.5, fontWeight: 700, padding: '9px 6px', borderRadius: 9, cursor: 'pointer' }}>✏️ Precio</button>
+                  <button type="button" onClick={() => abrirEditarPrecio(linea)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(193,85,58,0.14)', border: '1px solid rgba(193,85,58,0.4)', color: '#c1553a', fontSize: 12.5, fontWeight: 700, padding: '9px 6px', borderRadius: 9, cursor: 'pointer' }}>✏️ Precio</button>
                   <button type="button" onClick={() => abrirEditarDescuento(linea)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(52,211,153,0.14)', border: '1px solid rgba(52,211,153,0.4)', color: '#34d399', fontSize: 12.5, fontWeight: 700, padding: '9px 6px', borderRadius: 9, cursor: 'pointer' }}>🏷 Descuento</button>
                   <button type="button" onClick={() => quitarLinea(linea.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', fontSize: 12.5, fontWeight: 700, padding: '9px 6px', borderRadius: 9, cursor: 'pointer' }}>🗑 Quitar</button>
                 </div>
@@ -453,7 +453,7 @@ export default function TiendaTienda({
                 <button type="button" onClick={() => setClienteTienda(null)} style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Quitar</button>
               </div>
             ) : (
-              <button type="button" onClick={() => setClientePickerOpen((o) => !o)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', color: '#3b82f6', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              <button type="button" onClick={() => setClientePickerOpen((o) => !o)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', color: '#c1553a', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
                 👤 Agregar cliente
               </button>
             )}
@@ -481,7 +481,7 @@ export default function TiendaTienda({
             <button
               type="button"
               onClick={() => { setVentaDiscountType(descuentoVenta?.tipo || 'percent'); setVentaDiscountDraft(descuentoVenta?.valor ? String(descuentoVenta.valor) : ''); setVentaDiscountOpen(true); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', color: '#3b82f6', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: 0 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', color: '#c1553a', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: 0 }}
             >
               🏷 Aplicar descuento{descuentoVenta?.valor > 0 ? ` (${descuentoVenta.tipo === 'amount' ? `−$${money(descuentoVenta.valor)}` : `−${descuentoVenta.valor}%`})` : ''}
             </button>
@@ -496,7 +496,7 @@ export default function TiendaTienda({
             type="button"
             onClick={onCobrar}
             disabled={loading || carritoVacio}
-            style={{ width: '100%', border: 'none', borderRadius: 12, padding: 16, fontSize: 17, fontWeight: 800, cursor: loading || carritoVacio ? 'not-allowed' : 'pointer', background: !loading && !carritoVacio ? '#3b82f6' : 'rgba(59,130,246,0.25)', color: !loading && !carritoVacio ? '#fff' : 'rgba(255,255,255,0.5)', boxShadow: !loading && !carritoVacio ? '0 6px 20px rgba(59,130,246,0.4)' : 'none' }}
+            style={{ width: '100%', border: 'none', borderRadius: 12, padding: 16, fontSize: 17, fontWeight: 800, cursor: loading || carritoVacio ? 'not-allowed' : 'pointer', background: !loading && !carritoVacio ? '#c1553a' : 'rgba(193,85,58,0.25)', color: !loading && !carritoVacio ? '#fff' : 'rgba(255,255,255,0.5)', boxShadow: !loading && !carritoVacio ? '0 6px 20px rgba(193,85,58,0.4)' : 'none' }}
           >
             {loading ? 'Procesando…' : `Cobrar $ ${money(total)}`}
           </button>
@@ -531,13 +531,13 @@ export default function TiendaTienda({
               </div>
             </div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 8 }}>Precio personalizado</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid #3b82f6', borderRadius: 12, padding: '14px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid #c1553a', borderRadius: 12, padding: '14px 16px' }}>
               <span style={{ fontSize: 20, color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>$</span>
               <input type="number" autoFocus value={priceDraft} onChange={(e) => setPriceDraft(e.target.value)} placeholder="0.00" style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 20, fontWeight: 800 }} />
               <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', whiteSpace: 'nowrap' }}>Por unidad (u.)</span>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
-              <button type="button" onClick={guardarPrecio} style={{ flex: 1, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>Confirmar</button>
+              <button type="button" onClick={guardarPrecio} style={{ flex: 1, background: '#c1553a', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>Confirmar</button>
               <button type="button" onClick={cerrarModalLinea} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
             </div>
           </div>

@@ -374,7 +374,7 @@ export default function Reportes() {
 
   const TabBtn = ({ id, label, active, onClick }) => (
     <button onClick={onClick}
-      style={{ background: active ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, padding: '9px 22px', color: active ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
+      style={{ background: active ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? 'rgba(193,85,58,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, padding: '9px 22px', color: active ? '#dd8a6c' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
       {label}
     </button>
   )
@@ -467,15 +467,15 @@ export default function Reportes() {
                   </div>
                   <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
                     <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Anticipos recibidos</div>
-                    <div style={{ color: '#60a5fa', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalAnticipos.toLocaleString('es-MX')}</div>
+                    <div style={{ color: '#dd8a6c', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalAnticipos.toLocaleString('es-MX')}</div>
                   </div>
                   <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
                     <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Ventas tienda</div>
                     <div style={{ color: '#34d399', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalTienda.toLocaleString('es-MX')}</div>
                   </div>
-                  <div style={{ background: 'rgba(99,102,241,0.2)', borderRadius: 12, padding: 20, border: '1px solid rgba(99,102,241,0.4)' }}>
+                  <div style={{ background: 'rgba(193,85,58,0.2)', borderRadius: 12, padding: 20, border: '1px solid rgba(193,85,58,0.4)' }}>
                     <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Total del día</div>
-                    <div style={{ color: '#818cf8', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalGeneral.toLocaleString('es-MX')}</div>
+                    <div style={{ color: '#dd8a6c', fontSize: 24, fontWeight: 700 }}>${metricasDelDia.totalGeneral.toLocaleString('es-MX')}</div>
                   </div>
                 </div>
 
@@ -500,7 +500,7 @@ export default function Reportes() {
                             <td style={{ color: 'white', padding: '10px 8px', fontWeight: 600 }}>{c.nombre}</td>
                             <td style={{ color: 'rgba(255,255,255,0.6)', padding: '10px 8px', textAlign: 'center' }}>{c.numArticulos}</td>
                             <td style={{ color: 'rgba(255,255,255,0.6)', padding: '10px 8px' }}>{c.metodos}</td>
-                            <td style={{ color: '#60a5fa', padding: '10px 8px', textAlign: 'right', fontWeight: 700 }}>${c.totalPagado.toLocaleString('es-MX')}</td>
+                            <td style={{ color: '#dd8a6c', padding: '10px 8px', textAlign: 'right', fontWeight: 700 }}>${c.totalPagado.toLocaleString('es-MX')}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -511,7 +511,7 @@ export default function Reportes() {
                             {resumenClientesEntregas.reduce((s, c) => s + c.numArticulos, 0)}
                           </td>
                           <td></td>
-                          <td style={{ color: '#60a5fa', padding: '10px 8px', textAlign: 'right', fontWeight: 700 }}>
+                          <td style={{ color: '#dd8a6c', padding: '10px 8px', textAlign: 'right', fontWeight: 700 }}>
                             ${metricasDelDia.totalCobradoEntregas.toLocaleString('es-MX')}
                           </td>
                         </tr>
@@ -557,7 +557,7 @@ export default function Reportes() {
                 </div>
                 <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
                   <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Vendedor más activo</div>
-                  <div style={{ color: '#818cf8', fontSize: 24, fontWeight: 700 }}>{analisisTienda.vendedorTop || '—'}</div>
+                  <div style={{ color: '#dd8a6c', fontSize: 24, fontWeight: 700 }}>{analisisTienda.vendedorTop || '—'}</div>
                 </div>
                 <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 20 }}>
                   <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -668,7 +668,7 @@ export default function Reportes() {
                         <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                           <td style={{ color: 'white', padding: '8px', fontWeight: 600 }}>{v.nombre}</td>
                           <td style={{ color: 'rgba(255,255,255,0.6)', padding: '8px', textAlign: 'center' }}>{v.articulos}</td>
-                          <td style={{ color: '#60a5fa', padding: '8px', textAlign: 'right', fontWeight: 700 }}>${v.total.toLocaleString('es-MX')}</td>
+                          <td style={{ color: '#dd8a6c', padding: '8px', textAlign: 'right', fontWeight: 700 }}>${v.total.toLocaleString('es-MX')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -795,12 +795,12 @@ export default function Reportes() {
                 <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Categoría:</span>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <button onClick={() => setFiltroCatReporte('')}
-                    style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${!filtroCatReporte ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, background: !filtroCatReporte ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', color: !filtroCatReporte ? '#818cf8' : 'rgba(255,255,255,0.4)' }}>
+                    style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${!filtroCatReporte ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.1)'}`, background: !filtroCatReporte ? 'rgba(193,85,58,0.15)' : 'rgba(255,255,255,0.03)', color: !filtroCatReporte ? '#dd8a6c' : 'rgba(255,255,255,0.4)' }}>
                     Todas
                   </button>
                   {categoriasReporte.map(cat => (
                     <button key={cat.id} onClick={() => setFiltroCatReporte(cat.nombre)}
-                      style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${filtroCatReporte === cat.nombre ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, background: filtroCatReporte === cat.nombre ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', color: filtroCatReporte === cat.nombre ? '#818cf8' : 'rgba(255,255,255,0.4)' }}>
+                      style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${filtroCatReporte === cat.nombre ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.1)'}`, background: filtroCatReporte === cat.nombre ? 'rgba(193,85,58,0.15)' : 'rgba(255,255,255,0.03)', color: filtroCatReporte === cat.nombre ? '#dd8a6c' : 'rgba(255,255,255,0.4)' }}>
                       {cat.nombre}
                     </button>
                   ))}
@@ -824,8 +824,8 @@ export default function Reportes() {
                   const uCat = pedsCat.reduce((s, p) => s + (p.utilidad || 0), 0)
                   const mCat = vCat > 0 ? (uCat / vCat) * 100 : 0
                   return (
-                    <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
-                      <div style={{ color: '#818cf8', fontSize: 12, fontWeight: 600, marginBottom: 10 }}>📊 Categoría: {filtroCatReporte} — {pedsCat.length} pedidos</div>
+                    <div style={{ background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.18)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
+                      <div style={{ color: '#dd8a6c', fontSize: 12, fontWeight: 600, marginBottom: 10 }}>📊 Categoría: {filtroCatReporte} — {pedsCat.length} pedidos</div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
                         <MetricCard label="Venta" value={fmt(vCat)} />
                         <MetricCard label="Utilidad" value={fmt(uCat)} color="16,185,129" />

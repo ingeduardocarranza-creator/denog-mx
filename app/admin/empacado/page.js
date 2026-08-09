@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
+import { clay } from '../../../lib/theme/colors'
 
 const TIPO_EMPAQUE = {
   chico:   { label: 'Chico',   sub: 'Bolsa blanca o cartón', icon: '🥡', color: '#60a5fa' },
@@ -177,10 +178,10 @@ export default function Empacado() {
 
   const navBtnStyle = { background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, padding: '10px 14px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }
 
-  const tabBtn = (key, label, count, color = '#3b82f6') => (
+  const tabBtn = (key, label, count, color = clay[500]) => (
     <button key={key} onClick={() => setTab(key)}
       style={{
-        background: tab === key ? `rgba(${color === '#3b82f6' ? '59,130,246' : color === '#facc15' ? '250,204,21' : color === '#f97316' ? '249,115,22' : '251,191,36'},0.14)` : 'transparent',
+        background: tab === key ? `rgba(${color === clay[500] ? '193,85,58' : color === '#facc15' ? '250,204,21' : color === '#f97316' ? '249,115,22' : '251,191,36'},0.14)` : 'transparent',
         color: tab === key ? color : 'rgba(255,255,255,0.55)',
         border: 'none',
         borderBottom: tab === key ? `2px solid ${color}` : '2px solid transparent',
@@ -216,7 +217,7 @@ export default function Empacado() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap' }}>
-        {tabBtn('empacado',  '📦 Empacado', 0, '#3b82f6')}
+        {tabBtn('empacado',  '📦 Empacado', 0, clay[500])}
         {tabBtn('fragil',    '⚠️ Artículos frágiles', fragilTodos.length, '#facc15')}
         {tabBtn('pendiente', '⏸ Pendientes', pendienteTodos.length, '#f97316')}
         {tabBtn('nollego',   '❌ Sin llegar', noLlegoTodos.length, '#ef4444')}
@@ -235,7 +236,7 @@ export default function Empacado() {
               <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 20px', marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
                   <div style={{ fontSize: 15, fontWeight: 600 }}>
-                    Cliente <span style={{ color: '#3b82f6', fontWeight: 800 }}>{indice + 1}</span> de {total}
+                    Cliente <span style={{ color: clay[300], fontWeight: 800 }}>{indice + 1}</span> de {total}
                   </div>
                   <div style={{ display: 'flex', gap: 22, fontSize: 14 }}>
                     <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: '#34d399', marginRight: 7 }} />Empacados: <b>{countEmpacados}</b></span>
@@ -256,7 +257,7 @@ export default function Empacado() {
                 <button onClick={() => irA(indice - 1)} style={navBtnStyle}>◀ Ant</button>
                 <input type="number" value={indice + 1}
                   onChange={e => { const v = parseInt(e.target.value, 10); if (!isNaN(v)) irA(v - 1) }}
-                  style={{ width: 76, textAlign: 'center', background: 'rgba(59,130,246,0.12)', color: '#fff', border: '1px solid #3b82f6', borderRadius: 10, padding: '10px 8px', fontSize: 15, fontWeight: 700 }} />
+                  style={{ width: 76, textAlign: 'center', background: 'rgba(193,85,58,0.12)', color: '#fff', border: `1px solid ${clay[500]}`, borderRadius: 10, padding: '10px 8px', fontSize: 15, fontWeight: 700 }} />
                 <button onClick={() => irA(indice + 1)} style={navBtnStyle}>Sig ▶</button>
                 <button onClick={() => irA(indice + 10)} style={navBtnStyle}>+10</button>
                 <button onClick={() => irA(total - 1)} style={navBtnStyle}>Último ⏭</button>
@@ -306,17 +307,17 @@ export default function Empacado() {
                   {/* Items */}
                   <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {/* Banner de piezas */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '14px 16px', marginBottom: 4, background: 'linear-gradient(90deg,rgba(59,130,246,0.16),rgba(59,130,246,0.04))', border: '1px solid rgba(59,130,246,0.35)', borderRadius: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '14px 16px', marginBottom: 4, background: 'linear-gradient(90deg,rgba(193,85,58,0.16),rgba(193,85,58,0.04))', border: `1px solid rgba(193,85,58,0.35)`, borderRadius: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <div style={{ flex: 'none', width: 52, height: 52, borderRadius: 12, background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>📦</div>
+                        <div style={{ flex: 'none', width: 52, height: 52, borderRadius: 12, background: clay[500], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>📦</div>
                         <div>
                           <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.5)' }}>Piezas a empacar en bolsa</div>
                           <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>No incluye artículos frágiles (se entregan aparte)</div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'stretch', gap: 10 }}>
-                        <div style={{ textAlign: 'center', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.5)', borderRadius: 12, padding: '8px 24px', minWidth: 100 }}>
-                          <div style={{ fontSize: 40, fontWeight: 900, color: '#3b82f6', lineHeight: 1 }}>{cliente.piezasBolsa}</div>
+                        <div style={{ textAlign: 'center', background: 'rgba(193,85,58,0.2)', border: `1px solid rgba(193,85,58,0.5)`, borderRadius: 12, padding: '8px 24px', minWidth: 100 }}>
+                          <div style={{ fontSize: 40, fontWeight: 900, color: clay[300], lineHeight: 1 }}>{cliente.piezasBolsa}</div>
                           <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>piezas</div>
                         </div>
                         {cliente.piezasFragil > 0 && (
@@ -338,7 +339,7 @@ export default function Empacado() {
                                 onClick={() => setFotoModal({ url: item.imagen_url, descripcion: item.descripcion })}
                                 style={{ flex: 'none', width: 64, height: 64, objectFit: 'cover', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: '#1e293b', cursor: 'zoom-in' }} />
                             )}
-                            <div style={{ flex: 'none', minWidth: 40, height: 40, padding: '0 8px', borderRadius: 10, background: 'rgba(59,130,246,0.15)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800 }}>×{item.cantidad || 1}</div>
+                            <div style={{ flex: 'none', minWidth: 40, height: 40, padding: '0 8px', borderRadius: 10, background: 'rgba(193,85,58,0.15)', color: clay[300], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800 }}>×{item.cantidad || 1}</div>
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 17, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff' }}>{item.descripcion}</div>
                               <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>Cantidad: {item.cantidad || 1} pza(s)</div>
@@ -553,7 +554,7 @@ export default function Empacado() {
                     </button>
                     <button onClick={() => pasarASiguienteEntrega(row)} disabled={!siguienteEntrega}
                       title={siguienteEntrega ? '' : 'No hay una entrega posterior disponible'}
-                      style={{ background: 'rgba(59,130,246,0.14)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.5)', borderRadius: 10, padding: '11px 16px', fontSize: 14, fontWeight: 700, cursor: siguienteEntrega ? 'pointer' : 'not-allowed', opacity: siguienteEntrega ? 1 : 0.5 }}>
+                      style={{ background: 'rgba(193,85,58,0.14)', color: clay[300], border: `1px solid rgba(193,85,58,0.5)`, borderRadius: 10, padding: '11px 16px', fontSize: 14, fontWeight: 700, cursor: siguienteEntrega ? 'pointer' : 'not-allowed', opacity: siguienteEntrega ? 1 : 0.5 }}>
                       📅 Pasar a siguiente entrega
                     </button>
                   </div>

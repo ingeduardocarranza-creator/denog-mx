@@ -97,7 +97,7 @@ export default function CorteDeCaja() {
               <span className="font-mono text-sm">{diferencia >= 0 ? `+$${diferencia}` : `-$${Math.abs(diferencia)}`}</span>
             </div>
           )}
-          {mensaje && <div className="p-3 bg-blue-900 text-blue-400 text-xs font-bold rounded-xl text-center">{mensaje}</div>}
+          {mensaje && <div className="p-3 bg-[#4a1b0c] text-[#dd8a6c] text-xs font-bold rounded-xl text-center">{mensaje}</div>}
           <button onClick={ejecutarCierre} disabled={loading || !efectivoContado} className="w-full bg-red-700 hover:bg-red-800 text-white text-xs font-bold py-3 rounded-xl uppercase tracking-widest transition-all shadow-md disabled:opacity-40">
             {loading ? 'Cerrando...' : '⛔ Cerrar Turno y Guardar'}
           </button>

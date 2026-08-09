@@ -315,7 +315,7 @@ export default function CapturarLote() {
             if (!config.entrega_id) { alert('Selecciona una entrega'); return }
             setPaso(2)
           }}
-          style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 12, padding: 16, fontSize: 16, fontWeight: 800, cursor: 'pointer', marginTop: 8 }}
+          style={{ background: '#c1553a', color: '#fff', border: 'none', borderRadius: 12, padding: 16, fontSize: 16, fontWeight: 800, cursor: 'pointer', marginTop: 8 }}
         >
           Continuar → Seleccionar fotos
         </button>
@@ -336,7 +336,7 @@ export default function CapturarLote() {
 
       <div style={{ maxWidth: 560 }}>
         {cola.length === 0 ? (
-          <label style={{ display: 'block', border: '2px dashed rgba(59,130,246,0.4)', borderRadius: 16, padding: '60px 20px', textAlign: 'center', cursor: 'pointer', background: 'rgba(59,130,246,0.04)' }}>
+          <label style={{ display: 'block', border: '2px dashed rgba(193,85,58,0.4)', borderRadius: 16, padding: '60px 20px', textAlign: 'center', cursor: 'pointer', background: 'rgba(193,85,58,0.04)' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>📸</div>
             <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Toca aquí para seleccionar fotos</div>
             <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>Puedes seleccionar múltiples fotos a la vez</div>
@@ -368,7 +368,7 @@ export default function CapturarLote() {
               </label>
               <button
                 onClick={() => { setPaso(3); setIndice(0) }}
-                style={{ flex: 2, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}
+                style={{ flex: 2, background: '#c1553a', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}
               >
                 Iniciar captura ({cola.length} fotos) →
               </button>
@@ -386,11 +386,11 @@ export default function CapturarLote() {
       {/* Barra superior */}
       <div style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', flexShrink: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 700 }}>
-          Pedido <span style={{ color: '#3b82f6', fontSize: 18, fontWeight: 900 }}>{indice + 1}</span>
+          Pedido <span style={{ color: '#c1553a', fontSize: 18, fontWeight: 900 }}>{indice + 1}</span>
           <span style={{ color: 'rgba(255,255,255,0.4)' }}> / {cola.length}</span>
         </div>
         <div style={{ flex: 1, minWidth: 120, maxWidth: 360, height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-          <div style={{ height: '100%', background: '#3b82f6', width: `${(indice / cola.length) * 100}%`, transition: 'width 0.3s' }} />
+          <div style={{ height: '100%', background: '#c1553a', width: `${(indice / cola.length) * 100}%`, transition: 'width 0.3s' }} />
         </div>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>✓ {totalGuardados} guardados</div>
         {editando && (
@@ -454,7 +454,7 @@ export default function CapturarLote() {
             <label style={lbl}>Cliente {form.cliente_id && '✓'}</label>
             <div style={{ position: 'relative' }}>
               <input
-                style={{ ...inp, borderColor: form.cliente_id ? '#3b82f6' : 'rgba(255,255,255,0.12)' }}
+                style={{ ...inp, borderColor: form.cliente_id ? '#c1553a' : 'rgba(255,255,255,0.12)' }}
                 type="text" value={busq}
                 onChange={e => { setBusq(e.target.value); setForm(p => ({ ...p, cliente_id: '' })); setNuevoClienteForm(null) }}
                 placeholder="Buscar por nombre o teléfono..."
@@ -465,7 +465,7 @@ export default function CapturarLote() {
                     <div key={c.id}
                       onClick={() => { setForm(p => ({ ...p, cliente_id: c.id })); setBusq(c.nombre) }}
                       style={{ padding: '10px 14px', fontSize: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.18)'}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(193,85,58,0.18)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <span>{c.nombre}</span>
                       <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{c.telefono}</span>
@@ -534,13 +534,13 @@ export default function CapturarLote() {
           <div>
             <label style={lbl}>Precio de venta MXN <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>por pieza</span></label>
             <input
-              style={{ ...inp, borderColor: form.precio_venta ? '#3b82f6' : 'rgba(255,255,255,0.12)' }}
+              style={{ ...inp, borderColor: form.precio_venta ? '#c1553a' : 'rgba(255,255,255,0.12)' }}
               type="number" step="0.01" value={form.precio_venta}
               onChange={e => setForm(p => ({ ...p, precio_venta: e.target.value }))}
               placeholder="0.00" disabled={procesando} />
             {ventaUnit > 0 && cant > 1 && (
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 5 }}>
-                Total {cant} pzas = <span style={{ color: '#3b82f6', fontWeight: 700 }}>${fmt(venta)} MXN</span>
+                Total {cant} pzas = <span style={{ color: '#c1553a', fontWeight: 700 }}>${fmt(venta)} MXN</span>
               </div>
             )}
             {utilidad !== 0 && (
@@ -561,7 +561,7 @@ export default function CapturarLote() {
               Saltar
             </button>
             <button onClick={confirmar} disabled={guardando || procesando}
-              style={{ flex: 2, background: guardando || procesando ? 'rgba(59,130,246,0.3)' : '#3b82f6', color: '#fff', border: 'none', borderRadius: 10, padding: 12, fontSize: 14, fontWeight: 800, cursor: guardando || procesando ? 'wait' : 'pointer' }}>
+              style={{ flex: 2, background: guardando || procesando ? 'rgba(193,85,58,0.3)' : '#c1553a', color: '#fff', border: 'none', borderRadius: 10, padding: 12, fontSize: 14, fontWeight: 800, cursor: guardando || procesando ? 'wait' : 'pointer' }}>
               {guardando ? 'Guardando...' : editando ? '✓ Actualizar' : indice + 1 === cola.length ? '✓ Confirmar y finalizar' : '✓ Confirmar →'}
             </button>
           </div>
@@ -583,7 +583,7 @@ export default function CapturarLote() {
           <div style={{ fontSize: 56, marginBottom: 14 }}>🎉</div>
           <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>Lote completado</h1>
           <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.6)' }}>
-            Se guardaron <b style={{ color: '#3b82f6' }}>{totalGuardados}</b> pedidos de {cola.length} fotos procesadas.
+            Se guardaron <b style={{ color: '#c1553a' }}>{totalGuardados}</b> pedidos de {cola.length} fotos procesadas.
           </div>
         </div>
 
@@ -616,7 +616,7 @@ export default function CapturarLote() {
           </button>
           <button
             onClick={() => router.push('/admin/pedidos')}
-            style={{ flex: 1, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 12, padding: 16, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>
+            style={{ flex: 1, background: '#c1553a', color: '#fff', border: 'none', borderRadius: 12, padding: 16, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>
             Ver todos los pedidos →
           </button>
         </div>

@@ -154,8 +154,8 @@ export default function ConectarWhatsApp() {
                 onClick={conectar}
                 disabled={!sdkListo || !APP_ID || !CONFIG_ID}
                 style={{
-                  width: '100%', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)',
-                  borderRadius: 10, padding: '12px 16px', color: '#818cf8', fontSize: 13, fontWeight: 600,
+                  width: '100%', background: 'rgba(193,85,58,0.15)', border: '1px solid rgba(193,85,58,0.3)',
+                  borderRadius: 10, padding: '12px 16px', color: '#dd8a6c', fontSize: 13, fontWeight: 600,
                   cursor: sdkListo ? 'pointer' : 'not-allowed',
                 }}
               >
@@ -188,7 +188,7 @@ export default function ConectarWhatsApp() {
               <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, lineHeight: 1.6 }}>
                 El WhatsApp del negocio quedó vinculado. Sigue usándolo normal en el celular — ahora también
                 le avisa al sitio. Manda un mensaje de prueba desde otro número y revisa{' '}
-                <a href="/admin/pendientes" style={{ color: '#818cf8' }}>Pendientes</a>.
+                <a href="/admin/pendientes" style={{ color: '#dd8a6c' }}>Pendientes</a>.
               </div>
               <button onClick={() => setEstado('inicio')}
                 style={{ marginTop: 16, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
@@ -202,7 +202,7 @@ export default function ConectarWhatsApp() {
               <div style={{ fontSize: 32, marginBottom: 10 }}>⚠️</div>
               <div style={{ color: '#f87171', fontSize: 13, marginBottom: 14 }}>{detalle}</div>
               <button onClick={() => setEstado('inicio')}
-                style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 10, padding: '8px 14px', color: '#818cf8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                style={{ background: 'rgba(193,85,58,0.15)', border: '1px solid rgba(193,85,58,0.3)', borderRadius: 10, padding: '8px 14px', color: '#dd8a6c', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                 Intentar de nuevo
               </button>
             </div>

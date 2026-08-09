@@ -312,7 +312,7 @@ export default function Pedidos() {
         <div className="flex gap-2 mb-5 flex-wrap">
           {[['capturar', '📝 Capturar'], ['ver', '📋 Ver / Editar']].map(([key, lbl]) => (
             <button key={key} onClick={() => { setPestana(key); setPagina(1) }}
-              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${pestana === key ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${pestana === key ? 'bg-[#c1553a] text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
               {lbl}
             </button>
           ))}
@@ -334,7 +334,7 @@ export default function Pedidos() {
           </div>
           <div className="flex gap-2">
             <button onClick={() => setEstado('az')}
-              className={`px-3 py-1 rounded-lg text-sm font-medium ${estado === 'az' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}>
+              className={`px-3 py-1 rounded-lg text-sm font-medium ${estado === 'az' ? 'bg-[#c1553a] text-white' : 'bg-gray-800 text-gray-400'}`}>
               Arizona 8.6%
             </button>
             <button onClick={() => setEstado('ca')}
@@ -383,7 +383,7 @@ export default function Pedidos() {
                 <div className="flex gap-2 mt-2">
                   <button type="button" onClick={() => sugerirConIA()}
                     disabled={sugiriendoIA}
-                    className="flex-1 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-sm py-2 px-3 rounded-xl font-medium">
+                    className="flex-1 bg-[#9b3f28] hover:bg-[#c1553a] disabled:opacity-50 text-white text-sm py-2 px-3 rounded-xl font-medium">
                     {sugiriendoIA ? 'Analizando...' : form.descripcion ? '✨ Re-analizar' : '✨ Sugerir nombre con IA'}
                   </button>
                   <button type="button" onClick={() => setForm(f => ({ ...f, imagen_url: '' }))}
@@ -397,7 +397,7 @@ export default function Pedidos() {
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) subirFotoPedido(f) }}
                 onPaste={e => { const f = e.clipboardData.files[0]; if (f) subirFotoPedido(f) }}
-                className="border-2 border-dashed border-gray-600 rounded-xl p-6 text-center cursor-pointer hover:border-purple-500 transition-colors"
+                className="border-2 border-dashed border-gray-600 rounded-xl p-6 text-center cursor-pointer hover:border-[#c1553a] transition-colors"
                 tabIndex={0}
               >
                 {subiendoFoto ? (
@@ -452,7 +452,7 @@ export default function Pedidos() {
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="text-gray-400 text-sm block mb-1">
-                Precio USD por pieza <span className="text-blue-400">(unitario)</span>
+                Precio USD por pieza <span className="text-[#dd8a6c]">(unitario)</span>
               </label>
               <input type="number" value={form.precio_usd}
                 onChange={e => setForm({...form, precio_usd: e.target.value})}
@@ -545,7 +545,7 @@ export default function Pedidos() {
               {cargando ? 'Guardando...' : '✓ Guardar pedido'}
             </button>
             <button onClick={() => guardar(true)} disabled={cargando}
-              className="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50">
+              className="bg-[#9b3f28] hover:bg-[#c1553a] text-white px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50">
               Guardar y capturar otro
             </button>
           </div>
@@ -604,7 +604,7 @@ export default function Pedidos() {
                   className="text-xs text-gray-500 hover:text-gray-300 px-3 py-1 rounded-lg bg-gray-800 border border-gray-700">
                   Limpiar filtros
                 </button>
-                <button onClick={cargarTodosPedidos} className="text-xs text-indigo-400 hover:text-indigo-300 px-3 py-1 rounded-lg bg-indigo-900/20 border border-indigo-800/40">
+                <button onClick={cargarTodosPedidos} className="text-xs text-[#dd8a6c] hover:text-[#dd8a6c] px-3 py-1 rounded-lg bg-[#4a1b0c]/20 border border-[#6d2a19]/40">
                   🔄 Recargar
                 </button>
               </div>
@@ -664,7 +664,7 @@ export default function Pedidos() {
                         <div className="flex justify-center">{estadoBadge(p.estado)}</div>
                         <div className="flex gap-1.5">
                           <button onClick={() => abrirEditarPedido(p)}
-                            className="px-2.5 py-1 rounded-lg bg-indigo-900/20 border border-indigo-800/40 text-indigo-400 text-xs font-semibold hover:bg-indigo-900/40">
+                            className="px-2.5 py-1 rounded-lg bg-[#4a1b0c]/20 border border-[#6d2a19]/40 text-[#dd8a6c] text-xs font-semibold hover:bg-[#4a1b0c]/40">
                             ✏️
                           </button>
                           <button onClick={() => eliminarPedidoTabla(p.id)}
@@ -677,8 +677,8 @@ export default function Pedidos() {
 
                     {/* Panel edición inline */}
                     {editandoPedido === p.id && (
-                      <div className="bg-indigo-950/30 border border-indigo-800/30 rounded-xl p-4">
-                        <div className="text-indigo-300 text-xs uppercase tracking-widest font-bold mb-3">✏️ Editar pedido</div>
+                      <div className="bg-[#4a1b0c]/30 border border-[#6d2a19]/30 rounded-xl p-4">
+                        <div className="text-[#dd8a6c] text-xs uppercase tracking-widest font-bold mb-3">✏️ Editar pedido</div>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-3">
                           <div>
                             <label style={lbS}>Cliente</label>
@@ -771,7 +771,7 @@ export default function Pedidos() {
                             return (
                               <>
                                 <div className="lg:col-span-4 bg-gray-950/60 rounded-xl p-3 border border-gray-700/50 space-y-3">
-                                  <div className="text-indigo-300 text-[10px] uppercase tracking-widest font-bold">💱 Cotizador</div>
+                                  <div className="text-[#dd8a6c] text-[10px] uppercase tracking-widest font-bold">💱 Cotizador</div>
                                   <div className="grid grid-cols-2 gap-2">
                                     <div>
                                       <label style={lbS}>Precio USD</label>
@@ -787,7 +787,7 @@ export default function Pedidos() {
                                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                       {[['arizona','Arizona 8.6%'],['california','California 7.75%'],['denog','Tax Denog']].map(([k,lbl]) => (
                                         <button key={k} type="button" onClick={() => setTax(k)}
-                                          style={{ padding: '4px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${editTaxTipo === k ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, background: editTaxTipo === k ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)', color: editTaxTipo === k ? '#818cf8' : 'rgba(255,255,255,0.45)' }}>
+                                          style={{ padding: '4px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${editTaxTipo === k ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.1)'}`, background: editTaxTipo === k ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.04)', color: editTaxTipo === k ? '#dd8a6c' : 'rgba(255,255,255,0.45)' }}>
                                           {lbl}
                                         </button>
                                       ))}
@@ -858,7 +858,7 @@ export default function Pedidos() {
                         {pedidoMsg && <div className="text-red-400 text-xs mb-2">{pedidoMsg}</div>}
                         <div className="flex gap-2">
                           <button onClick={guardarPedidoEdit} disabled={guardandoPedido}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-lg text-xs font-bold disabled:opacity-50">
+                            className="bg-[#c1553a] hover:bg-[#dd8a6c] text-white px-5 py-2 rounded-lg text-xs font-bold disabled:opacity-50">
                             {guardandoPedido ? 'Guardando...' : '✓ Guardar'}
                           </button>
                           <button onClick={() => setEditandoPedido(null)}

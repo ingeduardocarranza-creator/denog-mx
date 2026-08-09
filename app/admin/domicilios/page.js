@@ -439,12 +439,12 @@ const horariosDelDia = (fecha) => {
                     <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                       {['Transferencia', 'Terminal'].map(m => (
                         <button key={m} onClick={() => setModalMetodo2(m)}
-                          style={{ flex: 1, padding: '10px 6px', borderRadius: 12, border: `2px solid ${modalMetodo2 === m ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'}`, background: modalMetodo2 === m ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)', color: modalMetodo2 === m ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: modalMetodo2 === m ? 700 : 400, cursor: 'pointer' }}>
+                          style={{ flex: 1, padding: '10px 6px', borderRadius: 12, border: `2px solid ${modalMetodo2 === m ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.08)'}`, background: modalMetodo2 === m ? 'rgba(193,85,58,0.12)' : 'rgba(255,255,255,0.03)', color: modalMetodo2 === m ? '#dd8a6c' : 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: modalMetodo2 === m ? 700 : 400, cursor: 'pointer' }}>
                           {m}
                         </button>
                       ))}
                     </div>
-                    <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: '12px 16px', color: restoM2 > 0 ? '#818cf8' : 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
+                    <div style={{ background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.15)', borderRadius: 12, padding: '12px 16px', color: restoM2 > 0 ? '#dd8a6c' : 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
                       {fmt(restoM2)} en {modalMetodo2}
                     </div>
                   </div>
@@ -505,13 +505,13 @@ const horariosDelDia = (fecha) => {
               style={{ background: 'transparent', border: 'none', color: 'white', fontSize: 13, outline: 'none', cursor: 'pointer' }} />
           </div>
           <button onClick={() => { setMostrarNuevo(!mostrarNuevo); setEntregasSeleccionadas([]); setPedidosCliente([]); setAnticiposCliente([]) }}
-            style={{ background: '#6366f1', border: 'none', borderRadius: 12, padding: '10px 18px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            style={{ background: '#c1553a', border: 'none', borderRadius: 12, padding: '10px 18px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + Nuevo domicilio
           </button>
         </div>
 
         {mostrarNuevo && (
-          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 18, padding: 20, marginBottom: 20 }}>
+          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 18, padding: 20, marginBottom: 20 }}>
             <div style={{ color: 'white', fontSize: 14, fontWeight: 600, marginBottom: 16 }}>➕ Nuevo domicilio</div>
 
             <div style={{ marginBottom: 14 }}>
@@ -653,7 +653,7 @@ const horariosDelDia = (fecha) => {
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={crearDomicilio} disabled={guardando}
-                    style={{ flex: 1, background: '#6366f1', border: 'none', borderRadius: 10, padding: '10px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: guardando ? 0.6 : 1 }}>
+                    style={{ flex: 1, background: '#c1553a', border: 'none', borderRadius: 10, padding: '10px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: guardando ? 0.6 : 1 }}>
                     {guardando ? 'Guardando...' : '✓ Crear domicilio'}
                   </button>
                   <button onClick={() => { setMostrarNuevo(false); setEntregasSeleccionadas([]); setPedidosCliente([]); setAnticiposCliente([]) }}

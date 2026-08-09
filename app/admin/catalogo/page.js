@@ -307,7 +307,7 @@ export default function CatalogoTienda() {
               <div className="space-y-1">
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-slate-400 font-bold">Categoría</label>
-                  <button type="button" onClick={() => setMostrarCreadorCat(!mostrarCreadorCat)} className="text-[11px] text-blue-400 hover:underline font-bold">
+                  <button type="button" onClick={() => setMostrarCreadorCat(!mostrarCreadorCat)} className="text-[11px] text-[#dd8a6c] hover:underline font-bold">
                     {mostrarCreadorCat ? 'Cancelar' : '+ Nueva Categoría'}
                   </button>
                 </div>
@@ -315,7 +315,7 @@ export default function CatalogoTienda() {
                 {mostrarCreadorCat ? (
                   <div className="flex gap-2 p-2 bg-[#111520] rounded-xl border border-slate-800 animate-fadeIn">
                     <input type="text" placeholder="Nombre de categoría..." value={nuevaCategoriaInput} onChange={(e) => setNuevaCategoriaInput(e.target.value)} className="w-full bg-[#1e2533] border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
-                    <button type="button" onClick={agregarCategoriaALista} className="bg-blue-600 text-white font-bold px-3 py-1.5 rounded-lg">Añadir</button>
+                    <button type="button" onClick={agregarCategoriaALista} className="bg-[#c1553a] text-white font-bold px-3 py-1.5 rounded-lg">Añadir</button>
                   </div>
                 ) : (
                   <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none">
@@ -341,7 +341,7 @@ export default function CatalogoTienda() {
                     <div className="w-16 h-16 rounded-lg bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-xl">📦</div>
                   )}
                   <div className="flex-1 space-y-1.5">
-                    <label className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl cursor-pointer transition-all">
+                    <label className="block w-full text-center bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-2.5 rounded-xl cursor-pointer transition-all">
                       {subiendoImagen ? 'Subiendo…' : imagenUrl ? '📷 Cambiar foto' : '📷 Tomar / subir foto'}
                       <input type="file" accept="image/*" onChange={subirFoto} disabled={subiendoImagen} className="hidden" />
                     </label>
@@ -359,7 +359,7 @@ export default function CatalogoTienda() {
                 <label className="flex items-center justify-between cursor-pointer">
                   <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">🛍️ Mostrar en Mercadito</span>
                   <button type="button" onClick={() => setMostrarEnMercadito((v) => !v)}
-                    className={`w-10 h-6 rounded-full relative transition-all ${mostrarEnMercadito ? 'bg-purple-600' : 'bg-slate-700'}`}>
+                    className={`w-10 h-6 rounded-full relative transition-all ${mostrarEnMercadito ? 'bg-[#c1553a]' : 'bg-slate-700'}`}>
                     <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${mostrarEnMercadito ? 'left-4.5' : 'left-0.5'}`} style={{ left: mostrarEnMercadito ? 18 : 2 }} />
                   </button>
                 </label>
@@ -415,7 +415,7 @@ export default function CatalogoTienda() {
                       { key: 'denog', label: 'Tax Denog' },
                     ].map(op => (
                       <button key={op.key} type="button" onClick={() => setTipoTax(op.key)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${tipoTax === op.key ? 'bg-blue-900/30 border-blue-700 text-blue-400' : 'bg-[#1e2533] border-slate-700 text-slate-400 hover:border-slate-600'}`}>
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${tipoTax === op.key ? 'bg-[#4a1b0c]/30 border-[#9b3f28] text-[#dd8a6c]' : 'bg-[#1e2533] border-slate-700 text-slate-400 hover:border-slate-600'}`}>
                         {op.label}
                       </button>
                     ))}
@@ -475,7 +475,7 @@ export default function CatalogoTienda() {
               </div>
 
               <div className="pt-2 flex gap-2">
-                <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all uppercase tracking-wider shadow-md">
+                <button type="submit" disabled={loading} className="w-full bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-3 rounded-xl transition-all uppercase tracking-wider shadow-md">
                   {loading ? 'Guardando...' : editandoId ? 'Guardar Cambios' : 'Subir al Catálogo'}
                 </button>
                 {editandoId && (
@@ -537,7 +537,7 @@ export default function CatalogoTienda() {
                             <div>
                               <p className="font-bold text-slate-200 flex items-center gap-1.5">
                                 {p.nombre}
-                                {p.mostrar_en_mercadito && <span title="Visible en Mercadito" className="text-[9px] bg-purple-950/50 text-purple-300 border border-purple-800/60 rounded px-1.5 py-0.5">🛍️ Mercadito</span>}
+                                {p.mostrar_en_mercadito && <span title="Visible en Mercadito" className="text-[9px] bg-[#4a1b0c]/50 text-[#dd8a6c] border border-[#6d2a19]/60 rounded px-1.5 py-0.5">🛍️ Mercadito</span>}
                               </p>
                               <p className="text-[10px] text-slate-500 font-mono mt-0.5">{p.codigo_barras}</p>
                             </div>
@@ -547,7 +547,7 @@ export default function CatalogoTienda() {
                           <span className="bg-[#1e2533] px-2 py-0.5 rounded text-[10px] text-slate-300 border border-slate-700/60">{p.categoria}</span>
                         </td>
                         <td className="p-3 text-right font-mono text-slate-400">${Number(p.costo).toFixed(2)}</td>
-                        <td className="p-3 text-right font-mono text-blue-400 font-bold">${Number(p.precio_venta).toFixed(2)}</td>
+                        <td className="p-3 text-right font-mono text-[#dd8a6c] font-bold">${Number(p.precio_venta).toFixed(2)}</td>
                         <td className="p-3 text-center font-mono">
                           <span className={`px-2 py-0.5 rounded font-black text-[11px] ${p.stock > 2 ? 'bg-slate-900 text-emerald-400' : p.stock > 0 ? 'bg-amber-950/60 text-amber-400' : 'bg-red-950 text-red-400'}`}>
                             {p.stock} u
@@ -555,13 +555,13 @@ export default function CatalogoTienda() {
                         </td>
                         <td className="p-3 text-center">
                           <div className="flex justify-center gap-1.5">
-                            <button onClick={() => iniciarEdicion(p)} className="bg-[#1e2533] hover:bg-blue-600 hover:text-white border border-slate-700 text-slate-300 px-2.5 py-1 rounded-md font-bold transition-all">
+                            <button onClick={() => iniciarEdicion(p)} className="bg-[#1e2533] hover:bg-[#c1553a] hover:text-white border border-slate-700 text-slate-300 px-2.5 py-1 rounded-md font-bold transition-all">
                               Editar
                             </button>
                             <button onClick={() => cambiarEstadoActivo(p.id, p.activo)} className={`px-2 py-1 rounded-md font-bold text-[11px] border transition-all ${p.activo ? 'bg-red-950/20 text-red-400 border-red-900/60 hover:bg-red-900/40' : 'bg-emerald-950/20 text-emerald-400 border-emerald-900/60 hover:bg-emerald-900/40'}`}>
                               {p.activo ? 'Pausar' : 'Activar'}
                             </button>
-                            <button onClick={() => toggleMercadito(p.id, p.mostrar_en_mercadito)} title={p.mostrar_en_mercadito ? 'Quitar del Mercadito' : 'Mostrar en Mercadito'} className={`px-2 py-1 rounded-md font-bold text-[11px] border transition-all ${p.mostrar_en_mercadito ? 'bg-purple-950/40 text-purple-300 border-purple-700/60 hover:bg-purple-900/50' : 'bg-[#1e2533] text-slate-400 border-slate-700 hover:border-purple-700/60 hover:text-purple-300'}`}>
+                            <button onClick={() => toggleMercadito(p.id, p.mostrar_en_mercadito)} title={p.mostrar_en_mercadito ? 'Quitar del Mercadito' : 'Mostrar en Mercadito'} className={`px-2 py-1 rounded-md font-bold text-[11px] border transition-all ${p.mostrar_en_mercadito ? 'bg-[#4a1b0c]/40 text-[#dd8a6c] border-[#9b3f28]/60 hover:bg-[#4a1b0c]/60' : 'bg-[#1e2533] text-slate-400 border-slate-700 hover:border-[#9b3f28]/60 hover:text-[#dd8a6c]'}`}>
                               🛍️ {p.mostrar_en_mercadito ? 'En Mercadito' : 'Mostrar'}
                             </button>
                           </div>

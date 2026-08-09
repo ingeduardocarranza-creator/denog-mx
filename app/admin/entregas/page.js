@@ -242,7 +242,7 @@ export default function Entregas() {
             </div>
           </div>
           <button onClick={() => setMostrarForm(!mostrarForm)}
-            style={{ background: '#6366f1', border: 'none', borderRadius: 12, padding: '10px 18px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            style={{ background: '#c1553a', border: 'none', borderRadius: 12, padding: '10px 18px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + Nueva entrega
           </button>
         </div>
@@ -267,7 +267,7 @@ export default function Entregas() {
             {msg && <div style={{ color: msg.includes('✓') ? '#4ade80' : '#f87171', fontSize: 12, marginBottom: 10 }}>{msg}</div>}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={crear}
-                style={{ background: '#6366f1', border: 'none', borderRadius: 10, padding: '10px 20px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                style={{ background: '#c1553a', border: 'none', borderRadius: 10, padding: '10px 20px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Guardar entrega
               </button>
               <button onClick={() => { setMostrarForm(false); setMsg('') }}
@@ -301,7 +301,7 @@ export default function Entregas() {
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button onClick={() => abrirEdicion(e)}
-                      style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, padding: '5px 12px', color: '#818cf8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                      style={{ background: 'rgba(193,85,58,0.1)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 8, padding: '5px 12px', color: '#dd8a6c', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                       ✏️ Editar
                     </button>
                     <button onClick={() => eliminarEntrega(e.id)}
@@ -316,7 +316,7 @@ export default function Entregas() {
 
                 {/* Panel edición entrega */}
                 {editando === e.id && (
-                  <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                  <div style={{ background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.18)', borderRadius: 12, padding: 16, marginBottom: 12 }}>
                     <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Editar entrega</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                       <div>
@@ -334,7 +334,7 @@ export default function Entregas() {
                     {editMsg && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 10 }}>{editMsg}</div>}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => actualizar(e.id)} disabled={guardandoEdit}
-                        style={{ background: '#6366f1', border: 'none', borderRadius: 8, padding: '8px 18px', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: guardandoEdit ? 0.6 : 1 }}>
+                        style={{ background: '#c1553a', border: 'none', borderRadius: 8, padding: '8px 18px', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: guardandoEdit ? 0.6 : 1 }}>
                         {guardandoEdit ? 'Guardando...' : '✓ Guardar'}
                       </button>
                       <button onClick={cancelarEdicion}
@@ -361,7 +361,7 @@ export default function Entregas() {
                 {/* Accesos rápidos */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                   <button onClick={() => window.location.href = `/admin/pedidos`}
-                    style={{ flex: 1, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 8, padding: '8px', color: '#818cf8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                    style={{ flex: 1, background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.15)', borderRadius: 8, padding: '8px', color: '#dd8a6c', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                     📝 Capturar pedidos
                   </button>
                   <button onClick={() => window.location.href = `/admin/reportes`}
@@ -423,7 +423,7 @@ export default function Entregas() {
                                     </div>
                                     <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 8 }}>
                                       <button onClick={() => abrirEditarPedido(p)}
-                                        style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '4px 10px', color: '#818cf8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                        style={{ background: 'rgba(193,85,58,0.1)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 6, padding: '4px 10px', color: '#dd8a6c', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
                                         ✏️ Editar
                                       </button>
                                       <button onClick={() => eliminarPedido(p.id, e.id)}
@@ -447,7 +447,7 @@ export default function Entregas() {
 
                               {/* Formulario edición inline pedido */}
                               {editandoPedido === p.id && (
-                                <div style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: 14 }}>
+                                <div style={{ background: 'rgba(193,85,58,0.07)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 10, padding: 14 }}>
                                   <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Editar pedido</div>
                                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                                     <div>
@@ -518,8 +518,8 @@ export default function Entregas() {
                                         setEditFormPedido(prev => ({ ...prev, precio_venta: val, utilidad: (parseFloat(val) || 0) - costoCalc }))
                                       }
                                       return (
-                                        <div style={{ gridColumn: '1 / -1', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 10, padding: 12 }}>
-                                          <div style={{ color: '#818cf8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>💱 Cotizador</div>
+                                        <div style={{ gridColumn: '1 / -1', background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.18)', borderRadius: 10, padding: 12 }}>
+                                          <div style={{ color: '#dd8a6c', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>💱 Cotizador</div>
                                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                                             <div><label style={labelStyle}>Precio USD</label><input type="number" step="0.01" value={editFormPedido.precio_usd} onChange={ev => handleUsd(ev.target.value)} style={inputStyle} placeholder="Ej. 14.99" /></div>
                                             <div><label style={labelStyle}>Tipo de cambio</label><input type="number" step="0.01" value={editFormPedido.tipo_cambio} onChange={ev => handleTc(ev.target.value)} style={inputStyle} /></div>
@@ -529,7 +529,7 @@ export default function Entregas() {
                                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                               {[['arizona','Arizona 8.6%'],['california','California 7.75%'],['denog','Tax Denog']].map(([k,lbl]) => (
                                                 <button key={k} type="button" onClick={() => setTax(k)}
-                                                  style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: `1px solid ${entTaxTipo === k ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, background: entTaxTipo === k ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)', color: entTaxTipo === k ? '#818cf8' : 'rgba(255,255,255,0.45)' }}>
+                                                  style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: `1px solid ${entTaxTipo === k ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.1)'}`, background: entTaxTipo === k ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.04)', color: entTaxTipo === k ? '#dd8a6c' : 'rgba(255,255,255,0.45)' }}>
                                                   {lbl}
                                                 </button>
                                               ))}
@@ -578,7 +578,7 @@ export default function Entregas() {
                                   {pedidoMsg && <div style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>{pedidoMsg}</div>}
                                   <div style={{ display: 'flex', gap: 8 }}>
                                     <button onClick={guardarPedidoEdit} disabled={guardandoPedido}
-                                      style={{ background: '#6366f1', border: 'none', borderRadius: 8, padding: '7px 16px', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: guardandoPedido ? 0.6 : 1 }}>
+                                      style={{ background: '#c1553a', border: 'none', borderRadius: 8, padding: '7px 16px', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: guardandoPedido ? 0.6 : 1 }}>
                                       {guardandoPedido ? 'Guardando...' : '✓ Guardar'}
                                     </button>
                                     <button onClick={() => setEditandoPedido(null)}

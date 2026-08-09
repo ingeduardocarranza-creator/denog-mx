@@ -173,7 +173,7 @@ export default function Pendientes() {
             </button>
             {vista === 'activos' && (
               <button onClick={() => setMostrarForm(m => !m)}
-                style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 10, padding: '8px 14px', color: '#818cf8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                style={{ background: 'rgba(193,85,58,0.15)', border: '1px solid rgba(193,85,58,0.3)', borderRadius: 10, padding: '8px 14px', color: '#dd8a6c', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                 ➕ Agregar a mano
               </button>
             )}
@@ -204,7 +204,7 @@ export default function Pendientes() {
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={agregarAMano} disabled={guardando}
-                style={{ flex: 1, background: '#6366f1', border: 'none', borderRadius: 10, padding: '10px', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: guardando ? 0.6 : 1 }}>
+                style={{ flex: 1, background: '#c1553a', border: 'none', borderRadius: 10, padding: '10px', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: guardando ? 0.6 : 1 }}>
                 {guardando ? 'Guardando...' : '✓ Agregar'}
               </button>
               <button onClick={() => setMostrarForm(false)}
@@ -220,9 +220,9 @@ export default function Pendientes() {
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{
                 flex: 1, padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
-                border: `1px solid ${tab === t.id ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`,
-                background: tab === t.id ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)',
-                color: tab === t.id ? '#818cf8' : 'rgba(255,255,255,0.4)',
+                border: `1px solid ${tab === t.id ? 'rgba(193,85,58,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                background: tab === t.id ? 'rgba(193,85,58,0.15)' : 'rgba(255,255,255,0.03)',
+                color: tab === t.id ? '#dd8a6c' : 'rgba(255,255,255,0.4)',
                 fontSize: 12, fontWeight: tab === t.id ? 700 : 500,
               }}>
               {t.icon} {t.label} {vista === 'activos' && conteos[t.id] > 0 && (
@@ -254,7 +254,7 @@ export default function Pendientes() {
                           {vista === 'activos' ? haceCuanto(p.creado_en) : haceCuanto(p.resuelto_en)}
                         </span>
                         {p.estado === 'visto' && p.atendido?.nombre && (
-                          <span style={{ color: '#818cf8', fontSize: 10, background: 'rgba(99,102,241,0.12)', borderRadius: 8, padding: '2px 7px' }}>
+                          <span style={{ color: '#dd8a6c', fontSize: 10, background: 'rgba(193,85,58,0.12)', borderRadius: 8, padding: '2px 7px' }}>
                             👀 Viendo: {p.atendido.nombre}
                           </span>
                         )}
@@ -286,7 +286,7 @@ export default function Pendientes() {
                     </a>
                     {vista === 'activos' && p.estado === 'nuevo' && (
                       <button onClick={() => accion(p.id, 'ver')}
-                        style={{ flex: 1, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8, padding: '7px', color: '#818cf8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                        style={{ flex: 1, background: 'rgba(193,85,58,0.1)', border: '1px solid rgba(193,85,58,0.25)', borderRadius: 8, padding: '7px', color: '#dd8a6c', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                         👀 Yo lo veo
                       </button>
                     )}

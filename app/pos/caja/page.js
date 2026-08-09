@@ -243,7 +243,7 @@ export default function CajaPage() {
 
   const iniciales = (colaborador?.nombre || 'Colaborador').trim().split(/\s+/).slice(0, 2).map(n => n[0] || '').join('').toUpperCase()
   const contexto = {
-    apertura: { icon: '🔓', bg: 'rgba(139,92,246,0.16)', titulo: 'Apertura de turno' },
+    apertura: { icon: '🔓', bg: 'rgba(193,85,58,0.16)', titulo: 'Apertura de turno' },
     turno: { icon: '💰', bg: 'rgba(52,211,153,0.16)', titulo: 'Turno activo' },
     haciendo_corte: { icon: '🔒', bg: 'rgba(250,204,21,0.16)', titulo: 'Corte de turno' },
     corte_hecho: { icon: '✅', bg: 'rgba(52,211,153,0.16)', titulo: 'Turno cerrado' },
@@ -260,7 +260,7 @@ export default function CajaPage() {
         {paso !== 'corte_hecho' && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '14px 18px', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(139,92,246,0.18)', border: '1px solid rgba(139,92,246,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#c4b5fd' }}>
+              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(193,85,58,0.18)', border: '1px solid rgba(193,85,58,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#dd8a6c' }}>
                 {iniciales}
               </div>
               <div style={{ fontSize: 15, fontWeight: 700 }}>{colaborador?.nombre || 'Colaborador'}</div>
@@ -295,9 +295,9 @@ export default function CajaPage() {
         {paso === 'apertura' && (
           <div>
             {ultimoCorte && (
-              <div style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 16, padding: 18, marginBottom: 20 }}>
-                <div style={{ fontSize: 12, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(196,181,253,0.85)' }}>Fondo disponible</div>
-                <div style={{ color: '#c4b5fd', fontSize: 32, fontWeight: 900, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{fmt(fondoEsperado)}</div>
+              <div style={{ background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.3)', borderRadius: 16, padding: 18, marginBottom: 20 }}>
+                <div style={{ fontSize: 12, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(221,138,108,0.85)' }}>Fondo disponible</div>
+                <div style={{ color: '#dd8a6c', fontSize: 32, fontWeight: 900, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{fmt(fondoEsperado)}</div>
                 <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 6 }}>Corte de {ultimoCorte.clientes?.nombre} — {formatearFecha(ultimoCorte.creado_en)}</div>
                 {retirosPostCorte > 0 && (
                   <div style={{ color: '#f87171', fontSize: 11, marginTop: 4 }}>
@@ -323,10 +323,10 @@ export default function CajaPage() {
                     <div style={{ fontSize: 32, fontWeight: 900, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{fmt(totalContado)}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: 'rgba(255,255,255,0.3)', fontWeight: 700 }}>vs</div>
-                  <div style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.35)', borderRadius: 16, padding: 18, textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(196,181,253,0.85)' }}>Fondo esperado</div>
+                  <div style={{ background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.35)', borderRadius: 16, padding: 18, textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(221,138,108,0.85)' }}>Fondo esperado</div>
                     <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)', marginTop: 3 }}>del turno anterior</div>
-                    <div style={{ fontSize: 32, fontWeight: 900, marginTop: 8, color: '#c4b5fd', fontVariantNumeric: 'tabular-nums' }}>{fmt(fondoEsperado)}</div>
+                    <div style={{ fontSize: 32, fontWeight: 900, marginTop: 8, color: '#dd8a6c', fontVariantNumeric: 'tabular-nums' }}>{fmt(fondoEsperado)}</div>
                   </div>
                 </div>
 
@@ -401,7 +401,7 @@ export default function CajaPage() {
               <div style={{ fontSize: 13, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>Resumen del turno</div>
               <button
                 onClick={() => cargarResumenTurno(turnoActual)}
-                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(59,130,246,0.14)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.35)', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(193,85,58,0.14)', color: '#dd8a6c', border: '1px solid rgba(193,85,58,0.35)', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
               >
                 ↻ Actualizar
               </button>
@@ -589,7 +589,7 @@ export default function CajaPage() {
                 cargarUltimoCorteGlobal()
                 setPaso('apertura')
               }}
-              style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', padding: '14px 28px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', width: '100%', marginBottom: '12px' }}
+              style={{ background: '#c1553a', color: 'white', border: 'none', borderRadius: '12px', padding: '14px 28px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', width: '100%', marginBottom: '12px' }}
             >
               🏪 Abrir nueva caja
             </button>

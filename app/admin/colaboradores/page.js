@@ -113,7 +113,7 @@ export default function Colaboradores() {
           <div style={{ display: 'flex', gap: 6 }}>
             {periodos.map(p => (
               <button key={p.id} onClick={() => setPeriodo(p.id)}
-                style={{ background: periodo === p.id ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${periodo === p.id ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 8, padding: '5px 12px', color: periodo === p.id ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: periodo === p.id ? 600 : 400, cursor: 'pointer' }}>
+                style={{ background: periodo === p.id ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${periodo === p.id ? 'rgba(193,85,58,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 8, padding: '5px 12px', color: periodo === p.id ? '#dd8a6c' : 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: periodo === p.id ? 600 : 400, cursor: 'pointer' }}>
                 {p.label}
               </button>
             ))}
@@ -157,11 +157,11 @@ export default function Colaboradores() {
             {/* Lista expandible */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
               {ranking.map((v, idx) => (
-                <div key={v.id} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${expandido === v.id ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 14, overflow: 'hidden' }}>
+                <div key={v.id} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${expandido === v.id ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 14, overflow: 'hidden' }}>
                   <div onClick={() => setExpandido(expandido === v.id ? null : v.id)}
                     style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: idx === 0 ? 'rgba(245,158,11,0.15)' : 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: idx === 0 ? '#f59e0b' : '#818cf8', fontWeight: 700 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: idx === 0 ? 'rgba(245,158,11,0.15)' : 'rgba(193,85,58,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: idx === 0 ? '#f59e0b' : '#dd8a6c', fontWeight: 700 }}>
                         {v.iniciales}
                       </div>
                       <div>
@@ -220,9 +220,9 @@ export default function Colaboradores() {
                           <div style={{ color: 'rgba(16,185,129,0.6)', fontSize: 10, marginBottom: 3 }}>Utilidad</div>
                           <div style={{ color: '#10b981', fontSize: 14, fontWeight: 700 }}>{fmt(v.totalUtilidad)}</div>
                         </div>
-                        <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                        <div style={{ background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.15)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
                           <div style={{ color: 'rgba(129,140,248,0.6)', fontSize: 10, marginBottom: 3 }}>Margen</div>
-                          <div style={{ color: '#818cf8', fontSize: 14, fontWeight: 700 }}>{v.margen.toFixed(1)}%</div>
+                          <div style={{ color: '#dd8a6c', fontSize: 14, fontWeight: 700 }}>{v.margen.toFixed(1)}%</div>
                         </div>
                       </div>
                     </div>

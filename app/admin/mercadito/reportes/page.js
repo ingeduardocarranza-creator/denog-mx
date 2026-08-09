@@ -60,7 +60,7 @@ export default function MercaditoReportes() {
             {['semana', 'mes'].map((p) => (
               <button key={p} type="button" onClick={() => setPeriodo(p)}
                 className="px-3.5 py-1.5 rounded-lg text-[11.5px] font-bold transition-all"
-                style={periodo === p ? { background: 'rgba(59,130,246,0.2)', color: '#fff' } : { color: 'rgba(255,255,255,0.5)' }}>
+                style={periodo === p ? { background: 'rgba(193,85,58,0.2)', color: '#fff' } : { color: 'rgba(255,255,255,0.5)' }}>
                 {p === 'semana' ? 'Semana' : 'Mes'}
               </button>
             ))}
@@ -116,7 +116,7 @@ export default function MercaditoReportes() {
               <div className="flex items-end gap-2 h-32">
                 {(datos.tendencia || []).map((b) => (
                   <div key={b.clave} onClick={() => setBucketAbierto(b)} className="flex-1 flex flex-col items-center gap-1 cursor-pointer group">
-                    <div className="w-full rounded-t-md bg-blue-500 group-hover:bg-blue-400 transition-all" style={{ height: `${(b.count / maxTendencia) * 100}%`, minHeight: 4 }} />
+                    <div className="w-full rounded-t-md bg-[#c1553a] group-hover:bg-[#dd8a6c] transition-all" style={{ height: `${(b.count / maxTendencia) * 100}%`, minHeight: 4 }} />
                     <div className="text-[9px] text-slate-500 whitespace-nowrap">{b.clave.slice(5)}</div>
                   </div>
                 ))}

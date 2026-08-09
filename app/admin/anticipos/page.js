@@ -161,7 +161,7 @@ export default function Anticipos() {
                 <div style={{ display: 'flex', gap: 6 }}>
                   {['Efectivo','Transferencia','Terminal'].map(m => (
                     <button key={m} onClick={() => setMetodoPago(m)}
-                      style={{ flex: 1, padding: '7px', borderRadius: 8, border: `1px solid ${metodoPago === m ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, background: metodoPago === m ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', color: metodoPago === m ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 10, cursor: 'pointer', fontWeight: metodoPago === m ? 600 : 400 }}>
+                      style={{ flex: 1, padding: '7px', borderRadius: 8, border: `1px solid ${metodoPago === m ? 'rgba(193,85,58,0.4)' : 'rgba(255,255,255,0.08)'}`, background: metodoPago === m ? 'rgba(193,85,58,0.15)' : 'rgba(255,255,255,0.03)', color: metodoPago === m ? '#dd8a6c' : 'rgba(255,255,255,0.4)', fontSize: 10, cursor: 'pointer', fontWeight: metodoPago === m ? 600 : 400 }}>
                       {m}
                     </button>
                   ))}
@@ -176,11 +176,11 @@ export default function Anticipos() {
 
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button onClick={() => registrarAnticipo('limpiar')} disabled={loading}
-                style={{ flex: 1, background: '#6366f1', border: 'none', borderRadius: 10, padding: '11px', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+                style={{ flex: 1, background: '#c1553a', border: 'none', borderRadius: 10, padding: '11px', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
                 {loading ? 'Guardando...' : '✓ Registrar y limpiar'}
               </button>
               <button onClick={() => registrarAnticipo('continuar')} disabled={loading}
-                style={{ flex: 1, background: 'transparent', border: '1px solid rgba(99,102,241,0.5)', borderRadius: 10, padding: '11px', color: '#818cf8', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+                style={{ flex: 1, background: 'transparent', border: '1px solid rgba(193,85,58,0.5)', borderRadius: 10, padding: '11px', color: '#dd8a6c', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
                 {loading ? 'Guardando...' : '✓ Registrar y continuar'}
               </button>
             </div>
@@ -243,7 +243,7 @@ export default function Anticipos() {
                     {editando !== a.id && (
                       <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                         <button onClick={() => { setEditando(a.id); setMontoEditar(String(a.monto)) }}
-                          style={{ flex: 1, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 7, padding: '5px', color: '#818cf8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                          style={{ flex: 1, background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.15)', borderRadius: 7, padding: '5px', color: '#dd8a6c', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
                           ✏️ Editar
                         </button>
                         <button onClick={() => eliminarAnticipo(a.id)}

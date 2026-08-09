@@ -315,7 +315,7 @@ export default function AdminCaja() {
                       {/* Encabezado fila */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: enTurno ? 'rgba(16,185,129,0.15)' : hayDif ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: enTurno ? '#10b981' : hayDif ? '#f87171' : '#818cf8', fontWeight: 700 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: enTurno ? 'rgba(16,185,129,0.15)' : hayDif ? 'rgba(239,68,68,0.15)' : 'rgba(193,85,58,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: enTurno ? '#10b981' : hayDif ? '#f87171' : '#dd8a6c', fontWeight: 700 }}>
                             {iniciales}
                           </div>
                           <div>

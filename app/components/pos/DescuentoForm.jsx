@@ -13,7 +13,7 @@ export default function DescuentoForm({ tipo, setTipo, draft, setDraft, onConfir
           <option value="percent" style={{ background: '#152036' }}>Porcentaje (%)</option>
           <option value="amount" style={{ background: '#152036' }}>Monto ($)</option>
         </select>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid #3b82f6', borderRadius: 12, padding: '13px 16px' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid #c1553a', borderRadius: 12, padding: '13px 16px' }}>
           <span style={{ fontSize: 16, color: 'rgba(255,255,255,0.55)', fontWeight: 700 }}>{prefijo}</span>
           <input type="number" autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="0" style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 17, fontWeight: 800 }} />
         </div>

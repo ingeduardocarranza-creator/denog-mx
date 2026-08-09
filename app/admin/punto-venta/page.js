@@ -531,7 +531,7 @@ export default function PuntoDeVenta() {
               <div className="flex flex-col gap-2">
                 <div className="h-3 rounded-full bg-gray-950 border border-gray-800 overflow-hidden flex">
                   <div style={{ width: `${Math.max(0, Math.min(100, (monto1/total)*100))}%` }} className="bg-green-500 transition-all" />
-                  <div className="flex-1 bg-indigo-500 transition-all" />
+                  <div className="flex-1 bg-[#c1553a] transition-all" />
                 </div>
                 <span className={`text-xs font-bold ${puedeConfirmar ? 'text-green-400' : 'text-gray-400'}`}>{puedeConfirmar ? `✓ Suma exacta ${money(total)}` : `Escribe un monto menor a ${money(total)}`}</span>
               </div>
@@ -569,7 +569,7 @@ export default function PuntoDeVenta() {
 
   const MODOS = {
     modo1: { nombre: 'Encargos',  icono: '📦', desc: 'Entrega de compras que llegaron de USA',
-             activo: 'bg-violet-600 text-white shadow-lg shadow-violet-600/40',  banner: 'bg-violet-600',  borde: 'border-violet-600 ring-4 ring-violet-600/15',  texto: 'text-violet-400' },
+             activo: 'bg-[#c1553a] text-white shadow-lg shadow-[#c1553a]/40',  banner: 'bg-[#c1553a]',  borde: 'border-[#c1553a] ring-4 ring-[#c1553a]/15',  texto: 'text-[#dd8a6c]' },
     modo2: { nombre: 'Tienda',    icono: '🏬', desc: 'Venta directa en el mostrador de la tienda',
              activo: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/40', banner: 'bg-emerald-600', borde: 'border-emerald-600 ring-4 ring-emerald-600/15', texto: 'text-emerald-400' },
     modo3: { nombre: 'Domicilio', icono: '🚚', desc: 'Pedido para enviar a domicilio del cliente',
@@ -646,12 +646,12 @@ export default function PuntoDeVenta() {
         
         {/* POS header */}
         <div className="flex items-center gap-3.5">
-          <div style={{ flex: 'none', width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg,#7c3aed,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🛍️</div>
+          <div style={{ flex: 'none', width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg,#9b3f28,#c1553a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🛍️</div>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '0.3em', backgroundImage: 'linear-gradient(90deg,#ffffff,#c4b5fd)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+            <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '0.3em', backgroundImage: 'linear-gradient(90deg,#ffffff,#dd8a6c)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
               PUNTO DE VENTA
             </div>
-            <div style={{ width: 36, height: 3, borderRadius: 2, background: 'linear-gradient(90deg,#7c3aed,#8b5cf6)', margin: '6px 0' }} />
+            <div style={{ width: 36, height: 3, borderRadius: 2, background: 'linear-gradient(90deg,#9b3f28,#c1553a)', margin: '6px 0' }} />
             <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>ADMIN · {getDiaSemana()} {getMesActual()}</div>
           </div>
         </div>
@@ -675,8 +675,8 @@ export default function PuntoDeVenta() {
       {mensaje.texto && <div className="max-w-4xl mx-auto p-4 rounded-xl mb-6 text-sm font-semibold text-center bg-green-900/40 text-green-400 border border-green-800">{mensaje.texto}</div>}
 
       {ticketListo && (
-        <div className="max-w-4xl mx-auto p-4 bg-blue-950/40 border border-blue-900 rounded-2xl mb-6 flex flex-col sm:flex-row justify-between items-center gap-3">
-          <span className="text-xs text-blue-300 font-medium">El cobro cerró de forma exitosa. ¿Quieres enviarle el comprobante digital al cliente?</span>
+        <div className="max-w-4xl mx-auto p-4 bg-[#4a1b0c]/40 border border-[#6d2a19] rounded-2xl mb-6 flex flex-col sm:flex-row justify-between items-center gap-3">
+          <span className="text-xs text-[#dd8a6c] font-medium">El cobro cerró de forma exitosa. ¿Quieres enviarle el comprobante digital al cliente?</span>
           <button onClick={enviarWhatsApp} className="bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all">
             💬 Enviar Ticket por WhatsApp
           </button>

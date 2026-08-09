@@ -151,7 +151,7 @@ export default function ColaboradoresAdmin() {
             </div>
           </div>
           <button onClick={() => { setMostrarForm(f => !f); setEditando(null) }}
-            style={{ padding: '9px 18px', borderRadius: 10, background: mostrarForm ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.2)', border: `1px solid ${mostrarForm ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.35)'}`, color: mostrarForm ? 'rgba(255,255,255,0.5)' : '#818cf8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            style={{ padding: '9px 18px', borderRadius: 10, background: mostrarForm ? 'rgba(255,255,255,0.06)' : 'rgba(193,85,58,0.2)', border: `1px solid ${mostrarForm ? 'rgba(255,255,255,0.1)' : 'rgba(193,85,58,0.35)'}`, color: mostrarForm ? 'rgba(255,255,255,0.5)' : '#dd8a6c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             {mostrarForm ? 'Cancelar' : '+ Nuevo colaborador'}
           </button>
         </div>
@@ -175,7 +175,7 @@ export default function ColaboradoresAdmin() {
               </div>
               <div>
                 <label style={{ ...labelStyle }}>
-                  Usuario {!usuarioManual && <span style={{ color: '#818cf8', fontSize: 10 }}>(auto)</span>}
+                  Usuario {!usuarioManual && <span style={{ color: '#dd8a6c', fontSize: 10 }}>(auto)</span>}
                 </label>
                 <input style={{ ...inputStyle, borderColor: colaboradores.some(c => c.usuario === nuevo.usuario) ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.12)' }}
                   placeholder="nombre.apellido" value={nuevo.usuario}
@@ -250,7 +250,7 @@ export default function ColaboradoresAdmin() {
                     </div>
                     <div>
                       <button onClick={() => isEditing ? setEditando(null) : abrirEdicion(c)}
-                        style={{ padding: '5px 12px', borderRadius: 8, background: isEditing ? 'rgba(255,255,255,0.08)' : 'rgba(99,102,241,0.12)', border: `1px solid ${isEditing ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.25)'}`, color: isEditing ? 'rgba(255,255,255,0.4)' : '#818cf8', fontSize: 12, cursor: 'pointer' }}>
+                        style={{ padding: '5px 12px', borderRadius: 8, background: isEditing ? 'rgba(255,255,255,0.08)' : 'rgba(193,85,58,0.12)', border: `1px solid ${isEditing ? 'rgba(255,255,255,0.1)' : 'rgba(193,85,58,0.25)'}`, color: isEditing ? 'rgba(255,255,255,0.4)' : '#dd8a6c', fontSize: 12, cursor: 'pointer' }}>
                         {isEditing ? 'Cerrar' : 'Editar'}
                       </button>
                     </div>
@@ -258,7 +258,7 @@ export default function ColaboradoresAdmin() {
 
                   {/* Panel edición inline */}
                   {isEditing && (
-                    <div style={{ background: 'rgba(99,102,241,0.04)', borderBottom: i < filtrados.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', padding: '16px 20px' }}>
+                    <div style={{ background: 'rgba(193,85,58,0.04)', borderBottom: i < filtrados.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', padding: '16px 20px' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 14, marginBottom: 14 }}>
                         <div>
                           <label style={labelStyle}>Nombre completo</label>

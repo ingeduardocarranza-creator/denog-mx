@@ -740,7 +740,7 @@ const horariosDelDia = (f) => {
               <div className="flex flex-col gap-2">
                 <div className="h-3 rounded-full bg-gray-950 border border-gray-800 overflow-hidden flex">
                   <div style={{ width: `${Math.max(0, Math.min(100, (monto1/total)*100))}%` }} className="bg-green-500 transition-all" />
-                  <div className="flex-1 bg-indigo-500 transition-all" />
+                  <div className="flex-1 bg-[#c1553a] transition-all" />
                 </div>
                 <span className={`text-xs font-bold ${puedeConfirmar ? 'text-green-400' : 'text-gray-400'}`}>{puedeConfirmar ? `✓ Suma exacta ${money(total)}` : `Escribe un monto menor a ${money(total)}`}</span>
               </div>
@@ -873,12 +873,12 @@ const horariosDelDia = (f) => {
                       <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                         {['Efectivo','Transferencia','Terminal'].filter(m => m !== pagoDomicilio.metodo1).map(m => (
                           <button key={m} onClick={() => setPagoDomicilio({ ...pagoDomicilio, metodo2: m, recibido2: '' })}
-                            style={{ flex: 1, padding: '12px 8px', borderRadius: 14, border: `2px solid ${pagoDomicilio.metodo2 === m ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'}`, background: pagoDomicilio.metodo2 === m ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)', color: pagoDomicilio.metodo2 === m ? '#818cf8' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: pagoDomicilio.metodo2 === m ? 700 : 400, cursor: 'pointer' }}>
+                            style={{ flex: 1, padding: '12px 8px', borderRadius: 14, border: `2px solid ${pagoDomicilio.metodo2 === m ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.08)'}`, background: pagoDomicilio.metodo2 === m ? 'rgba(193,85,58,0.12)' : 'rgba(255,255,255,0.03)', color: pagoDomicilio.metodo2 === m ? '#c1553a' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: pagoDomicilio.metodo2 === m ? 700 : 400, cursor: 'pointer' }}>
                             {m}
                           </button>
                         ))}
                       </div>
-                      <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: '12px 16px', color: '#818cf8', fontSize: 16, fontWeight: 700, fontFamily: 'monospace', marginBottom: pagoDomicilio.metodo2 === 'Efectivo' ? 8 : 0 }}>
+                      <div style={{ background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.15)', borderRadius: 12, padding: '12px 16px', color: '#c1553a', fontSize: 16, fontWeight: 700, fontFamily: 'monospace', marginBottom: pagoDomicilio.metodo2 === 'Efectivo' ? 8 : 0 }}>
                         {fmtDom(totalAPagar - (parseFloat(pagoDomicilio.monto1) || 0))} en {pagoDomicilio.metodo2}
                       </div>
                       {pagoDomicilio.metodo2 === 'Efectivo' && (
@@ -920,7 +920,7 @@ const horariosDelDia = (f) => {
 
   const MODOS = {
     modo1: { nombre: 'Encargos',  icono: '📦', desc: 'Entrega de compras que llegaron de USA',
-             activo: 'bg-violet-600 text-white shadow-lg shadow-violet-600/40',  banner: 'bg-violet-600',  borde: 'border-violet-600 ring-4 ring-violet-600/15',  texto: 'text-violet-400' },
+             activo: 'bg-[#c1553a] text-white shadow-lg shadow-[#c1553a]/40',  banner: 'bg-[#c1553a]',  borde: 'border-[#c1553a] ring-4 ring-[#c1553a]/15',  texto: 'text-[#dd8a6c]' },
     modo2: { nombre: 'Tienda',    icono: '🏬', desc: 'Venta directa en el mostrador de la tienda',
              activo: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/40', banner: 'bg-emerald-600', borde: 'border-emerald-600 ring-4 ring-emerald-600/15', texto: 'text-emerald-400' },
     modo3: { nombre: 'Domicilio', icono: '🚚', desc: 'Pedido para enviar a domicilio del cliente',
@@ -970,7 +970,7 @@ const horariosDelDia = (f) => {
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ maxWidth: 440, width: '100%' }}>
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: '20px 24px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(99,102,241,0.2)', border: '2px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#818cf8', fontWeight: 700, flexShrink: 0 }}>{iniciales}</div>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(193,85,58,0.2)', border: '2px solid rgba(193,85,58,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#c1553a', fontWeight: 700, flexShrink: 0 }}>{iniciales}</div>
               <div>
                 <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Bienvenido 👋</div>
                 <div style={{ color: 'white', fontSize: 17, fontWeight: 700 }}>{colaborador?.nombre}</div>
@@ -1010,7 +1010,7 @@ const horariosDelDia = (f) => {
         Cerrar sesión
       </button>
       <button onClick={() => window.location.href = '/pos/caja?nuevo=true'}
-        style={{ width: '100%', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: '11px 24px', color: '#818cf8', fontSize: 13, cursor: 'pointer' }}>
+        style={{ width: '100%', background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.15)', borderRadius: 12, padding: '11px 24px', color: '#c1553a', fontSize: 13, cursor: 'pointer' }}>
         🔓 Abrir nuevo turno
       </button>
     </div>
@@ -1040,7 +1040,7 @@ const horariosDelDia = (f) => {
           {/* Header colaborador */}
           <div style={{ marginBottom: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(99,102,241,0.2)', border: '2px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#818cf8', fontWeight: 700 }}>{iniciales}</div>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(193,85,58,0.2)', border: '2px solid rgba(193,85,58,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#c1553a', fontWeight: 700 }}>{iniciales}</div>
               <div>
                 <div style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>{colaborador?.nombre}</div>
                 <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>{getDiaSemana()} {getMesActual()} · {horaActual}</div>
@@ -1064,16 +1064,16 @@ const horariosDelDia = (f) => {
 
           {/* Retiro pendiente */}
           {retiroPendiente && (
-            <div style={{ marginBottom: 16, background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ marginBottom: 16, background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 16 }}>📤</span>
                 <div>
-                  <div style={{ color: '#818cf8', fontSize: 13, fontWeight: 600 }}>Retiro pendiente de confirmar</div>
+                  <div style={{ color: '#c1553a', fontSize: 13, fontWeight: 600 }}>Retiro pendiente de confirmar</div>
                   <div style={{ color: 'rgba(129,140,248,0.5)', fontSize: 11 }}>El admin solicitó retirar ${retiroPendiente.monto?.toLocaleString('es-MX')} · {retiroPendiente.motivo}</div>
                 </div>
               </div>
               <button onClick={confirmarRetiro} disabled={confirmandoRetiro}
-                style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 10, padding: '8px 14px', color: '#818cf8', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                style={{ background: 'rgba(193,85,58,0.15)', border: '1px solid rgba(193,85,58,0.3)', borderRadius: 10, padding: '8px 14px', color: '#c1553a', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 {confirmandoRetiro ? 'Confirmando...' : 'Confirmar retiro →'}
               </button>
             </div>
@@ -1082,12 +1082,12 @@ const horariosDelDia = (f) => {
           {/* POS header */}
           <div className="max-w-4xl mx-auto mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
             <div className="flex items-center gap-3.5">
-              <div style={{ flex: 'none', width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg,#7c3aed,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🛍️</div>
+              <div style={{ flex: 'none', width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg,#9b3f28,#c1553a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🛍️</div>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '0.3em', backgroundImage: 'linear-gradient(90deg,#ffffff,#c4b5fd)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+                <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '0.3em', backgroundImage: 'linear-gradient(90deg,#ffffff,#dd8a6c)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
                   PUNTO DE VENTA
                 </div>
-                <div style={{ width: 36, height: 3, borderRadius: 2, background: 'linear-gradient(90deg,#7c3aed,#8b5cf6)', margin: '6px 0' }} />
+                <div style={{ width: 36, height: 3, borderRadius: 2, background: 'linear-gradient(90deg,#9b3f28,#c1553a)', margin: '6px 0' }} />
                 <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>COLABORADOR · {getDiaSemana()} {getMesActual()}</div>
               </div>
             </div>
@@ -1114,8 +1114,8 @@ const horariosDelDia = (f) => {
           {mensaje.texto && <div className="max-w-4xl mx-auto p-4 rounded-xl mb-6 text-sm font-semibold text-center bg-green-900/40 text-green-400 border border-green-800">{mensaje.texto}</div>}
 
           {ticketListo && (
-            <div className="max-w-4xl mx-auto p-4 bg-blue-950/40 border border-blue-900 rounded-2xl mb-6 flex flex-col sm:flex-row justify-between items-center gap-3">
-              <span className="text-xs text-blue-300 font-medium">El cobro cerró de forma exitosa. ¿Quieres enviarle el comprobante digital al cliente?</span>
+            <div className="max-w-4xl mx-auto p-4 bg-[#4a1b0c]/40 border border-[#6d2a19] rounded-2xl mb-6 flex flex-col sm:flex-row justify-between items-center gap-3">
+              <span className="text-xs text-[#dd8a6c] font-medium">El cobro cerró de forma exitosa. ¿Quieres enviarle el comprobante digital al cliente?</span>
               <button onClick={enviarWhatsApp} className="bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all">
                 💬 Enviar Ticket por WhatsApp
               </button>
@@ -1221,7 +1221,7 @@ const horariosDelDia = (f) => {
                   : () => { setModalRecibido(''); setModalMonto1(''); setModalDosMetodos(false); setMostrarModalCobro(true) }
                 }
                 disabled={loading || (modo === 'modo1' && !clienteSeleccionado)}
-                className="w-full font-bold text-xs py-3.5 rounded-xl uppercase tracking-widest transition-all bg-blue-600 hover:bg-blue-700 text-white shadow-lg disabled:opacity-40 disabled:cursor-not-allowed">
+                className="w-full font-bold text-xs py-3.5 rounded-xl uppercase tracking-widest transition-all bg-[#c1553a] hover:bg-[#9b3f28] text-white shadow-lg disabled:opacity-40 disabled:cursor-not-allowed">
                 {loading ? 'Procesando...' : totalGeneral === 0 ? '✅ Marcar como entregado' : '✓ Registrar pago'}
               </button>
 
@@ -1233,7 +1233,7 @@ const horariosDelDia = (f) => {
                   <div style={{ color: 'white', fontSize: 14, fontWeight: 700 }}>🚚 Domicilios del día</div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => { setMostrarFormDom(f => !f); setEntregasSeleccionadasDom([]); setPedidosClienteDom([]); setAnticiposClienteDom([]) }}
-                      style={{ padding: '5px 14px', borderRadius: 8, background: mostrarFormDom ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.2)', border: `1px solid ${mostrarFormDom ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.35)'}`, color: mostrarFormDom ? 'rgba(255,255,255,0.4)' : '#818cf8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                      style={{ padding: '5px 14px', borderRadius: 8, background: mostrarFormDom ? 'rgba(255,255,255,0.06)' : 'rgba(193,85,58,0.2)', border: `1px solid ${mostrarFormDom ? 'rgba(255,255,255,0.1)' : 'rgba(193,85,58,0.35)'}`, color: mostrarFormDom ? 'rgba(255,255,255,0.4)' : '#c1553a', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                       {mostrarFormDom ? 'Cancelar' : '+ Nuevo'}
                     </button>
                     <button onClick={cargarDomicilios} style={{ padding: '5px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer' }}>↻</button>
@@ -1265,7 +1265,7 @@ const horariosDelDia = (f) => {
                   const iStyle = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, padding:'8px 12px', color:'white', fontSize:12, outline:'none', boxSizing:'border-box' }
                   const lStyle = { color:'rgba(255,255,255,0.4)', fontSize:10, textTransform:'uppercase', letterSpacing:1, display:'block', marginBottom:5 }
                   return (
-                    <div style={{ background:'rgba(99,102,241,0.04)', border:'1px solid rgba(99,102,241,0.15)', borderRadius:14, padding:16, marginBottom:16 }}>
+                    <div style={{ background:'rgba(193,85,58,0.04)', border:'1px solid rgba(193,85,58,0.15)', borderRadius:14, padding:16, marginBottom:16 }}>
                       <div style={{ color:'white', fontSize:13, fontWeight:600, marginBottom:14 }}>➕ Nuevo domicilio</div>
 
                       {/* ① Cliente */}
@@ -1393,7 +1393,7 @@ const horariosDelDia = (f) => {
                           </div>
                           <div style={{ display:'flex', gap:8 }}>
                             <button onClick={crearDomicilio} disabled={guardandoDom}
-                              style={{ flex:1, background:'rgba(99,102,241,0.2)', border:'1px solid rgba(99,102,241,0.3)', borderRadius:10, padding:'10px', color:'#818cf8', fontSize:13, fontWeight:600, cursor:'pointer', opacity: guardandoDom ? 0.6 : 1 }}>
+                              style={{ flex:1, background:'rgba(193,85,58,0.2)', border:'1px solid rgba(193,85,58,0.3)', borderRadius:10, padding:'10px', color:'#c1553a', fontSize:13, fontWeight:600, cursor:'pointer', opacity: guardandoDom ? 0.6 : 1 }}>
                               {guardandoDom ? 'Guardando...' : '✓ Crear domicilio'}
                             </button>
                             <button onClick={() => { setMostrarFormDom(false); setEntregasSeleccionadasDom([]); setPedidosClienteDom([]); setAnticiposClienteDom([]) }}

@@ -48,7 +48,7 @@ export default function AperturaCaja() {
             <label className="text-gray-400 font-bold uppercase text-[10px]">Efectivo Inicial en Caja (MXN)</label>
             <input type="number" value={efectivo} onChange={(e) => setEfectivo(e.target.value)} placeholder="0.00 (Si no hay, pon 0)" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none" />
           </div>
-          <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl uppercase tracking-widest transition-all text-xs">
+          <button type="submit" disabled={loading} className="w-full bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-3.5 rounded-xl uppercase tracking-widest transition-all text-xs">
             {loading ? 'Registrando...' : '🚀 Abrir Caja e Ir a Ventas'}
           </button>
         </form>

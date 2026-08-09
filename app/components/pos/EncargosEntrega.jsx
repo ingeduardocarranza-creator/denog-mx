@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { crearLineaCatalogo, calcularTotalesCarrito } from '../../../lib/pos/tiendaUtils';
 import Foto from './ProductoFoto';
 import DescuentoForm from './DescuentoForm';
+import { clay } from '../../../lib/theme/colors';
 
 const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const money2 = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -180,9 +181,9 @@ export default function EncargosEntrega({
             <div className="relative w-full">
               <div
                 className="flex items-center gap-3 h-14 px-5 rounded-2xl"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '2px solid #8b5cf6' }}
+                style={{ background: 'rgba(255,255,255,0.03)', border: `2px solid ${clay[500]}` }}
               >
-                <span style={{ color: '#a78bfa' }}>🔍</span>
+                <span style={{ color: clay[300] }}>🔍</span>
                 <input
                   type="text"
                   placeholder="Buscar por nombre de cliente o teléfono..."
@@ -197,7 +198,7 @@ export default function EncargosEntrega({
                     <div
                       key={c.id}
                       onClick={() => onSeleccionarCliente(c)}
-                      className="p-3 text-sm text-slate-200 hover:bg-violet-600 cursor-pointer flex justify-between"
+                      className="p-3 text-sm text-slate-200 hover:bg-[#c1553a] cursor-pointer flex justify-between"
                     >
                       <span>{c.nombre}</span>
                       <span className="text-gray-400 font-mono text-xs">{c.telefono}</span>
@@ -214,14 +215,14 @@ export default function EncargosEntrega({
                     width: 46,
                     height: 46,
                     borderRadius: '50%',
-                    background: 'rgba(139,92,246,0.18)',
-                    border: '1px solid rgba(139,92,246,0.4)',
+                    background: 'rgba(193,85,58,0.18)',
+                    border: `1px solid rgba(193,85,58,0.4)`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: 16,
                     fontWeight: 800,
-                    color: '#c4b5fd',
+                    color: clay[300],
                   }}
                 >
                   {iniciales(clienteSeleccionado.nombre)}
@@ -255,8 +256,8 @@ export default function EncargosEntrega({
                 onClick={onCambiarCliente}
                 style={{
                   background: 'transparent',
-                  border: '1px solid rgba(139,92,246,0.5)',
-                  color: '#a78bfa',
+                  border: `1px solid rgba(193,85,58,0.5)`,
+                  color: clay[300],
                   borderRadius: 10,
                   padding: '9px 16px',
                   fontSize: 13,
@@ -288,7 +289,7 @@ export default function EncargosEntrega({
         {bloquesEntregas.length > 0 && (
           <div
             className="rounded-2xl p-4"
-            style={{ background: 'linear-gradient(120deg, rgba(96,165,250,0.18), rgba(139,92,246,0.06))', border: '1px solid rgba(96,165,250,0.4)' }}
+            style={{ background: 'linear-gradient(120deg, rgba(193,85,58,0.18), rgba(193,85,58,0.06))', border: `1px solid rgba(193,85,58,0.4)` }}
           >
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-4">
@@ -298,7 +299,7 @@ export default function EncargosEntrega({
                     width: 46,
                     height: 46,
                     borderRadius: 12,
-                    background: 'rgba(96,165,250,0.2)',
+                    background: 'rgba(193,85,58,0.2)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -319,14 +320,14 @@ export default function EncargosEntrega({
               <div
                 style={{
                   textAlign: 'center',
-                  background: 'rgba(96,165,250,0.22)',
-                  border: '1px solid rgba(96,165,250,0.5)',
+                  background: 'rgba(193,85,58,0.22)',
+                  border: `1px solid rgba(193,85,58,0.5)`,
                   borderRadius: 12,
                   padding: '6px 22px',
                   minWidth: 88,
                 }}
               >
-                <div style={{ fontSize: 40, fontWeight: 900, color: '#60a5fa', lineHeight: 1 }}>{totalPiezas}</div>
+                <div style={{ fontSize: 40, fontWeight: 900, color: clay[300], lineHeight: 1 }}>{totalPiezas}</div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>piezas</div>
               </div>
             </div>
@@ -401,7 +402,7 @@ export default function EncargosEntrega({
                           borderRadius: 6,
                           cursor: 'pointer',
                           border: checked ? 'none' : '2px solid rgba(255,255,255,0.3)',
-                          background: checked ? '#3b82f6' : 'transparent',
+                          background: checked ? '#c1553a' : 'transparent',
                           color: '#fff',
                           fontSize: 15,
                           fontWeight: 800,
@@ -417,8 +418,8 @@ export default function EncargosEntrega({
                           height: 30,
                           padding: '0 8px',
                           borderRadius: 8,
-                          background: checked ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.06)',
-                          color: checked ? '#60a5fa' : 'rgba(255,255,255,0.4)',
+                          background: checked ? 'rgba(193,85,58,0.15)' : 'rgba(255,255,255,0.06)',
+                          color: checked ? '#dd8a6c' : 'rgba(255,255,255,0.4)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -479,7 +480,7 @@ export default function EncargosEntrega({
 
               <div className="flex items-center justify-between px-5 py-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
                 <span style={{ fontSize: 15, fontWeight: 700 }}>Monto de esta entrega</span>
-                <span style={{ fontSize: 18, fontWeight: 900, color: '#60a5fa' }}>$ {money(subtotalFinalEntrega)}</span>
+                <span style={{ fontSize: 18, fontWeight: 900, color: '#dd8a6c' }}>$ {money(subtotalFinalEntrega)}</span>
               </div>
             </div>
           );
@@ -490,7 +491,7 @@ export default function EncargosEntrega({
           <div className="rounded-2xl overflow-hidden" style={{ background: '#111827', border: '1px solid rgba(168,154,248,0.35)' }}>
             <div className="flex items-center gap-2 px-5 py-3.5" style={{ background: 'rgba(168,154,248,0.1)', borderBottom: '1px solid rgba(168,154,248,0.25)' }}>
               <span style={{ fontSize: 16 }}>🛍️</span>
-              <span style={{ fontSize: 15, fontWeight: 800, color: '#c4b5fd' }}>SU MERCADITO — pendiente de recoger</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: '#dd8a6c' }}>SU MERCADITO — pendiente de recoger</span>
             </div>
             <div className="px-5">
               {pedidosMercadito.map((pm) => {
@@ -506,7 +507,7 @@ export default function EncargosEntrega({
                         style={{
                           flex: 'none', width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
                           border: checked ? 'none' : '2px solid rgba(255,255,255,0.3)',
-                          background: checked ? '#8b5cf6' : 'transparent', color: '#fff', fontSize: 15, fontWeight: 800, lineHeight: 1,
+                          background: checked ? '#c1553a' : 'transparent', color: '#fff', fontSize: 15, fontWeight: 800, lineHeight: 1,
                         }}
                       >
                         {checked ? '✓' : ''}
@@ -519,7 +520,7 @@ export default function EncargosEntrega({
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: checked ? (cubierto ? '#4ade80' : '#c4b5fd') : 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: checked ? (cubierto ? '#4ade80' : '#dd8a6c') : 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap' }}>
                         $ {money(pm.saldo)}
                       </div>
                     </div>
@@ -560,7 +561,7 @@ export default function EncargosEntrega({
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 12 }}>
             Algo extra del catálogo, además de su pedido.
           </div>
-          <div className="flex items-center gap-2 rounded-xl px-3 py-3" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid #8b5cf6' }}>
+          <div className="flex items-center gap-2 rounded-xl px-3 py-3" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid #c1553a' }}>
             <span style={{ opacity: 0.7 }}>🔍</span>
             <input
               type="text"
@@ -586,7 +587,7 @@ export default function EncargosEntrega({
                   <button
                     type="button"
                     onClick={() => agregarProducto(p)}
-                    style={{ flex: 'none', width: 34, height: 34, borderRadius: 10, background: '#8b5cf6', color: '#fff', border: 'none', fontSize: 18, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}
+                    style={{ flex: 'none', width: 34, height: 34, borderRadius: 10, background: '#c1553a', color: '#fff', border: 'none', fontSize: 18, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}
                   >
                     ＋
                   </button>
@@ -601,7 +602,7 @@ export default function EncargosEntrega({
                 Productos de tienda agregados
               </div>
               {lineasTienda.map(({ linea, subtotal, baseSubtotal, tieneDescuento }) => (
-                <div key={linea.id} className="rounded-xl p-2.5" style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.3)' }}>
+                <div key={linea.id} className="rounded-xl p-2.5" style={{ background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.3)' }}>
                   <div className="flex items-center gap-2.5">
                     <Foto imagenUrl={linea.imagenUrl} categoria={linea.categoria} size={40} />
                     <div className="flex-1 min-w-0">
@@ -615,7 +616,7 @@ export default function EncargosEntrega({
                     <button
                       type="button"
                       onClick={() => setMenuId((m) => (m === linea.id ? null : linea.id))}
-                      style={{ flex: 'none', width: 28, height: 28, borderRadius: 8, background: menuId === linea.id ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.06)', color: menuId === linea.id ? '#c4b5fd' : 'rgba(255,255,255,0.7)', border: 'none', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}
+                      style={{ flex: 'none', width: 28, height: 28, borderRadius: 8, background: menuId === linea.id ? 'rgba(193,85,58,0.25)' : 'rgba(255,255,255,0.06)', color: menuId === linea.id ? '#dd8a6c' : 'rgba(255,255,255,0.7)', border: 'none', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}
                     >
                       ⋮
                     </button>
@@ -637,7 +638,7 @@ export default function EncargosEntrega({
                   </div>
                   {menuId === linea.id && (
                     <div className="flex gap-2" style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                      <button type="button" onClick={() => abrirEditarPrecio(linea)} style={{ flex: 1, background: 'rgba(59,130,246,0.14)', border: '1px solid rgba(59,130,246,0.4)', color: '#3b82f6', fontSize: 11.5, fontWeight: 700, padding: '8px 4px', borderRadius: 8, cursor: 'pointer' }}>✏️ Precio</button>
+                      <button type="button" onClick={() => abrirEditarPrecio(linea)} style={{ flex: 1, background: 'rgba(193,85,58,0.14)', border: '1px solid rgba(193,85,58,0.4)', color: '#c1553a', fontSize: 11.5, fontWeight: 700, padding: '8px 4px', borderRadius: 8, cursor: 'pointer' }}>✏️ Precio</button>
                       <button type="button" onClick={() => abrirEditarDescuento(linea)} style={{ flex: 1, background: 'rgba(52,211,153,0.14)', border: '1px solid rgba(52,211,153,0.4)', color: '#34d399', fontSize: 11.5, fontWeight: 700, padding: '8px 4px', borderRadius: 8, cursor: 'pointer' }}>🏷 Descuento</button>
                       <button type="button" onClick={() => quitarLinea(linea.id)} style={{ flex: 1, background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', fontSize: 11.5, fontWeight: 700, padding: '8px 4px', borderRadius: 8, cursor: 'pointer' }}>🗑 Quitar</button>
                     </div>
@@ -663,7 +664,7 @@ export default function EncargosEntrega({
             {pedidosMercadito.filter((pm) => mercaditoSeleccionado[pm.id]).map((pm) => (
               <div key={pm.id} className="flex items-center justify-between">
                 <div style={{ fontSize: 14, fontWeight: 700 }}>Mercadito · {pm.folio}</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#c4b5fd' }}>$ {money(pm.saldo)}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#dd8a6c' }}>$ {money(pm.saldo)}</div>
               </div>
             ))}
             {lineasTienda.length > 0 && (
@@ -672,7 +673,7 @@ export default function EncargosEntrega({
                   <div style={{ fontSize: 14, fontWeight: 700 }}>Productos de tienda</div>
                   <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>{storeCount} artículo(s) extra</div>
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#a78bfa' }}>$ {money(montoTiendaExtra)}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#dd8a6c' }}>$ {money(montoTiendaExtra)}</div>
               </div>
             )}
             <div className="flex items-center justify-between" style={{ paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
@@ -685,7 +686,7 @@ export default function EncargosEntrega({
               disabled={loading || !clienteSeleccionado}
               style={{
                 width: '100%',
-                background: !loading && clienteSeleccionado ? '#3b82f6' : 'rgba(59,130,246,0.25)',
+                background: !loading && clienteSeleccionado ? '#c1553a' : 'rgba(193,85,58,0.25)',
                 color: !loading && clienteSeleccionado ? '#fff' : 'rgba(255,255,255,0.5)',
                 border: 'none',
                 borderRadius: 12,
@@ -693,7 +694,7 @@ export default function EncargosEntrega({
                 fontSize: 15,
                 fontWeight: 800,
                 cursor: !loading && clienteSeleccionado ? 'pointer' : 'not-allowed',
-                boxShadow: !loading && clienteSeleccionado ? '0 6px 20px rgba(59,130,246,0.4)' : 'none',
+                boxShadow: !loading && clienteSeleccionado ? '0 6px 20px rgba(193,85,58,0.4)' : 'none',
                 marginTop: 2,
               }}
             >
@@ -722,13 +723,13 @@ export default function EncargosEntrega({
               </div>
             </div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 8 }}>Precio personalizado</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid #3b82f6', borderRadius: 12, padding: '14px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid #c1553a', borderRadius: 12, padding: '14px 16px' }}>
               <span style={{ fontSize: 20, color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>$</span>
               <input type="number" autoFocus value={priceDraft} onChange={(e) => setPriceDraft(e.target.value)} placeholder="0.00" style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 20, fontWeight: 800 }} />
               <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', whiteSpace: 'nowrap' }}>Por unidad (u.)</span>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
-              <button type="button" onClick={guardarPrecio} style={{ flex: 1, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>Confirmar</button>
+              <button type="button" onClick={guardarPrecio} style={{ flex: 1, background: '#c1553a', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>Confirmar</button>
               <button type="button" onClick={cerrarModalLinea} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
             </div>
           </div>

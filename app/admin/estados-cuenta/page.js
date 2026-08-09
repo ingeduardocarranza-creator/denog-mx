@@ -644,7 +644,7 @@ export default function EstadosCuenta() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           {[['entrega', '📅 Por entrega'], ['cliente', '🔍 Buscar cliente']].map(([m, lbl]) => (
             <button key={m} onClick={() => { setModo(m); setDatos([]); setIndice(0) }}
-              style={{ padding: '8px 18px', borderRadius: 10, border: `1px solid ${modo === m ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, background: modo === m ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)', color: modo === m ? '#818cf8' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: modo === m ? 600 : 400, cursor: 'pointer' }}>
+              style={{ padding: '8px 18px', borderRadius: 10, border: `1px solid ${modo === m ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.1)'}`, background: modo === m ? 'rgba(193,85,58,0.15)' : 'rgba(255,255,255,0.04)', color: modo === m ? '#dd8a6c' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: modo === m ? 600 : 400, cursor: 'pointer' }}>
               {lbl}
             </button>
           ))}
@@ -662,7 +662,7 @@ export default function EstadosCuenta() {
                 </select>
               </div>
               <button onClick={cargarPorEntrega} disabled={!entregaId || cargando}
-                style={{ padding: '9px 20px', borderRadius: 8, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#818cf8', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !entregaId || cargando ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                style={{ padding: '9px 20px', borderRadius: 8, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', color: '#dd8a6c', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !entregaId || cargando ? 0.5 : 1, whiteSpace: 'nowrap' }}>
                 {cargando ? 'Cargando...' : 'Cargar clientes'}
               </button>
             </div>
@@ -692,7 +692,7 @@ export default function EstadosCuenta() {
                   </select>
                 </div>
                 <button onClick={cargarPorCliente} disabled={!clienteId || cargando}
-                  style={{ padding: '9px 20px', borderRadius: 8, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#818cf8', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !clienteId || cargando ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                  style={{ padding: '9px 20px', borderRadius: 8, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', color: '#dd8a6c', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !clienteId || cargando ? 0.5 : 1, whiteSpace: 'nowrap' }}>
                   {cargando ? 'Cargando...' : 'Ver estado'}
                 </button>
               </div>
@@ -780,7 +780,7 @@ export default function EstadosCuenta() {
                 return (
                   <div key={gi} style={{ marginBottom: gi < clienteActual.grupos.length - 1 ? 16 : 0 }}>
                     {clienteActual.grupos.length > 1 && g.entrega && (
-                      <div style={{ color: '#818cf8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                      <div style={{ color: '#dd8a6c', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
                         Entrega {fmtFecha(g.entrega.fecha_entrega)}
                       </div>
                     )}
@@ -810,7 +810,7 @@ export default function EstadosCuenta() {
                                   {p.estado !== 'Entregado' && (
                                     <>
                                       <button onClick={() => abrirEditarPedido(p)}
-                                        style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '3px 9px', color: '#818cf8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                        style={{ background: 'rgba(193,85,58,0.1)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 6, padding: '3px 9px', color: '#dd8a6c', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
                                         ✏️
                                       </button>
                                       <button
@@ -850,7 +850,7 @@ export default function EstadosCuenta() {
                               )}
                             </div>
                           ) : (
-                            <div style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: 14, margin: 6 }}>
+                            <div style={{ background: 'rgba(193,85,58,0.07)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 10, padding: 14, margin: 6 }}>
                               <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Editar pedido</div>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                                 <div>
@@ -922,8 +922,8 @@ export default function EstadosCuenta() {
                                     setEditFormPedido(prev => ({ ...prev, precio_venta: val, utilidad: (parseFloat(val) || 0) - costoCalc }))
                                   }
                                   return (
-                                    <div style={{ gridColumn: '1 / -1', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 10, padding: 12 }}>
-                                      <div style={{ color: '#818cf8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>💱 Cotizador</div>
+                                    <div style={{ gridColumn: '1 / -1', background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.18)', borderRadius: 10, padding: 12 }}>
+                                      <div style={{ color: '#dd8a6c', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>💱 Cotizador</div>
                                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                                         <div><label style={lSt}>Precio USD</label><input type="number" step="0.01" value={editFormPedido.precio_usd} onChange={ev => handleUsd(ev.target.value)} style={iSt} placeholder="Ej. 14.99" /></div>
                                         <div><label style={lSt}>Tipo de cambio</label><input type="number" step="0.01" value={editFormPedido.tipo_cambio} onChange={ev => handleTc(ev.target.value)} style={iSt} /></div>
@@ -933,7 +933,7 @@ export default function EstadosCuenta() {
                                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                           {[['arizona','Arizona 8.6%'],['california','California 7.75%'],['denog','Tax Denog']].map(([k,lbl]) => (
                                             <button key={k} type="button" onClick={() => setTax(k)}
-                                              style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: `1px solid ${ecTaxTipo === k ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, background: ecTaxTipo === k ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)', color: ecTaxTipo === k ? '#818cf8' : 'rgba(255,255,255,0.45)' }}>
+                                              style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: `1px solid ${ecTaxTipo === k ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.1)'}`, background: ecTaxTipo === k ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.04)', color: ecTaxTipo === k ? '#dd8a6c' : 'rgba(255,255,255,0.45)' }}>
                                               {lbl}
                                             </button>
                                           ))}
@@ -985,7 +985,7 @@ export default function EstadosCuenta() {
                               {pedidoMsg && <div style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>{pedidoMsg}</div>}
                               <div style={{ display: 'flex', gap: 8 }}>
                                 <button onClick={guardarPedidoEdit} disabled={guardandoPedido}
-                                  style={{ background: '#6366f1', border: 'none', borderRadius: 7, padding: '6px 14px', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: guardandoPedido ? 0.6 : 1 }}>
+                                  style={{ background: '#c1553a', border: 'none', borderRadius: 7, padding: '6px 14px', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: guardandoPedido ? 0.6 : 1 }}>
                                   {guardandoPedido ? 'Guardando...' : '✓ Guardar'}
                                 </button>
                                 <button onClick={() => setEditandoPedido(null)}
@@ -1084,7 +1084,7 @@ export default function EstadosCuenta() {
             {/* Botones principales */}
             <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
               <button onClick={() => copiarAlPortapapeles(clienteActual)} disabled={!imagenURL}
-                style={{ flex: 2, padding: '14px', borderRadius: 12, background: copiado ? 'rgba(74,222,128,0.15)' : 'rgba(99,102,241,0.2)', border: `1px solid ${copiado ? 'rgba(74,222,128,0.35)' : 'rgba(99,102,241,0.4)'}`, color: copiado ? '#4ade80' : '#818cf8', fontSize: 15, fontWeight: 700, cursor: imagenURL ? 'pointer' : 'default', opacity: imagenURL ? 1 : 0.4, transition: 'all 0.25s', letterSpacing: 0.3 }}>
+                style={{ flex: 2, padding: '14px', borderRadius: 12, background: copiado ? 'rgba(74,222,128,0.15)' : 'rgba(193,85,58,0.2)', border: `1px solid ${copiado ? 'rgba(74,222,128,0.35)' : 'rgba(193,85,58,0.4)'}`, color: copiado ? '#4ade80' : '#dd8a6c', fontSize: 15, fontWeight: 700, cursor: imagenURL ? 'pointer' : 'default', opacity: imagenURL ? 1 : 0.4, transition: 'all 0.25s', letterSpacing: 0.3 }}>
                 {copiado ? '✅ ¡Copiada!' : '📋 Copiar imagen'}
               </button>
               {clienteActual.cliente.telefono ? (

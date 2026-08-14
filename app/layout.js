@@ -48,6 +48,14 @@ export const metadata = {
     ],
     apple: '/apple-icon.png',
   },
+  other: {
+    // Comprueba ante Meta que denog.mx es nuestro. Requisito para la
+    // verificación del negocio, que a su vez es prerequisito de los permisos
+    // de la API de WhatsApp. Meta lee esta etiqueta del HTML servido, así que
+    // tiene que salir en el <head> del render del servidor — no la muevas a
+    // un componente de cliente. Ver docs/TICKET_META.md.
+    'facebook-domain-verification': 'blwyu8tnhwipg3rmz9fmv8959cedzv',
+  },
 };
 
 export default function RootLayout({ children }) {

@@ -246,6 +246,35 @@ funcionando igual (se basa en si el cliente volvió a escribir, no solo en el ec
   Si `platform_type` es `ON_PREMISE` y `status` es `DISCONNECTED`, el número quedó atado
   a la API vieja (dada de baja por Meta) y hace falta rehacer el onboarding por
   coexistencia.
+- **La coexistencia NO se puede activar solo.** La documentación oficial de Meta
+  ("Onboard WhatsApp Business app users") lo dice en Requisitos: *"You must already be
+  a Solution Partner or Tech Provider."* Un negocio no puede conectar su propio número
+  a coexistencia desde su propia página — el diálogo se abre pero salta al permiso
+  genérico de OAuth y nunca muestra el QR. Se intentó (B7) y así se comprobó.
+- **El código de verificación de "Vincular una cuenta de WhatsApp Business" no llega
+  por SMS.** Llega como un chat dentro de la app de WhatsApp Business, mandado por la
+  cuenta oficial de Facebook Business. Requiere app 2.24.17+.
+- **Los mensajes de grupo nunca llegan a la API**, ni con coexistencia. El grupo de
+  difusión de fotos de Denog seguirá siendo 100% manual. El asistente solo ve chats 1 a 1
+  (que es donde caen comprobantes, pedidos específicos y "sin responder").
+- La coexistencia apaga en la app: listas de difusión, mensajes temporales, ver una vez y
+  ubicación en tiempo real. Y desvincula todos los dispositivos vinculados una vez.
+- El CSP del sitio (`next.config.mjs`) bloqueaba `connect.facebook.net`. Ya está
+  permitido, junto con `graph.facebook.com` y los frames de `facebook.com`.
+
+## 11 ter. Proveedores de coexistencia (comparados en ago 2026)
+
+Todos corren sobre la misma Cloud API oficial: **ninguno cambia el riesgo de baneo**.
+Ese riesgo viene del comportamiento (mensajes masivos, reportes), no del proveedor.
+
+| Proveedor | Costo aprox. | Nota |
+|---|---|---|
+| **Dualhook** | ~$12 USD/mes | Webhook Override: Meta manda directo a nuestro servidor, el código B1–B5 no se toca. No guarda mensajes. WABA queda en el portafolio propio. Empresa chica. |
+| **360dialog** | ~$5–59 USD/mes | BSP establecido, muy usado en LatAm. Recargo de 7% en ciertos mensajes de marketing. |
+| **Manychat** | ~$15–25 USD/mes | Coexistencia en beta. No pasa webhooks crudos: habría que rehacer parte de B5 (recibir vía External Request). No sincroniza historial viejo. Da bandeja y automatizaciones. |
+| **Wati / respond.io** | $59–79 USD/mes | Plataformas de bandeja completa. Caras y guardan todos los mensajes en sus servidores. |
+| **Número aparte "asistente"** | $0 | Número nuevo en Cloud API (self-service, sin socio). El equipo reenvía lo que hay que anotar. Cero riesgo al número principal, pero depende de disciplina. |
+| **Tech Provider propio** | $0 + trámite | Verificación de negocio. Pensado para quien da servicio a terceros. Desproporcionado. |
 
 ## 12. Qué falta para encenderlo
 
@@ -264,3 +293,20 @@ funcionando igual (se basa en si el cliente volvió a escribir, no solo en el ec
    guardar → suscribirse al campo `messages`.
 5. Probar mandando un mensaje de prueba desde un celular ajeno al número de Denog y
    confirmar que aparece en `/admin/pendientes`.
+
+Los puntos 1 a 4 ya están hechos. **El pendiente real es la conexión del número**, y va
+en este orden:
+
+6. **Esperar a Meta.** Ticket abierto el 7/ago/2026 (Direct Support → Dev: Phone Number
+   & Registration → Registration Issues), severidad STANDARD. Piden que limpien el
+   registro On-Premises fantasma del número. Ver `docs/TICKET_META.md`.
+   Ese registro es lo que muy probablemente impide que llegue el código de verificación,
+   y bloquearía también el onboarding de cualquier proveedor. Sin esto, nada avanza.
+7. **Cuando Meta lo libere**, contratar un proveedor de coexistencia (ver §11 ter).
+   Recomendado: Dualhook o 360dialog, porque mandan los webhooks directo al servidor y
+   `app/api/whatsapp/webhook/route.js` sigue funcionando sin cambios.
+8. Recién ahí, la prueba end-to-end del punto 5.
+
+La página `/admin/conectar-whatsapp` (B7) se queda en el repo: no sirvió para el
+onboarding —Meta lo bloquea para quien no es socio— pero documenta el intento y sirve si
+algún día Denog llegara a ser Tech Provider.

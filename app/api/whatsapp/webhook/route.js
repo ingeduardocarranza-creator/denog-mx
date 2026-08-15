@@ -37,21 +37,39 @@ function firmaValida(req, cuerpoCrudo) {
     valida = false
   }
   if (!valida) {
-    // Diagnóstico temporal: no expone el secreto ni la firma completa, solo
-    // lo suficiente para saber si el request trae firma de Meta o es ruido
-    // de otro origen (ej. un rastreador sin firmar), y si el secreto
-    // configurado en Vercel tiene la longitud esperada.
+    // Diagnóstico temporal: identifica QUÉ payload es el que no valida, para
+    // poder compararlo contra los que sí pasan. Si los IDs de mensaje se
+    // repiten entre ambos grupos, es entrega duplicada (dos suscripciones al
+    // mismo WABA, cada una firmando con el App Secret de su propia app).
     console.error('[webhook whatsapp] firma inválida', {
-      userAgent: req.headers.get('user-agent') || '(sin user-agent)',
-      secretoConfigurado: !!secreto,
-      secretoLongitud: secreto.length,
-      traeFirma: !!req.headers.get('x-hub-signature-256'),
       firmaRecibidaPrefijo: firma ? firma.slice(0, 15) : '(sin header)',
       firmaEsperadaPrefijo: esperada.slice(0, 15),
-      largoCuerpo: cuerpoCrudo.length,
+      ...identificarPayload(cuerpoCrudo),
     })
   }
   return valida
+}
+
+// Lee sólo los identificadores del payload para el log. No confía en el
+// contenido ni lo procesa — sirve para saber de qué cuenta viene y qué
+// mensajes trae, aunque la firma no haya validado.
+function identificarPayload(cuerpoCrudo) {
+  try {
+    const p = JSON.parse(cuerpoCrudo)
+    const entry = p.entry?.[0] || {}
+    const cambio = entry.changes?.[0] || {}
+    const valor = cambio.value || {}
+    return {
+      cuentaId: entry.id || null,
+      campo: cambio.field || null,
+      idsMensaje: (valor.messages || []).map(m => m.id),
+      idsEstado: (valor.statuses || []).map(s => s.id),
+      telefonoNegocio: valor.metadata?.display_phone_number || null,
+      phoneNumberId: valor.metadata?.phone_number_id || null,
+    }
+  } catch {
+    return { payloadIlegible: true, largoCuerpo: cuerpoCrudo.length }
+  }
 }
 
 export async function POST(req) {
@@ -66,6 +84,11 @@ export async function POST(req) {
   } catch {
     return NextResponse.json({ ok: false, mensaje: 'JSON inválido' }, { status: 400 })
   }
+
+  // Contraparte del log de arriba: registra los payloads que SÍ validaron,
+  // para comparar sus IDs contra los que fallan. Quitar junto con el otro
+  // una vez cerrado el diagnóstico.
+  console.log('[webhook whatsapp] firma OK', identificarPayload(cuerpoCrudo))
 
   try {
     for (const entry of payload.entry || []) {

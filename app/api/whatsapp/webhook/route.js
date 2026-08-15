@@ -30,11 +30,28 @@ function firmaValida(req, cuerpoCrudo) {
   if (!secreto) return true // sin secreto configurado, no bloquea (para probar en desarrollo)
   const firma = req.headers.get('x-hub-signature-256') || ''
   const esperada = 'sha256=' + crypto.createHmac('sha256', secreto).update(cuerpoCrudo).digest('hex')
+  let valida = false
   try {
-    return crypto.timingSafeEqual(Buffer.from(firma), Buffer.from(esperada))
+    valida = crypto.timingSafeEqual(Buffer.from(firma), Buffer.from(esperada))
   } catch {
-    return false
+    valida = false
   }
+  if (!valida) {
+    // Diagnóstico temporal: no expone el secreto ni la firma completa, solo
+    // lo suficiente para saber si el request trae firma de Meta o es ruido
+    // de otro origen (ej. un rastreador sin firmar), y si el secreto
+    // configurado en Vercel tiene la longitud esperada.
+    console.error('[webhook whatsapp] firma inválida', {
+      userAgent: req.headers.get('user-agent') || '(sin user-agent)',
+      secretoConfigurado: !!secreto,
+      secretoLongitud: secreto.length,
+      traeFirma: !!req.headers.get('x-hub-signature-256'),
+      firmaRecibidaPrefijo: firma ? firma.slice(0, 15) : '(sin header)',
+      firmaEsperadaPrefijo: esperada.slice(0, 15),
+      largoCuerpo: cuerpoCrudo.length,
+    })
+  }
+  return valida
 }
 
 export async function POST(req) {

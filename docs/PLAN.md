@@ -105,8 +105,8 @@ Meta manda el mensaje a tu servidor      (webhook, en segundos)
         ↓
 La IA lo lee y decide: ¿esto requiere acción que se pueda olvidar?
         ↓
-    NO → no hace nada.  (la venta normal por foto reenviada NO ensucia la lista)
-    SÍ → escribe UN renglón en Pendientes
+    Es la venta normal → no hace nada.  (foto reenviada del grupo, talla, saludo)
+    Lo demás, incluso si duda → escribe UN renglón en Pendientes
         ↓
 Ustedes lo ven en el sitio web y lo resuelven caso por caso
 ```
@@ -139,14 +139,30 @@ que estampa tu nombre para que el otro no lo repita.
 |---|---|
 | Alta en Meta + coexistencia | El trámite. Se arranca primero porque son días de espera |
 | `/api/whatsapp/webhook` | Recibe todo: mensajes de clientes y ecos de los suyos |
-| Clasificador IA | Decide si algo merece pendiente. **Su trabajo principal es callarse** |
+| Clasificador IA | Decide si algo merece pendiente. **Ante la duda, avisa** — solo se calla con la venta normal |
 | Tabla `pendientes` | Un renglón por cosa que falta hacer |
 | Pantalla **Pendientes** | Lista, filtros, "Yo lo veo", "Listo", abrir chat |
 | Detalle de comprobante | Ver la foto, corregir el monto, **Aprobar** → registra en `pagos` |
 
-**Regla de oro del clasificador:** ante la duda, **no** crear pendiente. Una lista con
-ruido se abandona en tres días. Es preferible que se le escape uno a que te llene la
-pantalla de ventas normales.
+**Regla de oro del clasificador:** ante la duda, **sí** crear pendiente.
+
+> **Actualizado el 15/ago/2026.** Antes decía lo contrario ("ante la duda, no crear").
+> Se invirtió a petición de Eduardo, después de la primera prueba real. El motivo es el
+> modelo de uso: él revisa y valida todo de todas formas, así que un pendiente de más
+> cuesta dos segundos de lectura y uno de menos cuesta un cliente, un pago sin conciliar
+> o un pedido perdido. Los costos no son simétricos.
+>
+> El riesgo sigue existiendo y hay que vigilarlo: una lista con demasiado ruido se
+> abandona. Si eso pasa, la salida **no** es volver al criterio silencioso, sino afinar
+> el clasificador con los errores reales marcados desde el panel (botón "Esto no era").
+>
+> Lo que sigue sin generar pendiente nunca es la venta normal: reenviar una foto del
+> grupo, preguntar talla o color de algo ya publicado, cortesías y saludos, y preguntas
+> de seguimiento sobre algo ya en curso. Eso no es "duda" — es ruido conocido.
+
+**La especificación completa de la sección está en `PENDIENTES.md`.** Ese documento
+manda sobre este en todo lo relativo a Pendientes: objetivo, límites, categorías
+actuales y planeadas, y el ciclo de corrección.
 
 **Tiempo estimado:** ~2 semanas de código, más el trámite de Meta corriendo en paralelo
 desde el día uno.

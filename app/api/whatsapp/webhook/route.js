@@ -25,88 +25,118 @@ export async function GET(req) {
   return new Response('Verificación fallida', { status: 403 })
 }
 
-function firmaValida(req, cuerpoCrudo) {
+// ¿Viene firmado con NUESTRO App Secret? Ojo: no todo el tráfico legítimo lo
+// está. En coexistencia hay dos suscripciones al mismo WABA — la nuestra y la
+// del Tech Partner (Dualhook) — y cada una firma con el App Secret de su
+// propia app. Los eventos que entrega la suscripción del partner
+// (`history`, `smb_message_echoes`) NUNCA van a validar contra el nuestro,
+// porque su secreto es a nivel de app y no se comparte.
+// Por eso esto ya no es una puerta de entrada global: se usa por campo, según
+// lo que esté en juego. Ver el ruteo en POST().
+function firmaNuestra(req, cuerpoCrudo) {
   const secreto = process.env.WHATSAPP_APP_SECRET
   if (!secreto) return true // sin secreto configurado, no bloquea (para probar en desarrollo)
   const firma = req.headers.get('x-hub-signature-256') || ''
   const esperada = 'sha256=' + crypto.createHmac('sha256', secreto).update(cuerpoCrudo).digest('hex')
-  let valida = false
   try {
-    valida = crypto.timingSafeEqual(Buffer.from(firma), Buffer.from(esperada))
+    return crypto.timingSafeEqual(Buffer.from(firma), Buffer.from(esperada))
   } catch {
-    valida = false
+    return false
   }
-  if (!valida) {
-    // Diagnóstico temporal: identifica QUÉ payload es el que no valida, para
-    // poder compararlo contra los que sí pasan. Si los IDs de mensaje se
-    // repiten entre ambos grupos, es entrega duplicada (dos suscripciones al
-    // mismo WABA, cada una firmando con el App Secret de su propia app).
-    console.error('[webhook whatsapp] firma inválida', {
-      firmaRecibidaPrefijo: firma ? firma.slice(0, 15) : '(sin header)',
-      firmaEsperadaPrefijo: esperada.slice(0, 15),
-      ...identificarPayload(cuerpoCrudo),
-    })
-  }
-  return valida
 }
 
-// Lee sólo los identificadores del payload para el log. No confía en el
-// contenido ni lo procesa — sirve para saber de qué cuenta viene y qué
-// mensajes trae, aunque la firma no haya validado.
-function identificarPayload(cuerpoCrudo) {
-  try {
-    const p = JSON.parse(cuerpoCrudo)
-    const entry = p.entry?.[0] || {}
-    const cambio = entry.changes?.[0] || {}
-    const valor = cambio.value || {}
-    return {
-      cuentaId: entry.id || null,
-      campo: cambio.field || null,
-      idsMensaje: (valor.messages || []).map(m => m.id),
-      idsEstado: (valor.statuses || []).map(s => s.id),
-      telefonoNegocio: valor.metadata?.display_phone_number || null,
-      phoneNumberId: valor.metadata?.phone_number_id || null,
+// Segunda barrera, la que aplica a TODO lo que entra: que el evento sea de
+// nuestra cuenta y de nuestro número. No sustituye a la firma, pero descarta
+// cualquier payload que no venga de la cuenta que nos interesa.
+function identidadEsperada(payload) {
+  const wabaEsperado = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
+  const numeroEsperado = process.env.WHATSAPP_PHONE_NUMBER_ID
+  if (!wabaEsperado || !numeroEsperado) return true // sin configurar, no bloquea
+
+  const entradas = payload.entry || []
+  if (!entradas.length) return false
+
+  for (const entry of entradas) {
+    if (entry.id !== wabaEsperado) return false
+    for (const change of entry.changes || []) {
+      const idNumero = change.value?.metadata?.phone_number_id
+      // Algunos eventos de cuenta no traen metadata; sólo validamos si viene.
+      if (idNumero && idNumero !== numeroEsperado) return false
     }
-  } catch {
-    return { payloadIlegible: true, largoCuerpo: cuerpoCrudo.length }
   }
+  return true
 }
 
 export async function POST(req) {
   const cuerpoCrudo = await req.text()
-  if (!firmaValida(req, cuerpoCrudo)) {
-    return NextResponse.json({ ok: false, mensaje: 'Firma inválida' }, { status: 401 })
-  }
+  const firmadoPorNosotros = firmaNuestra(req, cuerpoCrudo)
 
   let payload
   try {
     payload = JSON.parse(cuerpoCrudo)
   } catch {
-    return NextResponse.json({ ok: false, mensaje: 'JSON inválido' }, { status: 400 })
+    // Respondemos 200 a todo lo que no vamos a procesar: cualquier respuesta
+    // de error hace que Meta reintente el mismo evento en bucle.
+    return NextResponse.json({ ok: true, ignorado: 'json-invalido' })
   }
 
-  // Contraparte del log de arriba: registra los payloads que SÍ validaron,
-  // para comparar sus IDs contra los que fallan. Quitar junto con el otro
-  // una vez cerrado el diagnóstico.
-  console.log('[webhook whatsapp] firma OK', identificarPayload(cuerpoCrudo))
+  if (!identidadEsperada(payload)) {
+    console.warn('[webhook whatsapp] evento de otra cuenta o número, ignorado', {
+      cuentaId: payload.entry?.[0]?.id || null,
+      phoneNumberId: payload.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id || null,
+    })
+    return NextResponse.json({ ok: true, ignorado: 'identidad' })
+  }
 
   try {
     for (const entry of payload.entry || []) {
       for (const change of entry.changes || []) {
+        const campo = change.field
         const valor = change.value || {}
 
-        for (const msg of valor.messages || []) {
-          await procesarMensajeEntrante(msg, valor)
+        // Sincronización de historial de la coexistencia: Meta manda meses de
+        // conversaciones viejas en muchos trozos, firmadas por el partner.
+        // No las usamos. Descartar en silencio y responder 200 para que Meta
+        // deje de reintentarlas.
+        if (campo === 'history') continue
+
+        // Mensajes entrantes de clientes: es lo único que crea pendientes
+        // (incluidos comprobantes de pago), así que aquí SÍ exigimos que el
+        // evento venga firmado con nuestro App Secret. Sin eso, cualquiera que
+        // conociera la URL podría inyectar comprobantes falsos.
+        if (campo === 'messages') {
+          if (!firmadoPorNosotros) {
+            console.error('[webhook whatsapp] evento "messages" sin firma válida, descartado', {
+              idsMensaje: (valor.messages || []).map(m => m.id),
+            })
+            continue
+          }
+          for (const msg of valor.messages || []) {
+            await procesarMensajeEntrante(msg, valor)
+          }
+          continue
         }
 
-        // Ecos de mensajes que ustedes mandan desde la app del celular
-        // (coexistencia). El nombre exacto de este campo lo documenta Meta
-        // como "message_echoes", pero no se puede confirmar hasta ver
-        // tráfico real — si al conectar el webhook los ecos no cierran los
-        // pendientes de "sin responder" solos, revisar aquí el payload que
-        // realmente llega y ajustar el nombre del campo.
-        for (const eco of valor.message_echoes || []) {
-          await procesarEcoStaff(eco)
+        // Ecos de lo que el equipo contesta desde la app del celular. Llegan
+        // por la suscripción del partner (campo `smb_message_echoes`), así que
+        // vienen firmados con SU secreto y no podemos validarlos con el
+        // nuestro. Se aceptan apoyados en la validación de identidad de
+        // arriba: lo único que hacen es marcar como atendida una conversación,
+        // no crean pendientes ni tocan dinero.
+        if (campo === 'smb_message_echoes' || campo === 'message_echoes') {
+          const ecos = valor.message_echoes || []
+          if (ecos.length) {
+            // Temporal: confirmar la forma real del payload la primera vez que
+            // llegue uno (procesarEcoStaff espera `to` o `recipient_id`).
+            console.log('[webhook whatsapp] eco recibido', {
+              campo,
+              claves: Object.keys(ecos[0]),
+            })
+          }
+          for (const eco of ecos) {
+            await procesarEcoStaff(eco)
+          }
+          continue
         }
       }
     }
@@ -142,7 +172,17 @@ async function procesarMensajeEntrante(msg, valor) {
     .update({ estado: 'resuelto', resuelto_en: ahora })
     .eq('telefono_whatsapp', telefono).eq('tipo', 'sin_responder').in('estado', ['nuevo', 'visto'])
 
-  const texto = msg.text?.body || msg.button?.text || msg.interactive?.button_reply?.title || null
+  // OJO: cuando el cliente manda una foto CON texto en el mismo mensaje,
+  // WhatsApp no pone ese texto en `text.body` sino en el `caption` del
+  // adjunto. Sin esto, un "¿me consigues este artículo?" escrito junto a la
+  // foto llegaba como null y el clasificador solo veía una imagen suelta.
+  const texto = msg.text?.body
+    || msg.image?.caption
+    || msg.video?.caption
+    || msg.document?.caption
+    || msg.button?.text
+    || msg.interactive?.button_reply?.title
+    || null
 
   let pathImagen = null
   let urlParaClasificar = null
@@ -159,6 +199,19 @@ async function procesarMensajeEntrante(msg, valor) {
 
   const esReenviada = !!(msg.context?.forwarded || msg.context?.frequently_forwarded)
   const resultado = await clasificarMensaje({ texto, imagenUrl: urlParaClasificar, esReenviada })
+
+  // Temporal: deja ver en los logs qué recibió realmente la IA y qué decidió,
+  // sin tener que adivinar. Quitar cuando la clasificación esté afinada.
+  console.log('[clasificador] entrada/salida', {
+    tipoMensaje: msg.type,
+    texto: texto ? texto.slice(0, 120) : null,
+    traeImagen: !!urlParaClasificar,
+    imagenFalló: msg.type === 'image' && !urlParaClasificar,
+    esReenviada,
+    decision: resultado?.tipo || 'ninguna',
+    resumen: resultado?.resumen || null,
+  })
+
   if (!resultado) return
 
   let cliente_id = null

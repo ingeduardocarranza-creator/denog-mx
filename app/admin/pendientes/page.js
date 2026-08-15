@@ -58,6 +58,7 @@ export default function Pendientes() {
 
   const [clientes, setClientes] = useState([])
   const [entregas, setEntregas] = useState([])
+  const [descarteReciente, setDescarteReciente] = useState(null) // { id, resumen } para el "Deshacer"
   const [aprobando, setAprobando] = useState(null) // id del pendiente en aprobación
   const [formAprobar, setFormAprobar] = useState(null)
   const [guardandoPago, setGuardandoPago] = useState(false)
@@ -74,6 +75,13 @@ export default function Pendientes() {
     const intervalo = setInterval(cargar, 20000)
     return () => clearInterval(intervalo)
   }, [cargar])
+
+  // El aviso de "Deshacer" se va solo a los 8 segundos.
+  useEffect(() => {
+    if (!descarteReciente) return
+    const t = setTimeout(() => setDescarteReciente(null), 8000)
+    return () => clearTimeout(t)
+  }, [descarteReciente])
 
   useEffect(() => {
     fetch('/api/clientes/listar').then(r => r.json()).then(d => setClientes(d.clientes || []))
@@ -127,6 +135,34 @@ export default function Pendientes() {
     cargar()
   }
 
+  // "Esto no era": saca el pendiente de la lista de un solo clic, sin
+  // confirmación previa, y ofrece deshacer unos segundos. Se prefirió esto a
+  // la doble confirmación porque el descarte va a ser frecuente (el
+  // clasificador genera de más a propósito) y confirmar cada vez estorba;
+  // el deshacer solo aparece cuando hizo falta. No borra: ver
+  // docs/PENDIENTES.md §7.
+  const descartar = async (id) => {
+    const previo = pendientes.find(p => p.id === id)
+    await fetch('/api/pendientes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, accion: 'descartar' }),
+    })
+    setDescarteReciente({ id, resumen: previo?.resumen || '' })
+    cargar()
+  }
+
+  const deshacerDescarte = async () => {
+    if (!descarteReciente) return
+    await fetch('/api/pendientes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: descarteReciente.id, accion: 'restaurar' }),
+    })
+    setDescarteReciente(null)
+    cargar()
+  }
+
   const agregarAMano = async () => {
     if (!form.telefono_whatsapp || !form.resumen) {
       setMensaje('Falta teléfono o resumen'); return
@@ -171,6 +207,12 @@ export default function Pendientes() {
               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
               {vista === 'activos' ? '🕘 Ver resueltos' : '← Ver activos'}
             </button>
+            {vista === 'activos' && (
+              <button onClick={() => setVista('descartados')} title="Lo que la IA no debió generar — sirve para afinarla"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                🚫 Descartados
+              </button>
+            )}
             {vista === 'activos' && (
               <button onClick={() => setMostrarForm(m => !m)}
                 style={{ background: 'rgba(193,85,58,0.15)', border: '1px solid rgba(193,85,58,0.3)', borderRadius: 10, padding: '8px 14px', color: '#dd8a6c', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
@@ -237,7 +279,9 @@ export default function Pendientes() {
             <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 12, padding: 40 }}>Cargando...</div>
           ) : filtrados.length === 0 ? (
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>
-              {vista === 'activos' ? '✓ Nada pendiente por aquí' : 'Sin historial en esta categoría'}
+              {vista === 'activos' ? '✓ Nada pendiente por aquí'
+                : vista === 'descartados' ? 'Nada descartado en esta categoría'
+                : 'Sin historial en esta categoría'}
             </div>
           ) : (
             filtrados.map(p => {
@@ -251,7 +295,9 @@ export default function Pendientes() {
                       <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>{p.resumen}</div>
                       <div style={{ display: 'flex', gap: 10, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                         <span style={{ color: colorUrgencia(p.creado_en), fontSize: 10, fontWeight: 600 }}>
-                          {vista === 'activos' ? haceCuanto(p.creado_en) : haceCuanto(p.resuelto_en)}
+                          {vista === 'activos' ? haceCuanto(p.creado_en)
+                            : vista === 'descartados' ? haceCuanto(p.descartado_en)
+                            : haceCuanto(p.resuelto_en)}
                         </span>
                         {p.estado === 'visto' && p.atendido?.nombre && (
                           <span style={{ color: '#dd8a6c', fontSize: 10, background: 'rgba(193,85,58,0.12)', borderRadius: 8, padding: '2px 7px' }}>
@@ -261,6 +307,11 @@ export default function Pendientes() {
                         {vista === 'resueltos' && p.resuelto?.nombre && (
                           <span style={{ color: '#4ade80', fontSize: 10, background: 'rgba(74,222,128,0.1)', borderRadius: 8, padding: '2px 7px' }}>
                             ✓ Resuelto por {p.resuelto.nombre}
+                          </span>
+                        )}
+                        {vista === 'descartados' && p.descartado?.nombre && (
+                          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '2px 7px' }}>
+                            🚫 Descartado por {p.descartado.nombre}
                           </span>
                         )}
                       </div>
@@ -302,10 +353,22 @@ export default function Pendientes() {
                         ✅ Listo
                       </button>
                     )}
+                    {vista === 'activos' && (
+                      <button onClick={() => descartar(p.id)} title="La IA no debió generar esto"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px 10px', color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        🚫 Esto no era
+                      </button>
+                    )}
                     {vista === 'resueltos' && (
                       <button onClick={() => accion(p.id, 'reabrir')}
                         style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                         ↺ Reabrir
+                      </button>
+                    )}
+                    {vista === 'descartados' && (
+                      <button onClick={() => accion(p.id, 'restaurar')}
+                        style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                        ↺ Devolver a la lista
                       </button>
                     )}
                   </div>
@@ -365,6 +428,21 @@ export default function Pendientes() {
           )}
         </div>
       </div>
+
+      {/* Aviso flotante de "Deshacer" — reemplaza a la doble confirmación:
+          no estorba cuando el descarte era correcto (que será casi siempre)
+          y protege igual cuando fue error de dedo. */}
+      {descarteReciente && (
+        <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 50, display: 'flex', alignItems: 'center', gap: 14, background: '#1c1c22', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: '11px 16px', boxShadow: '0 8px 28px rgba(0,0,0,0.5)', maxWidth: 'calc(100vw - 32px)' }}>
+          <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 320 }}>
+            🚫 Descartado{descarteReciente.resumen ? `: ${descarteReciente.resumen}` : ''}
+          </span>
+          <button onClick={deshacerDescarte}
+            style={{ background: 'rgba(193,85,58,0.18)', border: '1px solid rgba(193,85,58,0.35)', borderRadius: 8, padding: '6px 12px', color: '#dd8a6c', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+            ↺ Deshacer
+          </button>
+        </div>
+      )}
     </div>
   )
 }

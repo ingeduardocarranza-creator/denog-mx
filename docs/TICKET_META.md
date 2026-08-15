@@ -1,6 +1,42 @@
 # Ticket para soporte de Meta — desatorar el número
 
-## ⚠️ GIRO (9 ago 2026): el WABA está sin configurar — prerequisitos faltantes
+## ✅ RESUELTO (10 ago 2026)
+
+Tras completar la verificación del negocio (dominio) y desvincular los
+dispositivos vinculados en la app, se reintentó la coexistencia por
+Dualhook por cuarta vez. Fue la primera vez que el flujo pasó completo por
+el diálogo de OAuth (selector de número existente → confirmar cuenta →
+zona horaria → revisión de permisos → confirmar) sin fallar en el paso del
+QR/código, hasta "Finalizing your connection".
+
+Confirmado en Graph API:
+
+```json
+{
+  "is_on_biz_app": true,
+  "platform_type": "CLOUD_API",
+  "status": "CONNECTED",
+  "id": "206272094692390"
+}
+```
+
+El Phone Number ID **no cambió** — sigue siendo `206272094692390` — así que
+no hace falta actualizar variables de entorno.
+
+No se puede aislar con certeza cuál de las dos acciones fue la que
+destrabó el número (verificación del negocio vs. limpiar dispositivos
+vinculados), o si fue la combinación de ambas. Queda como aprendizaje para
+un futuro caso similar: si un número queda en `ON_PREMISE`/`DISCONNECTED`
+sin explicación, revisar primero que el WABA tenga verificación de negocio
+completa y los dispositivos vinculados limpios, antes de considerar borrar
+el registro.
+
+**Siguiente paso:** correr B8 (prueba end-to-end del webhook) para
+confirmar que los mensajes entrantes llegan y se clasifican correctamente.
+
+---
+
+## ⚠️ GIRO (9 ago 2026, superado): el WABA está sin configurar — prerequisitos faltantes
 
 **El borrado quedó SUSPENDIDO.** Al buscar la opción de eliminar en
 Configuración del negocio → Cuentas de WhatsApp → DENOG COMPRAS USA, se
@@ -64,6 +100,34 @@ Satélite, Hermosillo, Sonora 83200) + fin comercial = sí.
 - Confirmación de vínculo: **SMS** al +52 662 548 6432
 
 Meta indica **~2 días hábiles** de revisión.
+
+**Actualización: el primer intento (SMS) fue rechazado sin motivo explícito.**
+Al reintentar con más cuidado, se descubrió que ese primer intento saltó
+directo de "elegir método" a "información enviada" — **nunca pidió subir el
+documento**, aunque la pantalla decía "verifica con un documento y...". Muy
+probablemente el rechazo fue por falta de documento adjunto.
+
+**Segundo intento (10 ago 2026) — verificado exitosamente por dominio:**
+
+En vez de repetir SMS/WhatsApp, se usó **verificación por dominio**, que es
+más determinista (no depende de que llegue un mensaje) y da resultado
+inmediato en vez de pasar a revisión manual:
+
+1. Se agregó `denog.mx` en Configuración → Orígenes de datos → Dominios
+2. Meta dio una metaetiqueta: `<meta name="facebook-domain-verification" content="blwyu8tnhwipg3rmz9fmv8959cedzv" />`
+3. Se agregó al `<head>` vía `metadata.other` en `app/layout.js` (commit
+   `5327e44`), desplegado en Vercel
+4. Confirmado en el código fuente servido y verificado en Meta → **dominio
+   verificado**
+5. Se retomó la verificación del negocio, esta vez con sitio web
+   `https://denog.mx/` (sin www, para que coincida exactamente con el
+   dominio verificado)
+
+**Resultado: "Verificación para ANDREA VERONICA PEREZ VALENZUELA — Verificada"
+✅ (10 ago 2026, sin esperar los 2 días hábiles).**
+
+Con esto, los 4 prerequisitos que faltaban en el WABA quedaron completos:
+divisa, zona horaria, método de pago, y ahora verificación del negocio.
 
 ### 📌 Pendiente para cuando aprueben la verificación
 

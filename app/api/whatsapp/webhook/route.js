@@ -186,6 +186,9 @@ async function procesarMensajeEntrante(msg, valor) {
 
   let pathImagen = null
   let urlParaClasificar = null
+  let pathDocumento = null
+  let urlDocumentoParaClasificar = null
+
   if (msg.type === 'image' && msg.image?.id) {
     try {
       pathImagen = await descargarYGuardarMedia(msg.image.id, supabase)
@@ -193,12 +196,37 @@ async function procesarMensajeEntrante(msg, valor) {
     } catch (err) {
       console.error('[webhook whatsapp] no se pudo descargar la imagen:', err?.message)
     }
+  } else if (msg.type === 'document' && msg.document?.id) {
+    // Muchos bancos mandan el comprobante como PDF adjunto (documento), no
+    // como foto — WhatsApp lo entrega con type "document", no "image". Se
+    // descarga igual que una imagen; si es PDF se manda al clasificador como
+    // bloque "document" (ver clasificador.js). Si es otro tipo de archivo
+    // (docx, xlsx, etc.) se guarda pero no se puede leer visualmente — solo
+    // cuenta el texto/caption que traiga el mensaje.
+    try {
+      pathDocumento = await descargarYGuardarMedia(msg.document.id, supabase)
+      if ((msg.document.mime_type || '').startsWith('application/pdf')) {
+        urlDocumentoParaClasificar = await urlFirmada(supabase, pathDocumento, 300)
+      } else {
+        console.warn('[webhook whatsapp] documento no-PDF recibido, no se puede clasificar visualmente', {
+          mimeType: msg.document.mime_type,
+          nombre: msg.document.filename,
+        })
+      }
+    } catch (err) {
+      console.error('[webhook whatsapp] no se pudo descargar el documento:', err?.message)
+    }
   }
 
-  if (!texto && !urlParaClasificar) return // audio, sticker, ubicación, etc. — nada que clasificar por ahora
+  if (!texto && !urlParaClasificar && !urlDocumentoParaClasificar) return // audio, sticker, ubicación, etc. — nada que clasificar por ahora
 
   const esReenviada = !!(msg.context?.forwarded || msg.context?.frequently_forwarded)
-  const resultado = await clasificarMensaje({ texto, imagenUrl: urlParaClasificar, esReenviada })
+  const resultado = await clasificarMensaje({
+    texto,
+    imagenUrl: urlParaClasificar,
+    documentoUrl: urlDocumentoParaClasificar,
+    esReenviada,
+  })
 
   // Temporal: deja ver en los logs qué recibió realmente la IA y qué decidió,
   // sin tener que adivinar. Quitar cuando la clasificación esté afinada.
@@ -206,7 +234,9 @@ async function procesarMensajeEntrante(msg, valor) {
     tipoMensaje: msg.type,
     texto: texto ? texto.slice(0, 120) : null,
     traeImagen: !!urlParaClasificar,
+    traeDocumento: !!urlDocumentoParaClasificar,
     imagenFalló: msg.type === 'image' && !urlParaClasificar,
+    documentoFalló: msg.type === 'document' && !!msg.document?.id && !pathDocumento,
     esReenviada,
     decision: resultado?.tipo || 'ninguna',
     resumen: resultado?.resumen || null,
@@ -231,7 +261,9 @@ async function procesarMensajeEntrante(msg, valor) {
     resumen: resultado.resumen,
     detalle: resultado.detalle,
     monto: resultado.monto,
-    imagen_url: pathImagen,
+    // La columna se llama imagen_url por el caso original, pero guarda la
+    // ruta de cualquier adjunto — foto o PDF del comprobante.
+    imagen_url: pathImagen || pathDocumento,
     mensaje_wa_id: msg.id,
     cliente_id,
   })

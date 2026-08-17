@@ -27,6 +27,13 @@ function colorUrgencia(fecha) {
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-MX')}`
 
+// El bucket guarda tanto fotos como PDFs de comprobante bajo la misma
+// columna imagen_url. Un <img> no puede mostrar un PDF — se detecta por la
+// extensión (antes del ?token de la URL firmada) y se muestra como enlace.
+function esPdf(url) {
+  return (url || '').split('?')[0].toLowerCase().endsWith('.pdf')
+}
+
 function fechaLocalHoy() {
   const hoy = new Date()
   return new Date(hoy.getTime() - hoy.getTimezoneOffset() * 60000).toISOString().split('T')[0]
@@ -324,11 +331,16 @@ export default function Pendientes() {
                     )}
                   </div>
 
-                  {p.imagen_url && (
+                  {p.imagen_url && (esPdf(p.imagen_url) ? (
+                    <a href={p.imagen_url} target="_blank" rel="noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, width: 'fit-content', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', color: '#dd8a6c', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                      📄 Ver comprobante (PDF)
+                    </a>
+                  ) : (
                     <a href={p.imagen_url} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 10 }}>
                       <img src={p.imagen_url} alt="Comprobante" style={{ maxHeight: 160, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }} />
                     </a>
-                  )}
+                  ))}
 
                   <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
                     <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"

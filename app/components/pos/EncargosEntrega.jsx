@@ -63,14 +63,25 @@ export default function EncargosEntrega({
   const [discountType, setDiscountType] = useState('percent');
   const [discountDraft, setDiscountDraft] = useState('');
 
-  const totalApartadosFragilEncargo = bloquesEntregas.reduce(
-    (sum, b) => sum + b.pedidos.filter((p) => p.apartado_fragil && productosSeleccionados[p.id]).length,
+  const totalPiezasFragilEncargo = bloquesEntregas.reduce(
+    (sum, b) =>
+      sum +
+      b.pedidos
+        .filter((p) => p.apartado_fragil && productosSeleccionados[p.id])
+        .reduce((s, p) => s + (Number(p.cantidad) || 1), 0),
     0
   );
-  const totalApartadosFragilMercadito = pedidosMercadito
+  const totalPiezasFragilMercadito = pedidosMercadito
     .filter((pm) => mercaditoSeleccionado[pm.id])
-    .reduce((sum, pm) => sum + (pm.items || []).filter((it) => it.apartado_fragil).length, 0);
-  const totalApartadosFragil = totalApartadosFragilEncargo + totalApartadosFragilMercadito;
+    .reduce(
+      (sum, pm) =>
+        sum +
+        (pm.items || [])
+          .filter((it) => it.apartado_fragil)
+          .reduce((s, it) => s + (Number(it.cantidad) || 1), 0),
+      0
+    );
+  const totalPiezasFragil = totalPiezasFragilEncargo + totalPiezasFragilMercadito;
 
   const tipoEmpaquePrincipal = bloquesEntregas
     .flatMap((b) => b.pedidos)
@@ -272,15 +283,14 @@ export default function EncargosEntrega({
         </div>
 
         {/* Banner frágil */}
-        {totalApartadosFragil > 0 && (
+        {totalPiezasFragil > 0 && (
           <div
             className="flex items-center gap-3 rounded-2xl px-5 py-4"
             style={{ background: '#facc15', color: '#0f172a' }}
           >
             <span style={{ fontSize: 24, lineHeight: 1 }}>⚠️</span>
-            <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.35 }}>
-              ATENCIÓN: Este cliente tiene {totalApartadosFragil} artículo{totalApartadosFragil > 1 ? 's' : ''} APARTADOS
-              / FRÁGIL — agrégalos al pedido antes de continuar.
+            <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.3 }}>
+              {totalPiezasFragil} pieza{totalPiezasFragil > 1 ? 's' : ''} FRÁGIL — cuenta bien antes de entregar.
             </div>
           </div>
         )}
@@ -497,7 +507,9 @@ export default function EncargosEntrega({
               {pedidosMercadito.map((pm) => {
                 const checked = !!mercaditoSeleccionado[pm.id];
                 const cubierto = pm.saldo <= 0;
-                const itemsFragiles = (pm.items || []).filter((it) => it.apartado_fragil).length;
+                const itemsFragiles = (pm.items || [])
+                  .filter((it) => it.apartado_fragil)
+                  .reduce((s, it) => s + (Number(it.cantidad) || 1), 0);
                 return (
                   <div key={pm.id} className="py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                     <div className="flex items-center gap-3">

@@ -6,15 +6,32 @@
 // aprueba o descarta.
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { clay, status } from '../../../../lib/theme/colors'
 
 const fmt = n => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 12px', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box' }
+const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box', transition: 'border-color .15s' }
+const inpFocus = { borderColor: clay[500] }
 const lbl = { display: 'block', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }
 
 const fmtEntrega = e => {
   const d = new Date(e.fecha_entrega + 'T12:00:00')
   return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}${e.nota ? ` · ${e.nota}` : ''}`
+}
+
+const fmtFechaCorta = iso => {
+  const d = new Date(iso)
+  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })
+}
+
+// Campo con borde clay al enfocar — mismo <input>/<select>/<textarea> de
+// siempre, solo con un toque visual que ayuda a ubicar rápido qué campo
+// se está editando en una pantalla con varias tarjetas seguidas.
+function Campo({ as: Tag = 'input', style, ...props }) {
+  const [foco, setFoco] = useState(false)
+  return <Tag {...props} style={{ ...inp, ...(foco ? inpFocus : null), ...style }}
+    onFocus={e => { setFoco(true); props.onFocus?.(e) }}
+    onBlur={e => { setFoco(false); props.onBlur?.(e) }} />
 }
 
 export default function PorAprobar() {
@@ -27,6 +44,7 @@ export default function PorAprobar() {
   const [busquedas, setBusquedas] = useState({}) // { [id]: texto de búsqueda de cliente }
   const [altaClienteAbierta, setAltaClienteAbierta] = useState({}) // { [id]: bool }
   const [altaClienteForm, setAltaClienteForm] = useState({}) // { [id]: {nombre, telefono} }
+  const [fotoModal, setFotoModal] = useState(null) // { url, descripcion } — lightbox, mismo patrón que empacado
 
   // Tipo de cambio, impuesto, fecha de compra y entrega son datos del
   // DÍA/sesión de revisión, no de cada venta individual — mismo patrón que
@@ -64,6 +82,17 @@ export default function PorAprobar() {
     const costo_mxn = usd > 0 && tc > 0 ? usd * (1 + imp / 100) * tc * cant : null
     const utilidad = costo_mxn != null && venta > 0 ? (venta * cant) - costo_mxn : null
     return { costo_mxn, utilidad }
+  }
+
+  // Qué tan "lista" está una tarjeta para aprobarse — puramente visual,
+  // no bloquea nada (eso lo sigue haciendo guardar()). Ayuda a escanear
+  // rápido cuáles necesitan atención antes de llegar a esa tarjeta.
+  const faltantes = p => {
+    const f = []
+    if (!p.cliente_id) f.push('cliente')
+    if (!p.precio_venta) f.push('venta MXN')
+    if (!p.precio_usd) f.push('costo USD')
+    return f
   }
 
   const guardar = async (p, { pendiente_aprobacion, estado }) => {
@@ -123,201 +152,274 @@ export default function PorAprobar() {
       .then(() => setPedidos(prev => prev.filter(x => x.id !== p.id)))
   }
 
-  if (cargando) return <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', padding: 32 }}>Cargando…</div>
+  if (cargando) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0f172a', color: 'rgba(255,255,255,0.5)', padding: 32, fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif" }}>
+        Cargando…
+      </div>
+    )
+  }
+
+  const listas = pedidos.filter(p => faltantes(p).length === 0).length
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', padding: '32px 24px', fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif" }}>
-      <Link href="/admin/pedidos" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, textDecoration: 'none', display: 'inline-block', marginBottom: 20 }}>
-        ← Volver a Pedidos
-      </Link>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 6 }}>Por aprobar — ventas registradas por WhatsApp</h1>
-      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 20, maxWidth: 640 }}>
-        Nada de aquí es una venta real todavía. Revisa los datos que extrajo la IA, corrígelos
-        si hace falta, y aprueba — o descarta si no era nada.
-      </p>
-
-      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 18, marginBottom: 28, maxWidth: 760 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginBottom: 12 }}>
-          Datos del día — aplican a todo lo que apruebes en esta pasada
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.6fr', gap: 12 }}>
-          <div>
-            <label style={lbl}>Tipo de cambio (USD → MXN)</label>
-            <input style={inp} type="number" step="0.01" placeholder="Ej: 17.50" value={config.tipo_cambio}
-              onChange={e => setConfig(c => ({ ...c, tipo_cambio: e.target.value }))} />
-          </div>
-          <div>
-            <label style={lbl}>Impuesto</label>
-            <select style={inp} value={config.impuesto_pct} onChange={e => setConfig(c => ({ ...c, impuesto_pct: e.target.value }))}>
-              <option value="8.6">Arizona 8.6%</option>
-              <option value="7.75">California 7.75%</option>
-            </select>
-          </div>
-          <div>
-            <label style={lbl}>Fecha de compra</label>
-            <input style={inp} type="date" value={config.fecha_compra}
-              onChange={e => setConfig(c => ({ ...c, fecha_compra: e.target.value }))} />
-          </div>
-          <div>
-            <label style={lbl}>Entrega</label>
-            <select style={inp} value={config.entrega_id} onChange={e => setConfig(c => ({ ...c, entrega_id: e.target.value }))}>
-              <option value="">— Selecciona la fecha de entrega —</option>
-              {entregas.filter(e => e.estado === 'futura').map(e => (
-                <option key={e.id} value={e.id} style={{ background: '#0f172a' }}>{fmtEntrega(e)}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {pedidos.length === 0 && (
-        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15 }}>No hay nada pendiente de aprobar. 🎉</div>
-      )}
-
-      <div style={{ display: 'grid', gap: 18, maxWidth: 760 }}>
-        {pedidos.map(p => {
-          const { costo_mxn, utilidad } = calcular(p)
-          const busq = busquedas[p.id] ?? (clientes.find(c => c.id === p.cliente_id)?.nombre || '')
-          const sugerencias = !p.cliente_id && busq.trim()
-            ? clientes.filter(c => c.nombre?.toLowerCase().includes(busq.trim().toLowerCase())).slice(0, 6)
-            : []
-          const altaAbierta = !!altaClienteAbierta[p.id]
-          const altaForm = altaClienteForm[p.id] || { nombre: '', telefono: '' }
-
-          const crearClienteInline = async () => {
-            if (!altaForm.nombre || !altaForm.telefono) return
-            const res = await fetch('/api/clientes/crear', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                nombre: altaForm.nombre, telefono: altaForm.telefono,
-                usuario: altaForm.telefono, password: altaForm.telefono,
-                limite_credito: 0, requiere_anticipo: false,
-              })
-            }).then(r => r.json())
-            if (res.ok) {
-              setClientes(prev => [...prev, res.cliente])
-              actualizarCampo(p.id, 'cliente_id', res.cliente.id)
-              setBusquedas(b => ({ ...b, [p.id]: res.cliente.nombre }))
-              setAltaClienteAbierta(a => ({ ...a, [p.id]: false }))
-            } else alert('Error al crear cliente: ' + res.mensaje)
-          }
-
-          return (
-            <div key={p.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 18, display: 'grid', gridTemplateColumns: '140px 1fr', gap: 16 }}>
-              <div>
-                {p.imagen_url_firmada ? (
-                  <img src={p.imagen_url_firmada} alt="Producto" style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)' }} />
-                ) : (
-                  <div style={{ width: '100%', height: 140, borderRadius: 10, border: '1px dashed rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 8 }}>
-                    sin foto
-                  </div>
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif" }}>
+      {/* Barra superior fija: volver, título y el panel "datos del día".
+          Se queda visible al hacer scroll porque se usa en cada tarjeta —
+          subirlo una vez arriba y olvidarlo es justo lo que ahorra tiempo. */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'rgba(15,23,42,0.92)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '18px 24px 16px' }}>
+        <div style={{ maxWidth: 820, margin: '0 auto' }}>
+          <Link href="/admin/pedidos" style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, textDecoration: 'none', display: 'inline-block', marginBottom: 10 }}>
+            ← Volver a Pedidos
+          </Link>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: '-0.01em' }}>Por aprobar</h1>
+              <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, margin: '3px 0 0' }}>
+                Ventas registradas por WhatsApp. Nada aquí es real todavía.
+              </p>
+            </div>
+            {pedidos.length > 0 && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span style={{ background: status.info.bg, color: status.info.fg, fontSize: 12.5, fontWeight: 700, padding: '5px 12px', borderRadius: 999 }}>
+                  {pedidos.length} pendiente{pedidos.length === 1 ? '' : 's'}
+                </span>
+                {listas > 0 && (
+                  <span style={{ background: status.success.bg, color: status.success.fg, fontSize: 12.5, fontWeight: 700, padding: '5px 12px', borderRadius: 999 }}>
+                    {listas} listo{listas === 1 ? '' : 's'} para aprobar
+                  </span>
                 )}
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>
-                  {new Date(p.creado_en).toLocaleString('es-MX')}
-                </div>
               </div>
+            )}
+          </div>
 
+          <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${clay[700]}55`, borderLeft: `3px solid ${clay[500]}`, borderRadius: 14, padding: '14px 16px' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: clay[300], textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+              Datos del día — aplican a todo lo que apruebes en esta pasada
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.6fr', gap: 12 }}>
               <div>
-                <label style={lbl}>Descripción</label>
-                <textarea value={p.descripcion || ''} onChange={e => actualizarCampo(p.id, 'descripcion', e.target.value)}
-                  style={{ ...inp, marginBottom: 10, minHeight: 44, resize: 'vertical' }} />
-
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, marginBottom: 10 }}>
-                  <div>
-                    <label style={lbl}>Cliente</label>
-                    {p.cliente_id ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <input style={inp} value={busq} disabled />
-                        <button onClick={() => { actualizarCampo(p.id, 'cliente_id', null); setBusquedas(b => ({ ...b, [p.id]: '' })) }}
-                          style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, color: '#fff', padding: '0 10px', cursor: 'pointer' }}>✕</button>
-                      </div>
-                    ) : (
-                      <>
-                        <input style={inp} placeholder="Buscar cliente…" value={busq}
-                          onChange={e => setBusquedas(b => ({ ...b, [p.id]: e.target.value }))} />
-                        {sugerencias.length > 0 && (
-                          <div style={{ marginTop: 4, background: '#1e293b', borderRadius: 8, overflow: 'hidden' }}>
-                            {sugerencias.map(c => (
-                              <div key={c.id} onClick={() => { actualizarCampo(p.id, 'cliente_id', c.id); setBusquedas(b => ({ ...b, [p.id]: c.nombre })) }}
-                                style={{ padding: '6px 10px', fontSize: 13, cursor: 'pointer' }}
-                                onMouseDown={e => e.preventDefault()}>
-                                {c.nombre} · {c.telefono}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {!altaAbierta ? (
-                          <button onClick={() => setAltaClienteAbierta(a => ({ ...a, [p.id]: true }))}
-                            style={{ fontSize: 12, color: '#f59e0b', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}>
-                            + cliente nuevo
-                          </button>
-                        ) : (
-                          <div style={{ marginTop: 6, display: 'grid', gap: 6 }}>
-                            <input style={inp} placeholder="Nombre" value={altaForm.nombre}
-                              onChange={e => setAltaClienteForm(f => ({ ...f, [p.id]: { ...altaForm, nombre: e.target.value } }))} />
-                            <input style={inp} placeholder="Teléfono (10 dígitos)" value={altaForm.telefono}
-                              onChange={e => setAltaClienteForm(f => ({ ...f, [p.id]: { ...altaForm, telefono: e.target.value } }))} />
-                            <button onClick={crearClienteInline}
-                              style={{ background: '#f59e0b', color: '#000', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                              Crear y asignar
-                            </button>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {p.notas && !p.cliente_id && (
-                      <div style={{ fontSize: 11.5, color: '#f59e0b', marginTop: 6 }}>⚠️ {p.notas}</div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label style={lbl}>Piezas</label>
-                    <input type="number" style={inp} value={p.cantidad ?? 1} onChange={e => actualizarCampo(p.id, 'cantidad', e.target.value)} />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                  <div>
-                    <label style={lbl}>Venta (MXN)</label>
-                    <input type="number" style={inp} value={p.precio_venta ?? ''} onChange={e => actualizarCampo(p.id, 'precio_venta', e.target.value)} />
-                  </div>
-                  <div>
-                    <label style={lbl}>Costo (USD)</label>
-                    <input type="number" style={inp} value={p.precio_usd ?? ''} onChange={e => actualizarCampo(p.id, 'precio_usd', e.target.value)} />
-                  </div>
-                </div>
-
-                <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', marginBottom: 12 }}>
-                  Costo total: ${costo_mxn != null ? fmt(costo_mxn) : '—'} MXN
-                  {utilidad != null && <> · Utilidad: ${fmt(utilidad)} MXN</>}
-                  {!config.tipo_cambio && <span style={{ color: '#f59e0b' }}> · falta el tipo de cambio del día (arriba)</span>}
-                </div>
-
-                {mensajes[p.id] && (
-                  <div style={{ fontSize: 12.5, color: mensajes[p.id].startsWith('Error') ? '#f87171' : '#34d399', marginBottom: 8 }}>
-                    {mensajes[p.id]}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button disabled={guardandoId === p.id} onClick={() => aprobar(p)}
-                    style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: guardandoId === p.id ? 0.6 : 1 }}>
-                    ✅ Aprobar
-                  </button>
-                  <button disabled={guardandoId === p.id} onClick={() => editar(p)}
-                    style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: guardandoId === p.id ? 0.6 : 1 }}>
-                    ✏️ Editar
-                  </button>
-                  <button disabled={guardandoId === p.id} onClick={() => descartar(p)}
-                    style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: guardandoId === p.id ? 0.6 : 1 }}>
-                    🗑️ Descartar
-                  </button>
-                </div>
+                <label style={lbl}>Tipo de cambio (USD → MXN)</label>
+                <Campo type="number" step="0.01" placeholder="Ej: 17.50" value={config.tipo_cambio}
+                  onChange={e => setConfig(c => ({ ...c, tipo_cambio: e.target.value }))} />
+              </div>
+              <div>
+                <label style={lbl}>Impuesto</label>
+                <Campo as="select" value={config.impuesto_pct} onChange={e => setConfig(c => ({ ...c, impuesto_pct: e.target.value }))}>
+                  <option value="8.6">Arizona 8.6%</option>
+                  <option value="7.75">California 7.75%</option>
+                </Campo>
+              </div>
+              <div>
+                <label style={lbl}>Fecha de compra</label>
+                <Campo type="date" value={config.fecha_compra}
+                  onChange={e => setConfig(c => ({ ...c, fecha_compra: e.target.value }))} />
+              </div>
+              <div>
+                <label style={lbl}>Entrega</label>
+                <Campo as="select" value={config.entrega_id} onChange={e => setConfig(c => ({ ...c, entrega_id: e.target.value }))}>
+                  <option value="">— Selecciona la fecha de entrega —</option>
+                  {entregas.filter(e => e.estado === 'futura').map(e => (
+                    <option key={e.id} value={e.id} style={{ background: '#0f172a' }}>{fmtEntrega(e)}</option>
+                  ))}
+                </Campo>
               </div>
             </div>
-          )
-        })}
+          </div>
+        </div>
       </div>
+
+      <div style={{ maxWidth: 820, margin: '0 auto', padding: '24px 24px 48px' }}>
+        {pedidos.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(255,255,255,0.4)' }}>
+            <div style={{ fontSize: 40, marginBottom: 10 }}>🎉</div>
+            <div style={{ fontSize: 15 }}>No hay nada pendiente de aprobar.</div>
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gap: 14 }}>
+          {pedidos.map(p => {
+            const { costo_mxn, utilidad } = calcular(p)
+            const busq = busquedas[p.id] ?? (clientes.find(c => c.id === p.cliente_id)?.nombre || '')
+            const sugerencias = !p.cliente_id && busq.trim()
+              ? clientes.filter(c => c.nombre?.toLowerCase().includes(busq.trim().toLowerCase())).slice(0, 6)
+              : []
+            const altaAbierta = !!altaClienteAbierta[p.id]
+            const altaForm = altaClienteForm[p.id] || { nombre: '', telefono: '' }
+            const pendientes = faltantes(p)
+            const lista = pendientes.length === 0
+
+            const crearClienteInline = async () => {
+              if (!altaForm.nombre || !altaForm.telefono) return
+              const res = await fetch('/api/clientes/crear', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  nombre: altaForm.nombre, telefono: altaForm.telefono,
+                  usuario: altaForm.telefono, password: altaForm.telefono,
+                  limite_credito: 0, requiere_anticipo: false,
+                })
+              }).then(r => r.json())
+              if (res.ok) {
+                setClientes(prev => [...prev, res.cliente])
+                actualizarCampo(p.id, 'cliente_id', res.cliente.id)
+                setBusquedas(b => ({ ...b, [p.id]: res.cliente.nombre }))
+                setAltaClienteAbierta(a => ({ ...a, [p.id]: false }))
+              } else alert('Error al crear cliente: ' + res.mensaje)
+            }
+
+            return (
+              <div key={p.id} style={{
+                background: 'rgba(255,255,255,0.035)',
+                border: `1px solid ${lista ? status.success.fg + '40' : 'rgba(255,255,255,0.1)'}`,
+                borderRadius: 16, padding: 16, display: 'grid', gridTemplateColumns: '150px 1fr', gap: 16,
+                position: 'relative',
+              }}>
+                <div style={{ position: 'absolute', top: 12, right: 14, display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {lista ? (
+                    <span style={{ background: status.success.bg, color: status.success.fg, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999 }}>
+                      ✓ Listo
+                    </span>
+                  ) : (
+                    <span style={{ background: status.warning.bg, color: status.warning.fg, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999 }} title={`Falta: ${pendientes.join(', ')}`}>
+                      Falta {pendientes.join(' · ')}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  {p.imagen_url_firmada ? (
+                    <div onClick={() => setFotoModal({ url: p.imagen_url_firmada, descripcion: p.descripcion })}
+                      style={{ position: 'relative', cursor: 'zoom-in', borderRadius: 10, overflow: 'hidden' }}>
+                      <img src={p.imagen_url_firmada} alt="Producto"
+                        style={{ width: '100%', height: 150, objectFit: 'cover', display: 'block', border: '1px solid rgba(255,255,255,0.1)' }} />
+                      <div style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '2px 5px', fontSize: 11 }}>🔍</div>
+                    </div>
+                  ) : (
+                    <div style={{ width: '100%', height: 150, borderRadius: 10, border: '1px dashed rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 8 }}>
+                      sin foto
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>
+                    {fmtFechaCorta(p.creado_en)}
+                  </div>
+                </div>
+
+                <div style={{ paddingRight: 70 }}>
+                  <Campo as="textarea" value={p.descripcion || ''} onChange={e => actualizarCampo(p.id, 'descripcion', e.target.value)}
+                    style={{ marginBottom: 10, minHeight: 40, resize: 'vertical', fontWeight: 600 }} />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div>
+                      <label style={lbl}>Cliente</label>
+                      {p.cliente_id ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <Campo value={busq} disabled />
+                          <button onClick={() => { actualizarCampo(p.id, 'cliente_id', null); setBusquedas(b => ({ ...b, [p.id]: '' })) }}
+                            style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, color: '#fff', padding: '0 10px', cursor: 'pointer' }}>✕</button>
+                        </div>
+                      ) : (
+                        <>
+                          <Campo placeholder="Buscar cliente…" value={busq}
+                            onChange={e => setBusquedas(b => ({ ...b, [p.id]: e.target.value }))} />
+                          {sugerencias.length > 0 && (
+                            <div style={{ marginTop: 4, background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, overflow: 'hidden' }}>
+                              {sugerencias.map(c => (
+                                <div key={c.id} onClick={() => { actualizarCampo(p.id, 'cliente_id', c.id); setBusquedas(b => ({ ...b, [p.id]: c.nombre })) }}
+                                  style={{ padding: '7px 10px', fontSize: 13, cursor: 'pointer' }}
+                                  onMouseDown={e => e.preventDefault()}>
+                                  {c.nombre} · {c.telefono}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {!altaAbierta ? (
+                            <button onClick={() => setAltaClienteAbierta(a => ({ ...a, [p.id]: true }))}
+                              style={{ fontSize: 12, color: clay[300], background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}>
+                              + cliente nuevo
+                            </button>
+                          ) : (
+                            <div style={{ marginTop: 6, display: 'grid', gap: 6 }}>
+                              <Campo placeholder="Nombre" value={altaForm.nombre}
+                                onChange={e => setAltaClienteForm(f => ({ ...f, [p.id]: { ...altaForm, nombre: e.target.value } }))} />
+                              <Campo placeholder="Teléfono (10 dígitos)" value={altaForm.telefono}
+                                onChange={e => setAltaClienteForm(f => ({ ...f, [p.id]: { ...altaForm, telefono: e.target.value } }))} />
+                              <button onClick={crearClienteInline}
+                                style={{ background: clay[500], color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                                Crear y asignar
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {p.notas && !p.cliente_id && (
+                        <div style={{ fontSize: 11.5, color: status.warning.fg, marginTop: 6 }}>⚠️ {p.notas}</div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label style={lbl}>Piezas</label>
+                      <Campo type="number" value={p.cantidad ?? 1} onChange={e => actualizarCampo(p.id, 'cantidad', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div>
+                      <label style={lbl}>Venta (MXN)</label>
+                      <Campo type="number" value={p.precio_venta ?? ''} onChange={e => actualizarCampo(p.id, 'precio_venta', e.target.value)} />
+                    </div>
+                    <div>
+                      <label style={lbl}>Costo (USD)</label>
+                      <Campo type="number" value={p.precio_usd ?? ''} onChange={e => actualizarCampo(p.id, 'precio_usd', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', marginBottom: 12 }}>
+                    Costo total: ${costo_mxn != null ? fmt(costo_mxn) : '—'} MXN
+                    {utilidad != null && <> · Utilidad: <span style={{ color: utilidad >= 0 ? status.success.fg : status.danger.fg, fontWeight: 700 }}>${fmt(utilidad)} MXN</span></>}
+                    {!config.tipo_cambio && <span style={{ color: status.warning.fg }}> · falta el tipo de cambio del día (arriba)</span>}
+                  </div>
+
+                  {mensajes[p.id] && (
+                    <div style={{ fontSize: 12.5, color: mensajes[p.id].startsWith('Error') ? status.danger.fg : status.success.fg, marginBottom: 8, fontWeight: 600 }}>
+                      {mensajes[p.id]}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button disabled={guardandoId === p.id} onClick={() => aprobar(p)}
+                      style={{ background: status.success.fg, color: '#052e1f', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 800, cursor: 'pointer', opacity: guardandoId === p.id ? 0.6 : 1 }}>
+                      ✅ Aprobar
+                    </button>
+                    <button disabled={guardandoId === p.id} onClick={() => editar(p)}
+                      style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: guardandoId === p.id ? 0.6 : 1 }}>
+                      Guardar
+                    </button>
+                    <button disabled={guardandoId === p.id} onClick={() => descartar(p)}
+                      style={{ background: status.danger.bg, color: status.danger.fg, border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: guardandoId === p.id ? 0.6 : 1, marginLeft: 'auto' }}>
+                      Descartar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Lightbox — mismo patrón que app/admin/empacado/page.js */}
+      {fotoModal && (
+        <div onClick={() => setFotoModal(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 14, textAlign: 'center', maxWidth: 500 }}>{fotoModal.descripcion}</div>
+          <img src={fotoModal.url} alt={fotoModal.descripcion}
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.7)' }} />
+          <button onClick={() => setFotoModal(null)}
+            style={{ marginTop: 20, background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '10px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+            Cerrar
+          </button>
+        </div>
+      )}
     </div>
   )
 }

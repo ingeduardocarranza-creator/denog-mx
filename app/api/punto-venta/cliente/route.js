@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
+import { urlFirmada } from '@/lib/whatsapp/media'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -37,7 +38,14 @@ export async function GET(req) {
       .order('creado_en', { ascending: true }),
   ])
 
-  const pedidos = pedidosRes.data || []
+  // Mismo criterio que /api/reportes/pedidos: la foto de un pedido que llegó
+  // por WhatsApp es una ruta dentro del bucket privado 'whatsapp-media', no
+  // una URL usable directo en <img>. Se manda convertida en un campo aparte
+  // (imagen_url_firmada) — imagen_url sigue siendo la ruta permanente.
+  const pedidos = await Promise.all((pedidosRes.data || []).map(async p => {
+    if (!p.imagen_url || p.imagen_url.startsWith('http')) return { ...p, imagen_url_firmada: p.imagen_url }
+    return { ...p, imagen_url_firmada: await urlFirmada(supabase, p.imagen_url, 3600) }
+  }))
   const mercadito = mercaditoRes.data || []
   const anticipos = anticiposRes.data || []
 

@@ -335,8 +335,8 @@ export default function Empacado() {
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
                             {item.imagen_url && (
-                              <img src={item.imagen_url} alt={item.descripcion}
-                                onClick={() => setFotoModal({ url: item.imagen_url, descripcion: item.descripcion })}
+                              <img src={item.imagen_url_firmada || item.imagen_url} alt={item.descripcion}
+                                onClick={() => setFotoModal({ url: item.imagen_url_firmada || item.imagen_url, descripcion: item.descripcion })}
                                 style={{ flex: 'none', width: 64, height: 64, objectFit: 'cover', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: '#1e293b', cursor: 'zoom-in' }} />
                             )}
                             <div style={{ flex: 'none', minWidth: 40, height: 40, padding: '0 8px', borderRadius: 10, background: 'rgba(193,85,58,0.15)', color: clay[300], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800 }}>×{item.cantidad || 1}</div>
@@ -378,8 +378,8 @@ export default function Empacado() {
                         <div key={it.id} style={{ background: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.3)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
                             {it.imagen_url && (
-                              <img src={it.imagen_url} alt={it.descripcion}
-                                onClick={() => setFotoModal({ url: it.imagen_url, descripcion: it.descripcion })}
+                              <img src={it.imagen_url_firmada || it.imagen_url} alt={it.descripcion}
+                                onClick={() => setFotoModal({ url: it.imagen_url_firmada || it.imagen_url, descripcion: it.descripcion })}
                                 style={{ flex: 'none', width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(250,204,21,0.4)', cursor: 'zoom-in' }} />
                             )}
                             <div style={{ fontSize: 14, color: '#facc15', fontWeight: 600 }}>{it.descripcion} · ×{it.cantidad || 1}</div>
@@ -461,8 +461,8 @@ export default function Empacado() {
                 <div key={row.id} style={{ background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.28)', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
                     {row.imagen_url && (
-                      <img src={row.imagen_url} alt={row.descripcion}
-                        onClick={() => setFotoModal({ url: row.imagen_url, descripcion: row.descripcion })}
+                      <img src={row.imagen_url_firmada || row.imagen_url} alt={row.descripcion}
+                        onClick={() => setFotoModal({ url: row.imagen_url_firmada || row.imagen_url, descripcion: row.descripcion })}
                         style={{ flex: 'none', width: 72, height: 72, objectFit: 'cover', borderRadius: 10, border: '2px solid rgba(250,204,21,0.5)', cursor: 'zoom-in' }} />
                     )}
                     <div style={{ minWidth: 0 }}>
@@ -502,8 +502,8 @@ export default function Empacado() {
                 <div key={row.id} style={{ background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.28)', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
                     {row.imagen_url && (
-                      <img src={row.imagen_url} alt={row.descripcion}
-                        onClick={() => setFotoModal({ url: row.imagen_url, descripcion: row.descripcion })}
+                      <img src={row.imagen_url_firmada || row.imagen_url} alt={row.descripcion}
+                        onClick={() => setFotoModal({ url: row.imagen_url_firmada || row.imagen_url, descripcion: row.descripcion })}
                         style={{ flex: 'none', width: 60, height: 60, objectFit: 'cover', borderRadius: 10, border: '1px solid rgba(249,115,22,0.4)', cursor: 'zoom-in' }} />
                     )}
                     <div style={{ minWidth: 0 }}>

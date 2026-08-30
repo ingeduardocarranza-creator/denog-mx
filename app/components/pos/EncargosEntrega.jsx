@@ -441,9 +441,9 @@ export default function EncargosEntrega({
                       </div>
                       {p.imagen_url && (
                         <img
-                          src={p.imagen_url}
+                          src={p.imagen_url_firmada || p.imagen_url}
                           alt={p.descripcion}
-                          onClick={() => setFotoModal({ url: p.imagen_url, descripcion: p.descripcion })}
+                          onClick={() => setFotoModal({ url: p.imagen_url_firmada || p.imagen_url, descripcion: p.descripcion })}
                           style={{
                             flex: 'none', width: 48, height: 48, objectFit: 'cover', borderRadius: 10, cursor: 'zoom-in',
                             border: p.apartado_fragil ? '2px solid #facc15' : '1px solid rgba(255,255,255,0.15)',
@@ -588,7 +588,7 @@ export default function EncargosEntrega({
             <div className="scrollpane flex flex-col gap-2 mt-3" style={{ maxHeight: 240, overflowY: 'auto', paddingRight: 4 }}>
               {productosFiltrados.map((p) => (
                 <div key={p.id} className="flex items-center gap-2.5 rounded-xl p-2" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <Foto imagenUrl={p.imagen_url} categoria={p.categoria} size={44} />
+                  <Foto imagenUrl={p.imagen_url_firmada || p.imagen_url} categoria={p.categoria} size={44} />
                   <div className="flex-1 min-w-0">
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{p.nombre}</div>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>

@@ -105,14 +105,38 @@ export async function POST(req) {
         // (incluidos comprobantes de pago), así que aquí SÍ exigimos que el
         // evento venga firmado con nuestro App Secret. Sin eso, cualquiera que
         // conociera la URL podría inyectar comprobantes falsos.
+        //
+        // Excepción: los números de la lista blanca de ventas (reenvíos desde
+        // el personal de Eduardo). En la prueba real del 30/ago varios de
+        // estos mensajes llegaron SIN validar contra nuestro App Secret —
+        // mismo patrón que el campo `history` (ver
+        // claude/whatsapp-webhook-b8-resuelto.md): en coexistencia no todo el
+        // tráfico legítimo se firma con el nuestro. Si se exigiera firma aquí
+        // también para estos números, esos mensajes se perdían en silencio —
+        // eso explicaba por qué a veces "no leía" el precio de la foto: el
+        // mensaje ni siquiera llegaba a procesarMensajeEntrante. Se acepta
+        // igual porque (a) identidadEsperada() ya confirmó que el evento es
+        // de nuestra cuenta/número, y (b) esto solo crea un borrador en "Por
+        // aprobar" — nunca una venta real sin revisión humana.
         if (campo === 'messages') {
-          if (!firmadoPorNosotros) {
-            console.error('[webhook whatsapp] evento "messages" sin firma válida, descartado', {
-              idsMensaje: (valor.messages || []).map(m => m.id),
-            })
-            continue
-          }
           for (const msg of valor.messages || []) {
+            const diezRemitente = a10Digitos(msg.from)
+            const esVentaWhitelist = diezRemitente ? await esVendedorVentas(supabase, diezRemitente) : false
+
+            if (!firmadoPorNosotros && !esVentaWhitelist) {
+              console.error('[webhook whatsapp] evento "messages" sin firma válida, descartado', {
+                idMensaje: msg.id,
+              })
+              continue
+            }
+
+            if (!firmadoPorNosotros && esVentaWhitelist) {
+              console.warn('[webhook whatsapp] mensaje de venta sin firma válida, aceptado por lista blanca', {
+                idMensaje: msg.id,
+                remitente: diezRemitente,
+              })
+            }
+
             await procesarMensajeEntrante(msg, valor)
           }
           continue
@@ -231,6 +255,15 @@ async function procesarMensajeEntrante(msg, valor) {
   // siempre termina en "Por aprobar" dentro de Encargos/Pedidos, nunca en
   // Pendientes de WhatsApp.
   if (esVenta) {
+    // Temporal: confirmar en logs qué llega realmente en cada mensaje de
+    // venta (tipo, si trae imagen, y el caption/texto exacto) — sin esto no
+    // se puede saber si el precio en pesos de verdad viene en el caption de
+    // la foto o si WhatsApp lo está entregando vacío al reenviar.
+    console.log('[ventasWhatsapp] mensaje entrante', {
+      tipo: msg.type,
+      traeImagen: !!urlParaClasificar,
+      caption: texto,
+    })
     try {
       if (urlParaClasificar) {
         // Mensaje 1: la foto con el precio de venta en pesos.

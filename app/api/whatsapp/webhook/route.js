@@ -256,20 +256,20 @@ async function procesarMensajeEntrante(msg, valor) {
   // Pendientes de WhatsApp.
   if (esVenta) {
     // Temporal: confirmar en logs qué llega realmente en cada mensaje de
-    // venta (tipo, si trae imagen, y el caption/texto exacto) — sin esto no
-    // se puede saber si el precio en pesos de verdad viene en el caption de
-    // la foto o si WhatsApp lo está entregando vacío al reenviar.
+    // venta (tipo, si trae imagen, y el texto exacto) — así se puede seguir
+    // viendo en producción cómo se está clasificando cada mensaje.
     console.log('[ventasWhatsapp] mensaje entrante', {
       tipo: msg.type,
       traeImagen: !!urlParaClasificar,
-      caption: texto,
+      texto,
     })
     try {
       if (urlParaClasificar) {
-        // Mensaje 1: la foto con el precio de venta en pesos.
-        await procesarMensajeVentaFoto(supabase, { pathImagen, imagenUrlFirmada: urlParaClasificar, caption: texto })
+        // Mensaje 1: la foto (nunca trae el precio — ver ventasWhatsapp.js).
+        await procesarMensajeVentaFoto(supabase, { pathImagen, imagenUrlFirmada: urlParaClasificar })
       } else if (texto) {
-        // Mensaje 2: cliente, costo en USD, piezas, talla.
+        // Mensaje 2 (precio MXN, solo número) o mensaje 3 (cliente + costo
+        // USD) — procesarMensajeVentaTexto distingue cuál es.
         await procesarMensajeVentaTexto(supabase, { texto })
       }
     } catch (err) {

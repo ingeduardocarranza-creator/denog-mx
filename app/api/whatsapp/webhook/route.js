@@ -4,7 +4,7 @@ import crypto from 'crypto'
 import { clasificarMensaje } from '@/lib/whatsapp/clasificador'
 import { a10Digitos } from '@/lib/whatsapp/telefono'
 import { descargarYGuardarMedia, urlFirmada } from '@/lib/whatsapp/media'
-import { esVendedorVentas, procesarMensajeVentaFoto, procesarMensajeVentaTexto } from '@/lib/whatsapp/ventasWhatsapp'
+import { esVendedorVentas, procesarMensajeVentaFoto, procesarMensajeVentaTexto, yaFueProcesado } from '@/lib/whatsapp/ventasWhatsapp'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -255,6 +255,15 @@ async function procesarMensajeEntrante(msg, valor) {
   // siempre termina en "Por aprobar" dentro de Encargos/Pedidos, nunca en
   // Pendientes de WhatsApp.
   if (esVenta) {
+    // Meta puede entregar el MISMO mensaje dos veces (una copia validando
+    // nuestra firma, otra sin validar — ver claude/whatsapp-webhook-b8-
+    // resuelto.md) y ahora aceptamos ambas para la lista blanca; sin este
+    // control cada mensaje se procesaba dos veces (2 ventas se veían como
+    // 4). Se descarta la segunda copia de plano, antes de tocar nada.
+    if (await yaFueProcesado(supabase, msg.id)) {
+      console.log('[ventasWhatsapp] mensaje duplicado, ignorado', { idMensaje: msg.id })
+      return
+    }
     // Temporal: confirmar en logs qué llega realmente en cada mensaje de
     // venta (tipo, si trae imagen, y el texto exacto) — así se puede seguir
     // viendo en producción cómo se está clasificando cada mensaje.
@@ -265,11 +274,12 @@ async function procesarMensajeEntrante(msg, valor) {
     })
     try {
       if (urlParaClasificar) {
-        // Mensaje 1: la foto (nunca trae el precio — ver ventasWhatsapp.js).
-        await procesarMensajeVentaFoto(supabase, { pathImagen, imagenUrlFirmada: urlParaClasificar })
+        // Mensaje de foto — el precio viene en el caption si es solo un
+        // número; si no, llega como su propio mensaje (ver ventasWhatsapp.js).
+        await procesarMensajeVentaFoto(supabase, { pathImagen, imagenUrlFirmada: urlParaClasificar, caption: texto })
       } else if (texto) {
-        // Mensaje 2 (precio MXN, solo número) o mensaje 3 (cliente + costo
-        // USD) — procesarMensajeVentaTexto distingue cuál es.
+        // Mensaje de precio MXN (solo número) o de cliente + costo USD —
+        // procesarMensajeVentaTexto distingue cuál es.
         await procesarMensajeVentaTexto(supabase, { texto })
       }
     } catch (err) {

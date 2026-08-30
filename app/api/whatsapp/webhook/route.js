@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import { clasificarMensaje } from '@/lib/whatsapp/clasificador'
 import { a10Digitos } from '@/lib/whatsapp/telefono'
 import { descargarYGuardarMedia, urlFirmada } from '@/lib/whatsapp/media'
+import { esVendedorVentas, procesarMensajeVentaFoto, procesarMensajeVentaTexto } from '@/lib/whatsapp/ventasWhatsapp'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -184,6 +185,11 @@ async function procesarMensajeEntrante(msg, valor) {
     || msg.interactive?.button_reply?.title
     || null
 
+  // Se decide antes de descargar nada, para guardar la foto en la carpeta
+  // correcta del storage (separado de los comprobantes de clientes).
+  const diezEmisor = a10Digitos(telefono)
+  const esVenta = diezEmisor ? await esVendedorVentas(supabase, diezEmisor) : false
+
   let pathImagen = null
   let urlParaClasificar = null
   let pathDocumento = null
@@ -191,7 +197,7 @@ async function procesarMensajeEntrante(msg, valor) {
 
   if (msg.type === 'image' && msg.image?.id) {
     try {
-      pathImagen = await descargarYGuardarMedia(msg.image.id, supabase)
+      pathImagen = await descargarYGuardarMedia(msg.image.id, supabase, esVenta ? 'ventas_whatsapp' : 'comprobantes')
       urlParaClasificar = await urlFirmada(supabase, pathImagen, 300)
     } catch (err) {
       console.error('[webhook whatsapp] no se pudo descargar la imagen:', err?.message)
@@ -216,6 +222,27 @@ async function procesarMensajeEntrante(msg, valor) {
     } catch (err) {
       console.error('[webhook whatsapp] no se pudo descargar el documento:', err?.message)
     }
+  }
+
+  // Registro de ventas por WhatsApp (ver
+  // claude/ventas-whatsapp-preaprobacion-diseno.md): si quien escribe está en
+  // la lista blanca de vendedores, este mensaje NUNCA pasa por el
+  // clasificador de comprobantes/pedido_especifico — es un flujo aparte y
+  // siempre termina en "Por aprobar" dentro de Encargos/Pedidos, nunca en
+  // Pendientes de WhatsApp.
+  if (esVenta) {
+    try {
+      if (urlParaClasificar) {
+        // Mensaje 1: la foto con el precio de venta en pesos.
+        await procesarMensajeVentaFoto(supabase, { pathImagen, imagenUrlFirmada: urlParaClasificar, caption: texto })
+      } else if (texto) {
+        // Mensaje 2: cliente, costo en USD, piezas, talla.
+        await procesarMensajeVentaTexto(supabase, { texto })
+      }
+    } catch (err) {
+      console.error('[webhook whatsapp] error registrando venta por WhatsApp:', err?.message)
+    }
+    return
   }
 
   if (!texto && !urlParaClasificar && !urlDocumentoParaClasificar) return // audio, sticker, ubicación, etc. — nada que clasificar por ahora

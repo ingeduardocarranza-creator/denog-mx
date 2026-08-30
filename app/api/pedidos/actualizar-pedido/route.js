@@ -11,7 +11,7 @@ const supabase = createClient(
 export async function PUT(req) {
   if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const { id, cliente_id, entrega_id, descripcion, lugar_compra, cantidad, fecha_compra,
-    precio_usd, tipo_cambio, impuesto_pct, costo_mxn, precio_venta, utilidad, notas, estado, vendedor_id, categoria, apartado_fragil, imagen_url, tipo_empaque } = await req.json()
+    precio_usd, tipo_cambio, impuesto_pct, costo_mxn, precio_venta, utilidad, notas, estado, vendedor_id, categoria, apartado_fragil, imagen_url, tipo_empaque, pendiente_aprobacion } = await req.json()
 
   if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })
 
@@ -45,7 +45,11 @@ export async function PUT(req) {
   const { data, error } = await supabase
     .from('pedidos')
     .update({ cliente_id, entrega_id, descripcion, lugar_compra, cantidad, fecha_compra,
-      precio_usd, tipo_cambio, impuesto_pct, costo_mxn, precio_venta, utilidad, notas, estado, vendedor_id, categoria, apartado_fragil: apartado_fragil || false, imagen_url: imagen_url || null, tipo_empaque: tipo_empaque || null })
+      precio_usd, tipo_cambio, impuesto_pct, costo_mxn, precio_venta, utilidad, notas, estado, vendedor_id, categoria, apartado_fragil: apartado_fragil || false, imagen_url: imagen_url || null, tipo_empaque: tipo_empaque || null,
+      // Solo se manda cuando el llamador lo especifica (Aprobar / Descartar en
+      // "Por aprobar"). Si no viene en el body, no se toca — evita que un
+      // guardado normal del resto del panel lo reinicie sin querer.
+      ...(pendiente_aprobacion !== undefined ? { pendiente_aprobacion } : {}) })
     .eq('id', id)
     .select()
     .single()

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
+import { urlFirmada } from '@/lib/whatsapp/media'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -24,6 +25,17 @@ export async function GET(req) {
     .from('pedidos')
     .select('*, clientes!pedidos_cliente_id_fkey(nombre, telefono)')
     .order('creado_en')
+
+  // "Por aprobar" (Encargos/Pedidos): borradores que llegaron por WhatsApp y
+  // todavía no se revisan. Fuera de esa pestaña, nunca se mezclan con la
+  // vista normal — por eso el filtro de pendiente_aprobacion=false va por
+  // default y hay que pedir explícitamente lo contrario.
+  const pendienteAprobacionParam = searchParams.get('pendiente_aprobacion')
+  if (pendienteAprobacionParam === 'true') {
+    baseQuery = baseQuery.eq('pendiente_aprobacion', true).neq('estado', 'descartado')
+  } else {
+    baseQuery = baseQuery.eq('pendiente_aprobacion', false)
+  }
 
   if (entrega_id)  baseQuery = baseQuery.eq('entrega_id', entrega_id)
   if (cliente_id)  baseQuery = baseQuery.eq('cliente_id', cliente_id)
@@ -64,5 +76,18 @@ export async function GET(req) {
     from += PAGE
   }
 
-  return NextResponse.json({ ok: true, pedidos: allData })
+  // imagen_url de los pedidos manuales es pública (bucket de catálogo); la
+  // de los que llegan por WhatsApp es una ruta dentro del bucket privado
+  // 'whatsapp-media' (mismo criterio que /api/pendientes) — hay que
+  // convertirla a URL firmada antes de mandarla al navegador.
+  // OJO: se manda en un campo aparte (imagen_url_firmada) a propósito.
+  // imagen_url sigue siendo la ruta permanente en storage — si el panel la
+  // mandara de vuelta al guardar, se perdería la ruta real y quedaría
+  // guardada una URL firmada que expira.
+  const pedidosConFoto = await Promise.all(allData.map(async p => {
+    if (!p.imagen_url || p.imagen_url.startsWith('http')) return { ...p, imagen_url_firmada: p.imagen_url }
+    return { ...p, imagen_url_firmada: await urlFirmada(supabase, p.imagen_url, 3600) }
+  }))
+
+  return NextResponse.json({ ok: true, pedidos: pedidosConFoto })
 }

@@ -320,6 +320,10 @@ export default function Pedidos() {
             className="px-5 py-2 rounded-xl text-sm font-semibold bg-emerald-700 text-white hover:bg-emerald-600 transition-all">
             📦 Captura en lote
           </Link>
+          <Link href="/admin/pedidos/aprobar"
+            className="px-5 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-600 transition-all">
+            ✅ Por aprobar (WhatsApp)
+          </Link>
         </div>
 
         {pestana === 'capturar' && (

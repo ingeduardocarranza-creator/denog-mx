@@ -42,7 +42,10 @@ export default function PorAprobar() {
       fetch('/api/clientes/listar').then(r => r.json()),
       fetch('/api/entregas').then(r => r.json()),
     ])
-    if (r.ok) setPedidos(r.pedidos.sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en)))
+    const hoy = new Date().toISOString().slice(0, 10)
+    if (r.ok) setPedidos(r.pedidos
+      .map(p => ({ ...p, fecha_compra: p.fecha_compra || hoy }))
+      .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en)))
     if (c.ok) setClientes(c.clientes.filter(x => x.rol === 'cliente'))
     if (e.ok) setEntregas(e.entregas || [])
     setCargando(false)
@@ -216,7 +219,7 @@ export default function PorAprobar() {
                 <textarea value={p.descripcion || ''} onChange={e => actualizarCampo(p.id, 'descripcion', e.target.value)}
                   style={{ ...inp, marginBottom: 10, minHeight: 44, resize: 'vertical' }} />
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div>
                     <label style={lbl}>Cliente</label>
                     {p.cliente_id ? (
@@ -267,6 +270,11 @@ export default function PorAprobar() {
                   <div>
                     <label style={lbl}>Piezas</label>
                     <input type="number" style={inp} value={p.cantidad ?? 1} onChange={e => actualizarCampo(p.id, 'cantidad', e.target.value)} />
+                  </div>
+
+                  <div>
+                    <label style={lbl}>Fecha de compra</label>
+                    <input type="date" style={inp} value={p.fecha_compra || ''} onChange={e => actualizarCampo(p.id, 'fecha_compra', e.target.value)} />
                   </div>
                 </div>
 

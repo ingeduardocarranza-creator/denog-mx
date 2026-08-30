@@ -28,12 +28,13 @@ export default function PorAprobar() {
   const [altaClienteAbierta, setAltaClienteAbierta] = useState({}) // { [id]: bool }
   const [altaClienteForm, setAltaClienteForm] = useState({}) // { [id]: {nombre, telefono} }
 
-  // Tipo de cambio, impuesto y entrega son datos del DÍA/sesión de revisión,
-  // no de cada venta individual — mismo patrón que "Captura en lote"
-  // (lote/page.js): se configuran una sola vez arriba y aplican a todo lo
-  // que se apruebe en esta pasada. Si un día se revisan ventas de San Diego
-  // y otro de Arizona, se ajusta este panel entre una tanda y otra.
-  const [config, setConfig] = useState({ tipo_cambio: '', impuesto_pct: '8.6', entrega_id: '' })
+  // Tipo de cambio, impuesto, fecha de compra y entrega son datos del
+  // DÍA/sesión de revisión, no de cada venta individual — mismo patrón que
+  // "Captura en lote" (lote/page.js): se configuran una sola vez arriba y
+  // aplican a todo lo que se apruebe en esta pasada. Si un día se revisan
+  // ventas de San Diego y otro de Arizona, se ajusta este panel entre una
+  // tanda y otra — igual si Eduardo está aprobando hoy compras de ayer.
+  const [config, setConfig] = useState({ tipo_cambio: '', impuesto_pct: '8.6', entrega_id: '', fecha_compra: new Date().toISOString().slice(0, 10) })
 
   const cargar = async () => {
     setCargando(true)
@@ -42,10 +43,7 @@ export default function PorAprobar() {
       fetch('/api/clientes/listar').then(r => r.json()),
       fetch('/api/entregas').then(r => r.json()),
     ])
-    const hoy = new Date().toISOString().slice(0, 10)
-    if (r.ok) setPedidos(r.pedidos
-      .map(p => ({ ...p, fecha_compra: p.fecha_compra || hoy }))
-      .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en)))
+    if (r.ok) setPedidos(r.pedidos.sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en)))
     if (c.ok) setClientes(c.clientes.filter(x => x.rol === 'cliente'))
     if (e.ok) setEntregas(e.entregas || [])
     setCargando(false)
@@ -85,7 +83,7 @@ export default function PorAprobar() {
       descripcion: p.descripcion,
       lugar_compra: p.lugar_compra || null,
       cantidad: parseFloat(p.cantidad) || 1,
-      fecha_compra: p.fecha_compra || new Date().toISOString().slice(0, 10),
+      fecha_compra: config.fecha_compra || new Date().toISOString().slice(0, 10),
       precio_usd: p.precio_usd === '' ? null : parseFloat(p.precio_usd),
       tipo_cambio: config.tipo_cambio === '' ? null : parseFloat(config.tipo_cambio),
       impuesto_pct: config.impuesto_pct === '' ? null : parseFloat(config.impuesto_pct),
@@ -142,7 +140,7 @@ export default function PorAprobar() {
         <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginBottom: 12 }}>
           Datos del día — aplican a todo lo que apruebes en esta pasada
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.6fr', gap: 12 }}>
           <div>
             <label style={lbl}>Tipo de cambio (USD → MXN)</label>
             <input style={inp} type="number" step="0.01" placeholder="Ej: 17.50" value={config.tipo_cambio}
@@ -154,6 +152,11 @@ export default function PorAprobar() {
               <option value="8.6">Arizona 8.6%</option>
               <option value="7.75">California 7.75%</option>
             </select>
+          </div>
+          <div>
+            <label style={lbl}>Fecha de compra</label>
+            <input style={inp} type="date" value={config.fecha_compra}
+              onChange={e => setConfig(c => ({ ...c, fecha_compra: e.target.value }))} />
           </div>
           <div>
             <label style={lbl}>Entrega</label>
@@ -219,7 +222,7 @@ export default function PorAprobar() {
                 <textarea value={p.descripcion || ''} onChange={e => actualizarCampo(p.id, 'descripcion', e.target.value)}
                   style={{ ...inp, marginBottom: 10, minHeight: 44, resize: 'vertical' }} />
 
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div>
                     <label style={lbl}>Cliente</label>
                     {p.cliente_id ? (
@@ -270,11 +273,6 @@ export default function PorAprobar() {
                   <div>
                     <label style={lbl}>Piezas</label>
                     <input type="number" style={inp} value={p.cantidad ?? 1} onChange={e => actualizarCampo(p.id, 'cantidad', e.target.value)} />
-                  </div>
-
-                  <div>
-                    <label style={lbl}>Fecha de compra</label>
-                    <input type="date" style={inp} value={p.fecha_compra || ''} onChange={e => actualizarCampo(p.id, 'fecha_compra', e.target.value)} />
                   </div>
                 </div>
 

@@ -24,6 +24,12 @@ const fmtFechaCorta = iso => {
   return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })
 }
 
+// Mismas tiendas que "Captura en lote" (lote/page.js) — lugar_compra es un
+// campo de texto libre, no hay tabla de tiendas en la base. "agregar nueva"
+// solo la suma a esta lista en memoria para esta sesión de revisión.
+const LUGARES_BASE = ['Ross', 'TJ Maxx', 'Marshalls', 'Target', 'Walmart', 'Costco', 'Old Navy', 'Amazon', 'Burlington']
+const NUEVA_TIENDA = '__nueva__'
+
 // Campo con borde clay al enfocar — mismo <input>/<select>/<textarea> de
 // siempre, solo con un toque visual que ayuda a ubicar rápido qué campo
 // se está editando en una pantalla con varias tarjetas seguidas.
@@ -45,14 +51,26 @@ export default function PorAprobar() {
   const [altaClienteAbierta, setAltaClienteAbierta] = useState({}) // { [id]: bool }
   const [altaClienteForm, setAltaClienteForm] = useState({}) // { [id]: {nombre, telefono} }
   const [fotoModal, setFotoModal] = useState(null) // { url, descripcion } — lightbox, mismo patrón que empacado
+  const [lugares, setLugares] = useState(LUGARES_BASE)
+  const [agregandoTienda, setAgregandoTienda] = useState(false)
+  const [tiendaNueva, setTiendaNueva] = useState('')
 
-  // Tipo de cambio, impuesto, fecha de compra y entrega son datos del
+  // Tipo de cambio, impuesto, tienda, fecha de compra y entrega son datos del
   // DÍA/sesión de revisión, no de cada venta individual — mismo patrón que
   // "Captura en lote" (lote/page.js): se configuran una sola vez arriba y
   // aplican a todo lo que se apruebe en esta pasada. Si un día se revisan
   // ventas de San Diego y otro de Arizona, se ajusta este panel entre una
   // tanda y otra — igual si Eduardo está aprobando hoy compras de ayer.
-  const [config, setConfig] = useState({ tipo_cambio: '', impuesto_pct: '8.6', entrega_id: '', fecha_compra: new Date().toISOString().slice(0, 10) })
+  const [config, setConfig] = useState({ tipo_cambio: '', impuesto_pct: '8.6', lugar_compra: 'Ross', entrega_id: '', fecha_compra: new Date().toISOString().slice(0, 10) })
+
+  const agregarTienda = () => {
+    const nombre = tiendaNueva.trim()
+    if (!nombre) return
+    if (!lugares.includes(nombre)) setLugares(prev => [nombre, ...prev])
+    setConfig(c => ({ ...c, lugar_compra: nombre }))
+    setTiendaNueva('')
+    setAgregandoTienda(false)
+  }
 
   const cargar = async () => {
     setCargando(true)
@@ -110,7 +128,7 @@ export default function PorAprobar() {
       cliente_id: p.cliente_id || null,
       entrega_id: config.entrega_id || null,
       descripcion: p.descripcion,
-      lugar_compra: p.lugar_compra || null,
+      lugar_compra: config.lugar_compra || null,
       cantidad: parseFloat(p.cantidad) || 1,
       fecha_compra: config.fecha_compra || new Date().toISOString().slice(0, 10),
       precio_usd: p.precio_usd === '' ? null : parseFloat(p.precio_usd),
@@ -197,7 +215,7 @@ export default function PorAprobar() {
             <div style={{ fontSize: 11.5, fontWeight: 700, color: clay[300], textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
               Datos del día — aplican a todo lo que apruebes en esta pasada
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.6fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.3fr 1fr 1.6fr', gap: 12 }}>
               <div>
                 <label style={lbl}>Tipo de cambio (USD → MXN)</label>
                 <Campo type="number" step="0.01" placeholder="Ej: 17.50" value={config.tipo_cambio}
@@ -209,6 +227,28 @@ export default function PorAprobar() {
                   <option value="8.6">Arizona 8.6%</option>
                   <option value="7.75">California 7.75%</option>
                 </Campo>
+              </div>
+              <div>
+                <label style={lbl}>Tienda</label>
+                {agregandoTienda ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Campo autoFocus placeholder="Nombre de la tienda" value={tiendaNueva}
+                      onChange={e => setTiendaNueva(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') agregarTienda(); if (e.key === 'Escape') { setAgregandoTienda(false); setTiendaNueva('') } }} />
+                    <button onClick={agregarTienda}
+                      style={{ background: clay[500], color: '#fff', border: 'none', borderRadius: 8, padding: '0 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                      Agregar
+                    </button>
+                    <button onClick={() => { setAgregandoTienda(false); setTiendaNueva('') }}
+                      style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, color: '#fff', padding: '0 10px', cursor: 'pointer' }}>✕</button>
+                  </div>
+                ) : (
+                  <Campo as="select" value={config.lugar_compra}
+                    onChange={e => e.target.value === NUEVA_TIENDA ? setAgregandoTienda(true) : setConfig(c => ({ ...c, lugar_compra: e.target.value }))}>
+                    {lugares.map(l => <option key={l} value={l} style={{ background: '#0f172a' }}>{l}</option>)}
+                    <option value={NUEVA_TIENDA} style={{ background: '#0f172a' }}>+ Agregar tienda nueva…</option>
+                  </Campo>
+                )}
               </div>
               <div>
                 <label style={lbl}>Fecha de compra</label>

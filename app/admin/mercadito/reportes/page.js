@@ -3,14 +3,27 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+// La API devuelve claves como "2026-08-S3" (semana 3 de agosto) o "2026-08-14"
+// (un día). En la gráfica salían como "08-S3" y "08-14", que no se leen.
+function etiquetaBucket(clave) {
+  const partes = String(clave).split('-');
+  const mes = MESES[Number(partes[1]) - 1] || '';
+  if (partes[2] && partes[2].startsWith('S')) return `sem ${partes[2].slice(1)} ${mes}`;
+  return `${Number(partes[2])} ${mes}`;
+}
 
 export default function MercaditoReportes() {
   const router = useRouter();
   const [usuario, setUsuario] = useState(null);
   const [cargandoSesion, setCargandoSesion] = useState(true);
 
-  const [periodo, setPeriodo] = useState('semana');
+  // Abre en Mes: el Mercadito recibe unos pocos pedidos al mes, así que una
+  // ventana de 7 días casi siempre sale vacía y el reporte parece roto.
+  const [periodo, setPeriodo] = useState('mes');
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [bucketAbierto, setBucketAbierto] = useState(null);
@@ -49,18 +62,20 @@ export default function MercaditoReportes() {
   const maxTendencia = Math.max(1, ...(datos?.tendencia || []).map((b) => b.count));
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-100 p-6 font-sans">
+    <div className="min-h-screen bg-[#0f172a] text-slate-100 p-6">
       <div className="max-w-[1100px] mx-auto space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">📊 Mercadito — Reportes</h1>
-            <p className="text-xs text-slate-400 mt-1">Solo visible para administradores.</p>
+            <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: -0.6, color: 'var(--tinta)', lineHeight: 1.1 }}>Reportes del Mercadito</h1>
+            <p style={{ fontSize: 12.5, color: 'var(--w45)', marginTop: 3 }}>
+              {periodo === 'semana' ? 'Últimos 7 días' : 'Últimos 30 días'} · sólo administradores
+            </p>
           </div>
           <div className="flex gap-1.5 bg-[#111827] border border-white/10 rounded-xl p-1">
             {['semana', 'mes'].map((p) => (
               <button key={p} type="button" onClick={() => setPeriodo(p)}
                 className="px-3.5 py-1.5 rounded-lg text-[11.5px] font-bold transition-all"
-                style={periodo === p ? { background: 'rgba(193,85,58,0.2)', color: '#fff' } : { color: 'rgba(255,255,255,0.5)' }}>
+                style={periodo === p ? { background: 'rgba(193,85,58,0.2)', color: 'var(--tinta)' } : { color: 'var(--w50)' }}>
                 {p === 'semana' ? 'Semana' : 'Mes'}
               </button>
             ))}
@@ -71,22 +86,63 @@ export default function MercaditoReportes() {
           <div className="text-center text-slate-500 text-xs py-16">Cargando reportes…</div>
         ) : (
           <>
-            {/* KPIs principales */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {/* Un periodo sin pedidos no se dibuja como una pared de ceros:
+                eso parece pantalla rota. Se dice lo que pasa y ya. */}
+            {k.pedidosTotales === 0 ? (
+              <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 16, padding: '38px 24px', textAlign: 'center' }}>
+                <div style={{ fontSize: 30, marginBottom: 8 }}>🗓️</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--tinta)' }}>
+                  Sin pedidos en {periodo === 'semana' ? 'los últimos 7 días' : 'los últimos 30 días'}
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--w45)', marginTop: 4 }}>
+                  {periodo === 'semana'
+                    ? 'Prueba con el mes, o revisa la lista completa en Mercadito → Pedidos.'
+                    : 'La lista completa está en Mercadito → Pedidos.'}
+                </div>
+              </div>
+            ) : (
+            <>
+            {/* KPIs principales. La tasa de cancelación va aparte y coloreada:
+                en el Mercadito es EL número —4 de cada 10 pedidos han muerto por
+                falta de stock— y estaba escondido como una casilla más entre
+                cinco iguales. */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: 'Pedidos totales', value: k.pedidosTotales, sub: `${k.variacionPedidos >= 0 ? '+' : ''}${k.variacionPedidos.toFixed(0)}% vs periodo anterior` },
+                { label: 'Pedidos', value: k.pedidosTotales, sub: `${k.variacionPedidos >= 0 ? '+' : ''}${k.variacionPedidos.toFixed(0)}% vs periodo anterior` },
                 { label: 'Ingresos aprobados', value: `$${money(k.ingresosAprobados)}` },
                 { label: 'Ticket promedio', value: `$${money(k.ticketPromedio)}` },
-                { label: 'Tasa de cancelación', value: `${k.tasaCancelacion.toFixed(1)}%` },
                 { label: 'Tiempo prom. atención', value: `${k.tiempoPromedioAtencionHoras.toFixed(1)}h` },
               ].map((c, i) => (
-                <div key={i} className="bg-[#111827] border border-white/10 rounded-2xl p-4">
-                  <div className="text-[10.5px] text-slate-400 font-bold uppercase tracking-widest">{c.label}</div>
-                  <div className="text-lg font-black text-white mt-1">{c.value}</div>
-                  {c.sub && <div className="text-[10.5px] text-slate-500 mt-0.5">{c.sub}</div>}
+                <div key={i} className="rounded-2xl p-4" style={{ background: 'var(--sup)', border: '1px solid var(--w08)' }}>
+                  <div style={{ fontSize: 10.5, color: 'var(--w45)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{c.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--tinta)', marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{c.value}</div>
+                  {c.sub && <div style={{ fontSize: 10.5, color: 'var(--w40)', marginTop: 2 }}>{c.sub}</div>}
                 </div>
               ))}
             </div>
+
+            {(() => {
+              const tasa = k.tasaCancelacion;
+              const grave = tasa >= 30;
+              const tono = grave ? 'var(--rojo-t)' : tasa >= 15 ? 'var(--ambar-t)' : 'var(--verde)';
+              const fondo = grave ? 'rgba(var(--rojo-rgb),0.07)' : tasa >= 15 ? 'var(--ambar-suave)' : 'var(--verde-suave)';
+              const borde = grave ? 'rgba(var(--rojo-rgb),0.28)' : tasa >= 15 ? 'var(--ambar-borde)' : 'var(--verde-borde)';
+              return (
+                <div style={{ background: fondo, border: `1px solid ${borde}`, borderRadius: 16, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: 10.5, color: 'var(--w50)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tasa de cancelación</div>
+                    <div style={{ fontSize: 34, fontWeight: 900, color: tono, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{tasa.toFixed(0)}%</div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 220, fontSize: 12.5, color: 'var(--w60)', lineHeight: 1.5 }}>
+                    {grave
+                      ? 'Uno de cada tres pedidos o más se está cayendo. El motivo más común ha sido que la mercancía no estaba en bodega: revisa el stock del catálogo antes de publicar.'
+                      : tasa >= 15
+                        ? 'Vale la pena revisar por qué se están cayendo estos pedidos.'
+                        : 'La mayoría de los pedidos llega a entregarse.'}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Indicadores adicionales */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -113,14 +169,29 @@ export default function MercaditoReportes() {
               <div className="text-[10.5px] text-slate-400 font-bold uppercase tracking-widest mb-3">
                 Tendencia · pedidos por {periodo === 'semana' ? 'día' : 'semana'}
               </div>
-              <div className="flex items-end gap-2 h-32">
+              {/* La barra llevaba height en % dentro de una columna de altura
+                  automática: el porcentaje no tenía contra qué resolverse y
+                  todas salían del minHeight de 4 px. O sea que la gráfica nunca
+                  dibujó nada. La columna ahora sí tiene altura y empuja la barra
+                  al fondo. */}
+              <div className="flex items-end gap-2" style={{ height: 150 }}>
                 {(datos.tendencia || []).map((b) => (
-                  <div key={b.clave} onClick={() => setBucketAbierto(b)} className="flex-1 flex flex-col items-center gap-1 cursor-pointer group">
-                    <div className="w-full rounded-t-md bg-[#c1553a] group-hover:bg-[#dd8a6c] transition-all" style={{ height: `${(b.count / maxTendencia) * 100}%`, minHeight: 4 }} />
-                    <div className="text-[9px] text-slate-500 whitespace-nowrap">{b.clave.slice(5)}</div>
+                  <div key={b.clave} onClick={() => setBucketAbierto(b)}
+                    className="flex-1 flex flex-col items-center justify-end gap-1.5 cursor-pointer group"
+                    style={{ height: '100%' }}
+                    title={`${b.count} pedido${b.count === 1 ? '' : 's'} · clic para ver el detalle`}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--w55)', fontVariantNumeric: 'tabular-nums' }}>{b.count || ''}</div>
+                    <div
+                      className="w-full rounded-t-md transition-all"
+                      style={{
+                        height: `${Math.max(2, (b.count / maxTendencia) * 100)}%`,
+                        background: b.count > 0 ? 'var(--marca)' : 'var(--w08)',
+                      }}
+                    />
+                    <div style={{ fontSize: 9.5, color: 'var(--w40)', whiteSpace: 'nowrap' }}>{etiquetaBucket(b.clave)}</div>
                   </div>
                 ))}
-                {(datos.tendencia || []).length === 0 && <div className="text-slate-500 text-xs">Sin datos en este periodo.</div>}
+                {(datos.tendencia || []).length === 0 && <div style={{ color: 'var(--w40)', fontSize: 12 }}>Sin datos en este periodo.</div>}
               </div>
             </div>
 
@@ -138,6 +209,8 @@ export default function MercaditoReportes() {
                 ))}
               </div>
             </div>
+            </>
+            )}
           </>
         )}
       </div>

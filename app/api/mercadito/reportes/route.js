@@ -1,6 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { requerirStaff } from '@/lib/auth/session'
+import { requerirAdmin } from '@/lib/auth/session'
+
+// Admin, no staff. La pantalla decía "Solo visible para administradores" pero
+// el candado era sólo del lado del navegador: con requerirStaff, cualquier
+// colaborador que pegara la URL de la API obtenía ingresos, ticket promedio y
+// tasas de cancelación — requerirStaff acepta el rol 'vendedor'. Mismo criterio
+// que Reportes generales y Anticipos.
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -23,7 +29,7 @@ function claveBucket(fecha, periodo) {
 }
 
 export async function GET(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   try {
     const { searchParams } = new URL(req.url)
     const periodo = searchParams.get('periodo') === 'mes' ? 'mes' : 'semana'

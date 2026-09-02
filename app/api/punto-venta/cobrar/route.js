@@ -62,9 +62,31 @@ export async function POST(req) {
       const todosLosPedidoIds = (bloquesOrdenados || []).flatMap(b => b.pedidoIds || [])
       const { data: pedidosDB } = await supabase
         .from('pedidos')
-        .select('id, precio_venta')
+        .select('id, precio_venta, entrega_id')
         .in('id', todosLosPedidoIds)
       const precioPorPedido = Object.fromEntries((pedidosDB || []).map(p => [p.id, p.precio_venta || 0]))
+
+      // ── Candado: nada que no esté en tienda se cobra ──────────────────
+      // Una entrega "en proceso" es mercancía que todavía no llegó. Cobrarla
+      // por accidente deja al cliente pagado y sin producto, y descuadra la
+      // caja del día. Se revisa aquí, antes de escribir un solo pago: si algo
+      // viene mal, no se hace nada. Las pantallas ya lo bloquean, pero esta es
+      // la barrera que ninguna pantalla puede saltar.
+      const idsEntregasCobradas = [...new Set((pedidosDB || []).map(p => p.entrega_id).filter(Boolean))]
+      if (idsEntregasCobradas.length > 0) {
+        const { data: entregasDB } = await supabase
+          .from('entregas')
+          .select('id, fecha_entrega, estado')
+          .in('id', idsEntregasCobradas)
+        const noEnTienda = (entregasDB || []).filter(e => e.estado !== 'en_tienda')
+        if (noEnTienda.length > 0) {
+          const fechas = noEnTienda.map(e => e.fecha_entrega).join(', ')
+          return NextResponse.json({
+            ok: false,
+            mensaje: `No se puede cobrar: la entrega del ${fechas} todavía no está en tienda. Marca la entrega como "En tienda" antes de cobrarla.`,
+          }, { status: 409 })
+        }
+      }
 
       // Track which general anticipos have been consumed across blocks
       const anticiposGeneralesMutables = (anticiposGenerales || []).map(a => ({ ...a }))

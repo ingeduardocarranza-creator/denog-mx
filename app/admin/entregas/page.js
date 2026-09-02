@@ -91,7 +91,28 @@ export default function Entregas() {
     }
   }
 
+  // Abrir el cobro de una entrega es dinero: se confirma diciendo exactamente
+  // cuánto se va a volver cobrable, no con un "¿estás seguro?" genérico.
   const cambiarEstado = async (id, estado) => {
+    const entrega = entregas.find(x => x.id === id)
+    if (!entrega || entrega.estado === estado) return
+
+    let detalle = ''
+    try {
+      const r = await fetch(`/api/reportes/pedidos?entrega_id=${id}&fotos=no`).then(r => r.json())
+      const peds = (r.ok ? r.pedidos : []) || []
+      const vivos = peds.filter(p => !['Cancelado', 'no_llego'].includes(p.estado))
+      const total = vivos.reduce((s, p) => s + (Number(p.precio_venta) || 0), 0)
+      if (vivos.length > 0) {
+        detalle = `\n\n${vivos.length} pedido${vivos.length !== 1 ? 's' : ''} por $${total.toLocaleString('es-MX')}.`
+      }
+    } catch { /* si falla el conteo, la confirmación sigue valiendo */ }
+
+    const pregunta = estado === 'en_tienda'
+      ? `¿La mercancía de la entrega del ${entrega.fecha_entrega} YA ESTÁ FÍSICAMENTE EN TIENDA?${detalle}\n\nAl aceptar, se vuelve cobrable en el punto de venta del admin y de los colaboradores.`
+      : `¿Regresar la entrega del ${entrega.fecha_entrega} a EN PROCESO?${detalle}\n\nDeja de poder cobrarse en el punto de venta. Lo ya cobrado no se toca.`
+    if (!confirm(pregunta)) return
+
     await fetch('/api/admin/entregas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -102,7 +123,7 @@ export default function Entregas() {
 
   const eliminarEntrega = async (entregaId) => {
     if (!confirm('¿Estás seguro de eliminar esta entrega?')) return
-    const res = await fetch(`/api/reportes/pedidos?entrega_id=${entregaId}`)
+    const res = await fetch(`/api/reportes/pedidos?entrega_id=${entregaId}&fotos=no`)
     const data = await res.json()
     const pedidosDe = data.ok ? (data.pedidos || []) : []
     if (pedidosDe.length > 0) {
@@ -138,14 +159,14 @@ export default function Entregas() {
     const abriendo = !panelAbierto[entregaId]
     setPanelAbierto(prev => ({ ...prev, [entregaId]: abriendo }))
     if (abriendo && !pedidosPanel[entregaId]) {
-      const res = await fetch(`/api/reportes/pedidos?entrega_id=${entregaId}`)
+      const res = await fetch(`/api/reportes/pedidos?entrega_id=${entregaId}&fotos=no`)
       const data = await res.json()
       if (data.ok) setPedidosPanel(prev => ({ ...prev, [entregaId]: data.pedidos || [] }))
     }
   }
 
   const recargarPedidos = async (entregaId) => {
-    const res = await fetch(`/api/reportes/pedidos?entrega_id=${entregaId}`)
+    const res = await fetch(`/api/reportes/pedidos?entrega_id=${entregaId}&fotos=no`)
     const data = await res.json()
     if (data.ok) setPedidosPanel(prev => ({ ...prev, [entregaId]: data.pedidos || [] }))
   }
@@ -217,17 +238,22 @@ export default function Entregas() {
 
   // ────────────────────────────────────────────────────────────
 
+  // El estado de una entrega no es una etiqueta: es el interruptor que decide
+  // si el punto de venta la puede cobrar. "En proceso" = la mercancía todavía
+  // no llega, así que nadie —ni el admin ni el colaborador— puede liquidarla.
   const estados = [
-    { valor: 'futura', label: '🔵 Futura', color: '#818cf8', bg: 'rgba(99,102,241,0.12)', border: 'rgba(99,102,241,0.2)' },
-    { valor: 'en_tienda', label: '✅ En tienda', color: '#10b981', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.2)' },
+    { valor: 'futura', label: '🕐 En proceso', corto: 'En proceso', color: 'var(--ambar-t)', bg: 'rgba(161,98,7,0.10)', border: 'rgba(161,98,7,0.28)',
+      consecuencia: 'No aparece cobrable en el punto de venta. Los anticipos sí se siguen recibiendo con normalidad.' },
+    { valor: 'en_tienda', label: '✅ En tienda', corto: 'En tienda', color: 'var(--verde)', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.2)',
+      consecuencia: 'Se cobra normal en el punto de venta, tanto el tuyo como el del colaborador.' },
   ]
 
   const getEstado = (valor) => estados.find(e => e.valor === valor) || estados[0]
 
   const fmt = (n) => `$${(n || 0).toLocaleString('es-MX')}`
 
-  const inputStyle = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px 10px', color: 'white', fontSize: 12, outline: 'none', boxSizing: 'border-box' }
-  const labelStyle = { color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 4 }
+  const inputStyle = { width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 8, padding: '7px 10px', color: 'var(--tinta)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }
+  const labelStyle = { color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 4 }
 
   return (
     <div className="min-h-screen bg-gray-950 p-6">
@@ -236,42 +262,42 @@ export default function Entregas() {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div>
-            <div style={{ color: 'white', fontSize: 22, fontWeight: 700 }}>📅 Entregas</div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 2 }}>
+            <div style={{ color: 'var(--tinta)', fontSize: 22, fontWeight: 700 }}>📅 Entregas</div>
+            <div style={{ color: 'var(--w40)', fontSize: 13, marginTop: 2 }}>
               {entregas.length} entregas registradas
             </div>
           </div>
           <button onClick={() => setMostrarForm(!mostrarForm)}
-            style={{ background: '#c1553a', border: 'none', borderRadius: 12, padding: '10px 18px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            style={{ background: 'var(--marca)', border: 'none', borderRadius: 12, padding: '10px 18px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + Nueva entrega
           </button>
         </div>
 
         {/* Formulario nueva entrega */}
         {mostrarForm && (
-          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, padding: 20, marginBottom: 20 }}>
-            <div style={{ color: 'white', fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Nueva fecha de entrega</div>
+          <div style={{ background: 'var(--w03)', border: '1px solid var(--w08)', borderRadius: 18, padding: 20, marginBottom: 20 }}>
+            <div style={{ color: 'var(--tinta)', fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Nueva fecha de entrega</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
               <div>
-                <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Fecha de entrega</label>
+                <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Fecha de entrega</label>
                 <input type="date" value={form.fecha_entrega} onChange={e => setForm({ ...form, fecha_entrega: e.target.value })}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '10px 14px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
               </div>
               <div>
-                <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Nota opcional</label>
+                <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Nota opcional</label>
                 <input type="text" value={form.nota} onChange={e => setForm({ ...form, nota: e.target.value })}
                   placeholder="Ej: Viaje Arizona mayo"
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '10px 14px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
               </div>
             </div>
-            {msg && <div style={{ color: msg.includes('✓') ? '#4ade80' : '#f87171', fontSize: 12, marginBottom: 10 }}>{msg}</div>}
+            {msg && <div style={{ color: msg.includes('✓') ? 'var(--verde)' : 'var(--rojo-t)', fontSize: 12, marginBottom: 10 }}>{msg}</div>}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={crear}
-                style={{ background: '#c1553a', border: 'none', borderRadius: 10, padding: '10px 20px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                style={{ background: 'var(--marca)', border: 'none', borderRadius: 10, padding: '10px 20px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Guardar entrega
               </button>
               <button onClick={() => { setMostrarForm(false); setMsg('') }}
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 20px', color: 'rgba(255,255,255,0.4)', fontSize: 13, cursor: 'pointer' }}>
+                style={{ background: 'var(--w05)', border: '1px solid var(--w08)', borderRadius: 10, padding: '10px 20px', color: 'var(--w40)', fontSize: 13, cursor: 'pointer' }}>
                 Cancelar
               </button>
             </div>
@@ -280,9 +306,9 @@ export default function Entregas() {
 
         {/* Lista de entregas */}
         {cargando ? (
-          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: 40 }}>Cargando...</div>
+          <div style={{ textAlign: 'center', color: 'var(--w30)', padding: 40 }}>Cargando...</div>
         ) : entregas.length === 0 ? (
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16, padding: 48, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>
+          <div style={{ background: 'var(--w02)', border: '1px solid var(--w05)', borderRadius: 16, padding: 48, textAlign: 'center', color: 'var(--w30)', fontSize: 13 }}>
             No hay entregas registradas. Crea la primera.
           </div>
         ) : (
@@ -291,21 +317,21 @@ export default function Entregas() {
             const pedidos = pedidosPanel[e.id] || []
             const grupos = agruparPorFecha(pedidos)
             return (
-              <div key={e.id} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${est.border}`, borderRadius: 18, padding: 18, marginBottom: 12 }}>
+              <div key={e.id} style={{ background: 'var(--w03)', border: `1px solid ${est.border}`, borderRadius: 18, padding: 18, marginBottom: 12 }}>
 
                 {/* Cabecera entrega */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                   <div>
-                    <div style={{ color: 'white', fontSize: 16, fontWeight: 700 }}>📅 {e.fecha_entrega}</div>
-                    {e.nota && <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 2 }}>{e.nota}</div>}
+                    <div style={{ color: 'var(--tinta)', fontSize: 16, fontWeight: 700 }}>📅 {e.fecha_entrega}</div>
+                    {e.nota && <div style={{ color: 'var(--w40)', fontSize: 12, marginTop: 2 }}>{e.nota}</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button onClick={() => abrirEdicion(e)}
-                      style={{ background: 'rgba(193,85,58,0.1)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 8, padding: '5px 12px', color: '#dd8a6c', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                      style={{ background: 'rgba(193,85,58,0.1)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 8, padding: '5px 12px', color: 'var(--marca-t)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                       ✏️ Editar
                     </button>
                     <button onClick={() => eliminarEntrega(e.id)}
-                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '5px 12px', color: '#f87171', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '5px 12px', color: 'var(--rojo-t)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                       🗑️ Eliminar
                     </button>
                     <span style={{ background: est.bg, border: `1px solid ${est.border}`, borderRadius: 20, padding: '4px 12px', color: est.color, fontSize: 11, fontWeight: 600 }}>
@@ -317,68 +343,74 @@ export default function Entregas() {
                 {/* Panel edición entrega */}
                 {editando === e.id && (
                   <div style={{ background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.18)', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-                    <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Editar entrega</div>
+                    <div style={{ color: 'var(--w60)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Editar entrega</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                       <div>
-                        <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Fecha de entrega</label>
+                        <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Fecha de entrega</label>
                         <input type="date" value={editForm.fecha_entrega} onChange={ev => setEditForm({ ...editForm, fecha_entrega: ev.target.value })}
-                          style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '9px 12px', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                          style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w12)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
                       </div>
                       <div>
-                        <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Nota</label>
+                        <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Nota</label>
                         <input type="text" value={editForm.nota} onChange={ev => setEditForm({ ...editForm, nota: ev.target.value })}
                           placeholder="Ej: Viaje Arizona mayo"
-                          style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '9px 12px', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                          style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w12)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
                       </div>
                     </div>
-                    {editMsg && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 10 }}>{editMsg}</div>}
+                    {editMsg && <div style={{ color: 'var(--rojo-t)', fontSize: 12, marginBottom: 10 }}>{editMsg}</div>}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => actualizar(e.id)} disabled={guardandoEdit}
-                        style={{ background: '#c1553a', border: 'none', borderRadius: 8, padding: '8px 18px', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: guardandoEdit ? 0.6 : 1 }}>
+                        style={{ background: 'var(--marca)', border: 'none', borderRadius: 8, padding: '8px 18px', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: guardandoEdit ? 0.6 : 1 }}>
                         {guardandoEdit ? 'Guardando...' : '✓ Guardar'}
                       </button>
                       <button onClick={cancelarEdicion}
-                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 18px', color: 'rgba(255,255,255,0.4)', fontSize: 12, cursor: 'pointer' }}>
+                        style={{ background: 'var(--w04)', border: '1px solid var(--w08)', borderRadius: 8, padding: '8px 18px', color: 'var(--w40)', fontSize: 12, cursor: 'pointer' }}>
                         Cancelar
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* Cambiar estado */}
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Cambiar estado</div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {estados.map(est => (
-                      <button key={est.valor} onClick={() => cambiarEstado(e.id, est.valor)}
-                        style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${e.estado === est.valor ? est.border : 'rgba(255,255,255,0.08)'}`, background: e.estado === est.valor ? est.bg : 'rgba(255,255,255,0.03)', color: e.estado === est.valor ? est.color : 'rgba(255,255,255,0.35)', fontSize: 11, cursor: 'pointer', fontWeight: e.estado === est.valor ? 600 : 400 }}>
-                        {est.label}
-                      </button>
-                    ))}
+                {/* Interruptor de cobro — lo más importante de esta tarjeta */}
+                <div style={{ background: est.bg, border: `1px solid ${est.border}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
+                  <div style={{ color: 'var(--w45)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 9, fontWeight: 700 }}>
+                    ¿Se puede cobrar en el punto de venta?
                   </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 9 }}>
+                    {estados.map(op => {
+                      const activo = e.estado === op.valor
+                      return (
+                        <button key={op.valor} onClick={() => cambiarEstado(e.id, op.valor)}
+                          style={{ padding: '8px 15px', borderRadius: 9, border: `1px solid ${activo ? op.border : 'var(--w10)'}`, background: activo ? 'var(--sup)' : 'transparent', color: activo ? op.color : 'var(--w40)', fontSize: 12.5, cursor: activo ? 'default' : 'pointer', fontWeight: activo ? 700 : 500, boxShadow: activo ? 'var(--activo-sombra)' : 'none' }}>
+                          {op.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ color: est.color, fontSize: 12, lineHeight: 1.5 }}>{est.consecuencia}</div>
                 </div>
 
                 {/* Accesos rápidos */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                   <button onClick={() => window.location.href = `/admin/pedidos`}
-                    style={{ flex: 1, background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.15)', borderRadius: 8, padding: '8px', color: '#dd8a6c', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                    style={{ flex: 1, background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.15)', borderRadius: 8, padding: '8px', color: 'var(--marca-t)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                     📝 Capturar pedidos
                   </button>
                   <button onClick={() => window.location.href = `/admin/reportes`}
-                    style={{ flex: 1, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 8, padding: '8px', color: '#10b981', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                    style={{ flex: 1, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 8, padding: '8px', color: 'var(--verde)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                     📊 Ver reporte
                   </button>
                   <button onClick={() => togglePedidos(e.id)}
-                    style={{ flex: 1, background: panelAbierto[e.id] ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${panelAbierto[e.id] ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 8, padding: '8px', color: panelAbierto[e.id] ? '#f59e0b' : 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                    style={{ flex: 1, background: panelAbierto[e.id] ? 'rgba(245,158,11,0.12)' : 'var(--w04)', border: `1px solid ${panelAbierto[e.id] ? 'rgba(245,158,11,0.25)' : 'var(--w08)'}`, borderRadius: 8, padding: '8px', color: panelAbierto[e.id] ? 'var(--ambar)' : 'var(--w45)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                     {panelAbierto[e.id] ? '🔼 Ocultar pedidos' : '📋 Ver pedidos'}
                   </button>
                 </div>
 
                 {/* Panel de pedidos */}
                 {panelAbierto[e.id] && (
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14 }}>
+                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--w06)', borderRadius: 12, padding: 14 }}>
                     {!pedidosPanel[e.id] ? (
-                      <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textAlign: 'center', padding: 16 }}>Cargando pedidos...</div>
+                      <div style={{ color: 'var(--w30)', fontSize: 12, textAlign: 'center', padding: 16 }}>Cargando pedidos...</div>
                     ) : (
                       <>
                         {pedidos.length > 0 && (
@@ -388,7 +420,7 @@ export default function Entregas() {
                               placeholder="Buscar por cliente o descripción..."
                               value={busquedaPedidos[e.id] || ''}
                               onChange={ev => setBusquedaPedidos(prev => ({ ...prev, [e.id]: ev.target.value }))}
-                              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px 12px', color: 'white', fontSize: 11, outline: 'none', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 8, padding: '7px 12px', color: 'var(--tinta)', fontSize: 11, outline: 'none', boxSizing: 'border-box' }}
                             />
                           </div>
                         )}
@@ -397,7 +429,7 @@ export default function Entregas() {
                           const pedsFiltrados = busq
                             ? pedidos.filter(p => p.clientes?.nombre?.toLowerCase().includes(busq) || p.descripcion?.toLowerCase().includes(busq))
                             : pedidos
-                          if (pedsFiltrados.length === 0) return <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textAlign: 'center', padding: 12 }}>Sin resultados para "{busquedaPedidos[e.id]}"</div>
+                          if (pedsFiltrados.length === 0) return <div style={{ color: 'var(--w30)', fontSize: 12, textAlign: 'center', padding: 12 }}>Sin resultados para "{busquedaPedidos[e.id]}"</div>
                           const pendientes = pedsFiltrados.filter(p => p.estado !== 'Entregado')
                           const entregados = pedsFiltrados.filter(p => p.estado === 'Entregado')
                           const grupos = agruparPorFecha(pendientes)
@@ -405,50 +437,50 @@ export default function Entregas() {
                             <>
                             {grupos.map(([fecha, peds]) => (
                         <div key={fecha} style={{ marginBottom: 16 }}>
-                          <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 6 }}>
+                          <div style={{ color: 'var(--w35)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, borderBottom: '1px solid var(--w06)', paddingBottom: 6 }}>
                             Capturados el {fecha}
                           </div>
                           {peds.map(p => (
                             <div key={p.id} style={{ marginBottom: 8 }}>
                               {/* Fila resumen pedido */}
                               {editandoPedido !== p.id && (
-                                <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px' }}>
+                                <div style={{ background: 'var(--w03)', borderRadius: 10, padding: '10px 12px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                                     <div style={{ flex: 1 }}>
-                                      <div style={{ color: 'white', fontSize: 12, fontWeight: 600 }}>{p.descripcion}</div>
-                                      <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
+                                      <div style={{ color: 'var(--tinta)', fontSize: 12, fontWeight: 600 }}>{p.descripcion}</div>
+                                      <div style={{ color: 'var(--w40)', fontSize: 11, marginTop: 2 }}>
                                         {p.clientes?.nombre || '—'} · {p.cantidad || 1} pza
                                         {p.lugar_compra && ` · ${p.lugar_compra}`}
                                       </div>
                                     </div>
                                     <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 8 }}>
                                       <button onClick={() => abrirEditarPedido(p)}
-                                        style={{ background: 'rgba(193,85,58,0.1)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 6, padding: '4px 10px', color: '#dd8a6c', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                        style={{ background: 'rgba(193,85,58,0.1)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 6, padding: '4px 10px', color: 'var(--marca-t)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
                                         ✏️ Editar
                                       </button>
                                       <button onClick={() => eliminarPedido(p.id, e.id)}
-                                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '4px 10px', color: '#f87171', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '4px 10px', color: 'var(--rojo-t)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
                                         🗑️
                                       </button>
                                     </div>
                                   </div>
                                   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                                    {p.precio_usd != null && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>USD <span style={{ color: '#f59e0b' }}>${p.precio_usd}</span></span>}
-                                    {p.tipo_cambio != null && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>TC <span style={{ color: 'white' }}>{p.tipo_cambio}</span></span>}
-                                    {p.impuesto_pct != null && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>Tax <span style={{ color: 'white' }}>{p.impuesto_pct}%</span></span>}
-                                    {p.costo_mxn != null && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>Costo <span style={{ color: 'white' }}>{fmt(p.costo_mxn)}</span></span>}
-                                    {p.precio_venta != null && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>Venta <span style={{ color: '#4ade80', fontWeight: 700 }}>{fmt(p.precio_venta)}</span></span>}
-                                    {p.utilidad != null && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>Util. <span style={{ color: p.utilidad >= 0 ? '#4ade80' : '#f87171' }}>{fmt(p.utilidad)}</span></span>}
-                                    {p.estado && <span style={{ background: p.estado === 'Entregado' ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)', borderRadius: 4, padding: '1px 6px', color: p.estado === 'Entregado' ? '#10b981' : 'rgba(255,255,255,0.45)', fontSize: 10 }}>{p.estado}</span>}
+                                    {p.precio_usd != null && <span style={{ color: 'var(--w40)', fontSize: 10 }}>USD <span style={{ color: 'var(--ambar)' }}>${p.precio_usd}</span></span>}
+                                    {p.tipo_cambio != null && <span style={{ color: 'var(--w40)', fontSize: 10 }}>TC <span style={{ color: 'var(--tinta)' }}>{p.tipo_cambio}</span></span>}
+                                    {p.impuesto_pct != null && <span style={{ color: 'var(--w40)', fontSize: 10 }}>Tax <span style={{ color: 'var(--tinta)' }}>{p.impuesto_pct}%</span></span>}
+                                    {p.costo_mxn != null && <span style={{ color: 'var(--w40)', fontSize: 10 }}>Costo <span style={{ color: 'var(--tinta)' }}>{fmt(p.costo_mxn)}</span></span>}
+                                    {p.precio_venta != null && <span style={{ color: 'var(--w40)', fontSize: 10 }}>Venta <span style={{ color: 'var(--verde)', fontWeight: 700 }}>{fmt(p.precio_venta)}</span></span>}
+                                    {p.utilidad != null && <span style={{ color: 'var(--w40)', fontSize: 10 }}>Util. <span style={{ color: p.utilidad >= 0 ? 'var(--verde)' : 'var(--rojo-t)' }}>{fmt(p.utilidad)}</span></span>}
+                                    {p.estado && <span style={{ background: p.estado === 'Entregado' ? 'rgba(16,185,129,0.15)' : 'var(--w05)', borderRadius: 4, padding: '1px 6px', color: p.estado === 'Entregado' ? 'var(--verde)' : 'var(--w45)', fontSize: 10 }}>{p.estado}</span>}
                                   </div>
-                                  {p.notas && <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 4, fontStyle: 'italic' }}>📝 {p.notas}</div>}
+                                  {p.notas && <div style={{ color: 'var(--w30)', fontSize: 10, marginTop: 4, fontStyle: 'italic' }}>📝 {p.notas}</div>}
                                 </div>
                               )}
 
                               {/* Formulario edición inline pedido */}
                               {editandoPedido === p.id && (
                                 <div style={{ background: 'rgba(193,85,58,0.07)', border: '1px solid rgba(193,85,58,0.2)', borderRadius: 10, padding: 14 }}>
-                                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Editar pedido</div>
+                                  <div style={{ color: 'var(--w50)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Editar pedido</div>
                                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                                     <div>
                                       <label style={labelStyle}>Cliente</label>
@@ -519,7 +551,7 @@ export default function Entregas() {
                                       }
                                       return (
                                         <div style={{ gridColumn: '1 / -1', background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.18)', borderRadius: 10, padding: 12 }}>
-                                          <div style={{ color: '#dd8a6c', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>💱 Cotizador</div>
+                                          <div style={{ color: 'var(--marca-t)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>💱 Cotizador</div>
                                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                                             <div><label style={labelStyle}>Precio USD</label><input type="number" step="0.01" value={editFormPedido.precio_usd} onChange={ev => handleUsd(ev.target.value)} style={inputStyle} placeholder="Ej. 14.99" /></div>
                                             <div><label style={labelStyle}>Tipo de cambio</label><input type="number" step="0.01" value={editFormPedido.tipo_cambio} onChange={ev => handleTc(ev.target.value)} style={inputStyle} /></div>
@@ -529,7 +561,7 @@ export default function Entregas() {
                                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                               {[['arizona','Arizona 8.6%'],['california','California 7.75%'],['denog','Tax Denog']].map(([k,lbl]) => (
                                                 <button key={k} type="button" onClick={() => setTax(k)}
-                                                  style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: `1px solid ${entTaxTipo === k ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.1)'}`, background: entTaxTipo === k ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.04)', color: entTaxTipo === k ? '#dd8a6c' : 'rgba(255,255,255,0.45)' }}>
+                                                  style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: `1px solid ${entTaxTipo === k ? 'rgba(193,85,58,0.5)' : 'var(--w10)'}`, background: entTaxTipo === k ? 'rgba(193,85,58,0.2)' : 'var(--w04)', color: entTaxTipo === k ? 'var(--marca-t)' : 'var(--w45)' }}>
                                                   {lbl}
                                                 </button>
                                               ))}
@@ -538,10 +570,10 @@ export default function Entregas() {
                                           </div>
                                           {usd > 0 && tcVal > 0 && (
                                             <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 7, padding: '7px 9px', fontSize: 10, display: 'grid', gap: 2, marginBottom: 8 }}>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.4)' }}><span>Precio USD</span><span style={{ fontFamily: 'monospace' }}>${usd.toFixed(2)}</span></div>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.4)' }}><span>+ Impuesto ({impPct.toFixed(2)}%)</span><span style={{ fontFamily: 'monospace' }}>+${(usd * imp).toFixed(2)}</span></div>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.4)' }}><span>× TC {tcVal}</span></div>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 4, marginTop: 2 }}><span>= Costo MXN</span><span style={{ fontFamily: 'monospace', color: '#f59e0b' }}>${costoCalc.toFixed(2)}</span></div>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--w40)' }}><span>Precio USD</span><span style={{ fontFamily: 'monospace' }}>${usd.toFixed(2)}</span></div>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--w40)' }}><span>+ Impuesto ({impPct.toFixed(2)}%)</span><span style={{ fontFamily: 'monospace' }}>+${(usd * imp).toFixed(2)}</span></div>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--w40)' }}><span>× TC {tcVal}</span></div>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--tinta)', fontWeight: 700, borderTop: '1px solid var(--w08)', paddingTop: 4, marginTop: 2 }}><span>= Costo MXN</span><span style={{ fontFamily: 'monospace', color: 'var(--ambar)' }}>${costoCalc.toFixed(2)}</span></div>
                                             </div>
                                           )}
                                           <div>
@@ -549,8 +581,8 @@ export default function Entregas() {
                                             <input type="number" step="0.01" value={editFormPedido.precio_venta} onChange={ev => handleVenta(ev.target.value)} style={inputStyle} />
                                             {editFormPedido.precio_venta && costoCalc > 0 && (
                                               <div style={{ display: 'flex', gap: 10, marginTop: 4, fontSize: 10 }}>
-                                                <span style={{ color: util >= 0 ? '#4ade80' : '#f87171' }}>Utilidad: ${util.toFixed(2)}</span>
-                                                <span style={{ color: margen >= 20 ? '#4ade80' : margen >= 0 ? '#f59e0b' : '#f87171' }}>Margen: {margen.toFixed(1)}%</span>
+                                                <span style={{ color: util >= 0 ? 'var(--verde)' : 'var(--rojo-t)' }}>Utilidad: ${util.toFixed(2)}</span>
+                                                <span style={{ color: margen >= 20 ? 'var(--verde)' : margen >= 0 ? 'var(--ambar)' : 'var(--rojo-t)' }}>Margen: {margen.toFixed(1)}%</span>
                                               </div>
                                             )}
                                           </div>
@@ -575,14 +607,14 @@ export default function Entregas() {
                                       <input type="text" value={editFormPedido.notas} onChange={ev => setEditFormPedido({ ...editFormPedido, notas: ev.target.value })} style={inputStyle} placeholder="Opcional" />
                                     </div>
                                   </div>
-                                  {pedidoMsg && <div style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>{pedidoMsg}</div>}
+                                  {pedidoMsg && <div style={{ color: 'var(--rojo-t)', fontSize: 11, marginBottom: 8 }}>{pedidoMsg}</div>}
                                   <div style={{ display: 'flex', gap: 8 }}>
                                     <button onClick={guardarPedidoEdit} disabled={guardandoPedido}
-                                      style={{ background: '#c1553a', border: 'none', borderRadius: 8, padding: '7px 16px', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: guardandoPedido ? 0.6 : 1 }}>
+                                      style={{ background: 'var(--marca)', border: 'none', borderRadius: 8, padding: '7px 16px', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: guardandoPedido ? 0.6 : 1 }}>
                                       {guardandoPedido ? 'Guardando...' : '✓ Guardar'}
                                     </button>
                                     <button onClick={() => setEditandoPedido(null)}
-                                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '7px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer' }}>
+                                      style={{ background: 'var(--w04)', border: '1px solid var(--w08)', borderRadius: 8, padding: '7px 16px', color: 'var(--w40)', fontSize: 11, cursor: 'pointer' }}>
                                       Cancelar
                                     </button>
                                   </div>
@@ -601,16 +633,16 @@ export default function Entregas() {
                                 )}
                                 {entregados.map(p => (
                                   <div key={p.id} style={{ marginBottom: 8, opacity: 0.6 }}>
-                                    <div style={{ position: 'relative', background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '10px 12px' }}>
-                                      <div style={{ position: 'absolute', top: 6, right: 8, background: '#10b981', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5 }}>✓ ENTREGADO</div>
+                                    <div style={{ position: 'relative', background: 'var(--w02)', borderRadius: 10, padding: '10px 12px' }}>
+                                      <div style={{ position: 'absolute', top: 6, right: 8, background: 'var(--verde)', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5 }}>✓ ENTREGADO</div>
                                       <div style={{ paddingRight: 90 }}>
-                                        <div style={{ color: 'white', fontSize: 12, fontWeight: 600 }}>{p.descripcion}</div>
-                                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
+                                        <div style={{ color: 'var(--tinta)', fontSize: 12, fontWeight: 600 }}>{p.descripcion}</div>
+                                        <div style={{ color: 'var(--w40)', fontSize: 11, marginTop: 2 }}>
                                           {p.clientes?.nombre || '—'} · {p.cantidad || 1} pza{p.lugar_compra && ` · ${p.lugar_compra}`}
                                         </div>
                                       </div>
                                       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
-                                        {p.precio_venta != null && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>Venta <span style={{ color: '#4ade80', fontWeight: 700 }}>{fmt(p.precio_venta)}</span></span>}
+                                        {p.precio_venta != null && <span style={{ color: 'var(--w40)', fontSize: 10 }}>Venta <span style={{ color: 'var(--verde)', fontWeight: 700 }}>{fmt(p.precio_venta)}</span></span>}
                                       </div>
                                     </div>
                                   </div>

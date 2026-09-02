@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
 import { a10Digitos } from '@/lib/whatsapp/telefono'
-import { urlFirmada } from '@/lib/whatsapp/media'
+import { urlsFirmadas } from '@/lib/whatsapp/media'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -48,10 +48,13 @@ export async function GET(req) {
   // imagen_url guarda la ruta dentro del bucket privado 'whatsapp-media'
   // (no una URL directa) — se firma aquí, con vigencia de una hora, para
   // que el navegador la pueda mostrar.
-  const pendientesConImagen = await Promise.all((data || []).map(async (p) => {
-    if (!p.imagen_url || p.imagen_url.startsWith('http')) return p
-    return { ...p, imagen_url: await urlFirmada(supabase, p.imagen_url, 3600) }
-  }))
+  const filas = data || []
+  const firmadas = await urlsFirmadas(supabase, filas.map(p => p.imagen_url), 3600)
+  const pendientesConImagen = filas.map(p => (
+    !p.imagen_url || p.imagen_url.startsWith('http')
+      ? p
+      : { ...p, imagen_url: firmadas[p.imagen_url] || null }
+  ))
 
   return NextResponse.json({ ok: true, pendientes: pendientesConImagen })
 }
@@ -71,7 +74,10 @@ export async function POST(req) {
   if (!tipo || !telefono_whatsapp || !resumen) {
     return NextResponse.json({ ok: false, mensaje: 'Faltan datos obligatorios (tipo, teléfono, resumen)' })
   }
-  if (!['comprobante', 'pedido_especifico', 'sin_responder'].includes(tipo)) {
+  // 'sin_responder' se eliminó el 1 sep 2026: la función no servía y su
+  // barrido corría en cada consulta del badge. 'comprobante' sigue vivo —
+  // lo crea el clasificador — pero se atiende en Anticipos, no aquí.
+  if (!['comprobante', 'pedido_especifico'].includes(tipo)) {
     return NextResponse.json({ ok: false, mensaje: 'Tipo no válido' })
   }
 

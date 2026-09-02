@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
-import { urlFirmada } from '@/lib/whatsapp/media'
+import { urlsFirmadas } from '@/lib/whatsapp/media'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -84,9 +84,22 @@ export async function GET(req) {
   // imagen_url sigue siendo la ruta permanente en storage — si el panel la
   // mandara de vuelta al guardar, se perdería la ruta real y quedaría
   // guardada una URL firmada que expira.
-  const pedidosConFoto = await Promise.all(allData.map(async p => {
-    if (!p.imagen_url || p.imagen_url.startsWith('http')) return { ...p, imagen_url_firmada: p.imagen_url }
-    return { ...p, imagen_url_firmada: await urlFirmada(supabase, p.imagen_url, 3600) }
+  // Firmar cuesta una consulta a la base por foto. Cuatro pantallas que usan
+  // esta API —Entregas, Estados de cuenta, Colaboradores y Reportes— no
+  // muestran ni una sola foto, y aun así estaban pagando el precio de firmar
+  // las 384 de la entrega. Con ?fotos=no se saltan ese trabajo.
+  if (searchParams.get('fotos') === 'no') {
+    return NextResponse.json({ ok: true, pedidos: allData })
+  }
+
+  // Una sola llamada para todas las fotos de la entrega, no una por pedido:
+  // con 384 fotos, firmar de a una saturaba Storage y ~14 volvían sin firmar.
+  const firmadas = await urlsFirmadas(supabase, allData.map(p => p.imagen_url), 3600)
+  const pedidosConFoto = allData.map(p => ({
+    ...p,
+    imagen_url_firmada: !p.imagen_url ? null
+      : p.imagen_url.startsWith('http') ? p.imagen_url
+      : (firmadas[p.imagen_url] || null),
   }))
 
   return NextResponse.json({ ok: true, pedidos: pedidosConFoto })

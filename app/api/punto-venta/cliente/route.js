@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
-import { urlFirmada } from '@/lib/whatsapp/media'
+import { urlsFirmadas } from '@/lib/whatsapp/media'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -42,12 +42,29 @@ export async function GET(req) {
   // por WhatsApp es una ruta dentro del bucket privado 'whatsapp-media', no
   // una URL usable directo en <img>. Se manda convertida en un campo aparte
   // (imagen_url_firmada) — imagen_url sigue siendo la ruta permanente.
-  const pedidos = await Promise.all((pedidosRes.data || []).map(async p => {
-    if (!p.imagen_url || p.imagen_url.startsWith('http')) return { ...p, imagen_url_firmada: p.imagen_url }
-    return { ...p, imagen_url_firmada: await urlFirmada(supabase, p.imagen_url, 3600) }
+  const filasPedidos = pedidosRes.data || []
+  const firmadas = await urlsFirmadas(supabase, filasPedidos.map(p => p.imagen_url), 3600)
+  const pedidos = filasPedidos.map(p => ({
+    ...p,
+    imagen_url_firmada: !p.imagen_url ? null
+      : p.imagen_url.startsWith('http') ? p.imagen_url
+      : (firmadas[p.imagen_url] || null),
   }))
   const mercadito = mercaditoRes.data || []
   const anticipos = anticiposRes.data || []
+
+  // El POS necesita saber si la mercancía ya llegó. Una entrega "en proceso"
+  // se muestra, pero bloqueada: el colaborador ve que el encargo existe (para
+  // no decirle al cliente que no tiene nada) y aun así no lo puede cobrar.
+  const idsEntregas = [...new Set(pedidos.map(p => p.entrega_id).filter(Boolean))]
+  let entregas = []
+  if (idsEntregas.length > 0) {
+    const { data } = await supabase
+      .from('entregas')
+      .select('id, fecha_entrega, estado, nota')
+      .in('id', idsEntregas)
+    entregas = data || []
+  }
 
   // Fetch payments already made on the mercadito orders to calculate balance
   let pagosMercadito = []
@@ -66,5 +83,5 @@ export async function GET(req) {
     return { ...pm, total, pagado, saldo: Math.max(0, total - pagado) }
   })
 
-  return NextResponse.json({ ok: true, pedidos, mercadito: mercaditoConSaldo, anticipos })
+  return NextResponse.json({ ok: true, pedidos, mercadito: mercaditoConSaldo, anticipos, entregas })
 }

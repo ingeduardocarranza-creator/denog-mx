@@ -56,6 +56,9 @@ export default function Anticipos() {
   const [cancelando, setCancelando] = useState(null)
   const [motivo, setMotivo] = useState('')
   const [filtroBandeja, setFiltroBandeja] = useState('todos')
+  // Con 159 comprobantes sin aplicar, los filtros por estado no alcanzan:
+  // cuando buscas UNA transferencia de alguien, buscas por su nombre.
+  const [busquedaBandeja, setBusquedaBandeja] = useState('')
 
   useEffect(() => {
     fetch('/api/entregas').then(r => r.json()).then(d => {
@@ -132,11 +135,20 @@ export default function Anticipos() {
   }), [roster])
 
   const bandeja = datos?.bandeja || []
-  const bandejaVisible = useMemo(() => bandeja.filter(b => {
-    if (filtroBandeja === 'huerfanos') return b.huerfano_resuelto
-    if (filtroBandeja === 'entrega') return b.en_esta_entrega
-    return true
-  }), [bandeja, filtroBandeja])
+  const bandejaVisible = useMemo(() => {
+    const q = busquedaBandeja.trim().toLowerCase()
+    return bandeja.filter(b => {
+      if (filtroBandeja === 'huerfanos' && !b.huerfano_resuelto) return false
+      if (filtroBandeja === 'entrega' && !b.en_esta_entrega) return false
+      if (!q) return true
+      // Se busca por el cliente que el sistema sugirió, por el nombre con el
+      // que aparece en WhatsApp (que a veces es el único dato) y por teléfono.
+      const nombre = (b.cliente_sugerido?.nombre || '').toLowerCase()
+      const wa = (b.nombre_whatsapp || '').toLowerCase()
+      const tel = String(b.telefono_whatsapp || '')
+      return nombre.includes(q) || wa.includes(q) || tel.includes(q)
+    })
+  }, [bandeja, filtroBandeja, busquedaBandeja])
 
   const entregaActual = entregas.find(e => e.id === entregaId)
 
@@ -307,6 +319,8 @@ export default function Anticipos() {
                   onAbrir={() => setAbierto(abierto === r.cliente_id ? null : r.cliente_id)}
                   onGuardar={guardar}
                   onCancelar={p => { setCancelando(p); setMotivo('') }}
+                  onDescartar={descartarComprobante}
+                  roster={roster}
                   comprobantes={bandeja.filter(b => b.cliente_sugerido?.id === r.cliente_id)} />
               ))}
             </div>
@@ -325,6 +339,13 @@ export default function Anticipos() {
             <div style={{ color: tenue, fontSize: 11, marginBottom: 11, lineHeight: 1.45 }}>
               Sin aplicar, ordenados por urgencia. Al aceptarlos se crea el anticipo aquí.
             </div>
+
+            <input
+              value={busquedaBandeja}
+              onChange={e => setBusquedaBandeja(e.target.value)}
+              placeholder="Buscar transferencia por nombre o teléfono…"
+              style={{ ...input, width: '100%', marginBottom: 8, fontSize: 12 }}
+            />
 
             {/* Filtros: con 119 sin aplicar, poder aislar los 22 que urgen es
                 la diferencia entre una lista que se usa y una que se abandona. */}
@@ -355,7 +376,9 @@ export default function Anticipos() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 'calc(100vh - 240px)', overflowY: 'auto', overflowX: 'hidden', paddingRight: 4, marginRight: -4 }}>
               {bandejaVisible.length === 0 && (
                 <div style={{ padding: 30, textAlign: 'center', color: 'var(--w25)', fontSize: 12 }}>
-                  {bandeja.length === 0 ? 'Todo aplicado ✓' : 'Nada con este filtro'}
+                  {bandeja.length === 0 ? 'Todo aplicado ✓'
+                    : busquedaBandeja.trim() ? `Ninguna transferencia coincide con “${busquedaBandeja.trim()}”`
+                    : 'Nada con este filtro'}
                 </div>
               )}
               {bandejaVisible.map(b => (
@@ -496,7 +519,7 @@ function Modal({ titulo, children, onCerrar }) {
 
 // Renglón de una persona. Cerrado es un resumen con su barra de avance;
 // abierto es el capturador, con el saldo ya escrito.
-function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, comprobantes }) {
+function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, onDescartar, roster, comprobantes }) {
   const est = ESTADO[r.estado]
   const [monto, setMonto] = useState('')
   const [metodo, setMetodo] = useState('Transferencia')
@@ -598,6 +621,30 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, compro
             )}
           </div>
 
+          {/* Los comprobantes que apuntan a esta persona, con la MISMA tarjeta
+              de la bandeja de la derecha: si vas a abonarle, lo primero que
+              quieres ver es la transferencia que mandó. Antes aquí sólo decía
+              "2 comprobantes" y había que ir a buscarlos a la otra columna.
+
+              No hay que sincronizar nada entre las dos listas: aplicar o
+              descartar recarga los datos de la pantalla, así que el
+              comprobante desaparece de los dos lados solo. */}
+          {comprobantes.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>
+                {comprobantes.length === 1
+                  ? 'Transferencia que mandó'
+                  : `${comprobantes.length} transferencias que mandó`}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {comprobantes.map(b => (
+                  <Comprobante key={b.id} b={b} entregaId={entregaId} roster={roster} dentroDeCliente
+                    onGuardar={onGuardar} onDescartar={() => onDescartar(b.id)} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {r.pagos.length > 0 && (
             <div style={{ marginTop: 13 }}>
               <div style={{ color: 'var(--w28)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 0.9, fontWeight: 600, marginBottom: 6 }}>
@@ -625,7 +672,11 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, compro
 // Tarjeta de comprobante. Un clic hace las dos cosas que antes eran dos:
 // crear el pago y cerrar el comprobante. El botón verde abre la conversación
 // de WhatsApp de donde salió, para verificarlo contra lo que escribió.
-function Comprobante({ b, entregaId, roster, onGuardar, onDescartar }) {
+// `dentroDeCliente` es true cuando la tarjeta se pinta DENTRO del renglón de
+// una persona. Ahí el selector de "aplicar a" sobra —ya sabemos de quién es—
+// y además es peligroso: desde el renglón de Abigail se podría aplicar la
+// transferencia a otra persona sin darse cuenta.
+function Comprobante({ b, entregaId, roster, onGuardar, onDescartar, dentroDeCliente = false }) {
   const [monto, setMonto] = useState(b.monto ? String(b.monto) : '')
   const [cliente, setCliente] = useState(b.cliente_sugerido?.id || '')
   const [guardando, setGuardando] = useState(false)
@@ -706,11 +757,18 @@ function Comprobante({ b, entregaId, roster, onGuardar, onDescartar }) {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <Micro>Aplicar a</Micro>
-            <select value={cliente} onChange={e => setCliente(e.target.value)}
-              style={{ ...input, width: '100%', maxWidth: '100%', height: 33, fontSize: 11.5, padding: '0 7px' }}>
-              <option value="">-- elige cliente --</option>
-              {roster.map(r => <option key={r.cliente_id} value={r.cliente_id}>{r.nombre}</option>)}
-            </select>
+            {dentroDeCliente ? (
+              <div style={{ ...input, height: 33, fontSize: 11.5, padding: '0 9px', display: 'flex', alignItems: 'center',
+                            color: 'var(--w60)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {b.cliente_sugerido?.nombre || 'esta persona'}
+              </div>
+            ) : (
+              <select value={cliente} onChange={e => setCliente(e.target.value)}
+                style={{ ...input, width: '100%', maxWidth: '100%', height: 33, fontSize: 11.5, padding: '0 7px' }}>
+                <option value="">-- elige cliente --</option>
+                {roster.map(r => <option key={r.cliente_id} value={r.cliente_id}>{r.nombre}</option>)}
+              </select>
+            )}
           </div>
         </div>
 

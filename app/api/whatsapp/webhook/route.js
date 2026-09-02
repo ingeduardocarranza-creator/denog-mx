@@ -190,13 +190,6 @@ async function procesarMensajeEntrante(msg, valor) {
     actualizado_en: ahora,
   }, { onConflict: 'telefono_whatsapp' })
 
-  // El cliente volvió a escribir: si había un pendiente de "sin responder"
-  // abierto para este número, ya no aplica (si de verdad sigue sin
-  // atenderse, el siguiente barrido abre uno nuevo).
-  await supabase.from('pendientes')
-    .update({ estado: 'resuelto', resuelto_en: ahora })
-    .eq('telefono_whatsapp', telefono).eq('tipo', 'sin_responder').in('estado', ['nuevo', 'visto'])
-
   // OJO: cuando el cliente manda una foto CON texto en el mismo mensaje,
   // WhatsApp no pone ese texto en `text.body` sino en el `caption` del
   // adjunto. Sin esto, un "¿me consigues este artículo?" escrito junto a la
@@ -350,7 +343,4 @@ async function procesarEcoStaff(eco) {
     actualizado_en: ahora,
   }, { onConflict: 'telefono_whatsapp' })
 
-  await supabase.from('pendientes')
-    .update({ estado: 'resuelto', resuelto_en: ahora })
-    .eq('telefono_whatsapp', telefono).eq('tipo', 'sin_responder').in('estado', ['nuevo', 'visto'])
 }

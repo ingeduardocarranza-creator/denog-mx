@@ -156,7 +156,7 @@ export default function CatalogoColaborador() {
   if (!usuario) return null;
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-6 font-sans">
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-6">
       <div className="max-w-5xl mx-auto space-y-6">
         <div>
           <h1 className="text-xl font-bold text-white tracking-tight">🏷️ Catálogo</h1>
@@ -194,7 +194,7 @@ export default function CatalogoColaborador() {
                 {mostrarCreadorCat ? (
                   <div className="flex gap-2 p-2 bg-[#111520] rounded-xl border border-slate-800">
                     <input type="text" placeholder="Nombre de categoría…" value={nuevaCategoriaInput} onChange={(e) => setNuevaCategoriaInput(e.target.value)} className="w-full bg-[#1e2533] border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
-                    <button type="button" onClick={agregarCategoriaALista} className="bg-[#c1553a] text-white font-bold px-3 py-1.5 rounded-lg">Añadir</button>
+                    <button type="button" onClick={agregarCategoriaALista} className="bg-[#c1553a] sobre-color font-bold px-3 py-1.5 rounded-lg">Añadir</button>
                   </div>
                 ) : (
                   <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none">
@@ -205,7 +205,7 @@ export default function CatalogoColaborador() {
 
               <div className="space-y-1">
                 <label className="text-slate-400 font-bold">Código de Barras <span className="text-[10px] text-slate-500">(UPC / Scan)</span></label>
-                <input type="text" value={codigoBarras} onChange={(e) => setCodigoBarras(e.target.value)} placeholder="Escanea el código de barras" className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none" />
+                <input type="text" value={codigoBarras} onChange={(e) => setCodigoBarras(e.target.value)} placeholder="Escanea el código de barras" className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white tabular-nums focus:outline-none" />
               </div>
 
               <div className="space-y-1">
@@ -223,7 +223,7 @@ export default function CatalogoColaborador() {
                     <div className="w-16 h-16 rounded-lg bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-xl">📦</div>
                   )}
                   <div className="flex-1 space-y-1.5">
-                    <label className="block w-full text-center bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-2.5 rounded-xl cursor-pointer transition-all">
+                    <label className="block w-full text-center bg-[#c1553a] hover:bg-[#9b3f28] sobre-color font-bold py-2.5 rounded-xl cursor-pointer transition-all">
                       {subiendoSlot === 'principal' ? 'Subiendo…' : imagenUrl ? '📷 Cambiar foto' : '📷 Tomar / subir foto'}
                       <input type="file" accept="image/*" onChange={subirFoto('principal')} disabled={subiendoSlot !== null} className="hidden" />
                     </label>
@@ -241,7 +241,7 @@ export default function CatalogoColaborador() {
                         <div className="relative">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={galeria[idx]} alt="" className="w-full h-14 rounded-lg object-cover border border-slate-700" />
-                          <button type="button" onClick={() => quitarFotoGaleria(idx)} className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full w-4 h-4 text-[9px] leading-none">✕</button>
+                          <button type="button" onClick={() => quitarFotoGaleria(idx)} className="absolute -top-1.5 -right-1.5 bg-red-600 sobre-color rounded-full w-4 h-4 text-[9px] leading-none">✕</button>
                         </div>
                       ) : (
                         <label className="flex items-center justify-center w-full h-14 rounded-lg bg-[#1e2533] border border-dashed border-slate-700 cursor-pointer text-slate-500 text-[10px]">
@@ -255,7 +255,7 @@ export default function CatalogoColaborador() {
               </div>
 
               <div className="pt-2 flex gap-2">
-                <button type="submit" disabled={loading} className="w-full bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-3 rounded-xl transition-all uppercase tracking-wider shadow-md">
+                <button type="submit" disabled={loading} className="w-full bg-[#c1553a] hover:bg-[#9b3f28] sobre-color font-bold py-3 rounded-xl transition-all uppercase tracking-wider shadow-md">
                   {loading ? 'Guardando…' : editandoId ? 'Guardar cambios' : 'Enviar producto'}
                 </button>
                 {editandoId && (
@@ -299,7 +299,7 @@ export default function CatalogoColaborador() {
                           )}
                           <div>
                             <p className="font-bold text-slate-200">{p.nombre}</p>
-                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">{p.codigo_barras}</p>
+                            <p className="text-[10px] text-slate-500 tabular-nums mt-0.5">{p.codigo_barras}</p>
                           </div>
                         </div>
                       </td>

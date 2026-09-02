@@ -9,8 +9,8 @@ export default function PosRedirect() {
   }, [])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#050508', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Cargando...</div>
+    <div style={{ minHeight: '100vh', background: 'var(--fondo)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ color: 'var(--w40)', fontSize: 14 }}>Cargando...</div>
     </div>
   )
 }

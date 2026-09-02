@@ -234,19 +234,19 @@ export default function TiendaTienda({
   return (
     <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 400px', alignItems: 'start' }}>
       {/* IZQUIERDA: entrada */}
-      <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', gap: 4, padding: 6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 16, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', gap: 4, padding: 6, borderBottom: '1px solid var(--w08)' }}>
           <button
             type="button"
             onClick={() => setSubtab('monto')}
-            style={{ flex: 1, background: subtab === 'monto' ? 'rgba(193,85,58,0.16)' : 'transparent', color: subtab === 'monto' ? '#c1553a' : 'rgba(255,255,255,0.55)', border: 'none', borderRadius: 11, padding: 13, fontSize: 15, fontWeight: subtab === 'monto' ? 800 : 700, cursor: 'pointer' }}
+            style={{ flex: 1, background: subtab === 'monto' ? 'rgba(193,85,58,0.16)' : 'transparent', color: subtab === 'monto' ? 'var(--marca)' : 'var(--w55)', border: 'none', borderRadius: 11, padding: 13, fontSize: 15, fontWeight: subtab === 'monto' ? 800 : 700, cursor: 'pointer' }}
           >
             💵 Monto
           </button>
           <button
             type="button"
             onClick={() => setSubtab('productos')}
-            style={{ flex: 1, background: subtab === 'productos' ? 'rgba(193,85,58,0.16)' : 'transparent', color: subtab === 'productos' ? '#c1553a' : 'rgba(255,255,255,0.55)', border: 'none', borderRadius: 11, padding: 13, fontSize: 15, fontWeight: subtab === 'productos' ? 800 : 700, cursor: 'pointer' }}
+            style={{ flex: 1, background: subtab === 'productos' ? 'rgba(193,85,58,0.16)' : 'transparent', color: subtab === 'productos' ? 'var(--marca)' : 'var(--w55)', border: 'none', borderRadius: 11, padding: 13, fontSize: 15, fontWeight: subtab === 'productos' ? 800 : 700, cursor: 'pointer' }}
           >
             🔎 Productos
           </button>
@@ -255,21 +255,21 @@ export default function TiendaTienda({
         {subtab === 'monto' ? (
           <div style={{ padding: '34px 28px 30px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 40, fontWeight: 400, color: 'rgba(255,255,255,0.55)' }}>$</span>
+              <span style={{ fontSize: 40, fontWeight: 400, color: 'var(--w55)' }}>$</span>
               <input
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 value={montoFormateado}
                 onChange={onMontoInput}
-                style={{ width: 260, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 64, fontWeight: 800, textAlign: 'left' }}
+                style={{ width: 260, background: 'transparent', border: 'none', outline: 'none', color: 'var(--tinta)', fontSize: 64, fontWeight: 800, textAlign: 'left' }}
               />
             </div>
             {montoCentavos && (
               <button
                 type="button"
                 onClick={() => setMontoCentavos('')}
-                style={{ marginTop: -12, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                style={{ marginTop: -12, background: 'transparent', border: 'none', color: 'var(--w40)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
               >
                 ✕ Borrar monto
               </button>
@@ -279,13 +279,13 @@ export default function TiendaTienda({
               value={montoDesc}
               onChange={(e) => setMontoDesc(e.target.value)}
               placeholder="✏️ Agregar descripción (ej. Producto sin código)"
-              style={{ width: '100%', maxWidth: 420, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: '13px 16px', color: '#fff', fontSize: 15, outline: 'none', textAlign: 'center' }}
+              style={{ width: '100%', maxWidth: 420, background: 'var(--w05)', border: '1px solid var(--w14)', borderRadius: 12, padding: '13px 16px', color: 'var(--tinta)', fontSize: 15, outline: 'none', textAlign: 'center' }}
             />
             <button
               type="button"
               onClick={agregarMonto}
               disabled={!montoValido}
-              style={{ width: '100%', maxWidth: 420, border: 'none', borderRadius: 12, padding: 15, fontSize: 16, fontWeight: 800, cursor: montoValido ? 'pointer' : 'not-allowed', background: montoValido ? '#c1553a' : 'rgba(193,85,58,0.25)', color: montoValido ? '#fff' : 'rgba(255,255,255,0.5)' }}
+              style={{ width: '100%', maxWidth: 420, border: 'none', borderRadius: 12, padding: 15, fontSize: 16, fontWeight: 800, cursor: montoValido ? 'pointer' : 'not-allowed', background: montoValido ? 'var(--marca)' : 'rgba(193,85,58,0.25)', color: montoValido ? 'var(--tinta)' : 'var(--w50)' }}
             >
               ＋ Agregar a la venta
             </button>
@@ -293,7 +293,7 @@ export default function TiendaTienda({
         ) : (
           <div style={{ padding: '20px 22px 24px' }}>
             <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid #c1553a', borderRadius: 12, padding: '12px 16px' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: 'var(--w05)', border: '1px solid var(--marca)', borderRadius: 12, padding: '12px 16px' }}>
                 <span style={{ fontSize: 16, opacity: 0.7 }}>🔍</span>
                 <input
                   type="text"
@@ -306,7 +306,7 @@ export default function TiendaTienda({
                     if (productosFiltrados.length === 1) { agregarProducto(productosFiltrados[0]); setQuery(''); }
                   }}
                   placeholder="Buscar producto o escanear código de barras…"
-                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 15 }}
+                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--tinta)', fontSize: 15 }}
                 />
               </div>
             </div>
@@ -320,9 +320,9 @@ export default function TiendaTienda({
                     type="button"
                     onClick={() => setActiveCat(cat)}
                     style={{
-                      background: activo ? 'rgba(193,85,58,0.18)' : 'rgba(255,255,255,0.05)',
-                      color: activo ? '#c1553a' : 'rgba(255,255,255,0.7)',
-                      border: `1px solid ${activo ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.12)'}`,
+                      background: activo ? 'rgba(193,85,58,0.18)' : 'var(--w05)',
+                      color: activo ? 'var(--marca)' : 'var(--w70)',
+                      border: `1px solid ${activo ? 'rgba(193,85,58,0.5)' : 'var(--w12)'}`,
                       borderRadius: 999,
                       padding: '8px 16px',
                       fontSize: 13,
@@ -338,20 +338,20 @@ export default function TiendaTienda({
 
             <div className="scrollpane" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 440, overflowY: 'auto', paddingRight: 4 }}>
               {productosFiltrados.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '30px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Sin resultados.</div>
+                <div style={{ textAlign: 'center', padding: '30px 16px', color: 'var(--w40)', fontSize: 13 }}>Sin resultados.</div>
               )}
               {productosFiltrados.map((p) => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '10px 12px' }}>
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'var(--w04)', border: '1px solid var(--w08)', borderRadius: 12, padding: '10px 12px' }}>
                   <Foto imagenUrl={p.imagen_url} categoria={p.categoria} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.25 }}>{p.nombre}</div>
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>{p.categoria || 'Sin categoría'} · Stock {p.stock}</div>
+                    <div style={{ fontSize: 13, color: 'var(--w50)', marginTop: 2 }}>{p.categoria || 'Sin categoría'} · Stock {p.stock}</div>
                   </div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: '#facc15', whiteSpace: 'nowrap' }}>$ {money(p.precio_venta)}</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--ambar-t)', whiteSpace: 'nowrap' }}>$ {money(p.precio_venta)}</div>
                   <button
                     type="button"
                     onClick={() => agregarProducto(p)}
-                    style={{ flex: 'none', width: 38, height: 38, borderRadius: 10, background: '#c1553a', color: '#fff', border: 'none', fontSize: 20, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}
+                    style={{ flex: 'none', width: 38, height: 38, borderRadius: 10, background: 'var(--marca)', color: '#ffffff', border: 'none', fontSize: 20, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}
                   >
                     ＋
                   </button>
@@ -362,8 +362,8 @@ export default function TiendaTienda({
         )}
 
         {vendedores && vendedores.length > 1 && (
-          <div style={{ margin: '0 22px 20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 12 }}>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>👤 ¿Quién realizó esta venta?</div>
+          <div style={{ margin: '0 22px 20px', background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 12, padding: 12 }}>
+            <div style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>👤 ¿Quién realizó esta venta?</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {vendedores.map((v) => {
                 const activo = vendedorTienda?.id === v.id;
@@ -373,13 +373,13 @@ export default function TiendaTienda({
                     key={v.id}
                     type="button"
                     onClick={() => setVendedorTienda(v)}
-                    style={{ flex: 1, minWidth: 80, background: activo ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${activo ? 'rgba(193,85,58,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, padding: '8px 6px', cursor: 'pointer' }}
+                    style={{ flex: 1, minWidth: 80, background: activo ? 'rgba(193,85,58,0.2)' : 'var(--w03)', border: `1px solid ${activo ? 'rgba(193,85,58,0.4)' : 'var(--w08)'}`, borderRadius: 10, padding: '8px 6px', cursor: 'pointer' }}
                   >
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: activo ? 'rgba(193,85,58,0.3)' : 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: activo ? '#c1553a' : 'rgba(255,255,255,0.5)', fontWeight: 700, margin: '0 auto 5px' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: activo ? 'rgba(193,85,58,0.3)' : 'var(--w08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: activo ? 'var(--marca)' : 'var(--w50)', fontWeight: 700, margin: '0 auto 5px' }}>
                       {iniciales}
                     </div>
-                    <div style={{ color: activo ? '#c1553a' : 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: activo ? 600 : 400 }}>{v.nombre.split(' ')[0]}</div>
-                    {v.id === colaborador?.id && <div style={{ color: activo ? 'rgba(193,85,58,0.5)' : 'rgba(255,255,255,0.2)', fontSize: 9 }}>En sesión</div>}
+                    <div style={{ color: activo ? 'var(--marca)' : 'var(--w50)', fontSize: 11, fontWeight: activo ? 600 : 400 }}>{v.nombre.split(' ')[0]}</div>
+                    {v.id === colaborador?.id && <div style={{ color: activo ? 'rgba(193,85,58,0.5)' : 'var(--w20)', fontSize: 9 }}>En sesión</div>}
                   </button>
                 );
               })}
@@ -389,91 +389,91 @@ export default function TiendaTienda({
       </div>
 
       {/* DERECHA: carrito */}
-      <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, overflow: 'hidden', position: 'sticky', top: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 16, overflow: 'hidden', position: 'sticky', top: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', borderBottom: '1px solid var(--w08)' }}>
           <div style={{ fontSize: 18, fontWeight: 800 }}>🛒 Carrito</div>
-          <button type="button" onClick={() => setCart([])} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <button type="button" onClick={() => setCart([])} style={{ background: 'transparent', border: 'none', color: 'var(--w45)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             🗑 Vaciar
           </button>
         </div>
 
         <div className="scrollpane" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '62vh', overflowY: 'auto' }}>
           {carritoVacio && (
-            <div style={{ textAlign: 'center', padding: '44px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
+            <div style={{ textAlign: 'center', padding: '44px 16px', color: 'var(--w40)', fontSize: 14 }}>
               Carrito vacío.
               <br />
               Agrega un monto o un producto.
             </div>
           )}
           {lineas.map(({ linea, subtotal, baseSubtotal, tieneDescuento }) => (
-            <div key={linea.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 12 }}>
+            <div key={linea.id} style={{ background: 'var(--w04)', border: '1px solid var(--w08)', borderRadius: 12, padding: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <Foto imagenUrl={linea.imagenUrl} categoria={linea.categoria} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{linea.nombre}</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: 'var(--w50)', marginTop: 2 }}>
                     $ {money(linea.precioUnitario)} c/u{linea.descuentoValor > 0 ? ` · ${linea.descuentoTipo === 'amount' ? `−$${money(linea.descuentoValor)}` : `−${linea.descuentoValor}%`}` : ''}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMenuId((m) => (m === linea.id ? null : linea.id))}
-                  style={{ flex: 'none', width: 32, height: 32, borderRadius: 8, background: menuId === linea.id ? 'rgba(193,85,58,0.2)' : 'rgba(255,255,255,0.06)', color: menuId === linea.id ? '#c1553a' : 'rgba(255,255,255,0.7)', border: 'none', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}
+                  style={{ flex: 'none', width: 32, height: 32, borderRadius: 8, background: menuId === linea.id ? 'rgba(193,85,58,0.2)' : 'var(--w06)', color: menuId === linea.id ? 'var(--marca)' : 'var(--w70)', border: 'none', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}
                 >
                   ⋮
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <button type="button" onClick={() => cambiarCantidad(linea.id, -1)} style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>−</button>
+                  <button type="button" onClick={() => cambiarCantidad(linea.id, -1)} style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--w08)', color: 'var(--tinta)', border: 'none', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>−</button>
                   <span style={{ minWidth: 24, textAlign: 'center', fontSize: 14, fontWeight: 700 }}>{linea.cantidad}</span>
-                  <button type="button" onClick={() => cambiarCantidad(linea.id, 1)} style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>＋</button>
+                  <button type="button" onClick={() => cambiarCantidad(linea.id, 1)} style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--w08)', color: 'var(--tinta)', border: 'none', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>＋</button>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  {tieneDescuento && <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', textDecoration: 'line-through', marginRight: 6 }}>$ {money(baseSubtotal)}</span>}
-                  <span style={{ fontSize: 15, fontWeight: 800, color: '#facc15' }}>$ {money(subtotal)}</span>
+                  {tieneDescuento && <span style={{ fontSize: 12, color: 'var(--w40)', textDecoration: 'line-through', marginRight: 6 }}>$ {money(baseSubtotal)}</span>}
+                  <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--ambar-t)' }}>$ {money(subtotal)}</span>
                 </div>
               </div>
               {menuId === linea.id && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                  <button type="button" onClick={() => abrirEditarPrecio(linea)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(193,85,58,0.14)', border: '1px solid rgba(193,85,58,0.4)', color: '#c1553a', fontSize: 12.5, fontWeight: 700, padding: '9px 6px', borderRadius: 9, cursor: 'pointer' }}>✏️ Precio</button>
-                  <button type="button" onClick={() => abrirEditarDescuento(linea)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(52,211,153,0.14)', border: '1px solid rgba(52,211,153,0.4)', color: '#34d399', fontSize: 12.5, fontWeight: 700, padding: '9px 6px', borderRadius: 9, cursor: 'pointer' }}>🏷 Descuento</button>
-                  <button type="button" onClick={() => quitarLinea(linea.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', fontSize: 12.5, fontWeight: 700, padding: '9px 6px', borderRadius: 9, cursor: 'pointer' }}>🗑 Quitar</button>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--w08)' }}>
+                  <button type="button" onClick={() => abrirEditarPrecio(linea)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(193,85,58,0.14)', border: '1px solid rgba(193,85,58,0.4)', color: 'var(--marca)', fontSize: 12.5, fontWeight: 700, padding: '9px 6px', borderRadius: 9, cursor: 'pointer' }}>✏️ Precio</button>
+                  <button type="button" onClick={() => abrirEditarDescuento(linea)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(52,211,153,0.14)', border: '1px solid rgba(52,211,153,0.4)', color: 'var(--verde)', fontSize: 12.5, fontWeight: 700, padding: '9px 6px', borderRadius: 9, cursor: 'pointer' }}>🏷 Descuento</button>
+                  <button type="button" onClick={() => quitarLinea(linea.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.4)', color: 'var(--rojo-t)', fontSize: 12.5, fontWeight: 700, padding: '9px 6px', borderRadius: 9, cursor: 'pointer' }}>🗑 Quitar</button>
                 </div>
               )}
             </div>
           ))}
         </div>
 
-        <div style={{ padding: '14px 20px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ padding: '14px 20px 20px', borderTop: '1px solid var(--w08)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 14 }}>
             {clienteTienda ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>👤 {clienteTienda.nombre}</span>
-                <button type="button" onClick={() => setClienteTienda(null)} style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Quitar</button>
+                <span style={{ fontSize: 14, color: 'var(--w70)' }}>👤 {clienteTienda.nombre}</span>
+                <button type="button" onClick={() => setClienteTienda(null)} style={{ background: 'transparent', border: 'none', color: 'var(--rojo-t)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Quitar</button>
               </div>
             ) : (
-              <button type="button" onClick={() => setClientePickerOpen((o) => !o)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', color: '#c1553a', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              <button type="button" onClick={() => setClientePickerOpen((o) => !o)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', color: 'var(--marca)', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
                 👤 Agregar cliente
               </button>
             )}
             {clientePickerOpen && !clienteTienda && (
-              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: 8 }}>
+              <div style={{ background: 'var(--w04)', border: '1px solid var(--w10)', borderRadius: 10, padding: 8 }}>
                 <input
                   type="text"
                   autoFocus
                   value={clienteQuery}
                   onChange={(e) => setClienteQuery(e.target.value)}
                   placeholder="Buscar por nombre o teléfono…"
-                  style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 13, padding: '6px 4px' }}
+                  style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'var(--tinta)', fontSize: 13, padding: '6px 4px' }}
                 />
                 {clientesFiltrados.map((c) => (
                   <div
                     key={c.id}
                     onClick={() => { setClienteTienda(c); setClientePickerOpen(false); setClienteQuery(''); }}
-                    style={{ padding: '8px 6px', fontSize: 13, color: '#e2e8f0', cursor: 'pointer', borderTop: '1px solid rgba(255,255,255,0.06)' }}
+                    style={{ padding: '8px 6px', fontSize: 13, color: 'var(--w70)', cursor: 'pointer', borderTop: '1px solid var(--w06)' }}
                   >
-                    {c.nombre} <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{c.telefono}</span>
+                    {c.nombre} <span style={{ color: 'var(--w40)', fontSize: 11 }}>{c.telefono}</span>
                   </div>
                 ))}
               </div>
@@ -481,22 +481,22 @@ export default function TiendaTienda({
             <button
               type="button"
               onClick={() => { setVentaDiscountType(descuentoVenta?.tipo || 'percent'); setVentaDiscountDraft(descuentoVenta?.valor ? String(descuentoVenta.valor) : ''); setVentaDiscountOpen(true); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', color: '#c1553a', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: 0 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', color: 'var(--marca)', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: 0 }}
             >
               🏷 Aplicar descuento{descuentoVenta?.valor > 0 ? ` (${descuentoVenta.tipo === 'amount' ? `−$${money(descuentoVenta.valor)}` : `−${descuentoVenta.valor}%`})` : ''}
             </button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
-            <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', fontWeight: 600, whiteSpace: 'nowrap' }}>Total a cobrar</span>
-            <span style={{ fontSize: 30, fontWeight: 900, color: '#fff', whiteSpace: 'nowrap' }}>$ {money(total)}</span>
+            <span style={{ fontSize: 15, color: 'var(--w60)', fontWeight: 600, whiteSpace: 'nowrap' }}>Total a cobrar</span>
+            <span style={{ fontSize: 30, fontWeight: 900, color: 'var(--tinta)', whiteSpace: 'nowrap' }}>$ {money(total)}</span>
           </div>
 
           <button
             type="button"
             onClick={onCobrar}
             disabled={loading || carritoVacio}
-            style={{ width: '100%', border: 'none', borderRadius: 12, padding: 16, fontSize: 17, fontWeight: 800, cursor: loading || carritoVacio ? 'not-allowed' : 'pointer', background: !loading && !carritoVacio ? '#c1553a' : 'rgba(193,85,58,0.25)', color: !loading && !carritoVacio ? '#fff' : 'rgba(255,255,255,0.5)', boxShadow: !loading && !carritoVacio ? '0 6px 20px rgba(193,85,58,0.4)' : 'none' }}
+            style={{ width: '100%', border: 'none', borderRadius: 12, padding: 16, fontSize: 17, fontWeight: 800, cursor: loading || carritoVacio ? 'not-allowed' : 'pointer', background: !loading && !carritoVacio ? 'var(--marca)' : 'rgba(193,85,58,0.25)', color: !loading && !carritoVacio ? 'var(--tinta)' : 'var(--w50)', boxShadow: !loading && !carritoVacio ? '0 6px 20px rgba(193,85,58,0.4)' : 'none' }}
           >
             {loading ? 'Procesando…' : `Cobrar $ ${money(total)}`}
           </button>
@@ -504,7 +504,7 @@ export default function TiendaTienda({
             <button
               type="button"
               onClick={() => setModalDom(true)}
-              style={{ width: '100%', border: '1px solid rgba(251,191,36,0.4)', borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', marginTop: 8 }}
+              style={{ width: '100%', border: '1px solid rgba(251,191,36,0.4)', borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer', background: 'rgba(251,191,36,0.08)', color: 'var(--ambar-t)', marginTop: 8 }}
             >
               🚚 Agendar a domicilio
             </button>
@@ -515,30 +515,30 @@ export default function TiendaTienda({
       {/* MODAL: Editar precio */}
       {editLinea && editMode === 'price' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(8,12,24,0.7)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={(e) => { if (e.target === e.currentTarget) cerrarModalLinea(); }}>
-          <div style={{ width: '100%', maxWidth: 460, background: '#152036', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 18, padding: '26px 26px 24px', boxShadow: '0 24px 60px rgba(0,0,0,0.55)' }}>
+          <div style={{ width: '100%', maxWidth: 460, background: 'var(--sup-2)', border: '1px solid var(--w12)', borderRadius: 18, padding: '26px 26px 24px', boxShadow: '0 24px 60px var(--w55)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 800 }}>Nuevo precio para el producto</div>
-                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Solo aplica a esta venta.</div>
+                <div style={{ fontSize: 14, color: 'var(--w50)', marginTop: 4 }}>Solo aplica a esta venta.</div>
               </div>
-              <button type="button" onClick={cerrarModalLinea} style={{ flex: 'none', width: 34, height: 34, borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+              <button type="button" onClick={cerrarModalLinea} style={{ flex: 'none', width: 34, height: 34, borderRadius: 10, background: 'var(--w06)', border: 'none', color: 'var(--w60)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '20px 0' }}>
               <Foto imagenUrl={editLinea.imagenUrl} categoria={editLinea.categoria} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{editLinea.nombre}</div>
-                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>$ {money(editLinea.precioUnitario)} /u.</div>
+                <div style={{ fontSize: 14, color: 'var(--w55)', marginTop: 2 }}>$ {money(editLinea.precioUnitario)} /u.</div>
               </div>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 8 }}>Precio personalizado</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid #c1553a', borderRadius: 12, padding: '14px 16px' }}>
-              <span style={{ fontSize: 20, color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>$</span>
-              <input type="number" autoFocus value={priceDraft} onChange={(e) => setPriceDraft(e.target.value)} placeholder="0.00" style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 20, fontWeight: 800 }} />
-              <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', whiteSpace: 'nowrap' }}>Por unidad (u.)</span>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--w60)', marginBottom: 8 }}>Precio personalizado</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--w05)', border: '1px solid var(--marca)', borderRadius: 12, padding: '14px 16px' }}>
+              <span style={{ fontSize: 20, color: 'var(--w60)', fontWeight: 700 }}>$</span>
+              <input type="number" autoFocus value={priceDraft} onChange={(e) => setPriceDraft(e.target.value)} placeholder="0.00" style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--tinta)', fontSize: 20, fontWeight: 800 }} />
+              <span style={{ fontSize: 14, color: 'var(--w45)', whiteSpace: 'nowrap' }}>Por unidad (u.)</span>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
-              <button type="button" onClick={guardarPrecio} style={{ flex: 1, background: '#c1553a', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>Confirmar</button>
-              <button type="button" onClick={cerrarModalLinea} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+              <button type="button" onClick={guardarPrecio} style={{ flex: 1, background: 'var(--marca)', color: '#ffffff', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>Confirmar</button>
+              <button type="button" onClick={cerrarModalLinea} style={{ flex: 1, background: 'var(--w06)', color: 'var(--w70)', border: '1px solid var(--w14)', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
             </div>
           </div>
         </div>
@@ -547,16 +547,16 @@ export default function TiendaTienda({
       {/* MODAL: Descuento por línea */}
       {editLinea && editMode === 'discount' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(8,12,24,0.7)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={(e) => { if (e.target === e.currentTarget) cerrarModalLinea(); }}>
-          <div style={{ width: '100%', maxWidth: 480, background: '#152036', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 18, padding: '26px 26px 24px', boxShadow: '0 24px 60px rgba(0,0,0,0.55)' }}>
+          <div style={{ width: '100%', maxWidth: 480, background: 'var(--sup-2)', border: '1px solid var(--w12)', borderRadius: 18, padding: '26px 26px 24px', boxShadow: '0 24px 60px var(--w55)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ fontSize: 22, fontWeight: 800 }}>Descuento sobre el producto</div>
-              <button type="button" onClick={cerrarModalLinea} style={{ flex: 'none', width: 34, height: 34, borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+              <button type="button" onClick={cerrarModalLinea} style={{ flex: 'none', width: 34, height: 34, borderRadius: 10, background: 'var(--w06)', border: 'none', color: 'var(--w60)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '20px 0' }}>
               <Foto imagenUrl={editLinea.imagenUrl} categoria={editLinea.categoria} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{editLinea.nombre}</div>
-                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>$ {money(editLinea.precioUnitario)} /u.</div>
+                <div style={{ fontSize: 14, color: 'var(--w55)', marginTop: 2 }}>$ {money(editLinea.precioUnitario)} /u.</div>
               </div>
             </div>
             <DescuentoForm
@@ -575,13 +575,13 @@ export default function TiendaTienda({
       {/* MODAL: Descuento a nivel venta */}
       {ventaDiscountOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(8,12,24,0.7)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={(e) => { if (e.target === e.currentTarget) setVentaDiscountOpen(false); }}>
-          <div style={{ width: '100%', maxWidth: 480, background: '#152036', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 18, padding: '26px 26px 24px', boxShadow: '0 24px 60px rgba(0,0,0,0.55)' }}>
+          <div style={{ width: '100%', maxWidth: 480, background: 'var(--sup-2)', border: '1px solid var(--w12)', borderRadius: 18, padding: '26px 26px 24px', boxShadow: '0 24px 60px var(--w55)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 800 }}>Descuento sobre la venta</div>
-                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Se reparte entre todos los productos del carrito.</div>
+                <div style={{ fontSize: 14, color: 'var(--w50)', marginTop: 4 }}>Se reparte entre todos los productos del carrito.</div>
               </div>
-              <button type="button" onClick={() => setVentaDiscountOpen(false)} style={{ flex: 'none', width: 34, height: 34, borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+              <button type="button" onClick={() => setVentaDiscountOpen(false)} style={{ flex: 'none', width: 34, height: 34, borderRadius: 10, background: 'var(--w06)', border: 'none', color: 'var(--w60)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
             </div>
             <div style={{ marginTop: 20 }}>
               <DescuentoForm
@@ -601,13 +601,13 @@ export default function TiendaTienda({
       {modalDom && (
         <div onClick={e => { if (e.target === e.currentTarget) setModalDom(false) }}
           style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(8,12,24,0.82)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ width: '100%', maxWidth: 500, background: '#0f172a', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 20, padding: 24, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 30px 70px rgba(0,0,0,0.7)' }}>
+          <div style={{ width: '100%', maxWidth: 500, background: 'var(--sup-2)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 20, padding: 24, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 30px 70px var(--w70)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <div style={{ fontSize: 20, fontWeight: 800 }}>🚚 Agendar a domicilio</div>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginTop: 3 }}>{cart.length} artículo(s) · ${money(calcularTotalesCarrito(cart, { tipo: null, valor: 0 }).total)}</div>
+                <div style={{ fontSize: 13, color: 'var(--w45)', marginTop: 3 }}>{cart.length} artículo(s) · ${money(calcularTotalesCarrito(cart, { tipo: null, valor: 0 }).total)}</div>
               </div>
-              <button onClick={() => setModalDom(false)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 10, width: 34, height: 34, color: 'rgba(255,255,255,0.6)', fontSize: 18, cursor: 'pointer' }}>✕</button>
+              <button onClick={() => setModalDom(false)} style={{ background: 'var(--w06)', border: 'none', borderRadius: 10, width: 34, height: 34, color: 'var(--w60)', fontSize: 18, cursor: 'pointer' }}>✕</button>
             </div>
 
             {/* Datos del cliente externo */}
@@ -620,10 +620,10 @@ export default function TiendaTienda({
                 { label: 'Referencias', key: 'referencias', placeholder: 'Casa azul, cerca de...' },
               ].map(f => (
                 <div key={f.key} style={{ gridColumn: f.key === 'referencias' ? '1 / -1' : undefined }}>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>{f.label}</label>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>{f.label}</label>
                   <input type="text" value={domForm[f.key]} onChange={e => setDomForm(p => ({ ...p, [f.key]: e.target.value }))}
                     placeholder={f.placeholder}
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
                 </div>
               ))}
             </div>
@@ -631,47 +631,47 @@ export default function TiendaTienda({
             {/* Fecha y horario */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Fecha *</label>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Fecha *</label>
                 <input type="date" value={domForm.fecha_preferida}
                   onChange={e => setDomForm(p => ({ ...p, fecha_preferida: e.target.value, horario: '' }))}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
                 {domForm.fecha_preferida && new Date(domForm.fecha_preferida + 'T12:00:00').getDay() === 0 && (
-                  <div style={{ color: '#f87171', fontSize: 11, marginTop: 4 }}>⚠️ No hay servicio los domingos</div>
+                  <div style={{ color: 'var(--rojo-t)', fontSize: 11, marginTop: 4 }}>⚠️ No hay servicio los domingos</div>
                 )}
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Horario *</label>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Horario *</label>
                 <select value={domForm.horario} onChange={e => setDomForm(p => ({ ...p, horario: e.target.value }))}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none' }}>
+                  style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none' }}>
                   <option value="">-- Horario --</option>
-                  {horariosDom(domForm.fecha_preferida).map(h => <option key={h} value={h} style={{ background: '#0f172a' }}>{h}</option>)}
+                  {horariosDom(domForm.fecha_preferida).map(h => <option key={h} value={h} style={{ background: 'var(--sup-2)' }}>{h}</option>)}
                 </select>
               </div>
             </div>
 
             {/* Costo de envío */}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Costo de envío *</label>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Costo de envío *</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {[50, 70, 100].map(n => (
                   <button key={n} type="button" onClick={() => setDomForm(p => ({ ...p, costo_envio: String(n) }))}
-                    style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `2px solid ${domForm.costo_envio === String(n) ? 'rgba(251,191,36,0.7)' : 'rgba(255,255,255,0.1)'}`, background: domForm.costo_envio === String(n) ? 'rgba(251,191,36,0.12)' : 'rgba(255,255,255,0.03)', color: domForm.costo_envio === String(n) ? '#fbbf24' : 'rgba(255,255,255,0.5)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+                    style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `2px solid ${domForm.costo_envio === String(n) ? 'rgba(251,191,36,0.7)' : 'var(--w10)'}`, background: domForm.costo_envio === String(n) ? 'rgba(251,191,36,0.12)' : 'var(--w03)', color: domForm.costo_envio === String(n) ? 'var(--ambar-t)' : 'var(--w50)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
                     ${n}
                   </button>
                 ))}
                 <input type="number" value={domForm.costo_envio} onChange={e => setDomForm(p => ({ ...p, costo_envio: e.target.value }))}
                   placeholder="Otro"
-                  style={{ width: 70, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 10px', color: '#fff', fontSize: 13, outline: 'none', textAlign: 'center' }} />
+                  style={{ width: 70, background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 10px', color: 'var(--tinta)', fontSize: 13, outline: 'none', textAlign: 'center' }} />
               </div>
             </div>
 
             {/* Forma de pago */}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Forma de pago</label>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Forma de pago</label>
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                 {[['contra_entrega', '📦 Contra entrega'], ['anticipado', '✅ Anticipado']].map(([val, lbl]) => (
                   <button key={val} type="button" onClick={() => setDomForm(p => ({ ...p, forma_pago: val }))}
-                    style={{ flex: 1, padding: '11px 8px', borderRadius: 10, border: `2px solid ${domForm.forma_pago === val ? 'rgba(52,211,153,0.6)' : 'rgba(255,255,255,0.1)'}`, background: domForm.forma_pago === val ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.03)', color: domForm.forma_pago === val ? '#34d399' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    style={{ flex: 1, padding: '11px 8px', borderRadius: 10, border: `2px solid ${domForm.forma_pago === val ? 'rgba(52,211,153,0.6)' : 'var(--w10)'}`, background: domForm.forma_pago === val ? 'rgba(52,211,153,0.1)' : 'var(--w03)', color: domForm.forma_pago === val ? 'var(--verde)' : 'var(--w50)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                     {lbl}
                   </button>
                 ))}
@@ -679,16 +679,16 @@ export default function TiendaTienda({
               {domForm.forma_pago === 'anticipado' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Monto pagado</label>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Monto pagado</label>
                     <input type="number" value={domForm.pago_anticipado} onChange={e => setDomForm(p => ({ ...p, pago_anticipado: e.target.value }))}
                       placeholder="0.00"
-                      style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Método</label>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Método</label>
                     <select value={domForm.metodo_pago_ant} onChange={e => setDomForm(p => ({ ...p, metodo_pago_ant: e.target.value }))}
-                      style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none' }}>
-                      {['Transferencia', 'Efectivo', 'Terminal'].map(m => <option key={m} value={m} style={{ background: '#0f172a' }}>{m}</option>)}
+                      style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none' }}>
+                      {['Transferencia', 'Efectivo', 'Terminal'].map(m => <option key={m} value={m} style={{ background: 'var(--sup-2)' }}>{m}</option>)}
                     </select>
                   </div>
                 </div>
@@ -697,31 +697,31 @@ export default function TiendaTienda({
 
             {/* Notas */}
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Notas (opcional)</label>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Notas (opcional)</label>
               <input type="text" value={domForm.notas} onChange={e => setDomForm(p => ({ ...p, notas: e.target.value }))}
                 placeholder="Instrucciones especiales..."
-                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
             </div>
 
             {/* Resumen */}
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px', marginBottom: 16, fontSize: 13 }}>
+            <div style={{ background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 12, padding: '12px 14px', marginBottom: 16, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ color: 'rgba(255,255,255,0.5)' }}>Artículos</span>
+                <span style={{ color: 'var(--w50)' }}>Artículos</span>
                 <span>${money(calcularTotalesCarrito(cart, { tipo: null, valor: 0 }).total)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ color: 'rgba(255,255,255,0.5)' }}>Envío</span>
+                <span style={{ color: 'var(--w50)' }}>Envío</span>
                 <span>${money(parseFloat(domForm.costo_envio) || 0)}</span>
               </div>
               {domForm.forma_pago === 'anticipado' && parseFloat(domForm.pago_anticipado) > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: '#34d399' }}>Ya pagó</span>
-                  <span style={{ color: '#34d399' }}>−${money(parseFloat(domForm.pago_anticipado) || 0)}</span>
+                  <span style={{ color: 'var(--verde)' }}>Ya pagó</span>
+                  <span style={{ color: 'var(--verde)' }}>−${money(parseFloat(domForm.pago_anticipado) || 0)}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8, marginTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, borderTop: '1px solid var(--w08)', paddingTop: 8, marginTop: 4 }}>
                 <span>Por cobrar al entregar</span>
-                <span style={{ color: '#fbbf24' }}>${money(
+                <span style={{ color: 'var(--ambar-t)' }}>${money(
                   calcularTotalesCarrito(cart, { tipo: null, valor: 0 }).total +
                   (parseFloat(domForm.costo_envio) || 0) -
                   (domForm.forma_pago === 'anticipado' ? (parseFloat(domForm.pago_anticipado) || 0) : 0)
@@ -731,11 +731,11 @@ export default function TiendaTienda({
 
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setModalDom(false)}
-                style={{ flex: 1, background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, padding: 13, color: 'rgba(255,255,255,0.5)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                style={{ flex: 1, background: 'transparent', border: '1px solid var(--w15)', borderRadius: 12, padding: 13, color: 'var(--w50)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button onClick={agendarDomicilio} disabled={agendando}
-                style={{ flex: 2, background: agendando ? 'rgba(251,191,36,0.3)' : '#fbbf24', border: 'none', borderRadius: 12, padding: 13, color: '#0f172a', fontSize: 14, fontWeight: 800, cursor: agendando ? 'wait' : 'pointer' }}>
+                style={{ flex: 2, background: agendando ? 'rgba(251,191,36,0.3)' : '#fbbf24', border: 'none', borderRadius: 12, padding: 13, color: 'var(--tinta)', fontSize: 14, fontWeight: 800, cursor: agendando ? 'wait' : 'pointer' }}>
                 {agendando ? 'Agendando...' : '🚚 Confirmar domicilio'}
               </button>
             </div>

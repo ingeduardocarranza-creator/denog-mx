@@ -236,8 +236,8 @@ export default function CajaPage() {
 
 
   if (paso === 'cargando') return (
-    <div style={{ minHeight: '100vh', background: '#0b0e16', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'rgba(255,255,255,0.4)' }}>Cargando...</div>
+    <div style={{ minHeight: '100vh', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ color: 'var(--w40)' }}>Cargando...</div>
     </div>
   )
 
@@ -249,25 +249,25 @@ export default function CajaPage() {
     corte_hecho: { icon: '✅', bg: 'rgba(52,211,153,0.16)', titulo: 'Turno cerrado' },
   }[paso] || { icon: '💰', bg: 'rgba(52,211,153,0.16)', titulo: '' }
 
-  const ctaPrimaria = { background: 'linear-gradient(135deg,#facc15,#eab308)', color: '#1a1206', border: 'none', boxShadow: '0 8px 22px rgba(250,204,21,0.26)' }
-  const ctaPrimariaDeshabilitada = { background: 'rgba(250,204,21,0.2)', color: 'rgba(255,255,255,0.4)', border: 'none', boxShadow: 'none' }
+  const ctaPrimaria = { background: 'linear-gradient(135deg,var(--ambar),#eab308)', color: '#ffffff', border: 'none', boxShadow: '0 8px 22px rgba(250,204,21,0.26)' }
+  const ctaPrimariaDeshabilitada = { background: 'rgba(250,204,21,0.2)', color: 'var(--w40)', border: 'none', boxShadow: 'none' }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0b0e16', color: '#ffffff', padding: '26px 16px 60px' }}>
+    <div style={{ minHeight: '100vh', background: 'transparent', color: 'var(--tinta)', padding: '26px 16px 60px' }}>
       <div style={{ maxWidth: 820, margin: '0 auto' }}>
 
         {/* Barra de usuario — no aparece en corte_hecho */}
         {paso !== 'corte_hecho' && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '14px 18px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 14, padding: '14px 18px', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(193,85,58,0.18)', border: '1px solid rgba(193,85,58,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#dd8a6c' }}>
+              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(193,85,58,0.18)', border: '1px solid rgba(193,85,58,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: 'var(--marca-t)' }}>
                 {iniciales}
               </div>
               <div style={{ fontSize: 15, fontWeight: 700 }}>{colaborador?.nombre || 'Colaborador'}</div>
             </div>
             <button
               onClick={() => { localStorage.removeItem('colaborador'); router.push('/') }}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.1)', color: 'var(--rojo-t)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
             >
               ⎋ Cerrar sesión
             </button>
@@ -278,14 +278,14 @@ export default function CajaPage() {
         {paso !== 'corte_hecho' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
             <button onClick={() => router.back()}
-              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              style={{ background: 'var(--w06)', color: 'var(--w70)', border: '1px solid var(--w14)', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               ← Regresar
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: contexto.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{contexto.icon}</div>
               <div>
                 <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.1 }}>{contexto.titulo}</div>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>{colaborador?.nombre}</div>
+                <div style={{ fontSize: 13, color: 'var(--w45)', marginTop: 2 }}>{colaborador?.nombre}</div>
               </div>
             </div>
           </div>
@@ -296,11 +296,11 @@ export default function CajaPage() {
           <div>
             {ultimoCorte && (
               <div style={{ background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.3)', borderRadius: 16, padding: 18, marginBottom: 20 }}>
-                <div style={{ fontSize: 12, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(221,138,108,0.85)' }}>Fondo disponible</div>
-                <div style={{ color: '#dd8a6c', fontSize: 32, fontWeight: 900, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{fmt(fondoEsperado)}</div>
-                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 6 }}>Corte de {ultimoCorte.clientes?.nombre} — {formatearFecha(ultimoCorte.creado_en)}</div>
+                <div style={{ fontSize: 12, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: 'var(--marca-t)' }}>Fondo disponible</div>
+                <div style={{ color: 'var(--marca-t)', fontSize: 32, fontWeight: 900, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{fmt(fondoEsperado)}</div>
+                <div style={{ color: 'var(--w40)', fontSize: 12, marginTop: 6 }}>Corte de {ultimoCorte.clientes?.nombre} — {formatearFecha(ultimoCorte.creado_en)}</div>
                 {retirosPostCorte > 0 && (
-                  <div style={{ color: '#f87171', fontSize: 11, marginTop: 4 }}>
+                  <div style={{ color: 'var(--rojo-t)', fontSize: 11, marginTop: 4 }}>
                     {fmt(ultimoCorte.total_contado)} fondo − {fmt(retirosPostCorte)} retiros registrados
                   </div>
                 )}
@@ -308,25 +308,25 @@ export default function CajaPage() {
             )}
             {!ultimoCorte && (
               <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
-                <div style={{ color: '#facc15', fontSize: 13, fontWeight: 600 }}>⚠️ Primera apertura del sistema — cuenta el efectivo en caja</div>
+                <div style={{ color: 'var(--ambar-t)', fontSize: 13, fontWeight: 600 }}>⚠️ Primera apertura del sistema — cuenta el efectivo en caja</div>
               </div>
             )}
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Cuenta el efectivo físico en caja</div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginBottom: 18 }}>Ingresa cuántas piezas de cada denominación hay en la caja.</div>
+            <div style={{ fontSize: 13, color: 'var(--w45)', marginBottom: 18 }}>Ingresa cuántas piezas de cada denominación hay en la caja.</div>
             <ConteoEfectivo denominaciones={denominaciones} onChange={setDen} />
             {ultimoCorte ? (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'stretch', marginBottom: 16 }}>
-                  <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 16, padding: 18, textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>Contado</div>
-                    <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)', marginTop: 3 }}>lo que hay físico</div>
+                  <div style={{ background: 'var(--sup)', border: '1px solid var(--w14)', borderRadius: 16, padding: 18, textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--w50)' }}>Contado</div>
+                    <div style={{ fontSize: 15, color: 'var(--w40)', marginTop: 3 }}>lo que hay físico</div>
                     <div style={{ fontSize: 32, fontWeight: 900, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{fmt(totalContado)}</div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: 'rgba(255,255,255,0.3)', fontWeight: 700 }}>vs</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: 'var(--w30)', fontWeight: 700 }}>vs</div>
                   <div style={{ background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.35)', borderRadius: 16, padding: 18, textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(221,138,108,0.85)' }}>Fondo esperado</div>
-                    <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)', marginTop: 3 }}>del turno anterior</div>
-                    <div style={{ fontSize: 32, fontWeight: 900, marginTop: 8, color: '#dd8a6c', fontVariantNumeric: 'tabular-nums' }}>{fmt(fondoEsperado)}</div>
+                    <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--marca-t)' }}>Fondo esperado</div>
+                    <div style={{ fontSize: 15, color: 'var(--w40)', marginTop: 3 }}>del turno anterior</div>
+                    <div style={{ fontSize: 32, fontWeight: 900, marginTop: 8, color: 'var(--marca-t)', fontVariantNumeric: 'tabular-nums' }}>{fmt(fondoEsperado)}</div>
                   </div>
                 </div>
 
@@ -337,19 +337,19 @@ export default function CajaPage() {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     <div style={{
-                      flex: 'none', width: 52, height: 52, borderRadius: 14, background: 'rgba(255,255,255,0.06)',
+                      flex: 'none', width: 52, height: 52, borderRadius: 14, background: 'var(--w06)',
                       border: `1px solid ${!hayDiferencia ? 'rgba(52,211,153,0.5)' : diferencia > 0 ? 'rgba(250,204,21,0.5)' : 'rgba(239,68,68,0.55)'}`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26,
                     }}>
                       {!hayDiferencia ? '✅' : diferencia > 0 ? '🟡' : '🔴'}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(255,255,255,0.55)' }}>
+                      <div style={{ fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--w55)' }}>
                         {!hayDiferencia ? 'Fondo correcto' : diferencia > 0 ? 'Sobrante vs. fondo esperado' : 'Faltante vs. fondo esperado'}
                       </div>
                       <div style={{
                         fontSize: 26, fontWeight: 900, lineHeight: 1.15, fontVariantNumeric: 'tabular-nums',
-                        color: !hayDiferencia ? '#34d399' : diferencia > 0 ? '#facc15' : '#f87171',
+                        color: !hayDiferencia ? 'var(--verde)' : diferencia > 0 ? 'var(--ambar-t)' : 'var(--rojo-t)',
                       }}>
                         {!hayDiferencia ? 'Exacto ✓' : diferencia > 0 ? `+ ${fmt(diferencia)}` : `− ${fmt(Math.abs(diferencia))}`}
                       </div>
@@ -357,23 +357,23 @@ export default function CajaPage() {
                   </div>
                   {hayDiferencia && (
                     <div style={{ marginTop: 14 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)', marginBottom: 6 }}>Justificación obligatoria</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--w70)', marginBottom: 6 }}>Justificación obligatoria</div>
                       <textarea value={justificacion} onChange={e => setJustificacion(e.target.value)}
                         placeholder="Explica el motivo de la diferencia…"
                         rows={3}
-                        style={{ width: '100%', minHeight: 80, resize: 'vertical', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+                        style={{ width: '100%', minHeight: 80, resize: 'vertical', background: 'var(--w25)', border: '1px solid var(--w15)', borderRadius: 10, padding: '12px 14px', color: 'var(--tinta)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
                     </div>
                   )}
                 </div>
               </>
             ) : (
-              <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 16, padding: 18, textAlign: 'center', marginBottom: 16 }}>
-                <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>Contado</div>
-                <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)', marginTop: 3 }}>lo que hay físico</div>
+              <div style={{ background: 'var(--sup)', border: '1px solid var(--w14)', borderRadius: 16, padding: 18, textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--w50)' }}>Contado</div>
+                <div style={{ fontSize: 15, color: 'var(--w40)', marginTop: 3 }}>lo que hay físico</div>
                 <div style={{ fontSize: 32, fontWeight: 900, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{fmt(totalContado)}</div>
               </div>
             )}
-            {error && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 10 }}>{error}</div>}
+            {error && <div style={{ color: 'var(--rojo-t)', fontSize: 12, marginBottom: 10 }}>{error}</div>}
             <button
               onClick={registrarApertura}
               disabled={guardando || totalContado === 0 || (hayDiferencia && !justificacion.trim())}
@@ -392,63 +392,63 @@ export default function CajaPage() {
         {paso === 'turno' && (
           <div>
             <div style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg,rgba(52,211,153,0.16),rgba(52,211,153,0.03))', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 18, padding: '26px 28px', marginBottom: 24 }}>
-              <div style={{ fontSize: 12, letterSpacing: '0.16em', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(52,211,153,0.85)' }}>Fondo inicial de tu turno</div>
-              <div style={{ fontSize: 52, fontWeight: 900, letterSpacing: '-0.02em', marginTop: 8, color: '#34d399', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmt(turnoActual?.total_contado)}</div>
+              <div style={{ fontSize: 12, letterSpacing: '0.16em', fontWeight: 700, textTransform: 'uppercase', color: 'var(--verde)' }}>Fondo inicial de tu turno</div>
+              <div style={{ fontSize: 52, fontWeight: 900, letterSpacing: '-0.02em', marginTop: 8, color: 'var(--verde)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmt(turnoActual?.total_contado)}</div>
               <div style={{ position: 'absolute', right: -10, bottom: -14, fontSize: 120, opacity: 0.06 }}>💵</div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>Resumen del turno</div>
+              <div style={{ fontSize: 13, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: 'var(--w50)' }}>Resumen del turno</div>
               <button
                 onClick={() => cargarResumenTurno(turnoActual)}
-                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(193,85,58,0.14)', color: '#dd8a6c', border: '1px solid rgba(193,85,58,0.35)', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(193,85,58,0.14)', color: 'var(--marca-t)', border: '1px solid rgba(193,85,58,0.35)', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
               >
                 ↻ Actualizar
               </button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 14, marginBottom: 20 }}>
-              <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 18 }}>
+              <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 14, padding: 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
                   <span style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(52,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>💵</span>
-                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Efectivo cobrado</span>
+                  <span style={{ fontSize: 13, color: 'var(--w60)', fontWeight: 600 }}>Efectivo cobrado</span>
                 </div>
                 <div style={{ fontSize: 26, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>{fmt(resumenTurno.efectivo)}</div>
               </div>
-              <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 18 }}>
+              <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 14, padding: 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
                   <span style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(96,165,250,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>🏦</span>
-                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Transferencia</span>
+                  <span style={{ fontSize: 13, color: 'var(--w60)', fontWeight: 600 }}>Transferencia</span>
                 </div>
-                <div style={{ fontSize: 26, fontWeight: 900, color: '#60a5fa', fontVariantNumeric: 'tabular-nums' }}>{fmt(resumenTurno.transferencia)}</div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--azul)', fontVariantNumeric: 'tabular-nums' }}>{fmt(resumenTurno.transferencia)}</div>
               </div>
-              <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 18 }}>
+              <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 14, padding: 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
                   <span style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(167,139,250,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>💳</span>
-                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Terminal</span>
+                  <span style={{ fontSize: 13, color: 'var(--w60)', fontWeight: 600 }}>Terminal</span>
                 </div>
                 <div style={{ fontSize: 26, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>{fmt(resumenTurno.terminal)}</div>
               </div>
             </div>
 
-            <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '6px 20px', marginBottom: 22 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>Fondo inicial</span>
+            <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 14, padding: '6px 20px', marginBottom: 22 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid var(--w06)' }}>
+                <span style={{ fontSize: 14, color: 'var(--w60)' }}>Fondo inicial</span>
                 <span style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(turnoActual?.total_contado)}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>+ Efectivo cobrado</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid var(--w06)' }}>
+                <span style={{ fontSize: 14, color: 'var(--w60)' }}>+ Efectivo cobrado</span>
                 <span style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(resumenTurno.efectivo)}</span>
               </div>
               {resumenTurno.totalRetiros > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>− Retiros confirmados</span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>−{fmt(resumenTurno.totalRetiros)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid var(--w06)' }}>
+                  <span style={{ fontSize: 14, color: 'var(--w60)' }}>− Retiros confirmados</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--rojo-t)', fontVariantNumeric: 'tabular-nums' }}>−{fmt(resumenTurno.totalRetiros)}</span>
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0' }}>
                 <span style={{ fontSize: 16, fontWeight: 800 }}>Debería haber en caja</span>
-                <span style={{ fontSize: 22, fontWeight: 900, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{fmt(totalEsperadoCorte)}</span>
+                <span style={{ fontSize: 22, fontWeight: 900, color: 'var(--verde)', fontVariantNumeric: 'tabular-nums' }}>{fmt(totalEsperadoCorte)}</span>
               </div>
             </div>
 
@@ -465,42 +465,42 @@ export default function CajaPage() {
         {/* HACIENDO CORTE — Corte de turno */}
         {paso === 'haciendo_corte' && (
           <div>
-            <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '6px 20px', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>Fondo inicial</span>
+            <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 14, padding: '6px 20px', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 0', borderBottom: '1px solid var(--w06)' }}>
+                <span style={{ fontSize: 14, color: 'var(--w60)' }}>Fondo inicial</span>
                 <span style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(turnoActual?.total_contado)}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>+ Efectivo cobrado</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 0', borderBottom: '1px solid var(--w06)' }}>
+                <span style={{ fontSize: 14, color: 'var(--w60)' }}>+ Efectivo cobrado</span>
                 <span style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(resumenTurno.efectivo)}</span>
               </div>
               {resumenTurno.totalRetiros > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>− Retiros confirmados</span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>−{fmt(resumenTurno.totalRetiros)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 0', borderBottom: '1px solid var(--w06)' }}>
+                  <span style={{ fontSize: 14, color: 'var(--w60)' }}>− Retiros confirmados</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--rojo-t)', fontVariantNumeric: 'tabular-nums' }}>−{fmt(resumenTurno.totalRetiros)}</span>
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0' }}>
                 <span style={{ fontSize: 15, fontWeight: 800 }}>Debería haber</span>
-                <span style={{ fontSize: 18, fontWeight: 900, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{fmt(totalEsperadoCorte)}</span>
+                <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--verde)', fontVariantNumeric: 'tabular-nums' }}>{fmt(totalEsperadoCorte)}</span>
               </div>
             </div>
 
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Cuenta el efectivo físico en caja</div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginBottom: 18 }}>Ingresa cuántas piezas de cada denominación hay en la caja.</div>
+            <div style={{ fontSize: 13, color: 'var(--w45)', marginBottom: 18 }}>Ingresa cuántas piezas de cada denominación hay en la caja.</div>
             <ConteoEfectivo denominaciones={denominaciones} onChange={setDen} />
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'stretch', marginBottom: 16 }}>
-              <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 16, padding: 18, textAlign: 'center' }}>
-                <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>Contado</div>
-                <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)', marginTop: 3 }}>lo que hay físico</div>
+              <div style={{ background: 'var(--sup)', border: '1px solid var(--w14)', borderRadius: 16, padding: 18, textAlign: 'center' }}>
+                <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--w50)' }}>Contado</div>
+                <div style={{ fontSize: 15, color: 'var(--w40)', marginTop: 3 }}>lo que hay físico</div>
                 <div style={{ fontSize: 32, fontWeight: 900, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{fmt(totalContado)}</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: 'rgba(255,255,255,0.3)', fontWeight: 700 }}>vs</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: 'var(--w30)', fontWeight: 700 }}>vs</div>
               <div style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 16, padding: 18, textAlign: 'center' }}>
-                <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(52,211,153,0.85)' }}>Debería haber</div>
-                <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)', marginTop: 3 }}>según el sistema</div>
-                <div style={{ fontSize: 32, fontWeight: 900, marginTop: 8, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{fmt(totalEsperadoCorte)}</div>
+                <div style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--verde)' }}>Debería haber</div>
+                <div style={{ fontSize: 15, color: 'var(--w40)', marginTop: 3 }}>según el sistema</div>
+                <div style={{ fontSize: 32, fontWeight: 900, marginTop: 8, color: 'var(--verde)', fontVariantNumeric: 'tabular-nums' }}>{fmt(totalEsperadoCorte)}</div>
               </div>
             </div>
 
@@ -511,19 +511,19 @@ export default function CajaPage() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{
-                  flex: 'none', width: 52, height: 52, borderRadius: 14, background: 'rgba(255,255,255,0.06)',
+                  flex: 'none', width: 52, height: 52, borderRadius: 14, background: 'var(--w06)',
                   border: `1px solid ${!hayDiferenciaCorte ? 'rgba(52,211,153,0.5)' : diferenciaCorte > 0 ? 'rgba(250,204,21,0.5)' : 'rgba(239,68,68,0.55)'}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26,
                 }}>
                   {!hayDiferenciaCorte ? '✅' : diferenciaCorte > 0 ? '🟡' : '🔴'}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(255,255,255,0.55)' }}>
+                  <div style={{ fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--w55)' }}>
                     {!hayDiferenciaCorte ? 'Caja cuadrada' : diferenciaCorte > 0 ? 'Sobrante en caja' : 'Faltante en caja'}
                   </div>
                   <div style={{
                     fontSize: 26, fontWeight: 900, lineHeight: 1.15, fontVariantNumeric: 'tabular-nums',
-                    color: !hayDiferenciaCorte ? '#34d399' : diferenciaCorte > 0 ? '#facc15' : '#f87171',
+                    color: !hayDiferenciaCorte ? 'var(--verde)' : diferenciaCorte > 0 ? 'var(--ambar-t)' : 'var(--rojo-t)',
                   }}>
                     {!hayDiferenciaCorte ? 'Exacto ✓' : diferenciaCorte > 0 ? `+ ${fmt(diferenciaCorte)}` : `− ${fmt(Math.abs(diferenciaCorte))}`}
                   </div>
@@ -531,16 +531,16 @@ export default function CajaPage() {
               </div>
               {hayDiferenciaCorte && (
                 <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)', marginBottom: 6 }}>Justificación obligatoria</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--w70)', marginBottom: 6 }}>Justificación obligatoria</div>
                   <textarea value={justificacion} onChange={e => setJustificacion(e.target.value)}
                     placeholder="Explica el motivo de la diferencia…"
                     rows={3}
-                    style={{ width: '100%', minHeight: 80, resize: 'vertical', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', minHeight: 80, resize: 'vertical', background: 'var(--w25)', border: '1px solid var(--w15)', borderRadius: 10, padding: '12px 14px', color: 'var(--tinta)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
               )}
             </div>
 
-            {error && <div style={{ color: '#f87171', fontSize: 12, marginTop: 10 }}>{error}</div>}
+            {error && <div style={{ color: 'var(--rojo-t)', fontSize: 12, marginTop: 10 }}>{error}</div>}
 
             <div style={{ display: 'flex', gap: 12, marginTop: 18 }}>
               <button
@@ -555,7 +555,7 @@ export default function CajaPage() {
                 {guardando ? 'Registrando...' : '🔒 Registrar corte'}
               </button>
               <button onClick={() => setPaso('turno')}
-                style={{ flex: 'none', background: 'transparent', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 14, padding: '16px 26px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+                style={{ flex: 'none', background: 'transparent', color: 'var(--w60)', border: '1px solid var(--w15)', borderRadius: 14, padding: '16px 26px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
                 Cancelar
               </button>
             </div>
@@ -566,20 +566,20 @@ export default function CajaPage() {
         {paso === 'corte_hecho' && (
           <div style={{ textAlign: 'center', padding: 40 }}>
             <div style={{ fontSize: 50, marginBottom: 16 }}>✅</div>
-            <div style={{ color: 'white', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Turno cerrado</div>
-            <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, marginBottom: 24 }}>El siguiente colaborador puede abrir su turno</div>
-            <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 16, marginBottom: 16, textAlign: 'left' }}>
+            <div style={{ color: 'var(--tinta)', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Turno cerrado</div>
+            <div style={{ color: 'var(--w45)', fontSize: 13, marginBottom: 24 }}>El siguiente colaborador puede abrir su turno</div>
+            <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 14, padding: 16, marginBottom: 16, textAlign: 'left' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Fondo que queda en caja</span>
-                <span style={{ color: '#34d399', fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(ultimoCorte?.total_contado)}</span>
+                <span style={{ color: 'var(--w50)', fontSize: 12 }}>Fondo que queda en caja</span>
+                <span style={{ color: 'var(--verde)', fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(ultimoCorte?.total_contado)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Transferencias del turno</span>
-                <span style={{ color: 'white', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmt(ultimoCorte?.total_transferencia)}</span>
+                <span style={{ color: 'var(--w50)', fontSize: 12 }}>Transferencias del turno</span>
+                <span style={{ color: 'var(--tinta)', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmt(ultimoCorte?.total_transferencia)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Terminal del turno</span>
-                <span style={{ color: 'white', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmt(ultimoCorte?.total_terminal)}</span>
+                <span style={{ color: 'var(--w50)', fontSize: 12 }}>Terminal del turno</span>
+                <span style={{ color: 'var(--tinta)', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmt(ultimoCorte?.total_terminal)}</span>
               </div>
             </div>
             <button
@@ -589,7 +589,7 @@ export default function CajaPage() {
                 cargarUltimoCorteGlobal()
                 setPaso('apertura')
               }}
-              style={{ background: '#c1553a', color: 'white', border: 'none', borderRadius: '12px', padding: '14px 28px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', width: '100%', marginBottom: '12px' }}
+              style={{ background: 'var(--marca)', color: 'white', border: 'none', borderRadius: '12px', padding: '14px 28px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', width: '100%', marginBottom: '12px' }}
             >
               🏪 Abrir nueva caja
             </button>
@@ -604,7 +604,7 @@ export default function CajaPage() {
                 localStorage.removeItem('colaborador')
                 router.push('/')
               }}
-              style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '13px', padding: '8px', cursor: 'pointer', marginTop: '8px' }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--w50)', fontSize: '13px', padding: '8px', cursor: 'pointer', marginTop: '8px' }}
             >
               ⎋ Cerrar sesión
             </button>

@@ -20,16 +20,16 @@ const MONEDAS = [
   { value: 0.5, campo: 'm50c', label: '0.50' },
 ];
 
-const stepperBtn = { width: 38, height: 38, borderRadius: 10, background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', fontSize: 20, cursor: 'pointer', lineHeight: 1, flex: 'none' };
+const stepperBtn = { width: 38, height: 38, borderRadius: 10, background: 'var(--w08)', color: 'var(--tinta)', border: 'none', fontSize: 20, cursor: 'pointer', lineHeight: 1, flex: 'none' };
 const stepperBtnSmall = { ...stepperBtn, width: 34, height: 34, borderRadius: 9, fontSize: 18 };
-const inputStyle = { flex: 1, minWidth: 0, textAlign: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, padding: 9, color: '#fff', fontSize: 16, fontWeight: 800, outline: 'none' };
+const inputStyle = { flex: 1, minWidth: 0, textAlign: 'center', background: 'var(--w05)', border: '1px solid var(--w14)', borderRadius: 10, padding: 9, color: 'var(--tinta)', fontSize: 16, fontWeight: 800, outline: 'none' };
 const inputStyleSmall = { ...inputStyle, borderRadius: 9, padding: '8px 2px', fontSize: 15 };
 
 export default function ConteoEfectivo({ denominaciones, onChange }) {
   return (
     <div>
       {/* BILLETES */}
-      <div style={{ fontSize: 12, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: '#facc15', marginBottom: 10 }}>
+      <div style={{ fontSize: 12, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: 'var(--ambar-t)', marginBottom: 10 }}>
         💵 Billetes
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 12, marginBottom: 24 }}>
@@ -41,8 +41,8 @@ export default function ConteoEfectivo({ denominaciones, onChange }) {
             <div
               key={b.campo}
               style={{
-                background: tieneCount ? 'rgba(255,255,255,0.05)' : '#111827',
-                border: tieneCount ? '1px solid rgba(250,204,21,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                background: tieneCount ? 'var(--w05)' : 'var(--sup-2)',
+                border: tieneCount ? '1px solid rgba(250,204,21,0.4)' : '1px solid var(--w08)',
                 borderRadius: 14,
                 padding: 14,
               }}
@@ -52,8 +52,8 @@ export default function ConteoEfectivo({ denominaciones, onChange }) {
                   style={{
                     flex: 'none', width: 96, height: 60, borderRadius: 9,
                     background: `linear-gradient(135deg,${b.colors[0]},${b.colors[1]})`,
-                    border: '1px solid rgba(255,255,255,0.25)', boxShadow: `0 3px 12px ${b.colors[0]}55`,
-                    color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                    border: '1px solid var(--w25)', boxShadow: `0 3px 12px ${b.colors[0]}55`,
+                    color: 'var(--tinta)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
                     padding: '7px 10px', overflow: 'hidden',
                   }}
                 >
@@ -62,8 +62,8 @@ export default function ConteoEfectivo({ denominaciones, onChange }) {
                   <span style={{ fontSize: 9, fontWeight: 600, opacity: 0.72, letterSpacing: '0.14em', alignSelf: 'flex-end' }}>PESOS</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>Piezas</div>
-                  <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1, color: tieneCount ? '#ffffff' : 'rgba(255,255,255,0.3)', fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ fontSize: 11, color: 'var(--w45)', fontWeight: 600 }}>Piezas</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1, color: tieneCount ? 'var(--tinta)' : 'var(--w30)', fontVariantNumeric: 'tabular-nums' }}>
                     {count}
                   </div>
                 </div>
@@ -79,9 +79,9 @@ export default function ConteoEfectivo({ denominaciones, onChange }) {
                 />
                 <button type="button" onClick={() => onChange(b.campo, count + 1)} style={stepperBtn}>＋</button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>Subtotal</span>
-                <span style={{ fontSize: 15, fontWeight: 800, color: '#facc15', fontVariantNumeric: 'tabular-nums' }}>{money(subtotal)}</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--w07)' }}>
+                <span style={{ fontSize: 11, color: 'var(--w40)', fontWeight: 600 }}>Subtotal</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--ambar-t)', fontVariantNumeric: 'tabular-nums' }}>{money(subtotal)}</span>
               </div>
             </div>
           );
@@ -89,7 +89,7 @@ export default function ConteoEfectivo({ denominaciones, onChange }) {
       </div>
 
       {/* MONEDAS */}
-      <div style={{ fontSize: 12, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: '#fbbf24', marginBottom: 10 }}>
+      <div style={{ fontSize: 12, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: 'var(--ambar-t)', marginBottom: 10 }}>
         🪙 Monedas
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 12, marginBottom: 24 }}>
@@ -101,8 +101,8 @@ export default function ConteoEfectivo({ denominaciones, onChange }) {
             <div
               key={m.campo}
               style={{
-                background: tieneCount ? 'rgba(255,255,255,0.05)' : '#111827',
-                border: tieneCount ? '1px solid rgba(251,191,36,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                background: tieneCount ? 'var(--w05)' : 'var(--sup-2)',
+                border: tieneCount ? '1px solid rgba(251,191,36,0.4)' : '1px solid var(--w08)',
                 borderRadius: 14,
                 padding: '14px 10px',
               }}
@@ -111,18 +111,18 @@ export default function ConteoEfectivo({ denominaciones, onChange }) {
                 <div
                   style={{
                     flex: 'none', width: 52, height: 52, borderRadius: '50%',
-                    background: 'radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 60%, #b45309)',
-                    border: '2px solid #fcd34d', boxShadow: '0 3px 10px rgba(180,83,9,0.4), inset 0 0 0 3px rgba(255,255,255,0.15)',
-                    color: '#3a2408', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'radial-gradient(circle at 35% 30%, var(--ambar-suave), var(--ambar) 60%, var(--ambar-suave))',
+                    border: '2px solid var(--ambar-borde)', boxShadow: '0 3px 10px rgba(180,83,9,0.4), inset 0 0 0 3px var(--w15)',
+                    color: 'var(--ambar-t)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}
                 >
                   <span style={{ fontSize: 14, fontWeight: 900, lineHeight: 1 }}>${m.label}</span>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: tieneCount ? '#ffffff' : 'rgba(255,255,255,0.3)', fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: tieneCount ? 'var(--tinta)' : 'var(--w30)', fontVariantNumeric: 'tabular-nums' }}>
                     {count}
                   </div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>piezas</div>
+                  <div style={{ fontSize: 10, color: 'var(--w40)', fontWeight: 600 }}>piezas</div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 11 }}>
@@ -136,7 +136,7 @@ export default function ConteoEfectivo({ denominaciones, onChange }) {
                 />
                 <button type="button" onClick={() => onChange(m.campo, count + 1)} style={stepperBtnSmall}>＋</button>
               </div>
-              <div style={{ textAlign: 'center', marginTop: 9, paddingTop: 9, borderTop: '1px solid rgba(255,255,255,0.07)', fontSize: 14, fontWeight: 800, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ textAlign: 'center', marginTop: 9, paddingTop: 9, borderTop: '1px solid var(--w07)', fontSize: 14, fontWeight: 800, color: 'var(--ambar-t)', fontVariantNumeric: 'tabular-nums' }}>
                 {money(subtotal)}
               </div>
             </div>

@@ -193,10 +193,14 @@ export default function PuntoDeVenta() {
     setAnticiposDisponibles(totalAnticipos);
 
     const bloques = [];
+    // La entrega que viene en la respuesta manda sobre la lista cargada al
+    // abrir la página: si el admin marcó "En tienda" hace un minuto, el POS
+    // del colaborador ya lo sabe sin recargar (y al revés).
+    const entregasFrescas = res.entregas || [];
     const entregasIds = [...new Set(historialPedidos.map(p => p.entrega_id))];
 
     entregasIds.forEach(eId => {
-      const datosEntrega = todasEntregas.find(e => e.id === eId);
+      const datosEntrega = entregasFrescas.find(e => e.id === eId) || todasEntregas.find(e => e.id === eId);
       const pedidosDeEstaEntrega = historialPedidos.filter(p => p.entrega_id === eId);
 
       if (datosEntrega) {
@@ -209,6 +213,7 @@ export default function PuntoDeVenta() {
           entrega: datosEntrega,
           pedidos: pedidosDeEstaEntrega,
           atrasada,
+          bloqueada: datosEntrega.estado !== 'en_tienda',
         });
       }
     });
@@ -217,8 +222,11 @@ export default function PuntoDeVenta() {
 
     setBloquesEntregas(bloques);
 
+    // Lo que todavía no está en tienda arranca sin palomear y no se puede
+    // palomear: no debe poder entrar a un cobro ni por descuido.
+    const entregasBloqueadas = new Set(bloques.filter(b => b.bloqueada).map(b => b.entrega.id));
     const seleccionInicial = {};
-    historialPedidos.forEach(p => { seleccionInicial[p.id] = true; });
+    historialPedidos.forEach(p => { seleccionInicial[p.id] = !entregasBloqueadas.has(p.entrega_id); });
     setProductosSeleccionados(seleccionInicial);
   };
 
@@ -288,6 +296,7 @@ export default function PuntoDeVenta() {
 
     try {
       const bloquesOrdenados = [...bloquesEntregas]
+        .filter(bloque => !bloque.bloqueada)
         .sort((a, b) => new Date(a.entrega.fecha_entrega) - new Date(b.entrega.fecha_entrega))
         .map(bloque => ({
           entregaId: bloque.entrega.id,
@@ -396,18 +405,18 @@ export default function PuntoDeVenta() {
     const fmtP = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`
     return (
       <div onClick={e => { if (e.target === e.currentTarget) setMostrarModalCobro(false) }}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 30px 70px rgba(0,0,0,0.7)' }}>
+        style={{ position: 'fixed', inset: 0, background: 'var(--w80)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ background: 'var(--sup)', border: '1px solid var(--w10)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 30px 70px var(--w70)' }}>
 
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
             <div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 4 }}>Cobro · {tipoLabel}</div>
-              <div style={{ color: 'white', fontSize: 18, fontWeight: 800 }}>{nombreCliente}</div>
-              <div style={{ color: 'white', fontSize: 44, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1.1, marginTop: 6 }}>{fmtP(totalGeneral)}</div>
+              <div style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 4 }}>Cobro · {tipoLabel}</div>
+              <div style={{ color: 'var(--tinta)', fontSize: 18, fontWeight: 800 }}>{nombreCliente}</div>
+              <div style={{ color: 'var(--tinta)', fontSize: 44, fontWeight: 900, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1, marginTop: 6 }}>{fmtP(totalGeneral)}</div>
             </div>
             <button onClick={() => setMostrarModalCobro(false)}
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, width: 36, height: 36, color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 4 }}>
+              style={{ background: 'var(--w06)', border: '1px solid var(--w10)', borderRadius: 10, width: 36, height: 36, color: 'var(--w50)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 4 }}>
               ✕
             </button>
           </div>
@@ -415,9 +424,9 @@ export default function PuntoDeVenta() {
           {/* Toggle un pago / dividido */}
           <div className="grid grid-cols-2 gap-1.5 bg-gray-950 p-1.5 rounded-2xl border border-gray-800 mb-5">
             <button type="button" onClick={() => setModalDosMetodos(false)}
-              className={`py-3 rounded-xl text-sm font-bold transition-all ${!modalDosMetodos ? 'bg-green-950 text-white border border-green-500' : 'text-gray-400'}`}>💳 Un solo pago</button>
+              className={`py-3 rounded-xl text-sm font-bold transition-all ${!modalDosMetodos ? 'sobre-color' : 'text-gray-400'}`} style={!modalDosMetodos ? { background: 'var(--verde)' } : undefined}>💳 Un solo pago</button>
             <button type="button" onClick={() => setModalDosMetodos(true)}
-              className={`py-3 rounded-xl text-sm font-bold transition-all ${modalDosMetodos ? 'bg-green-950 text-white border border-green-500' : 'text-gray-400'}`}>✂️ Pago dividido</button>
+              className={`py-3 rounded-xl text-sm font-bold transition-all ${modalDosMetodos ? 'sobre-color' : 'text-gray-400'}`} style={modalDosMetodos ? { background: 'var(--verde)' } : undefined}>✂️ Pago dividido</button>
           </div>
 
           {/* ===== UN SOLO PAGO ===== */}
@@ -557,7 +566,7 @@ export default function PuntoDeVenta() {
                 })
                 setMostrarModalCobro(false)
               }}
-              className={`h-15 rounded-2xl font-extrabold text-lg flex items-center justify-center gap-2.5 transition-all ${puedeConfirmar && !loading ? 'bg-gradient-to-b from-green-500 to-green-600 text-white shadow-lg shadow-green-500/30' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}>
+              className={`h-15 rounded-2xl font-extrabold text-lg flex items-center justify-center gap-2.5 transition-all ${puedeConfirmar && !loading ? 'bg-gradient-to-b from-green-500 to-green-600 sobre-color shadow-lg shadow-green-500/30' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}>
               {loading ? 'Procesando...' : `✅ ${puedeConfirmar ? `Confirmar cobro · ${money(total)}` : 'Confirmar cobro'}`}
             </button>
           </div>
@@ -569,11 +578,11 @@ export default function PuntoDeVenta() {
 
   const MODOS = {
     modo1: { nombre: 'Encargos',  icono: '📦', desc: 'Entrega de compras que llegaron de USA',
-             activo: 'bg-[#c1553a] text-white shadow-lg shadow-[#c1553a]/40',  banner: 'bg-[#c1553a]',  borde: 'border-[#c1553a] ring-4 ring-[#c1553a]/15',  texto: 'text-[#dd8a6c]' },
+             activo: 'bg-[#c1553a] sobre-color shadow-lg shadow-[#c1553a]/40',  banner: 'bg-[#c1553a]',  borde: 'border-[#c1553a] ring-4 ring-[#c1553a]/15',  texto: 'text-[#dd8a6c]' },
     modo2: { nombre: 'Tienda',    icono: '🏬', desc: 'Venta directa en el mostrador de la tienda',
-             activo: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/40', banner: 'bg-emerald-600', borde: 'border-emerald-600 ring-4 ring-emerald-600/15', texto: 'text-emerald-400' },
+             activo: 'bg-emerald-600 sobre-color shadow-lg shadow-emerald-600/40', banner: 'bg-emerald-600', borde: 'border-emerald-600 ring-4 ring-emerald-600/15', texto: 'text-emerald-400' },
     modo3: { nombre: 'Domicilio', icono: '🚚', desc: 'Pedido para enviar a domicilio del cliente',
-             activo: 'bg-amber-500 text-white shadow-lg shadow-amber-500/40',    banner: 'bg-amber-500',   borde: 'border-amber-500 ring-4 ring-amber-500/15',   texto: 'text-amber-400' },
+             activo: 'bg-amber-500 sobre-color shadow-lg shadow-amber-500/40',    banner: 'bg-amber-500',   borde: 'border-amber-500 ring-4 ring-amber-500/15',   texto: 'text-amber-400' },
   };
 
   const METODOS = {
@@ -608,64 +617,64 @@ export default function PuntoDeVenta() {
   return (
     <>
       {turnoEstado === 'cargando' && (
-        <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Cargando...</div>
+        <div style={{ minHeight: '100vh', background: 'var(--fondo)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ color: 'var(--w40)', fontSize: 14 }}>Cargando...</div>
         </div>
       )}
       {turnoEstado === 'sin_turno' && (
-        <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ minHeight: '100vh', background: 'var(--fondo)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
             <div style={{ fontSize: 50, marginBottom: 16 }}>💰</div>
-            <div style={{ color: 'white', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>No hay turno activo</div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 24 }}>Abre un turno en caja antes de cobrar.</div>
-            <a href="/pos/caja" style={{ display: 'inline-block', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '11px 24px', color: '#f59e0b', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Abrir turno →</a>
+            <div style={{ color: 'var(--tinta)', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>No hay turno activo</div>
+            <div style={{ color: 'var(--w40)', fontSize: 13, marginBottom: 24 }}>Abre un turno en caja antes de cobrar.</div>
+            <a href="/pos/caja" style={{ display: 'inline-block', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '11px 24px', color: 'var(--ambar)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Abrir turno →</a>
           </div>
         </div>
       )}
       {turnoEstado === 'caja_ocupada' && (
-        <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ minHeight: '100vh', background: 'var(--fondo)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
             <div style={{ fontSize: 50, marginBottom: 16 }}>🔒</div>
-            <div style={{ color: 'white', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Caja ocupada</div>
-            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 24 }}>
-              <span style={{ color: '#f59e0b', fontWeight: 600 }}>{turnoOcupado?.nombre}</span> tiene un turno activo.<br />
+            <div style={{ color: 'var(--tinta)', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Caja ocupada</div>
+            <div style={{ color: 'var(--w50)', fontSize: 14, marginBottom: 24 }}>
+              <span style={{ color: 'var(--ambar)', fontWeight: 600 }}>{turnoOcupado?.nombre}</span> tiene un turno activo.<br />
               Espera a que cierre su turno para poder cobrar.
             </div>
             <button onClick={() => verificarTurno(colaborador?.id)}
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '11px 24px', color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer' }}>
+              style={{ background: 'var(--w05)', border: '1px solid var(--w08)', borderRadius: 12, padding: '11px 24px', color: 'var(--w50)', fontSize: 13, cursor: 'pointer' }}>
               Verificar de nuevo
             </button>
           </div>
         </div>
       )}
       {turnoEstado === 'activo' && (
-    <div className="min-h-screen bg-gray-950 text-white p-6 font-sans">
+    <div className="min-h-screen bg-gray-950 text-white p-6">
 
       {/* SECCIÓN DE CABECERA UNIFICADA */}
       <div className="max-w-4xl mx-auto mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         
         {/* POS header */}
         <div className="flex items-center gap-3.5">
-          <div style={{ flex: 'none', width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg,#9b3f28,#c1553a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🛍️</div>
+          <div style={{ flex: 'none', width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg,var(--marca-t),var(--marca))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🛍️</div>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '0.3em', backgroundImage: 'linear-gradient(90deg,#ffffff,#dd8a6c)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
-              PUNTO DE VENTA
-            </div>
-            <div style={{ width: 36, height: 3, borderRadius: 2, background: 'linear-gradient(90deg,#9b3f28,#c1553a)', margin: '6px 0' }} />
-            <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>ADMIN · {getDiaSemana()} {getMesActual()}</div>
+            {/* Misma tipografía que el resto del panel (25 / 800 / -0.6). El
+                título anterior iba a 0.3em de espaciado y se partía en dos
+                renglones, empujando las pestañas fuera de sitio. */}
+            <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: -0.6, color: 'var(--tinta)', lineHeight: 1.1 }}>Punto de venta</h1>
+            <div style={{ fontSize: 12.5, color: 'var(--w40)', marginTop: 3 }}>Admin · {getDiaSemana()} {getMesActual()}</div>
           </div>
         </div>
         <button onClick={() => window.location.href = '/pos/caja'}
-          style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '6px 14px', color: '#f59e0b', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '6px 14px', color: 'var(--ambar)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
           💰 Caja
         </button>
         {/* ========================================================= */}
 
         {/* CONTROLES DE PESTAÑAS */}
-        <div className="grid grid-cols-2 gap-1 bg-gray-900 p-1 rounded-xl border border-gray-800 w-full sm:w-80 h-fit">
+        <div className="grid grid-cols-2 gap-1 rounded-xl w-full sm:w-80 h-fit" style={{ background: 'var(--w05)', border: '1px solid var(--w08)', padding: 4 }}>
           {['modo1', 'modo2'].map((m) => (
             <button key={m} type="button" onClick={() => cambiarDeModoLimpiandoTodo(m)}
-              className={`flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold rounded-lg transition-all ${modo === m ? MODOS[m].activo : 'text-gray-400 hover:text-white'}`}>
+              className={`flex items-center justify-center gap-1.5 py-3 text-[13.5px] font-bold rounded-lg transition-all ${modo === m ? MODOS[m].activo : 'text-gray-400 hover:text-white'}`}>
               {MODOS[m].icono} {MODOS[m].nombre}
             </button>
           ))}
@@ -677,7 +686,7 @@ export default function PuntoDeVenta() {
       {ticketListo && (
         <div className="max-w-4xl mx-auto p-4 bg-[#4a1b0c]/40 border border-[#6d2a19] rounded-2xl mb-6 flex flex-col sm:flex-row justify-between items-center gap-3">
           <span className="text-xs text-[#dd8a6c] font-medium">El cobro cerró de forma exitosa. ¿Quieres enviarle el comprobante digital al cliente?</span>
-          <button onClick={enviarWhatsApp} className="bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all">
+          <button onClick={enviarWhatsApp} className="bg-green-700 hover:bg-green-800 sobre-color px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all">
             💬 Enviar Ticket por WhatsApp
           </button>
         </div>
@@ -688,10 +697,10 @@ export default function PuntoDeVenta() {
         <div className={`flex items-center gap-3 rounded-xl px-4 py-3 mb-6 ${MODOS[modo].banner}`}>
           <span className="text-2xl">{MODOS[modo].icono}</span>
           <div className="flex flex-col leading-tight">
-            <span className="text-[10px] font-bold tracking-widest text-white/80 uppercase">Estás en</span>
-            <span className="text-lg font-extrabold text-white">{MODOS[modo].nombre}</span>
+            <span className="text-[10px] font-bold tracking-widest sobre-color-suave uppercase">Estás en</span>
+            <span className="text-lg font-extrabold sobre-color">{MODOS[modo].nombre}</span>
           </div>
-          <span className="ml-auto text-xs font-medium text-white/90 text-right max-w-[240px]">{MODOS[modo].desc}</span>
+          <span className="ml-auto text-xs font-medium sobre-color-suave text-right max-w-[240px]">{MODOS[modo].desc}</span>
         </div>
 
         {modo === 'modo1' && (

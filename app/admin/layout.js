@@ -2,15 +2,9 @@
 import { useState, useEffect } from 'react'
 import MenuLateral from '../components/MenuLateral'
 import { GRUPOS_COLABORADOR } from '../../lib/menuColaborador'
+import { useTema } from '../../lib/tema'
 
 const grupos = [
-  {
-    label: 'WHATSAPP',
-    items: [
-      { label: 'Pendientes', icon: '🔔', href: '/admin/pendientes', badgeKey: 'pendientes' },
-      { label: 'Conectar WhatsApp', icon: '🔗', href: '/admin/conectar-whatsapp' },
-    ],
-  },
   {
     label: 'OPERACIONES',
     items: [
@@ -18,6 +12,7 @@ const grupos = [
       { label: 'Domicilios',     icon: '🚚', href: '/admin/domicilios', badgeKey: 'domicilios' },
       { label: 'Caja',           icon: '💰', href: '/admin/caja' },
       { label: 'Catálogo',       icon: '🏷️', href: '/admin/catalogo' },
+      { label: 'Reportes',       icon: '📊', href: '/admin/reportes' },
     ],
   },
   {
@@ -30,7 +25,7 @@ const grupos = [
   {
     label: 'ENCARGOS',
     items: [
-      { label: 'Pedidos',           icon: '📝', href: '/admin/pedidos' },
+      { label: 'Pedidos',           icon: '📝', href: '/admin/pedidos', badgeKey: 'pendientes' },
       { label: 'Entregas',          icon: '📅', href: '/admin/entregas' },
       { label: 'Empacado',          icon: '📦', href: '/admin/empacado' },
       { label: 'Anticipos',         icon: '💳', href: '/admin/anticipos' },
@@ -43,7 +38,6 @@ const grupos = [
     items: [
       { label: 'Clientes',  icon: '👥', href: '/admin/clientes' },
       { label: 'Score',     icon: '⭐', href: '/admin/clientes/score' },
-      { label: 'Reportes',  icon: '📊', href: '/admin/reportes' },
     ],
   },
   {
@@ -57,6 +51,7 @@ const grupos = [
 
 export default function AdminLayout({ children }) {
   const [usuario, setUsuario] = useState(null)
+  const { clase } = useTema()
 
   useEffect(() => {
     const datos = localStorage.getItem('cliente')
@@ -65,5 +60,11 @@ export default function AdminLayout({ children }) {
 
   const gruposVisibles = usuario?.rol === 'admin' ? grupos : GRUPOS_COLABORADOR
 
-  return <MenuLateral grupos={gruposVisibles}>{children}</MenuLateral>
+  // De esta clase cuelgan los tokens de color que usan el menú y las 22
+  // pantallas.
+  return (
+    <div className={clase} style={{ minHeight: '100vh' }}>
+      <MenuLateral grupos={gruposVisibles}>{children}</MenuLateral>
+    </div>
+  )
 }

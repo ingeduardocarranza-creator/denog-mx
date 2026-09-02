@@ -108,25 +108,25 @@ export default function MenuLateral({ grupos, children }) {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#04060e' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--shell-fondo)' }}>
 
       {/* ── Barra superior móvil ──────────────────────────────────── */}
       {isMobile && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, height: 56,
-          background: '#050508', borderBottom: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--shell)', borderBottom: '1px solid var(--w08)',
           display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px',
           zIndex: 110,
         }}>
           <button
             onClick={() => setMenuOpen(o => !o)}
             aria-label="Abrir menú"
-            style={{ background: 'transparent', border: 'none', color: 'white', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4 }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--tinta)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4 }}
           >
             <Menu size={22} strokeWidth={2} />
           </button>
-          <img src={LOGO_SRC} alt="Denog" style={{ height: 28, width: 'auto', display: 'block' }} />
-          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600 }}>Denog USA Compras</div>
+          <img src={LOGO_SRC} alt="Denog" className="logo-saluda" style={{ height: 28, width: 'auto', display: 'block' }} />
+          <div style={{ color: 'var(--w70)', fontSize: 13, fontWeight: 600 }}>Denog USA Compras</div>
         </div>
       )}
 
@@ -141,16 +141,17 @@ export default function MenuLateral({ grupos, children }) {
       {/* ── Sidebar ───────────────────────────────────────────────── */}
       <div id="admin-mobile-sidebar" style={{
         width: 220, flexShrink: 0, position: 'fixed', top: isMobile ? 56 : 0, bottom: 0, left: isMobile ? (menuOpen ? 0 : -220) : 0,
-        background: '#050508', borderRight: '1px solid rgba(255,255,255,0.06)',
+        background: 'var(--shell)', borderRight: '1px solid var(--w06)',
         display: 'flex', flexDirection: 'column', zIndex: 100, overflow: 'hidden',
         ...(isMobile ? { transition: 'left 0.22s ease' } : {}),
       }}>
 
         {/* Logo + nombre — solo en escritorio, en móvil ya está en la barra superior */}
         {!isMobile && (
-          <div style={{ padding: '24px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, textAlign: 'center', minHeight: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={LOGO_SRC} alt="Denog" style={{ height: 120, width: 'auto', display: 'block', marginBottom: 12 }} />
-            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>Denog USA Compras</div>
+          <div style={{ padding: '24px 16px', borderBottom: '1px solid var(--w08)', flexShrink: 0, textAlign: 'center', minHeight: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={LOGO_SRC} alt="Denog" className="logo-saluda"
+              style={{ height: 120, width: 'auto', display: 'block', marginBottom: 12 }} />
+            <div style={{ color: 'var(--w70)', fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>Denog USA Compras</div>
           </div>
         )}
 
@@ -164,14 +165,13 @@ export default function MenuLateral({ grupos, children }) {
 
               {/* Etiqueta de grupo */}
               <div style={{
-                color: 'rgba(255,255,255,0.28)', fontSize: 10, fontWeight: 700,
-                letterSpacing: 1.2, textTransform: 'uppercase',
-                padding: '0 8px', marginBottom: 4,
-                display: 'flex', alignItems: 'center', gap: 6,
+                color: 'var(--w30)', fontSize: 9, fontWeight: 700,
+                letterSpacing: 1.6, textTransform: 'uppercase',
+                padding: '0 11px', marginBottom: 6,
+                display: 'flex', alignItems: 'center', gap: 8,
               }}>
-                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
                 {grupo.label}
-                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+                <div style={{ flex: 1, height: 1, background: 'var(--w06)' }} />
               </div>
 
               {/* Items */}
@@ -184,34 +184,41 @@ export default function MenuLateral({ grupos, children }) {
                     key={item.href}
                     onClick={() => router.push(item.href)}
                     style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 9,
-                      padding: '7px 10px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-                      marginBottom: 1,
-                      background: activo ? 'rgba(193,85,58,0.15)' : 'transparent',
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 11px', borderRadius: 9, cursor: 'pointer', textAlign: 'left',
+                      marginBottom: 2,
+                      background: activo ? 'var(--sup)' : 'transparent',
                       border: 'none',
                       borderLeft: activo ? `3px solid ${clay[500]}` : '3px solid transparent',
-                      transition: 'background 0.15s',
+                      boxShadow: activo ? 'var(--activo-sombra)' : 'none',
+                      transition: 'background .15s, box-shadow .15s',
                     }}
-                    onMouseEnter={e => { if (!activo) e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
+                    onMouseEnter={e => { if (!activo) e.currentTarget.style.background = 'var(--w06)' }}
                     onMouseLeave={e => { if (!activo) e.currentTarget.style.background = 'transparent' }}
                   >
-                    <span style={{ flexShrink: 0, lineHeight: 1, display: 'flex', color: activo ? clay[300] : 'rgba(255,255,255,0.45)' }}>
+                    <span style={{ flexShrink: 0, lineHeight: 1, display: 'flex', color: activo ? 'var(--marca-t)' : 'var(--w45)' }}>
                       {IconComp ? <IconComp size={15} strokeWidth={2} /> : <span style={{ fontSize: 14 }}>{item.icon}</span>}
                     </span>
                     <span style={{
                       fontSize: 13, flex: 1,
-                      color: activo ? clay[300] : 'rgba(255,255,255,0.55)',
-                      fontWeight: activo ? 600 : 400,
+                      color: activo ? 'var(--marca-t)' : 'var(--w55)',
+                      fontWeight: activo ? 700 : 450,
+                      letterSpacing: activo ? -0.1 : 0,
                     }}>
                       {item.label}
                     </span>
                     {badge > 0 && (
+                      // Rojo sólo cuando es dinero que puede perderse; lo demás
+                      // es trabajo pendiente y va en ámbar. Y píldora, no
+                      // círculo: con tres dígitos el círculo se deformaba.
                       <span style={{
-                        background: '#ef4444', color: 'white', fontSize: 9, fontWeight: 700,
-                        borderRadius: '50%', width: 16, height: 16,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        background: item.badgeUrgente ? 'var(--rojo-t)' : 'var(--ambar)',
+                        color: 'var(--sup)', fontSize: 9.5, fontWeight: 800,
+                        borderRadius: 20, minWidth: 17, height: 17, padding: '0 5px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0, fontVariantNumeric: 'tabular-nums',
                       }}>
-                        {badge}
+                        {badge > 99 ? '99+' : badge}
                       </span>
                     )}
                   </button>
@@ -222,7 +229,7 @@ export default function MenuLateral({ grupos, children }) {
         </div>
 
         {/* Cerrar sesión */}
-        <div style={{ padding: '12px 10px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+        <div style={{ padding: '12px 10px', borderTop: '1px solid var(--w06)', flexShrink: 0 }}>
           <button onClick={salir} style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 9,
             padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
@@ -231,8 +238,8 @@ export default function MenuLateral({ grupos, children }) {
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
-            <span style={{ display: 'flex', color: 'rgba(255,255,255,0.35)' }}><LogOut size={14} strokeWidth={2} /></span>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>Cerrar sesión</span>
+            <span style={{ display: 'flex', color: 'var(--w35)' }}><LogOut size={14} strokeWidth={2} /></span>
+            <span style={{ fontSize: 13, color: 'var(--w30)', fontWeight: 400 }}>Cerrar sesión</span>
           </button>
         </div>
 

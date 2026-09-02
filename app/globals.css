@@ -47,3 +47,221 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ═══ Tema del panel admin ══════════════════════════════════════════════
+   Un solo juego de tokens para las 22 pantallas. La clase .tema-claro la
+   pone AdminLayout sobre <html>. Hubo un tema oscuro; se retiró el 1 sep
+   2026 por decisión de Eduardo — el panel es claro y punto.
+
+   Regla al convertir una pantalla: todo rgba(255,255,255,α) pasa a var(--wNN)
+   — son tintas sobre la superficie y funcionan igual en ambos temas cambiando
+   solo --base. Los blancos SÓLIDOS no: 'white' sobre un botón naranja se queda
+   blanco, mientras que 'white' como color de texto principal pasa a
+   var(--tinta). Esa distinción hay que hacerla a mano, pantalla por pantalla.
+
+   El tema claro toma los colores de la portada del sitio (app/page.js).      */
+
+.tema-claro {
+  --base: 42,33,24;
+  --fondo: linear-gradient(175deg, #fdfaf5 0%, #fbf8f3 40%, #f5ecdf 100%);
+  --sup: #ffffff;
+  --sup-2: #fffaf3;
+  --sup-modal: #ffffff;
+  --shell: #fffdfa;
+  --shell-fondo: #f5ecdf;
+  --hueco: rgba(42,33,24,0.035);
+  --tinta: #2a2118;
+  --marca: #c1553a;
+  --marca-t: #a3432b;
+  --verde: #0f8a63; --verde-t: #0f8a63; --verde-suave: rgba(15,138,99,0.10);  --verde-borde: rgba(15,138,99,0.28);
+  --ambar: #a16207; --ambar-t: #a16207; --ambar-suave: rgba(161,98,7,0.10);   --ambar-borde: rgba(161,98,7,0.28);
+  --azul:  #2563eb; --azul-t:  #2563eb; --azul-suave:  rgba(37,99,235,0.10);  --azul-borde:  rgba(37,99,235,0.28);
+  --gris:  #b0a89f; --gris-t:  #7a7166; --gris-suave:  rgba(122,113,102,0.10); --gris-borde: rgba(122,113,102,0.26);
+  --rojo: #b91c1c; --rojo-t: #b3261e; --rojo-rgb: 179,38,30;
+  --marca-suave: rgba(193,85,58,0.10); --marca-borde: rgba(193,85,58,0.30);
+  --wa: #1f8a4c;
+  --sombra: 0 18px 50px rgba(42,33,24,0.16);
+  color-scheme: light;
+}
+
+/* Escalera de tintas. Mismo nombre en ambos temas; sólo cambia --base.
+   Los alfas de texto suben un poco en claro porque la tinta café necesita
+   más peso que el blanco para leerse igual. */
+.tema-claro {
+  --w80: rgba(var(--base),0.80); --w75: rgba(var(--base),0.75);
+  --w70: rgba(var(--base),0.70); --w60: rgba(var(--base),0.62);
+  --w55: rgba(var(--base),0.58); --w50: rgba(var(--base),0.54);
+  --w45: rgba(var(--base),0.50); --w42: rgba(var(--base),0.48);
+  --w40: rgba(var(--base),0.46); --w38: rgba(var(--base),0.45);
+  --w35: rgba(var(--base),0.43); --w34: rgba(var(--base),0.42);
+  --w33: rgba(var(--base),0.42); --w32: rgba(var(--base),0.42);
+  --w30: rgba(var(--base),0.40); --w28: rgba(var(--base),0.38);
+  --w25: rgba(var(--base),0.36); --w22: rgba(var(--base),0.22);
+  --w20: rgba(var(--base),0.20); --w18: rgba(var(--base),0.18);
+  --w15: rgba(var(--base),0.17); --w14: rgba(var(--base),0.16);
+  --w13: rgba(var(--base),0.15); --w12: rgba(var(--base),0.14);
+  --w10: rgba(var(--base),0.12); --w09: rgba(var(--base),0.11);
+  --w08: rgba(var(--base),0.10); --w07: rgba(var(--base),0.09);
+  --w06: rgba(var(--base),0.08); --w05: rgba(var(--base),0.06);
+  --w04: rgba(var(--base),0.05); --w03: rgba(var(--base),0.04);
+  --w025: rgba(var(--base),0.035); --w02: rgba(var(--base),0.03);
+}
+
+/* En claro las tarjetas se despegan con sombra, no con borde. */
+.tema-claro .fila, .tema-claro .tarjeta {
+  box-shadow: 0 1px 2px rgba(42,33,24,0.05), 0 2px 10px rgba(42,33,24,0.04);
+}
+
+/* rebuild */
+
+/* ── Utilidades de Tailwind bajo el tema claro ─────────────────────────
+   Las 22 pantallas usan clases como text-white o bg-gray-800 en cientos de
+   lugares, heredadas de cuando el panel era oscuro. En vez de reescribirlas
+   una por una, se remapean aquí. Al convertir una pantalla a mano, quítale
+   esas clases y usa los tokens; este bloque es la red mientras tanto.      */
+
+.tema-claro .text-white   { color: var(--tinta) !important; }
+.tema-claro .text-black   { color: var(--tinta) !important; }
+.tema-claro .text-slate-100,
+.tema-claro .text-slate-200,
+.tema-claro .text-gray-200,
+.tema-claro .text-gray-300,
+.tema-claro .text-slate-300 { color: var(--w80) !important; }
+.tema-claro .text-gray-400,
+.tema-claro .text-slate-400 { color: var(--w55) !important; }
+.tema-claro .text-gray-500,
+.tema-claro .text-slate-500 { color: var(--w45) !important; }
+.tema-claro .text-gray-600 { color: var(--w40) !important; }
+
+.tema-claro .bg-gray-950,
+.tema-claro .bg-slate-900  { background-color: transparent !important; }
+.tema-claro .bg-gray-900   { background-color: var(--sup) !important; }
+.tema-claro .bg-gray-800,
+.tema-claro .bg-slate-800  { background-color: var(--sup-2) !important; }
+.tema-claro .bg-gray-700,
+.tema-claro .bg-slate-700,
+.tema-claro .bg-gray-600,
+.tema-claro .bg-slate-600  { background-color: var(--w06) !important; }
+.tema-claro .bg-white      { background-color: var(--sup) !important; }
+
+.tema-claro .border-gray-600,
+.tema-claro .border-gray-700,
+.tema-claro .border-gray-800,
+.tema-claro .border-slate-600,
+.tema-claro .border-slate-700,
+.tema-claro .border-slate-800,
+.tema-claro .divide-slate-800 > * + * { border-color: var(--w12) !important; }
+.tema-claro .border-white  { border-color: var(--w22) !important; }
+/* Bordes blancos translúcidos: sobre crema no se ven. */
+.tema-claro [class*="border-white/"] { border-color: var(--w10) !important; }
+
+.tema-claro .placeholder-gray-500::placeholder,
+.tema-claro .placeholder-slate-500::placeholder { color: var(--w38) !important; }
+
+/* Tailwind moderno escribe el marcador de posición como variante
+   (placeholder:text-gray-400), no como clase suelta. Esa forma no la cubría el
+   bloque de arriba y dejaba grises fríos —azulados— junto a la tinta café del
+   panel; se lee como si fuera otra tipografía. */
+.tema-claro [class*="placeholder:text-"]::placeholder { color: var(--w38) !important; }
+
+/* El fondo del documento sigue al tema. La clase vive en <html>. */
+html.tema-claro { background: var(--fondo); color-scheme: light; }
+html.tema-claro body { background: transparent; }
+
+/* ── Menú lateral ──────────────────────────────────────────────────────
+   El renglón activo se levanta del menú como una pestaña: superficie propia
+   y una sombra apenas perceptible. En oscuro la sombra no funciona (todo es
+   oscuro sobre oscuro), así que ahí es un borde tenue.                     */
+/* Tipografía del panel: Plus Jakarta Sans en TODO, no sólo en Anticipos.
+   Las cifras van con tabular-nums para que los pesos se alineen en columna. */
+.tema-claro {
+  font-family: var(--font-plus-jakarta), system-ui, -apple-system, sans-serif;
+}
+.tema-claro input, .tema-claro select, .tema-claro textarea, .tema-claro button {
+  font-family: inherit;
+}
+
+.tema-claro { --activo-sombra: 0 1px 2px rgba(42,33,24,0.06), 0 3px 10px rgba(42,33,24,0.05); }
+
+/* El perrito saluda una vez al cargar y se queda quieto. Es el guiño de
+   marca en un panel que si no sería una plantilla más. Se respeta a quien
+   pidió menos movimiento en su sistema. */
+@keyframes logoSaluda {
+  0%   { transform: translateY(0) rotate(0deg); }
+  22%  { transform: translateY(-6px) rotate(-3deg); }
+  45%  { transform: translateY(0) rotate(2deg); }
+  65%  { transform: translateY(-3px) rotate(-1.5deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+.logo-saluda { animation: logoSaluda 1.5s cubic-bezier(.34,1.2,.64,1) .25s 1 both; }
+@media (prefers-reduced-motion: reduce) { .logo-saluda { animation: none; } }
+
+/* Cifras alineadas en columna en todo el panel, no sólo en Anticipos: es una
+   herramienta de dinero y los montos se comparan de un vistazo. */
+.tema-claro table, .tema-claro .monto, .tema-claro .cifra-valor,
+.tema-claro input[type=number] { font-variant-numeric: tabular-nums; }
+
+/* Caja: fila de cifras del día, con divisores como en Anticipos. */
+.cifras-caja { display: grid; grid-template-columns: repeat(5, 1fr); }
+.cifras-caja > div { padding: 14px 18px; border-right: 1px solid var(--w05); }
+.cifras-caja > div:last-child { border-right: none; }
+@media (max-width: 900px) {
+  .cifras-caja { grid-template-columns: repeat(2, 1fr); }
+  .cifras-caja > div:nth-child(2n) { border-right: none; }
+}
+
+
+/* Clases arbitrarias de Tailwind (bg-[#1e2533], etc.) que quedaron de la
+   época oscura. Se remapean a los tokens en vez de reescribir siete
+   pantallas a mano; el color de marca sí se conserva, que es intencional. */
+.tema-claro .bg-\[\#0b0f19\],
+.tema-claro .bg-\[\#0f172a\]  { background-color: transparent !important; }
+/* #111827 estaba arriba, en el grupo de los transparentes, junto a los fondos
+   de página. Pero en Mercadito es el color de las TARJETAS: mandarlo a
+   transparente las dejaba sin superficie y los datos flotaban sobre el crema.
+   Un mismo hex con dos oficios; aquí manda el de tarjeta, que es el único uso
+   que le queda. */
+.tema-claro .bg-\[\#161b26\],
+.tema-claro .bg-\[\#111827\]  { background-color: var(--sup) !important; }
+.tema-claro .bg-\[\#1e2533\],
+.tema-claro .bg-\[\#1f2635\],
+.tema-claro .bg-\[\#111520\]  { background-color: var(--w03) !important; }
+.tema-claro .bg-\[\#4a1b0c\]  { background-color: var(--marca-suave) !important; }
+.tema-claro .bg-\[\#9b3f28\]  { background-color: var(--marca) !important; }
+.tema-claro .text-\[\#dd8a6c\] { color: var(--marca-t) !important; }
+.tema-claro .border-\[\#6d2a19\],
+.tema-claro .border-\[\#9b3f28\] { border-color: var(--marca-borde) !important; }
+
+/* Bordes ámbar/rojos con opacidad de Tailwind sobre fondo oscuro: en claro
+   se ven como manchas. Se atenúan. */
+.tema-claro .border-amber-900\/40 { border-color: var(--ambar-borde) !important; }
+.tema-claro .border-slate-800,
+.tema-claro .border-slate-700 { border-color: var(--w10) !important; }
+
+
+/* t */
+
+/* Catálogo: fila de indicadores de dinero. */
+.cifras-catalogo { display: grid; grid-template-columns: repeat(4, 1fr); }
+.cifras-catalogo > div { padding: 15px 18px; border-right: 1px solid var(--w05); }
+.cifras-catalogo > div:last-child { border-right: none; }
+@media (max-width: 820px) {
+  .cifras-catalogo { grid-template-columns: repeat(2, 1fr); }
+  .cifras-catalogo > div:nth-child(2n) { border-right: none; }
+}
+
+
+/* r2 */
+
+
+/* ── Texto encima de un color saturado ─────────────────────────────────
+   El remapeo de arriba vuelve tinta café todo .text-white, que es lo
+   correcto sobre una tarjeta clara y lo incorrecto sobre un botón
+   terracota o verde: ahí el texto tiene que seguir siendo blanco. Esta
+   clase lo dice explícitamente, para no depender de a qué le pegó el
+   remapeo.                                                              */
+.tema-claro .sobre-color,
+.tema-claro .sobre-color * { color: #ffffff !important; }
+.tema-claro .sobre-color-suave { color: rgba(255,255,255,0.88) !important; }
+
+

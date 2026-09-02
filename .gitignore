@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Respaldos locales de la conversión a tema claro
+_respaldo/
+
+# Config local de Claude Code
+.claude/

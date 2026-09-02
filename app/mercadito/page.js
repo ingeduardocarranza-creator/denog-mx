@@ -1,5 +1,7 @@
 'use client';
 
+import React from 'react';
+
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -68,11 +70,23 @@ export default function MercaditoCatalogo() {
 
   const productosFiltrados = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return productos.filter((p) =>
+    const visibles = productos.filter((p) =>
       (categoriaActiva === 'Todos' || p.categoria === categoriaActiva) &&
       (q === '' || p.nombre.toLowerCase().includes(q))
     );
+    // Los agotados se siguen mostrando —sirve que el cliente vea qué manejamos—
+    // pero al final. Antes iban revueltos: de 303 productos publicados 81 están
+    // en cero, y el primero aparecía en el noveno lugar, o sea en la segunda
+    // fila. Una repisa donde uno de cada cuatro no se puede comprar se siente
+    // vacía aunque esté llena.
+    const hayStock = (p) => (Number(p.stock) || 0) > 0;
+    return [...visibles.filter(hayStock), ...visibles.filter((p) => !hayStock(p))];
   }, [productos, categoriaActiva, query]);
+
+  const disponibles = useMemo(
+    () => productosFiltrados.filter((p) => (Number(p.stock) || 0) > 0).length,
+    [productosFiltrados]
+  );
 
   const agregar = (producto) => {
     const next = agregarAlCarrito(cart, producto, 1);
@@ -151,7 +165,24 @@ export default function MercaditoCatalogo() {
             ) : productosFiltrados.length === 0 ? (
               <div style={{ gridColumn: '1 / -1', color: 'rgba(42,33,24,0.4)', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>No hay productos que coincidan.</div>
             ) : (
-              productosFiltrados.map((p) => <ProductoCard key={p.id} producto={p} onAdd={agregar} enCarrito={cantidadEnCarrito(p.id)} />)
+              <>
+                {productosFiltrados.map((p, i) => (
+                  <React.Fragment key={p.id}>
+                    {/* Separador justo donde empiezan los agotados, para que se
+                        entienda que la repisa de arriba sí se puede comprar. */}
+                    {i === disponibles && disponibles > 0 && (
+                      <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 12, margin: '14px 0 2px' }}>
+                        <div style={{ flex: 1, height: 1, background: 'rgba(42,33,24,0.10)' }} />
+                        <span style={{ color: 'rgba(42,33,24,0.45)', fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                          Por ahora agotados
+                        </span>
+                        <div style={{ flex: 1, height: 1, background: 'rgba(42,33,24,0.10)' }} />
+                      </div>
+                    )}
+                    <ProductoCard producto={p} onAdd={agregar} enCarrito={cantidadEnCarrito(p.id)} />
+                  </React.Fragment>
+                ))}
+              </>
             )}
           </div>
         </div>

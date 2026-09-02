@@ -3,16 +3,20 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 
-const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 
+// Siete estados, siete colores que tienen que distinguirse ENTRE SÍ y leerse
+// sobre fondo claro. Los originales (#38bdf8 cielo, #a3e635 limón, #22c55e)
+// estaban pensados para tarjeta oscura: sobre crema se desvanecían. Estos
+// mantienen el matiz de cada estado pero con tinta suficiente.
 const STATUS_META = {
-  nuevo: { label: 'Nuevo', color: '#3b82f6', icon: '🆕' },
-  confirmado: { label: 'Confirmado (stock ok)', color: '#38bdf8', icon: '📋' },
-  esperando_anticipo: { label: 'Esperando anticipo', color: '#facc15', icon: '⏳' },
-  aprobado: { label: 'Aprobado', color: '#34d399', icon: '✅' },
-  agregado: { label: 'Agregado a su cuenta', color: '#22c55e', icon: '📦' },
-  entregado: { label: 'Entregado y cobrado', color: '#a3e635', icon: '🏁' },
-  cancelado: { label: 'Cancelado', color: '#ef4444', icon: '🚫' },
+  nuevo: { label: 'Nuevo', color: '#2563eb', icon: '🆕' },
+  confirmado: { label: 'Confirmado (stock ok)', color: '#0e7490', icon: '📋' },
+  esperando_anticipo: { label: 'Esperando anticipo', color: '#a16207', icon: '⏳' },
+  aprobado: { label: 'Aprobado', color: '#0f8a63', icon: '✅' },
+  agregado: { label: 'Agregado a su cuenta', color: '#6d28d9', icon: '📦' },
+  entregado: { label: 'Entregado y cobrado', color: '#4d7c0f', icon: '🏁' },
+  cancelado: { label: 'Cancelado', color: '#b91c1c', icon: '🚫' },
 };
 const TAB_ORDER = ['todos', 'nuevo', 'confirmado', 'esperando_anticipo', 'aprobado', 'agregado', 'entregado', 'cancelado'];
 const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Terminal'];
@@ -52,6 +56,10 @@ export default function MercaditoAdmin() {
 
   // Stock del catálogo, solo para cruce de inventario en cada línea de pedido.
   const [stockPorProducto, setStockPorProducto] = useState({});
+  const [mostrarAyuda, setMostrarAyuda] = useState(false);
+  // Pedidos cerrados que el usuario abrió a mano. Un entregado o cancelado no
+  // tiene trabajo pendiente, así que arranca plegado.
+  const [abiertos, setAbiertos] = useState({});
 
   // ---------- Panel de pedidos ----------
   const [pedidos, setPedidos] = useState([]);
@@ -162,8 +170,13 @@ export default function MercaditoAdmin() {
 
   const confirmarStockOk = (p) => ejecutarConArmado(p.id, 'confirmarStock', () =>
     aplicarCambio(p.id, { estado: 'confirmado' }, 'Stock confirmado disponible'));
-  const cancelarSinStock = (p) =>
-    aplicarCambio(p.id, { estado: 'cancelado', motivo_cancelacion: 'Sin stock disponible al revisar bodega.' }, 'Cancelado: sin stock disponible');
+  // También devuelve la reserva. Si además el conteo del catálogo estaba
+  // equivocado, eso se corrige en Operaciones → Catálogo: es otra operación.
+  const cancelarSinStock = async (p) => {
+    await aplicarCambio(p.id, { estado: 'cancelado', motivo_cancelacion: 'Sin stock disponible al revisar bodega.' }, 'Cancelado: sin stock disponible · stock devuelto al catálogo');
+    await devolverAlCatalogo(p.id);
+    cargarPedidos();
+  };
   const autorizarSinAnticipo = (p) => ejecutarConArmado(p.id, 'autorizarSinAnticipo', () =>
     aplicarCambio(p.id, { estado: 'aprobado', anticipo_estado: 'autorizado_sin_anticipo' }, 'Autorizado sin anticipo — venta aprobada'));
   const marcarEsperandoAnticipo = (p) =>
@@ -171,11 +184,31 @@ export default function MercaditoAdmin() {
 
   const iniciarCancel = (id) => { setCancelingId(id); setCancelDraft(''); };
   const abortarCancel = () => { setCancelingId(null); setCancelDraft(''); };
-  const confirmarCancel = (p) => {
+
+  // El checkout aparta stock; cancelar libera esa reserva y la mercancía vuelve
+  // al catálogo. Siempre, sin preguntar: cancelar es una cosa y corregir un
+  // conteo equivocado es otra — mezclarlas hacía que el mismo botón hiciera dos
+  // trabajos distintos. Antes no devolvía nunca, y el inventario se perdía
+  // callado en cada cancelación que no fuera por falta de stock.
+  const devolverAlCatalogo = async (id) => {
+    await fetch('/api/admin/mercadito', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+  };
+
+  const confirmarCancel = async (p) => {
     if (!cancelDraft.trim()) return;
-    aplicarCambio(p.id, { estado: 'cancelado', motivo_cancelacion: cancelDraft.trim() }, 'Cancelado: ' + cancelDraft.trim());
+    await aplicarCambio(
+      p.id,
+      { estado: 'cancelado', motivo_cancelacion: cancelDraft.trim() },
+      'Cancelado: ' + cancelDraft.trim() + ' · stock devuelto al catálogo'
+    );
+    await devolverAlCatalogo(p.id);
     setCancelingId(null);
     setCancelDraft('');
+    cargarPedidos();
   };
 
   const cambiarCantidad = async (p, idx, delta) => {
@@ -256,22 +289,16 @@ export default function MercaditoAdmin() {
   const alertas = useMemo(() => {
     const lista = [];
     const atencion = pedidos.filter((p) => (p.estado === 'nuevo' || p.estado === 'esperando_anticipo') && horasDesde(p.creado_en) >= 24).length;
-    if (atencion > 0) lista.push({ icon: '🔥', text: `${atencion} pedido(s) llevan más de 24h sin avanzar de estado`, color: '#f87171' });
+    if (atencion > 0) lista.push({ icon: '🔥', text: `${atencion} pedido(s) llevan más de 24h sin avanzar de estado`, color: 'var(--rojo-t)' });
     const dup = Object.values(activosPorCliente).filter((l) => l.length > 1).length;
-    if (dup > 0) lista.push({ icon: '⚠️', text: `${dup} cliente(s) con más de un pedido activo al mismo tiempo`, color: '#fca5a5' });
+    if (dup > 0) lista.push({ icon: '⚠️', text: `${dup} cliente(s) con más de un pedido activo al mismo tiempo`, color: 'var(--rojo-t)' });
     const stockMismatch = pedidos.filter((p) =>
       (p.estado === 'nuevo' || p.estado === 'confirmado') &&
       (p.items || []).some((it) => stockPorProducto[it.producto_id] !== undefined && stockPorProducto[it.producto_id] < it.cantidad)
     ).length;
-    if (stockMismatch > 0) lista.push({ icon: '📦', text: `${stockMismatch} pedido(s) piden más cantidad de la que hay en catálogo`, color: '#facc15' });
+    if (stockMismatch > 0) lista.push({ icon: '📦', text: `${stockMismatch} pedido(s) piden más cantidad de la que hay en catálogo`, color: 'var(--ambar)' });
     return lista;
   }, [pedidos, activosPorCliente, stockPorProducto]);
-
-  const chartRows = useMemo(() => {
-    const estados = TAB_ORDER.filter((t) => t !== 'todos');
-    const max = Math.max(1, ...estados.map((t) => conteosPorEstado[t] || 0));
-    return estados.map((t) => ({ t, ...STATUS_META[t], count: conteosPorEstado[t] || 0, width: `${((conteosPorEstado[t] || 0) / max) * 100}%` }));
-  }, [conteosPorEstado]);
 
   const totalPendiente = TAB_ORDER.filter((t) => !['todos', 'agregado', 'entregado', 'cancelado'].includes(t)).reduce((a, t) => a + (conteosPorEstado[t] || 0), 0);
 
@@ -279,19 +306,46 @@ export default function MercaditoAdmin() {
     pedidos.filter((p) => ['confirmado', 'esperando_anticipo', 'aprobado', 'agregado'].includes(p.estado)),
   [pedidos]);
 
+  // Mismo criterio que app/admin/layout.js: el colaborador no tiene la sección
+  // de Clientes en su menú, así que tampoco debe ver el enlace que lleva ahí.
+  const esAdmin = usuario?.rol === 'admin';
+
   if (!usuario) return null;
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-100 p-6 font-sans">
+    <div className="min-h-screen bg-[#0f172a] text-slate-100 p-6">
       <div className="max-w-[1100px] mx-auto space-y-6">
+        {/* El encabezado traía dos párrafos de instrucciones. Eso es un manual,
+            no una pantalla: se lee una vez y después estorba todos los días.
+            Lo esencial queda en una línea y el resto se abre si hace falta. */}
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">🛍️ Mercadito — Pedidos</h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Gestión de pedidos enviados desde el Mercadito (invitados por WhatsApp, clientes agregados a su próxima entrega). Mismo flujo y permisos para admin y colaborador.
-          </p>
-          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-            El stock ya se descontó del catálogo al enviarse el pedido. Aquí es la <b>segunda confirmación</b>: revisar disponibilidad real, gestionar el anticipo (si aplica) y aprobar o cancelar. En cuanto queda <b>Aprobado</b>, ya está anotado en el Estado de Cuenta del cliente y listo para cobrarse en el punto de venta — no hace falta ningún paso extra. El catálogo (fotos, precio, stock) se administra en <b>Operaciones → Catálogo</b>, con el interruptor &quot;Mostrar en Mercadito&quot;.
-          </p>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: -0.6, color: 'var(--tinta)', lineHeight: 1.1 }}>Pedidos del Mercadito</h1>
+              <p style={{ fontSize: 12.5, color: 'var(--w45)', marginTop: 3 }}>
+                {totalPendiente > 0
+                  ? `${totalPendiente} esperando tu revisión · ${pedidos.length} en total`
+                  : `Nada por atender · ${pedidos.length} pedidos en total`}
+              </p>
+            </div>
+            <div className="flex gap-2 items-center">
+              <button type="button" onClick={() => setMostrarAyuda((v) => !v)}
+                style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 9, padding: '7px 13px', color: 'var(--w55)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                {mostrarAyuda ? 'Ocultar' : '¿Cómo funciona?'}
+              </button>
+              <button type="button" onClick={() => setShowDaily(true)}
+                style={{ background: 'var(--marca-suave)', border: '1px solid var(--marca-borde)', borderRadius: 9, padding: '7px 13px', color: 'var(--marca-t)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                🖨️ Resumen del día
+              </button>
+            </div>
+          </div>
+          {mostrarAyuda && (
+            <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 12, padding: 16, marginTop: 12, fontSize: 12.5, color: 'var(--w60)', lineHeight: 1.6 }}>
+              El stock se aparta del catálogo en cuanto el cliente envía el pedido. Aquí haces la <b style={{ color: 'var(--tinta)' }}>segunda confirmación</b>: revisas que la mercancía esté de verdad, gestionas el anticipo si aplica, y apruebas o cancelas. Al quedar <b style={{ color: 'var(--tinta)' }}>Aprobado</b> ya está anotado en el estado de cuenta del cliente y se cobra en el punto de venta cuando pase — no hay ningún paso extra.
+              <br /><br />
+              Si cancelas, la mercancía regresa al catálogo. Las fotos, el precio y el stock se administran en <b style={{ color: 'var(--tinta)' }}>Operaciones → Catálogo</b>, con el interruptor &quot;Mostrar en Mercadito&quot;. Mismo flujo y permisos para admin y colaborador.
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -301,23 +355,11 @@ export default function MercaditoAdmin() {
             </div>
           ))}
 
-          <div className="bg-[#111827] rounded-2xl border border-white/10 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-400">{totalPendiente} por atender</span>
-              <button type="button" onClick={() => setShowDaily(true)} className="text-[11px] font-bold text-[#dd8a6c] hover:underline">🖨️ Ver resumen del día</button>
-            </div>
-            <div className="space-y-1.5">
-              {chartRows.map((r) => (
-                <div key={r.t} className="flex items-center gap-2 text-[11px]">
-                  <div className="w-32 text-slate-400 flex-none">{r.icon} {r.label}</div>
-                  <div className="flex-1 h-2.5 rounded-full bg-white/5 overflow-hidden">
-                    <div style={{ width: r.width, background: r.color, height: '100%', borderRadius: 999 }} />
-                  </div>
-                  <div className="w-6 text-right text-slate-300 font-bold flex-none">{r.count}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Aquí vivía un embudo de barras con los siete estados. Decía
+              exactamente lo mismo que los filtros de abajo —mismos estados,
+              mismas cuentas— sólo que sin poder hacer clic. Dos veces la misma
+              información es el mismo error que teníamos en Reportes con las dos
+              barras de colores. Se queda la versión que además filtra. */}
 
           {undoSnapshot && (
             <div className="flex items-center justify-between bg-amber-950/30 border border-amber-800/50 rounded-xl px-4 py-2.5">
@@ -326,10 +368,10 @@ export default function MercaditoAdmin() {
             </div>
           )}
 
-          <div className="bg-[#111827] rounded-2xl border border-white/10 p-4 space-y-3">
+          <div className="rounded-2xl p-4 space-y-3" style={{ background: 'var(--sup)', border: '1px solid var(--w08)', boxShadow: '0 1px 2px var(--w04)' }}>
             <div className="flex flex-wrap gap-2 items-center">
               <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="🔍 Cliente o folio…" className="flex-1 min-w-[160px] bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none placeholder-slate-500" />
-              <button type="button" onClick={() => setSoloAtencion((v) => !v)} className="px-3 py-2 rounded-xl text-[11px] font-bold border transition-all" style={soloAtencion ? { background: 'rgba(248,113,113,0.2)', color: '#fca5a5', border: '1px solid rgba(248,113,113,0.5)' } : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.14)' }}>
+              <button type="button" onClick={() => setSoloAtencion((v) => !v)} className="px-3 py-2 rounded-xl text-[11px] font-bold border transition-all" style={soloAtencion ? { background: 'rgba(248,113,113,0.2)', color: 'var(--rojo-t)', border: '1px solid rgba(248,113,113,0.5)' } : { background: 'var(--w05)', color: 'var(--w60)', border: '1px solid var(--w14)' }}>
                 🔥 Requieren atención hoy
               </button>
               <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-[#1e2533] border border-slate-700 rounded-xl px-2 py-2 text-[11px] text-white focus:outline-none" />
@@ -339,11 +381,24 @@ export default function MercaditoAdmin() {
               {TAB_ORDER.map((t) => {
                 const activo = t === tab;
                 const label = t === 'todos' ? 'Todos' : STATUS_META[t].label;
+                // El contador iba en rojo siempre, incluso en los estados que
+                // valen cero. Rojo en todo es rojo en nada: si todo grita, no
+                // se distingue lo que sí necesita atención. Ahora cada estado
+                // lleva su propio color y los ceros van en gris.
+                const n = conteosPorEstado[t] || 0;
+                const colorEstado = t === 'todos' ? 'var(--marca-t)' : STATUS_META[t].color;
                 return (
                   <button key={t} type="button" onClick={() => setTab(t)}
-                    className="px-3 py-1.5 rounded-xl text-[11.5px] font-bold border transition-all"
-                    style={activo ? { background: 'rgba(193,85,58,0.18)', color: '#fff', border: '1px solid rgba(193,85,58,0.5)' } : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    {label} <span className="ml-1 bg-red-600/80 rounded-full px-1.5 text-[9.5px]">{conteosPorEstado[t]}</span>
+                    className="px-3 py-1.5 rounded-xl text-[11.5px] font-bold border transition-all inline-flex items-center gap-1.5"
+                    style={activo ? { background: 'var(--marca-suave)', color: 'var(--tinta)', border: '1px solid var(--marca-borde)' } : { background: 'var(--w04)', color: 'var(--w55)', border: '1px solid var(--w10)' }}>
+                    {label}
+                    <span style={{
+                      borderRadius: 999, padding: '1px 6px', fontSize: 10, fontWeight: 800,
+                      fontVariantNumeric: 'tabular-nums',
+                      background: n === 0 ? 'var(--w06)' : 'var(--sup)',
+                      color: n === 0 ? 'var(--w35)' : colorEstado,
+                      border: `1px solid ${n === 0 ? 'transparent' : 'var(--w10)'}`,
+                    }}>{n}</span>
                   </button>
                 );
               })}
@@ -362,31 +417,61 @@ export default function MercaditoAdmin() {
               const dupFolios = (activosPorCliente[nombrePedido(p)] || []).filter((f) => f !== p.folio);
               const isCanceling = cancelingId === p.id;
               const editableQty = p.estado === 'nuevo' || p.estado === 'confirmado';
+              // Un pedido cerrado no necesita la tarjeta entera: cada una medía
+              // entre 470 y 550 px con sus botones de ±, el historial, el campo
+              // de notas y el selector de WhatsApp, aunque no hubiera nada que
+              // hacer. Plegado es un renglón; se abre con un clic y trae todo.
+              const cerrado = p.estado === 'entregado' || p.estado === 'cancelado';
+              const plegado = cerrado && !abiertos[p.id];
               const plantillas = waTemplates(p, total);
               const seleccionadaId = waSel[p.id] || 'resumen';
 
+              if (plegado) {
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setAbiertos((a) => ({ ...a, [p.id]: true }))}
+                    style={{
+                      width: '100%', textAlign: 'left', cursor: 'pointer',
+                      background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 14,
+                      padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                    }}
+                  >
+                    <span style={pillStyle(meta.color)}>{meta.icon} {meta.label}</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--tinta)' }}>{nombrePedido(p)}</span>
+                    <span style={{ fontSize: 11.5, color: 'var(--w40)' }}>
+                      {p.folio} · {new Date(p.creado_en).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </span>
+                    <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--w60)', fontVariantNumeric: 'tabular-nums' }}>${money(total)}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--w35)' }}>Ver detalle ›</span>
+                    </span>
+                  </button>
+                );
+              }
+
               return (
-                <div key={p.id} className="bg-[#111827] rounded-2xl border border-white/10 p-5 space-y-4">
+                <div key={p.id} className="rounded-2xl p-5 space-y-4" style={{ background: 'var(--sup)', border: '1px solid var(--w08)', boxShadow: '0 1px 2px var(--w04)' }}>
                   {/* Header */}
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-bold text-white">{nombrePedido(p)}</span>
                         <span style={pillStyle(meta.color)}>{meta.icon} {meta.label}</span>
-                        <span style={pillStyle('#a89af8', 'rgba(168,154,248,0.15)')}>🛍️ Mercadito</span>
-                        <span style={p.cliente_id ? pillStyle('#34d399') : pillStyle('rgba(255,255,255,0.6)', 'rgba(255,255,255,0.08)')}>
+                        <span style={p.cliente_id ? pillStyle('var(--verde)') : pillStyle('var(--w60)', 'var(--w08)')}>
                           {p.cliente_id ? '✅ Cliente' : '👤 Invitado'}
                         </span>
                         {p.domicilio_id && (
-                          <span style={pillStyle('#f59e0b', 'rgba(245,158,11,0.15)')}>🏠 Domicilio</span>
+                          <span style={pillStyle('var(--ambar)', 'rgba(245,158,11,0.15)')}>🏠 Domicilio</span>
                         )}
                         {p.anticipo_estado && (
-                          <span style={pillStyle(p.anticipo_estado === 'recibido' ? '#34d399' : p.anticipo_estado === 'autorizado_sin_anticipo' ? '#facc15' : '#3b82f6', 'rgba(255,255,255,0.05)')}>
+                          <span style={pillStyle(p.anticipo_estado === 'recibido' ? 'var(--verde)' : p.anticipo_estado === 'autorizado_sin_anticipo' ? 'var(--ambar)' : 'var(--azul)', 'var(--w05)')}>
                             {p.anticipo_estado === 'recibido' ? '💰 Anticipo recibido' : p.anticipo_estado === 'autorizado_sin_anticipo' ? '🟡 Autorizado sin anticipo' : '⏳ Esperando anticipo'}
                           </span>
                         )}
                         {(p.estado === 'nuevo' || p.estado === 'esperando_anticipo') && horasDesde(p.creado_en) >= 24 && (
-                          <span style={pillStyle('#f87171', 'rgba(248,113,113,0.16)')}>🔥 Atención</span>
+                          <span style={pillStyle('var(--rojo-t)', 'rgba(248,113,113,0.16)')}>🔥 Atención</span>
                         )}
                       </div>
                       <div className="text-[11px] text-slate-500 mt-1.5">{telefonoPedido(p)} · {p.folio} · {new Date(p.creado_en).toLocaleString('es-MX')}</div>
@@ -394,7 +479,17 @@ export default function MercaditoAdmin() {
                         <div className="text-[11px] text-red-300 mt-1">⚠️ Este cliente tiene otro pedido activo: {dupFolios.join(', ')}</div>
                       )}
                     </div>
-                    <button type="button" onClick={() => router.push('/admin/clientes')} className="text-[11px] text-slate-500 hover:underline flex-none">👤 Ver estado de cuenta →</button>
+                    <div className="flex items-center gap-3 flex-none">
+                      {esAdmin && (
+                        <button type="button" onClick={() => router.push('/admin/clientes')} className="text-[11px] text-slate-500 hover:underline">👤 Ver estado de cuenta →</button>
+                      )}
+                      {cerrado && (
+                        <button type="button" onClick={() => setAbiertos((a) => ({ ...a, [p.id]: false }))}
+                          style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 8, padding: '4px 10px', color: 'var(--w45)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                          Plegar ⌃
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Items */}
@@ -403,24 +498,24 @@ export default function MercaditoAdmin() {
                       const stockCat = stockPorProducto[it.producto_id];
                       const mismatch = stockCat !== undefined && stockCat < it.cantidad;
                       return (
-                        <div key={idx} className="flex items-center gap-3 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2">
+                        <div key={idx} className="flex items-center gap-3 rounded-xl px-3 py-2" style={{ background: 'var(--w03)', border: '1px solid var(--w07)' }}>
                           <div className="flex-1 min-w-0">
                             <div className="text-[12.5px] text-slate-200 font-semibold">{it.nombre}</div>
                             {stockCat !== undefined && (
-                              <div className="text-[11px] font-bold" style={{ color: mismatch ? '#f87171' : 'rgba(255,255,255,0.4)' }}>📦 Stock catálogo: {stockCat}</div>
+                              <div className="text-[11px] font-bold" style={{ color: mismatch ? 'var(--rojo-t)' : 'var(--w40)' }}>📦 Stock catálogo: {stockCat}</div>
                             )}
                           </div>
                           {editableQty ? (
                             <div className="flex items-center gap-2 flex-none">
-                              <button type="button" onClick={() => cambiarCantidad(p, idx, -1)} className="w-6 h-6 rounded bg-white/10 text-white text-xs">−</button>
+                              <button type="button" onClick={() => cambiarCantidad(p, idx, -1)} className="w-6 h-6 rounded text-xs" style={{ background: 'var(--w08)', color: 'var(--tinta)' }}>−</button>
                               <span className="text-white text-xs font-bold w-5 text-center">{it.cantidad}</span>
-                              <button type="button" onClick={() => cambiarCantidad(p, idx, 1)} className="w-6 h-6 rounded bg-white/10 text-white text-xs">+</button>
+                              <button type="button" onClick={() => cambiarCantidad(p, idx, 1)} className="w-6 h-6 rounded text-xs" style={{ background: 'var(--w08)', color: 'var(--tinta)' }}>+</button>
                             </div>
                           ) : (
                             <span className="text-slate-400 text-xs flex-none">{it.cantidad}x</span>
                           )}
                           <span className="text-[#dd8a6c] text-xs font-bold w-16 text-right flex-none">${money(it.precio_unitario)}</span>
-                          <button type="button" onClick={() => toggleFragil(p, idx)} className="flex-none px-2.5 py-1 rounded-lg text-[11px] font-bold" style={it.apartado_fragil ? { background: 'rgba(250,204,21,0.18)', color: '#facc15', border: '1px solid rgba(250,204,21,0.5)' } : { background: 'transparent', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.16)' }}>
+                          <button type="button" onClick={() => toggleFragil(p, idx)} className="flex-none px-2.5 py-1 rounded-lg text-[11px] font-bold" style={it.apartado_fragil ? { background: 'rgba(250,204,21,0.18)', color: 'var(--ambar)', border: '1px solid rgba(250,204,21,0.5)' } : { background: 'transparent', color: 'var(--w40)', border: '1px solid var(--w15)' }}>
                             ⚠️ Frágil
                           </button>
                         </div>
@@ -472,32 +567,33 @@ export default function MercaditoAdmin() {
                   {isCanceling && (
                     <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: 14 }}>
                       <div className="text-[11px] font-bold text-red-300 mb-2">Motivo de cancelación (obligatorio)</div>
-                      <textarea value={cancelDraft} onChange={(e) => setCancelDraft(e.target.value)} placeholder="Ej. Sin stock, cliente se arrepintió, etc." rows={2} className="w-full bg-[#1e2533] border border-slate-700 rounded-lg px-2.5 py-2 text-[11.5px] text-white focus:outline-none resize-none mb-2" />
+                      <textarea value={cancelDraft} onChange={(e) => setCancelDraft(e.target.value)} placeholder="Ej. El cliente se arrepintió, se canceló el domicilio…" rows={2} className="w-full bg-[#1e2533] border border-slate-700 rounded-lg px-2.5 py-2 text-[11.5px] text-white focus:outline-none resize-none mb-2" />
+
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => confirmarCancel(p)} className="bg-red-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg">Confirmar cancelación</button>
+                        <button type="button" onClick={() => confirmarCancel(p)} className="bg-red-600 sobre-color text-[11px] font-bold px-3 py-1.5 rounded-lg">Confirmar cancelación</button>
                         <button type="button" onClick={abortarCancel} className="bg-transparent text-slate-400 border border-slate-700 text-[11px] font-bold px-3 py-1.5 rounded-lg">Volver</button>
                       </div>
                     </div>
                   )}
                   {!isCanceling && p.estado === 'cancelado' && p.motivo_cancelacion && (
-                    <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 10, padding: '10px 14px', color: '#fca5a5', fontSize: 13 }}>
+                    <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 10, padding: '10px 14px', color: 'var(--rojo-t)', fontSize: 13 }}>
                       Cancelado: {p.motivo_cancelacion}
                     </div>
                   )}
                   {(p.estado === 'aprobado' || p.estado === 'agregado') && (
-                    <div style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 10, padding: '10px 14px', color: '#6ee7b7', fontSize: 13 }}>
+                    <div style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 10, padding: '10px 14px', color: 'var(--verde)', fontSize: 13 }}>
                       ✅ Anotado en su Estado de Cuenta — {saldoDe(p) > 0 ? 'pendiente de cobrar' : 'ya cubierto'} en el punto de venta cuando pase a recoger.
                     </div>
                   )}
                   {p.estado === 'entregado' && (
-                    <div style={{ background: 'rgba(163,230,53,0.1)', border: '1px solid rgba(163,230,53,0.35)', borderRadius: 10, padding: '10px 14px', color: '#d9f99d', fontSize: 13 }}>
+                    <div style={{ background: 'rgba(163,230,53,0.1)', border: '1px solid rgba(163,230,53,0.35)', borderRadius: 10, padding: '10px 14px', color: 'var(--verde)', fontSize: 13 }}>
                       🏁 Cobrado y entregado en el punto de venta.
                     </div>
                   )}
 
                   {/* Nota cuando el Mercadito va incluido en un domicilio */}
                   {p.domicilio_id && !['cancelado', 'entregado'].includes(p.estado) && (
-                    <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 10, padding: '10px 14px', color: '#fcd34d', fontSize: 13 }}>
+                    <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 10, padding: '10px 14px', color: 'var(--ambar-t)', fontSize: 13 }}>
                       🏠 Este pedido va incluido en un domicilio — el cobro se centraliza desde la sección de <b>Domicilios</b>, no desde aquí.
                     </div>
                   )}
@@ -511,7 +607,7 @@ export default function MercaditoAdmin() {
                         <select value={formPago.metodo} onChange={(e) => setFormPago((f) => ({ ...f, metodo: e.target.value }))} className="bg-[#1e2533] border border-slate-700 rounded-lg px-2 py-1.5 text-[11.5px] text-white focus:outline-none">
                           {METODOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
                         </select>
-                        <button type="button" onClick={() => registrarPago(p)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11.5px] font-bold px-3 py-1.5 rounded-lg">Guardar pago</button>
+                        <button type="button" onClick={() => registrarPago(p)} className="bg-emerald-600 hover:bg-emerald-700 sobre-color text-[11.5px] font-bold px-3 py-1.5 rounded-lg">Guardar pago</button>
                         <button type="button" onClick={cerrarFormPago} className="bg-transparent text-slate-400 border border-slate-700 text-[11.5px] font-bold px-3 py-1.5 rounded-lg">Cancelar</button>
                       </div>
                       {errorPago && <div className="text-[11px] text-red-300 mt-2">{errorPago}</div>}
@@ -524,7 +620,7 @@ export default function MercaditoAdmin() {
                       <select value={seleccionadaId} onChange={(e) => setWaSel((s) => ({ ...s, [p.id]: e.target.value }))} className="bg-[#1e2533] border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none">
                         {plantillas.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                       </select>
-                      <button type="button" onClick={() => enviarWhatsapp(p)} style={{ background: 'rgba(37,211,102,0.14)', color: '#4ade80', border: '1px solid rgba(37,211,102,0.4)' }} className="text-[11px] font-bold px-3 py-1.5 rounded-lg">💬 Enviar por WhatsApp</button>
+                      <button type="button" onClick={() => enviarWhatsapp(p)} style={{ background: 'rgba(37,211,102,0.14)', color: 'var(--verde)', border: '1px solid rgba(37,211,102,0.4)' }} className="text-[11px] font-bold px-3 py-1.5 rounded-lg">💬 Enviar por WhatsApp</button>
                     </div>
                   )}
 
@@ -533,7 +629,7 @@ export default function MercaditoAdmin() {
                     <div className="flex flex-wrap gap-2 pt-1">
                       {p.estado === 'nuevo' && (
                         <>
-                          <button type="button" onClick={() => confirmarStockOk(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={estaArmado(p.id, 'confirmarStock') ? { background: '#facc15', color: '#3a2a00' } : { background: '#34d399', color: '#06281d' }}>
+                          <button type="button" onClick={() => confirmarStockOk(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={estaArmado(p.id, 'confirmarStock') ? { background: 'var(--ambar)', color: '#3a2a00' } : { background: 'var(--verde)', color: '#06281d' }}>
                             {estaArmado(p.id, 'confirmarStock') ? '⚠️ ¿Confirmar? Toca de nuevo' : '✅ Confirmar stock disponible'}
                           </button>
                           <button type="button" onClick={() => cancelarSinStock(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl bg-transparent text-red-300 border border-red-800/60">❌ Sin stock / Cancelar</button>
@@ -542,11 +638,11 @@ export default function MercaditoAdmin() {
                       {(p.estado === 'confirmado' || p.estado === 'esperando_anticipo') && (
                         <>
                           {!p.domicilio_id && (
-                            <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: '#34d399', color: '#06281d' }}>
+                            <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: 'var(--verde)', color: '#06281d' }}>
                               💰 Registrar anticipo
                             </button>
                           )}
-                          <button type="button" onClick={() => autorizarSinAnticipo(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={estaArmado(p.id, 'autorizarSinAnticipo') ? { background: '#facc15', color: '#3a2a00' } : { background: '#3b82f6', color: '#fff' }}>
+                          <button type="button" onClick={() => autorizarSinAnticipo(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={estaArmado(p.id, 'autorizarSinAnticipo') ? { background: 'var(--ambar)', color: '#3a2a00' } : { background: 'var(--azul)', color: '#fff' }}>
                             {estaArmado(p.id, 'autorizarSinAnticipo') ? '⚠️ ¿Confirmar? Toca de nuevo' : '🟡 Autorizar pedido sin anticipo'}
                           </button>
                           {p.estado === 'confirmado' && (
@@ -559,7 +655,7 @@ export default function MercaditoAdmin() {
                         </>
                       )}
                       {(p.estado === 'aprobado' || p.estado === 'agregado') && saldoDe(p) > 0 && !p.domicilio_id && (
-                        <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: '#3b82f6', color: '#fff' }}>
+                        <button type="button" onClick={() => abrirFormPago(p)} className="text-[12px] font-bold px-3.5 py-2 rounded-xl" style={{ background: 'var(--azul)', color: '#fff' }}>
                           💳 Registrar pago
                         </button>
                       )}
@@ -575,7 +671,7 @@ export default function MercaditoAdmin() {
       {/* Modal Resumen del día */}
       {showDaily && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div className="bg-[#111827] border border-white/10 rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6">
+          <div className="rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6" style={{ background: 'var(--sup)', border: '1px solid var(--w10)', boxShadow: 'var(--sombra)' }}>
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-sm font-bold text-white">📋 Resumen del día — qué entregar/cobrar</h2>
               <button type="button" onClick={() => setShowDaily(false)} className="text-slate-400 hover:text-white text-sm">Cerrar ✕</button>
@@ -585,7 +681,7 @@ export default function MercaditoAdmin() {
               {pedidosResumenDia.length === 0 ? (
                 <div className="text-slate-500 text-xs text-center py-6">Nada pendiente por hoy.</div>
               ) : pedidosResumenDia.map((p) => (
-                <div key={p.id} className="border-b border-white/10 pb-2">
+                <div key={p.id} className="pb-2" style={{ borderBottom: '1px solid var(--w08)' }}>
                   <div className="flex justify-between text-xs text-white font-bold">
                     <span>{nombrePedido(p)} — {STATUS_META[p.estado].label}</span>
                     <span>${money(totalPedido(p))}</span>
@@ -595,7 +691,7 @@ export default function MercaditoAdmin() {
                 </div>
               ))}
             </div>
-            <button type="button" onClick={() => window.print()} className="w-full mt-4 bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-2.5 rounded-xl text-xs">🖨️ Imprimir</button>
+            <button type="button" onClick={() => window.print()} className="w-full mt-4 bg-[#c1553a] hover:bg-[#9b3f28] sobre-color font-bold py-2.5 rounded-xl text-xs">🖨️ Imprimir</button>
           </div>
         </div>
       )}

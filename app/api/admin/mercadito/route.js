@@ -61,3 +61,48 @@ export async function PATCH(req) {
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true })
 }
+
+// Devuelve al catálogo el stock que un pedido había apartado.
+//
+// Por qué existe: al hacer checkout, el Mercadito descuenta el stock de forma
+// atómica (mercadito_descontar_stock). Al cancelar, en cambio, no se devolvía
+// nunca — la cancelación sólo cambiaba el estado del pedido. Eso está bien
+// cuando se cancela porque la mercancía NO estaba en bodega (el número baja y
+// se acerca a la realidad), pero está mal en cualquier otro motivo: el cliente
+// se arrepintió, se canceló el domicilio, fue una prueba. Ahí la mercancía sí
+// existe y quedaba fuera del catálogo para siempre, sin que nadie se enterara.
+//
+// Ahora quien cancela decide, porque es la única persona que sabe si la
+// mercancía está o no está.
+export async function PUT(req) {
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+
+  const { id } = await req.json()
+  if (!id) return NextResponse.json({ ok: false, mensaje: 'id requerido' })
+
+  const { data: pedido } = await supabase
+    .from('pedidos_mercadito')
+    .select('items, stock_devuelto')
+    .eq('id', id)
+    .single()
+
+  if (!pedido) return NextResponse.json({ ok: false, mensaje: 'Pedido no encontrado' })
+  // Idempotente: dos clics no devuelven el doble.
+  if (pedido.stock_devuelto) return NextResponse.json({ ok: true, yaEstaba: true })
+
+  for (const it of (pedido.items || [])) {
+    if (!it.producto_id || !it.cantidad) continue
+    await supabase.rpc('mercadito_restituir_stock', {
+      p_producto_id: it.producto_id,
+      p_cantidad: it.cantidad,
+    })
+  }
+
+  await supabase
+    .from('pedidos_mercadito')
+    .update({ stock_devuelto: true, actualizado_en: new Date().toISOString() })
+    .eq('id', id)
+
+  return NextResponse.json({ ok: true })
+}

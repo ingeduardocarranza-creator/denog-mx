@@ -1,7 +1,16 @@
 'use client'
 import { useState, useEffect } from 'react'
 
-const fmt = (n) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+// Sin decimales cuando la cifra es entera; con centavos sólo cuando existen.
+// Un panel lleno de ".00" hace ruido y no aporta nada.
+const fmt = (n) => {
+  const v = Number(n || 0)
+  const centavos = Math.abs(v % 1) > 0.004
+  return `$${v.toLocaleString('es-MX', {
+    minimumFractionDigits: centavos ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`
+}
 
 const formatearFecha = (fecha) => {
   if (!fecha) return ''
@@ -140,30 +149,40 @@ export default function AdminCaja() {
 
   // Alertas
   const alertas = cortes.filter(c => c.tipo === 'corte' && Math.abs(c.diferencia || 0) > 0.01)
-  const alertaTurnoLargo = cortes.filter(c => c.tipo === 'apertura' && (new Date() - new Date(c.creado_en)) / 3600000 > 8)
+  // Sólo alerta si HAY turno abierto y su apertura ya pasó de 8 horas. Antes
+  // miraba cualquier apertura del día, cerrada o no, y contradecía al propio
+  // panel de abajo.
+  const horasTurnoActivo = aperturaActual
+    ? (new Date() - new Date(aperturaActual.creado_en)) / 3600000
+    : 0
+  const alertaTurnoLargo = !!turnoActivo && horasTurnoActivo > 8
 
-  const secLabel = { color: 'rgba(255,255,255,0.35)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }
-  const miniCard = { background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }
+  // Mismo lenguaje visual que Anticipos: una superficie, un borde, un radio.
+  const secLabel = { color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700, marginBottom: 9, marginTop: 22 }
+  const tarjeta = { background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16 }
+  const miniCard = { background: 'var(--w03)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }
 
   return (
-    <div className="min-h-screen bg-gray-950 p-6">
-      <div style={{ maxWidth: 920, margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--fondo)', padding: '22px 24px 60px' }}>
+      <div style={{ maxWidth: 1080, margin: '0 auto' }}>
 
         {/* ── Header ────────────────────────────────────────────────────── */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
-            <div style={{ color: 'white', fontSize: 22, fontWeight: 700 }}>💰 Caja</div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4 }}>{formatearFecha(fecha)}</div>
+            <div style={{ color: 'var(--tinta)', fontSize: 25, fontWeight: 800, letterSpacing: -0.6 }}>Caja</div>
+            <div style={{ color: 'var(--w40)', fontSize: 13, marginTop: 4 }}>{formatearFecha(fecha)}</div>
           </div>
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 10px', color: 'white', fontSize: 12, outline: 'none' }} />
+            style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 8, padding: '6px 10px', color: 'var(--tinta)', fontSize: 12, outline: 'none' }} />
         </div>
 
         {/* ── Alertas ───────────────────────────────────────────────────── */}
-        {alertaTurnoLargo.length > 0 && (
+        {alertaTurnoLargo && (
           <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 14, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span>⚠️</span>
-            <span style={{ color: '#f59e0b', fontSize: 13 }}>Turno activo lleva más de 8 horas sin corte — verifica con el colaborador</span>
+            <span style={{ color: 'var(--ambar)', fontSize: 13 }}>
+              {turnoActivo?.nombre} lleva {horasTurnoActivo.toFixed(0)} horas sin hacer corte — verifica con quien está en turno
+            </span>
           </div>
         )}
         {alertas.map((a, i) => (
@@ -171,68 +190,81 @@ export default function AdminCaja() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span>{a.diferencia < 0 ? '🔴' : '⚠️'}</span>
               <div>
-                <div style={{ color: a.diferencia < 0 ? '#f87171' : '#f59e0b', fontSize: 13, fontWeight: 600 }}>
+                <div style={{ color: a.diferencia < 0 ? 'var(--rojo-t)' : 'var(--ambar)', fontSize: 13, fontWeight: 600 }}>
                   {a.diferencia < 0 ? 'Faltante' : 'Sobrante'} de {fmt(Math.abs(a.diferencia))} — {a.clientes?.nombre}
                 </div>
-                {a.justificacion && <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>"{a.justificacion}"</div>}
+                {a.justificacion && <div style={{ color: 'var(--w40)', fontSize: 11 }}>"{a.justificacion}"</div>}
               </div>
             </div>
-            <div style={{ color: a.diferencia < 0 ? '#f87171' : '#f59e0b', fontSize: 16, fontWeight: 800 }}>{fmt(a.diferencia)}</div>
+            <div style={{ color: a.diferencia < 0 ? 'var(--rojo-t)' : 'var(--ambar)', fontSize: 16, fontWeight: 800 }}>{fmt(a.diferencia)}</div>
           </div>
         ))}
 
-        {/* ══ SECCIÓN 1: RESUMEN DEL DÍA ══════════════════════════════════ */}
-        <div style={{ ...secLabel }}>Resumen del día</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8, marginBottom: 10 }}>
-          {[
-            { label: 'Fondo inicial', valor: fondoDia, color: 'white' },
-            { label: 'Efectivo total día', valor: metricas.efectivo, color: 'white' },
-            { label: 'Transferencias', valor: metricas.transferencia, color: 'white' },
-            { label: 'Terminal', valor: metricas.terminal, color: 'white' },
-            { label: 'Total del día', valor: totalDia, color: '#4ade80' },
-          ].map((m, i) => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 14 }}>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 4 }}>{m.label}</div>
-              <div style={{ color: m.color, fontSize: 20, fontWeight: 700 }}>{fmt(m.valor)}</div>
+        {/* ══ SECCIÓN 1: EL DÍA ═══════════════════════════════════════════
+            Antes eran cinco tarjetas iguales y, aparte, una banda amarilla con
+            el fondo en caja compitiendo con ellas. Ahora hay un solo bloque: el
+            efectivo que debe haber, en grande, y los totales del día como
+            respaldo — que es el orden en que se leen. */}
+        <div style={{ ...tarjeta, overflow: 'hidden', marginBottom: 4 }}>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, padding: '20px 22px' }}>
+            <div>
+              <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }}>
+                Efectivo que debe haber en caja
+              </div>
+              <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>
+                {turnoActivo
+                  ? `${fmt(fondoInicial)} de fondo inicial − ${fmt(retirosConfirmadosTurno)} de retiros del turno`
+                  : ultimoCorteHoy
+                  ? `${fmt(ultimoCorteHoy.total_contado)} del último corte − ${fmt(retirosPostCorte)} de retiros posteriores`
+                  : `${fmt(fondoDia)} de fondo inicial − ${fmt(retirosConfirmadosDia)} de retiros confirmados`}
+              </div>
             </div>
-          ))}
-        </div>
-        {/* Fondo actual del día */}
-        <div style={{ background: 'rgba(245,158,11,0.07)', border: '2px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '14px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ color: '#f59e0b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>💵 Fondo en caja</div>
-            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 3 }}>
-              {turnoActivo
-                ? `${fmt(fondoInicial)} fondo inicial − ${fmt(retirosConfirmadosTurno)} retiros del turno`
-                : ultimoCorteHoy
-                ? `${fmt(ultimoCorteHoy.total_contado)} corte − ${fmt(retirosPostCorte)} retiros post-corte`
-                : `${fmt(fondoDia)} fondo inicial − ${fmt(retirosConfirmadosDia)} retiros confirmados`}
+            <div className="monto" style={{ color: 'var(--ambar)', fontSize: 40, fontWeight: 900, letterSpacing: -1.5, lineHeight: 1 }}>
+              {fmt(fondoActualDia)}
             </div>
           </div>
-          <div style={{ color: '#f59e0b', fontSize: 28, fontWeight: 900 }}>{fmt(fondoActualDia)}</div>
+
+          <div className="cifras-caja" style={{ borderTop: '1px solid var(--w06)' }}>
+            {[
+              { label: 'Fondo inicial', valor: fondoDia },
+              { label: 'Efectivo', valor: metricas.efectivo },
+              { label: 'Transferencias', valor: metricas.transferencia },
+              { label: 'Terminal', valor: metricas.terminal },
+              { label: 'Cobrado hoy', valor: totalDia, tono: 'var(--verde)' },
+            ].map((m, i) => (
+              <div key={i}>
+                <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>{m.label}</div>
+                <div className="monto" style={{ color: m.tono || 'var(--tinta)', fontSize: 19, fontWeight: 800, marginTop: 5, letterSpacing: -0.5 }}>
+                  {fmt(m.valor)}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* ══ SECCIÓN 2: TURNO ACTUAL ══════════════════════════════════════ */}
         <div style={{ ...secLabel }}>Turno actual</div>
         {!turnoActivo ? (
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '20px 24px', marginBottom: 20, color: 'rgba(255,255,255,0.25)', fontSize: 13, textAlign: 'center' }}>
-            Sin turno activo
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, color: 'var(--w38)', fontSize: 12.5, padding: '2px 2px 6px' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--w22)', flexShrink: 0 }} />
+            Nadie tiene turno abierto ahora mismo
           </div>
         ) : (
-          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '16px 20px', marginBottom: 20 }}>
+          <div style={{ ...tarjeta, padding: '16px 20px', marginBottom: 20 }}>
 
             {/* Quién / desde cuándo */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#10b981', fontWeight: 700 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--verde)', fontWeight: 700 }}>
                   {turnoActivo.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <div style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>{turnoActivo.nombre}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>En turno desde {formatearHora(aperturaActual?.creado_en)}</div>
+                  <div style={{ color: 'var(--tinta)', fontSize: 14, fontWeight: 600 }}>{turnoActivo.nombre}</div>
+                  <div style={{ color: 'var(--w35)', fontSize: 11 }}>En turno desde {formatearHora(aperturaActual?.creado_en)}</div>
                 </div>
               </div>
-              <span style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 20, padding: '3px 12px', color: '#10b981', fontSize: 11 }}>
+              <span style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 20, padding: '3px 12px', color: 'var(--verde)', fontSize: 11 }}>
                 ● Activo
               </span>
             </div>
@@ -247,32 +279,21 @@ export default function AdminCaja() {
                 { label: 'Retiros confirmados', valor: retirosConfirmadosTurno, rojo: retirosConfirmadosTurno > 0 },
               ].map((m, i) => (
                 <div key={i} style={{ ...miniCard }}>
-                  <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 9, marginBottom: 4 }}>{m.label}</div>
-                  <div style={{ color: m.rojo ? '#f87171' : 'white', fontSize: 14, fontWeight: 700 }}>{fmt(m.valor)}</div>
+                  <div style={{ color: 'var(--w35)', fontSize: 9, marginBottom: 4 }}>{m.label}</div>
+                  <div className="monto" style={{ color: m.rojo ? 'var(--rojo-t)' : 'var(--tinta)', fontSize: 14, fontWeight: 700 }}>{fmt(m.valor)}</div>
                 </div>
               ))}
-            </div>
-
-            {/* Fondo actual en caja (fondo inicial − retiros) */}
-            <div style={{ background: 'rgba(245,158,11,0.07)', border: '2px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '12px 18px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ color: '#f59e0b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>💵 Fondo en caja</div>
-                <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 3 }}>
-                  {fmt(fondoInicial)} inicial − {fmt(retirosConfirmadosTurno)} retiros
-                </div>
-              </div>
-              <div style={{ color: '#f59e0b', fontSize: 28, fontWeight: 900 }}>{fmt(fondoActualTurno)}</div>
             </div>
 
             {/* Efectivo en caja ahora */}
             <div style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 10, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 600 }}>Efectivo total en caja ahora</div>
-                <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>
+                <div style={{ color: 'var(--w50)', fontSize: 12, fontWeight: 600 }}>Efectivo total en caja ahora</div>
+                <div style={{ color: 'var(--w30)', fontSize: 10, marginTop: 2 }}>
                   {fmt(fondoInicial)} fondo + {fmt(metricasTurno.efectivo)} cobrado − {fmt(retirosConfirmadosTurno)} retiros
                 </div>
               </div>
-              <div style={{ color: '#10b981', fontSize: 26, fontWeight: 800 }}>{fmt(efectivoEnCaja)}</div>
+              <div style={{ color: 'var(--verde)', fontSize: 26, fontWeight: 800 }}>{fmt(efectivoEnCaja)}</div>
             </div>
           </div>
         )}
@@ -284,13 +305,13 @@ export default function AdminCaja() {
           <div>
             <div style={{ ...secLabel }}>Historial de turnos</div>
             {cargando ? (
-              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, padding: 20, textAlign: 'center' }}>Cargando...</div>
+              <div style={{ color: 'var(--w30)', fontSize: 13, padding: 20, textAlign: 'center' }}>Cargando...</div>
             ) : turnosHistorial.length === 0 ? (
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>
+              <div style={{ background: 'var(--w02)', border: '1px solid var(--w05)', borderRadius: 14, padding: 32, textAlign: 'center', color: 'var(--w30)', fontSize: 13 }}>
                 No hay turnos registrados este día
               </div>
             ) : (
-              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ ...tarjeta, overflow: 'hidden' }}>
                 {turnosHistorial.map((t, i) => {
                   const apertura = t.apertura
                   const corte = t.corte
@@ -310,23 +331,23 @@ export default function AdminCaja() {
                         : Math.max(0, (corte?.total_contado || 0) - (apertura?.total_contado || 0)))
 
                   return (
-                    <div key={apertura.creado_en} style={{ padding: '12px 16px', borderBottom: i < turnosHistorial.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                    <div key={apertura.creado_en} style={{ padding: '12px 16px', borderBottom: i < turnosHistorial.length - 1 ? '1px solid var(--w05)' : 'none' }}>
 
                       {/* Encabezado fila */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: enTurno ? 'rgba(16,185,129,0.15)' : hayDif ? 'rgba(239,68,68,0.15)' : 'rgba(193,85,58,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: enTurno ? '#10b981' : hayDif ? '#f87171' : '#dd8a6c', fontWeight: 700 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: enTurno ? 'rgba(16,185,129,0.15)' : hayDif ? 'rgba(239,68,68,0.15)' : 'rgba(193,85,58,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: enTurno ? 'var(--verde)' : hayDif ? 'var(--rojo-t)' : 'var(--marca-t)', fontWeight: 700 }}>
                             {iniciales}
                           </div>
                           <div>
-                            <div style={{ color: 'white', fontSize: 12, fontWeight: 600 }}>{t.nombre}</div>
-                            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>
+                            <div style={{ color: 'var(--tinta)', fontSize: 12, fontWeight: 600 }}>{t.nombre}</div>
+                            <div style={{ color: 'var(--w30)', fontSize: 10 }}>
                               {formatearHora(apertura?.creado_en)}
                               {enTurno ? ` — en curso (${horasTurno}h)` : ` → ${formatearHora(corte?.creado_en)}`}
                             </div>
                           </div>
                         </div>
-                        <span style={{ background: enTurno ? 'rgba(16,185,129,0.1)' : hayDif ? (diferencia < 0 ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)') : 'rgba(74,222,128,0.1)', border: `1px solid ${enTurno ? 'rgba(16,185,129,0.2)' : hayDif ? (diferencia < 0 ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)') : 'rgba(74,222,128,0.2)'}`, borderRadius: 20, padding: '2px 10px', color: enTurno ? '#10b981' : hayDif ? (diferencia < 0 ? '#f87171' : '#f59e0b') : '#4ade80', fontSize: 10 }}>
+                        <span style={{ background: enTurno ? 'rgba(16,185,129,0.1)' : hayDif ? (diferencia < 0 ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)') : 'rgba(74,222,128,0.1)', border: `1px solid ${enTurno ? 'rgba(16,185,129,0.2)' : hayDif ? (diferencia < 0 ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)') : 'rgba(74,222,128,0.2)'}`, borderRadius: 20, padding: '2px 10px', color: enTurno ? 'var(--verde)' : hayDif ? (diferencia < 0 ? 'var(--rojo-t)' : 'var(--ambar)') : 'var(--verde)', fontSize: 10 }}>
                           {enTurno ? 'En turno' : hayDif ? (diferencia < 0 ? `Faltante ${fmt(Math.abs(diferencia))}` : `Sobrante ${fmt(diferencia)}`) : '✓ Sin diferencia'}
                         </span>
                       </div>
@@ -334,16 +355,16 @@ export default function AdminCaja() {
                       {/* Columnas fondo inicio / efectivo cobrado / fondo cierre */}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                         <div style={{ ...miniCard }}>
-                          <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 9 }}>Fondo inicio</div>
-                          <div style={{ color: 'white', fontSize: 11, fontWeight: 600 }}>{fmt(apertura?.total_contado)}</div>
+                          <div style={{ color: 'var(--w30)', fontSize: 9 }}>Fondo inicio</div>
+                          <div style={{ color: 'var(--tinta)', fontSize: 11, fontWeight: 600 }}>{fmt(apertura?.total_contado)}</div>
                         </div>
                         <div style={{ ...miniCard }}>
-                          <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 9 }}>Efectivo cobrado</div>
-                          <div style={{ color: 'white', fontSize: 11, fontWeight: 600 }}>{fmt(efectivoCobrado)}</div>
+                          <div style={{ color: 'var(--w30)', fontSize: 9 }}>Efectivo cobrado</div>
+                          <div style={{ color: 'var(--tinta)', fontSize: 11, fontWeight: 600 }}>{fmt(efectivoCobrado)}</div>
                         </div>
                         <div style={{ ...miniCard }}>
-                          <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 9 }}>{enTurno ? 'En caja ahora' : 'Fondo cierre'}</div>
-                          <div style={{ color: enTurno ? '#10b981' : hayDif ? '#f87171' : '#4ade80', fontSize: 11, fontWeight: 600 }}>
+                          <div style={{ color: 'var(--w30)', fontSize: 9 }}>{enTurno ? 'En caja ahora' : 'Fondo cierre'}</div>
+                          <div style={{ color: enTurno ? 'var(--verde)' : hayDif ? 'var(--rojo-t)' : 'var(--verde)', fontSize: 11, fontWeight: 600 }}>
                             {enTurno ? fmt(efectivoEnCaja) : fmt(corte?.total_contado)}
                           </div>
                         </div>
@@ -363,54 +384,99 @@ export default function AdminCaja() {
 
           {/* Retiros */}
           <div>
-            <div style={{ ...secLabel }}>Retiro de caja</div>
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
+            <div style={{ ...secLabel, marginTop: 0 }}>Retiro de caja</div>
+            {/* Sacar dinero de la caja es una acción con consecuencia, no un
+                campo más: el monto se teclea en grande, el motivo es
+                obligatorio (por eso el asterisco y el botón bloqueado hasta
+                que exista), y se avisa cuánto queda antes de confirmar. */}
+            <div style={{ ...tarjeta, padding: 16, marginBottom: 14 }}>
               {mensajeRetiro && (
-                <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 8, padding: '8px 12px', color: '#4ade80', fontSize: 12, marginBottom: 10 }}>
+                <div style={{ background: 'var(--verde-suave)', border: '1px solid var(--verde-borde)', borderRadius: 9, padding: '9px 12px', color: 'var(--verde)', fontSize: 12, marginBottom: 12, fontWeight: 600 }}>
                   {mensajeRetiro}
                 </div>
               )}
-              <div style={{ marginBottom: 8 }}>
-                <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>Monto</label>
-                <input type="number" placeholder="$0.00" value={montoRetiro} onChange={e => setMontoRetiro(e.target.value)}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', color: 'white', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+
+              <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>
+                Cuánto sale
               </div>
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>Motivo</label>
-                <input type="text" placeholder="Ej. Pago repartidor" value={motivoRetiro} onChange={e => setMotivoRetiro(e.target.value)}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', color: 'white', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+              <div style={{ position: 'relative', marginBottom: 14 }}>
+                <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: montoRetiro ? 'var(--ambar)' : 'var(--w30)', fontSize: 22, fontWeight: 800, pointerEvents: 'none' }}>$</span>
+                <input type="number" placeholder="0" value={montoRetiro}
+                  onChange={e => setMontoRetiro(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && montoRetiro && motivoRetiro) enviarRetiro() }}
+                  className="monto"
+                  style={{ width: '100%', background: 'var(--w03)', border: '1px solid var(--w10)', borderRadius: 11, padding: '12px 14px 12px 34px', color: 'var(--tinta)', fontSize: 26, fontWeight: 800, letterSpacing: -0.8, outline: 'none', boxSizing: 'border-box' }} />
               </div>
+
+              <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>
+                Para qué <span style={{ color: 'var(--marca-t)' }}>*</span>
+              </div>
+              <input type="text" placeholder="Pago a repartidor, compra de insumos…" value={motivoRetiro}
+                onChange={e => setMotivoRetiro(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && montoRetiro && motivoRetiro) enviarRetiro() }}
+                style={{ width: '100%', background: 'var(--w03)', border: '1px solid var(--w10)', borderRadius: 11, padding: '11px 14px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 8 }} />
+
+              {/* Motivos de siempre: la mayoría de los retiros son estos. */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                {['Pago a repartidor', 'Compra de insumos', 'Depósito a banco', 'Gasto del día'].map(m => (
+                  <button key={m} onClick={() => setMotivoRetiro(m)}
+                    style={{
+                      padding: '5px 10px', borderRadius: 20, cursor: 'pointer', fontSize: 11,
+                      border: `1px solid ${motivoRetiro === m ? 'var(--marca)' : 'var(--w10)'}`,
+                      background: motivoRetiro === m ? 'var(--marca)' : 'transparent',
+                      color: motivoRetiro === m ? 'var(--sup)' : 'var(--w50)',
+                      fontWeight: motivoRetiro === m ? 700 : 500,
+                    }}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+
+              {Number(montoRetiro) > 0 && (
+                <div style={{ background: 'var(--ambar-suave)', border: '1px solid var(--ambar-borde)', borderRadius: 10, padding: '10px 13px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--w55)', fontSize: 12 }}>Quedarían en caja</span>
+                  <span className="monto" style={{ color: fondoActualDia - Number(montoRetiro) < 0 ? 'var(--rojo-t)' : 'var(--ambar)', fontSize: 17, fontWeight: 800 }}>
+                    {fmt(fondoActualDia - Number(montoRetiro))}
+                  </span>
+                </div>
+              )}
+
               <button onClick={enviarRetiro} disabled={enviandoRetiro || !montoRetiro || !motivoRetiro}
-                style={{ width: '100%', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, padding: '9px', color: '#f59e0b', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: enviandoRetiro || !montoRetiro || !motivoRetiro ? 0.5 : 1 }}>
-                {enviandoRetiro ? 'Registrando...' : '💾 Registrar retiro'}
+                style={{
+                  width: '100%', borderRadius: 11, padding: '12px', fontSize: 13.5, fontWeight: 700, border: 'none',
+                  cursor: (montoRetiro && motivoRetiro && !enviandoRetiro) ? 'pointer' : 'not-allowed',
+                  background: (montoRetiro && motivoRetiro) ? 'var(--marca)' : 'var(--w06)',
+                  color: (montoRetiro && motivoRetiro) ? 'var(--sup)' : 'var(--w30)',
+                }}>
+                {enviandoRetiro ? 'Registrando…' : montoRetiro ? `Registrar retiro de ${fmt(Number(montoRetiro))}` : 'Registrar retiro'}
               </button>
-              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: 'center', marginTop: 6 }}>
-                Se registra directamente como confirmado
+              <div style={{ color: 'var(--w30)', fontSize: 10.5, textAlign: 'center', marginTop: 8 }}>
+                Queda registrado como confirmado y descuenta de la caja al instante
               </div>
             </div>
 
             <div style={{ ...secLabel }}>Historial de retiros</div>
             {retiros.length === 0 ? (
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12, padding: 20, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>
+              <div style={{ background: 'var(--w02)', border: '1px solid var(--w05)', borderRadius: 12, padding: 20, textAlign: 'center', color: 'var(--w30)', fontSize: 12 }}>
                 Sin retiros este día
               </div>
             ) : (
-              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14, overflow: 'hidden' }}>
                 {retiros.map((r, i) => (
-                  <div key={r.id} style={{ padding: '10px 14px', borderBottom: i < retiros.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div key={r.id} style={{ padding: '10px 14px', borderBottom: i < retiros.length - 1 ? '1px solid var(--w05)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ color: 'white', fontSize: 12, fontWeight: 600 }}>{fmt(r.monto)}</div>
-                      <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>{r.motivo}</div>
-                      <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: 9 }}>{formatearHora(r.creado_en)}</div>
+                      <div style={{ color: 'var(--tinta)', fontSize: 12, fontWeight: 600 }}>{fmt(r.monto)}</div>
+                      <div style={{ color: 'var(--w30)', fontSize: 10 }}>{r.motivo}</div>
+                      <div style={{ color: 'var(--w20)', fontSize: 9 }}>{formatearHora(r.creado_en)}</div>
                     </div>
-                    <span style={{ background: r.estado === 'confirmado' ? 'rgba(74,222,128,0.1)' : 'rgba(245,158,11,0.1)', border: `1px solid ${r.estado === 'confirmado' ? 'rgba(74,222,128,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: 20, padding: '2px 10px', color: r.estado === 'confirmado' ? '#4ade80' : '#f59e0b', fontSize: 10 }}>
+                    <span style={{ background: r.estado === 'confirmado' ? 'rgba(74,222,128,0.1)' : 'rgba(245,158,11,0.1)', border: `1px solid ${r.estado === 'confirmado' ? 'rgba(74,222,128,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: 20, padding: '2px 10px', color: r.estado === 'confirmado' ? 'var(--verde)' : 'var(--ambar)', fontSize: 10 }}>
                       {r.estado === 'confirmado' ? '✓ Confirmado' : '⏳ Pendiente'}
                     </span>
                   </div>
                 ))}
-                <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Total retirado</span>
-                  <span style={{ color: '#f87171', fontSize: 12, fontWeight: 700 }}>{fmt(retiros.reduce((s, r) => s + r.monto, 0))}</span>
+                <div style={{ padding: '8px 14px', borderTop: '1px solid var(--w05)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--w40)', fontSize: 11 }}>Total retirado</span>
+                  <span style={{ color: 'var(--rojo-t)', fontSize: 12, fontWeight: 700 }}>{fmt(retiros.reduce((s, r) => s + r.monto, 0))}</span>
                 </div>
               </div>
             )}

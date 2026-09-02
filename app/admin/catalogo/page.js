@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from 'react';
 
+// Sin decimales cuando el precio es entero; con centavos sólo si los hay.
+const fmtMx = (n) => {
+  const v = Number(n || 0)
+  const centavos = Math.abs(v % 1) > 0.004
+  return `$${v.toLocaleString('es-MX', { minimumFractionDigits: centavos ? 2 : 0, maximumFractionDigits: 2 })}`
+}
+
 export default function CatalogoTienda() {
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -12,6 +19,13 @@ export default function CatalogoTienda() {
   const [nuevaCategoriaInput, setNuevaCategoriaInput] = useState('');
   const [mostrarCreadorCat, setMostrarCreadorCat] = useState(false);
   const [filtroBusqueda, setFiltroBusqueda] = useState('');
+  // El formulario deja de ocupar media pantalla: se abre cuando se pide.
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [filtroCategoria, setFiltroCategoria] = useState('todas');
+  const [filtroExistencia, setFiltroExistencia] = useState('todas');
+  const [filtroFoto, setFiltroFoto] = useState('todas');
+  const [filtroMercadito, setFiltroMercadito] = useState('todos');
+  const [filtroCosto, setFiltroCosto] = useState('todos');
 
   // COTIZADOR — persiste en sesión, no se resetea al limpiar formulario
   const [tipoCambio, setTipoCambio] = useState('18.50');
@@ -179,6 +193,7 @@ export default function CatalogoTienda() {
 
   // 4. PREPARAR EDICIÓN
   const iniciarEdicion = (p) => {
+    setMostrarForm(true);
     setEditandoId(p.id);
     setNombre(p.nombre);
     setCodigoBarras(p.codigo_barras || '');
@@ -236,19 +251,103 @@ export default function CatalogoTienda() {
 
   // 5. FILTRADO DINÁMICO MEDIANTE EL BUSCADOR DE LA TABLA
   const productosPendientes = productos.filter(p => p.pendiente_aprobacion);
-  const productosFiltrados = productos.filter(p => !p.pendiente_aprobacion).filter(p =>
-    p.nombre?.toLowerCase().includes(filtroBusqueda.toLowerCase()) ||
-    p.codigo_barras?.toLowerCase().includes(filtroBusqueda.toLowerCase()) ||
-    p.categoria?.toLowerCase().includes(filtroBusqueda.toLowerCase())
-  );
+  const activos = productos.filter(p => !p.pendiente_aprobacion);
+
+  const productosFiltrados = activos.filter(p => {
+    const q = filtroBusqueda.toLowerCase();
+    if (q && !(p.nombre?.toLowerCase().includes(q) || p.codigo_barras?.toLowerCase().includes(q) || p.categoria?.toLowerCase().includes(q))) return false;
+    if (filtroCategoria !== 'todas' && p.categoria !== filtroCategoria) return false;
+    if (filtroExistencia === 'con' && !(p.stock > 0)) return false;
+    if (filtroExistencia === 'agotados' && p.stock > 0) return false;
+    if (filtroExistencia === 'poco' && !(p.stock > 0 && p.stock <= 2)) return false;
+    if (filtroFoto === 'sin' && p.imagen_url) return false;
+    if (filtroFoto === 'con' && !p.imagen_url) return false;
+    if (filtroMercadito === 'si' && !p.mostrar_en_mercadito) return false;
+    if (filtroMercadito === 'no' && p.mostrar_en_mercadito) return false;
+    if (filtroCosto === 'sin' && p.costo) return false;
+    return true;
+  });
+
+  // Indicadores. Los de dinero informan; los de pendientes son una lista de
+  // tareas — por eso son botones que filtran la tabla, no sólo números.
+  const margenDe = (p) => (p.precio_venta > 0 ? ((p.precio_venta - (p.costo || 0)) / p.precio_venta) * 100 : 0);
+  const piezas = activos.reduce((n, p) => n + (Number(p.stock) || 0), 0);
+  const valorCosto = activos.reduce((n, p) => n + (Number(p.costo) || 0) * (Number(p.stock) || 0), 0);
+  const valorVenta = activos.reduce((n, p) => n + (Number(p.precio_venta) || 0) * (Number(p.stock) || 0), 0);
+  const conPrecio = activos.filter(p => p.precio_venta > 0);
+  const margenProm = conPrecio.length ? conPrecio.reduce((n, p) => n + margenDe(p), 0) / conPrecio.length : 0;
+  const sinFoto = activos.filter(p => !p.imagen_url).length;
+  const sinCosto = activos.filter(p => !p.costo).length;
+  const agotados = activos.filter(p => !(p.stock > 0)).length;
+  const enMercadito = activos.filter(p => p.mostrar_en_mercadito).length;
+
+  const limpiarFiltros = () => {
+    setFiltroBusqueda(''); setFiltroCategoria('todas');
+    setFiltroExistencia('todas'); setFiltroFoto('todas'); setFiltroMercadito('todos'); setFiltroCosto('todos');
+  };
+  const hayFiltro = filtroBusqueda || filtroCategoria !== 'todas' || filtroExistencia !== 'todas' || filtroFoto !== 'todas' || filtroMercadito !== 'todos' || filtroCosto !== 'todos';
+
+  const campo = {
+    background: 'var(--w03)', border: '1px solid var(--w10)', borderRadius: 10,
+    padding: '9px 11px', color: 'var(--tinta)', fontSize: 12.5, outline: 'none',
+  };
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-6 font-sans">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div style={{ minHeight: '100vh', background: 'var(--fondo)', padding: '22px 24px 60px' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto' }} className="space-y-5">
         
         {/* ENCABEZADO */}
-        <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Catálogo de Mercancía Física — Denog</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20 }}>
+          <div>
+            <h1 style={{ color: 'var(--tinta)', fontSize: 25, fontWeight: 800, letterSpacing: -0.6 }}>Catálogo</h1>
+            <p style={{ color: 'var(--w40)', fontSize: 12.5, marginTop: 3 }}>
+              {activos.length} artículos · {enMercadito} a la venta en el Mercadito
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { limpiarFormulario(); setMostrarForm(true); }}
+              style={{ background: 'var(--marca)', border: 'none', borderRadius: 11, padding: '11px 18px', color: 'var(--sup)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              + Agregar artículo
+            </button>
+          </div>
+        </div>
+
+        {/* ── Indicadores ───────────────────────────────────────────────
+            Arriba el dinero, que informa. Abajo los pendientes, que son
+            tareas: cada uno filtra la tabla a los artículos del problema. */}
+        <div className="cifras-catalogo" style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }}>
+          {[
+            { et: 'Piezas', v: piezas.toLocaleString('es-MX') },
+            { et: 'Valor a costo', v: fmtMx(valorCosto) },
+            { et: 'A precio venta', v: fmtMx(valorVenta), tono: 'var(--verde)' },
+            { et: 'Margen promedio', v: `${margenProm.toFixed(0)}%`, tono: margenProm >= 40 ? 'var(--verde)' : margenProm >= 20 ? 'var(--ambar)' : 'var(--rojo-t)' },
+          ].map((m, i) => (
+            <div key={i}>
+              <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>{m.et}</div>
+              <div className="monto" style={{ color: m.tono || 'var(--tinta)', fontSize: 20, fontWeight: 800, marginTop: 5, letterSpacing: -0.5 }}>{m.v}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { et: 'sin foto', n: sinFoto, on: filtroFoto === 'sin', click: () => { limpiarFiltros(); setFiltroFoto('sin') } },
+            { et: 'sin costo capturado', n: sinCosto, on: filtroCosto === 'sin', click: () => { limpiarFiltros(); setFiltroCosto('sin') } },
+            { et: 'agotados', n: agotados, on: filtroExistencia === 'agotados', click: () => { limpiarFiltros(); setFiltroExistencia('agotados') } },
+          ].filter(x => x.n > 0).map((x, i) => (
+            <button key={i} onClick={x.click}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer',
+                background: x.on ? 'var(--ambar-suave)' : 'transparent',
+                border: `1px solid ${x.on ? 'var(--ambar-borde)' : 'var(--w10)'}`,
+                borderRadius: 20, padding: '6px 13px', fontSize: 12, color: 'var(--w55)',
+              }}>
+              <span className="monto" style={{ color: 'var(--ambar)', fontWeight: 800 }}>{x.n}</span> {x.et}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'none' }}>
           <p className="text-xs text-slate-400 mt-1">Alta de saldos, ropa de liquidación, snacks y artículos importados listos para entrega inmediata</p>
         </div>
 
@@ -260,11 +359,11 @@ export default function CatalogoTienda() {
 
         {/* POR APROBAR — productos que agregaron/editaron colaboradores, les falta costo/precio/stock */}
         {productosPendientes.length > 0 && (
-          <div className="bg-amber-950/20 border border-amber-900/50 rounded-2xl p-5 space-y-3">
-            <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
+          <div style={{ background: 'var(--ambar-suave)', border: '1px solid var(--ambar-borde)', borderRadius: 16, padding: 18 }} className="space-y-3">
+            <h2 className="flex items-center gap-2" style={{ color: 'var(--ambar)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.4 }}>
               🕓 Por aprobar ({productosPendientes.length})
             </h2>
-            <p className="text-[11px] text-amber-400/70">Agregados por colaboradores — falta capturar costo, precio de venta y stock antes de que aparezcan en el catálogo.</p>
+            <p className="text-[11px]" style={{ color: 'var(--w50)' }}>Agregados por colaboradores — falta capturar costo, precio de venta y stock antes de que aparezcan en el catálogo.</p>
             <div className="space-y-2">
               {productosPendientes.map((p) => (
                 <div key={p.id} className="flex items-center gap-3 bg-[#161b26] border border-amber-900/40 rounded-xl p-3">
@@ -280,7 +379,7 @@ export default function CatalogoTienda() {
                       {p.categoria} · {p.codigo_barras}{p.creador?.nombre ? ` · agregado por ${p.creador.nombre}` : ''}
                     </p>
                   </div>
-                  <button onClick={() => iniciarEdicion(p)} className="flex-none bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg font-bold text-[11px]">
+                  <button onClick={() => iniciarEdicion(p)} className="flex-none bg-amber-600 hover:bg-amber-500 sobre-color px-3 py-1.5 rounded-lg font-bold text-[11px]">
                     Completar y aprobar
                   </button>
                 </div>
@@ -289,13 +388,155 @@ export default function CatalogoTienda() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
+          {/* TABLA CON BUSCADOR DE ARTÍCULOS INTEGRADO */}
+          <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 18, padding: 18 }} className="space-y-4 overflow-hidden">
+            
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="Buscar por nombre, código o categoría…"
+                value={filtroBusqueda}
+                onChange={(e) => setFiltroBusqueda(e.target.value)}
+                style={{ ...campo, flex: '1 1 240px' }}
+              />
+              <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} style={campo}>
+                <option value="todas">Categoría: todas</option>
+                {listaCategorias.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select value={filtroExistencia} onChange={e => setFiltroExistencia(e.target.value)} style={campo}>
+                <option value="todas">Existencia: toda</option>
+                <option value="con">Con existencia</option>
+                <option value="poco">Queda poco (1-2)</option>
+                <option value="agotados">Agotados</option>
+              </select>
+              <select value={filtroFoto} onChange={e => setFiltroFoto(e.target.value)} style={campo}>
+                <option value="todas">Foto: todas</option>
+                <option value="con">Con foto</option>
+                <option value="sin">Sin foto</option>
+              </select>
+              <select value={filtroMercadito} onChange={e => setFiltroMercadito(e.target.value)} style={campo}>
+                <option value="todos">Mercadito: todos</option>
+                <option value="si">En el Mercadito</option>
+                <option value="no">Fuera del Mercadito</option>
+              </select>
+              {hayFiltro && (
+                <button onClick={limpiarFiltros} style={{ ...campo, cursor: 'pointer', color: 'var(--marca-t)', fontWeight: 700 }}>
+                  Quitar filtros
+                </button>
+              )}
+            </div>
+
+            <div style={{ color: 'var(--w40)', fontSize: 11.5 }}>
+              {productosFiltrados.length === activos.length
+                ? `${activos.length} artículos en catálogo`
+                : `${productosFiltrados.length} de ${activos.length} artículos`}
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-800/80">
+              <table className="w-full text-left border-collapse text-xs" style={{ minWidth: 880 }}>
+                <thead>
+                  <tr className="bg-[#1f2635] text-slate-300 font-bold border-b border-slate-800">
+                    <th className="p-3">Artículo / Código</th>
+                    <th className="p-3">Categoría</th>
+                    <th className="p-3 text-right">Costo</th>
+                    <th className="p-3 text-right">Precio Venta</th>
+                    <th className="p-3 text-right">Margen</th>
+                    <th className="p-3 text-center">Stock</th>
+                    <th className="p-3 text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/40 bg-[#111520]">
+                  {productosFiltrados.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="p-6 text-center" style={{ color: 'var(--w38)' }}>Ningún artículo coincide con estos filtros.</td>
+                    </tr>
+                  ) : (
+                    productosFiltrados.map((p) => (
+                      <tr key={p.id} className={`hover:bg-slate-800/20 transition-colors ${!p.activo ? 'opacity-40' : ''}`}>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            {p.imagen_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={p.imagen_url} alt="" className="w-8 h-8 rounded object-cover border border-slate-700 flex-none" />
+                            ) : (
+                              <div className="w-8 h-8 rounded bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-[11px]">📦</div>
+                            )}
+                            <div>
+                              <p className="font-bold text-slate-200 flex items-center gap-1.5">
+                                {p.nombre}
+                                {p.mostrar_en_mercadito && <span title="Visible en Mercadito" className="text-[9px] bg-[#4a1b0c]/50 text-[#dd8a6c] border border-[#6d2a19]/60 rounded px-1.5 py-0.5">🛍️ Mercadito</span>}
+                              </p>
+                              <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--w40)' }}>{p.codigo_barras}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded text-[10px] whitespace-nowrap" style={{ background: 'var(--w04)', border: '1px solid var(--w10)', color: 'var(--w60)' }}>{p.categoria}</span>
+                        </td>
+                        <td className="p-3 text-right" style={{ color: 'var(--w50)' }}>{fmtMx(p.costo)}</td>
+                        <td className="p-3 text-right font-bold" style={{ color: 'var(--marca-t)' }}>{fmtMx(p.precio_venta)}</td>
+                        <td className="p-3 text-right font-bold" style={{
+                          color: !p.costo || !p.precio_venta ? 'var(--w30)'
+                            : margenDe(p) >= 40 ? 'var(--verde)'
+                            : margenDe(p) >= 20 ? 'var(--ambar)' : 'var(--rojo-t)',
+                        }}>
+                          {!p.costo || !p.precio_venta ? '—' : `${margenDe(p).toFixed(0)}%`}
+                        </td>
+                        <td className="p-3 text-center">
+                          {/* Verde hay, ámbar queda poco, rojo se acabó. Con
+                              etiqueta ("u"), nunca sólo el color. */}
+                          <span className="px-2 py-1 rounded-md font-extrabold text-[11px] whitespace-nowrap" style={{
+                            background: p.stock > 2 ? 'var(--verde-suave)' : p.stock > 0 ? 'var(--ambar-suave)' : 'rgba(var(--rojo-rgb),0.10)',
+                            border: `1px solid ${p.stock > 2 ? 'var(--verde-borde)' : p.stock > 0 ? 'var(--ambar-borde)' : 'rgba(var(--rojo-rgb),0.28)'}`,
+                            color: p.stock > 2 ? 'var(--verde)' : p.stock > 0 ? 'var(--ambar)' : 'var(--rojo-t)',
+                          }}>
+                            {p.stock} u
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="flex justify-center gap-1.5">
+                            <button onClick={() => iniciarEdicion(p)} className="bg-[#1e2533] hover:bg-[#c1553a] hover:text-white border border-slate-700 text-slate-300 px-2.5 py-1 rounded-md font-bold transition-all">
+                              Editar
+                            </button>
+                            <button onClick={() => cambiarEstadoActivo(p.id, p.activo)} className={`px-2 py-1 rounded-md font-bold text-[11px] border transition-all ${p.activo ? 'bg-red-950/20 text-red-400 border-red-900/60 hover:bg-red-900/40' : 'bg-emerald-950/20 text-emerald-400 border-emerald-900/60 hover:bg-emerald-900/40'}`}>
+                              {p.activo ? 'Pausar' : 'Activar'}
+                            </button>
+                            <button onClick={() => toggleMercadito(p.id, p.mostrar_en_mercadito)} title={p.mostrar_en_mercadito ? 'Quitar del Mercadito' : 'Mostrar en Mercadito'} className="px-2 py-1 rounded-md font-bold text-[11px] border transition-all whitespace-nowrap"
+                              style={p.mostrar_en_mercadito
+                                ? { background: 'var(--marca)', color: 'var(--sup)', borderColor: 'var(--marca)' }
+                                : { background: 'transparent', color: 'var(--w45)', borderColor: 'var(--w12)' }}>
+                              🛍️ {p.mostrar_en_mercadito ? 'En Mercadito' : 'Mostrar'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        {/* ── Panel de captura ──────────────────────────────────────────
+            Se abre encima de la lista en vez de partir la pantalla en dos:
+            capturas concentrado y al cerrar el catálogo vuelve entero. */}
+        {mostrarForm && (
+          <div onClick={() => { setMostrarForm(false); limpiarFormulario(); }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(42,33,24,0.35)', backdropFilter: 'blur(2px)', zIndex: 60, display: 'flex', justifyContent: 'flex-end' }}>
+            <div onClick={e => e.stopPropagation()}
+              style={{ width: 'min(560px, 100%)', height: '100%', background: 'var(--sup)', borderLeft: '1px solid var(--w10)', boxShadow: '-20px 0 60px rgba(42,33,24,0.18)', overflowY: 'auto', padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, position: 'sticky', top: -20, background: 'var(--sup)', paddingTop: 20, marginTop: -20, zIndex: 2, borderBottom: '1px solid var(--w06)', paddingBottom: 12 }}>
+                <div style={{ color: 'var(--tinta)', fontSize: 17, fontWeight: 800 }}>
+                  {editandoId ? 'Editar artículo' : 'Nuevo artículo'}
+                </div>
+                <button onClick={() => { setMostrarForm(false); limpiarFormulario(); }}
+                  style={{ background: 'transparent', border: '1px solid var(--w12)', borderRadius: 9, padding: '6px 12px', color: 'var(--w50)', fontSize: 12, cursor: 'pointer' }}>
+                  Cerrar
+                </button>
+              </div>
           {/* FORMULARIO DE CAPTURA CON EJEMPLOS DE ARTÍCULOS AMERICANOS */}
-          <div className="bg-[#161b26] p-5 rounded-2xl border border-slate-800 h-fit space-y-4">
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-2">
-              {editandoId ? '📝 Editar Artículo' : '📦 Registrar Mercancía'}
-            </h2>
+          <div className="space-y-4">
             
             <form onSubmit={guardarProducto} className="space-y-4 text-xs">
               <div className="space-y-1">
@@ -315,7 +556,7 @@ export default function CatalogoTienda() {
                 {mostrarCreadorCat ? (
                   <div className="flex gap-2 p-2 bg-[#111520] rounded-xl border border-slate-800 animate-fadeIn">
                     <input type="text" placeholder="Nombre de categoría..." value={nuevaCategoriaInput} onChange={(e) => setNuevaCategoriaInput(e.target.value)} className="w-full bg-[#1e2533] border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
-                    <button type="button" onClick={agregarCategoriaALista} className="bg-[#c1553a] text-white font-bold px-3 py-1.5 rounded-lg">Añadir</button>
+                    <button type="button" onClick={agregarCategoriaALista} className="bg-[#c1553a] sobre-color font-bold px-3 py-1.5 rounded-lg">Añadir</button>
                   </div>
                 ) : (
                   <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none">
@@ -341,7 +582,7 @@ export default function CatalogoTienda() {
                     <div className="w-16 h-16 rounded-lg bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-xl">📦</div>
                   )}
                   <div className="flex-1 space-y-1.5">
-                    <label className="block w-full text-center bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-2.5 rounded-xl cursor-pointer transition-all">
+                    <label className="block w-full text-center bg-[#c1553a] hover:bg-[#9b3f28] sobre-color font-bold py-2.5 rounded-xl cursor-pointer transition-all">
                       {subiendoImagen ? 'Subiendo…' : imagenUrl ? '📷 Cambiar foto' : '📷 Tomar / subir foto'}
                       <input type="file" accept="image/*" onChange={subirFoto} disabled={subiendoImagen} className="hidden" />
                     </label>
@@ -377,7 +618,7 @@ export default function CatalogoTienda() {
                           <div className="relative">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={galeria[idx]} alt="" className="w-full h-14 rounded-lg object-cover border border-slate-700" />
-                            <button type="button" onClick={() => quitarFotoGaleria(idx)} className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full w-4 h-4 text-[9px] leading-none">✕</button>
+                            <button type="button" onClick={() => quitarFotoGaleria(idx)} className="absolute -top-1.5 -right-1.5 bg-red-600 sobre-color rounded-full w-4 h-4 text-[9px] leading-none">✕</button>
                           </div>
                         ) : (
                           <label className="flex items-center justify-center w-full h-14 rounded-lg bg-[#1e2533] border border-dashed border-slate-700 cursor-pointer text-slate-500 text-[10px]">
@@ -475,7 +716,7 @@ export default function CatalogoTienda() {
               </div>
 
               <div className="pt-2 flex gap-2">
-                <button type="submit" disabled={loading} className="w-full bg-[#c1553a] hover:bg-[#9b3f28] text-white font-bold py-3 rounded-xl transition-all uppercase tracking-wider shadow-md">
+                <button type="submit" disabled={loading} className="w-full bg-[#c1553a] hover:bg-[#9b3f28] sobre-color font-bold py-3 rounded-xl transition-all uppercase tracking-wider shadow-md">
                   {loading ? 'Guardando...' : editandoId ? 'Guardar Cambios' : 'Subir al Catálogo'}
                 </button>
                 {editandoId && (
@@ -486,95 +727,10 @@ export default function CatalogoTienda() {
               </div>
             </form>
           </div>
-
-          {/* TABLA CON BUSCADOR DE ARTÍCULOS INTEGRADO */}
-          <div className="lg:col-span-2 bg-[#161b26] p-5 rounded-2xl border border-slate-800 shadow-xl space-y-4 overflow-hidden">
-            
-            {/* NUEVA BARRA DE BÚSQUEDA RÁPIDA */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3">
-              <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                📋 Registro de Stock Vivo ({productosFiltrados.length} listados)
-              </h2>
-              <div className="w-full sm:w-64">
-                <input 
-                  type="text" 
-                  placeholder="🔍 Filtrar por nombre, UPC o categoría..." 
-                  value={filtroBusqueda}
-                  onChange={(e) => setFiltroBusqueda(e.target.value)}
-                  className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none placeholder-slate-500"
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-xl border border-slate-800/80">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-[#1f2635] text-slate-300 font-bold border-b border-slate-800">
-                    <th className="p-3">Artículo / Código</th>
-                    <th className="p-3">Categoría</th>
-                    <th className="p-3 text-right">Costo</th>
-                    <th className="p-3 text-right">Precio Venta</th>
-                    <th className="p-3 text-center">Stock</th>
-                    <th className="p-3 text-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/40 bg-[#111520]">
-                  {productosFiltrados.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="p-6 text-center text-slate-500 font-medium">No se encontraron artículos con ese filtro de búsqueda.</td>
-                    </tr>
-                  ) : (
-                    productosFiltrados.map((p) => (
-                      <tr key={p.id} className={`hover:bg-slate-800/20 transition-colors ${!p.activo ? 'opacity-40' : ''}`}>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            {p.imagen_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={p.imagen_url} alt="" className="w-8 h-8 rounded object-cover border border-slate-700 flex-none" />
-                            ) : (
-                              <div className="w-8 h-8 rounded bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-[11px]">📦</div>
-                            )}
-                            <div>
-                              <p className="font-bold text-slate-200 flex items-center gap-1.5">
-                                {p.nombre}
-                                {p.mostrar_en_mercadito && <span title="Visible en Mercadito" className="text-[9px] bg-[#4a1b0c]/50 text-[#dd8a6c] border border-[#6d2a19]/60 rounded px-1.5 py-0.5">🛍️ Mercadito</span>}
-                              </p>
-                              <p className="text-[10px] text-slate-500 font-mono mt-0.5">{p.codigo_barras}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <span className="bg-[#1e2533] px-2 py-0.5 rounded text-[10px] text-slate-300 border border-slate-700/60">{p.categoria}</span>
-                        </td>
-                        <td className="p-3 text-right font-mono text-slate-400">${Number(p.costo).toFixed(2)}</td>
-                        <td className="p-3 text-right font-mono text-[#dd8a6c] font-bold">${Number(p.precio_venta).toFixed(2)}</td>
-                        <td className="p-3 text-center font-mono">
-                          <span className={`px-2 py-0.5 rounded font-black text-[11px] ${p.stock > 2 ? 'bg-slate-900 text-emerald-400' : p.stock > 0 ? 'bg-amber-950/60 text-amber-400' : 'bg-red-950 text-red-400'}`}>
-                            {p.stock} u
-                          </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          <div className="flex justify-center gap-1.5">
-                            <button onClick={() => iniciarEdicion(p)} className="bg-[#1e2533] hover:bg-[#c1553a] hover:text-white border border-slate-700 text-slate-300 px-2.5 py-1 rounded-md font-bold transition-all">
-                              Editar
-                            </button>
-                            <button onClick={() => cambiarEstadoActivo(p.id, p.activo)} className={`px-2 py-1 rounded-md font-bold text-[11px] border transition-all ${p.activo ? 'bg-red-950/20 text-red-400 border-red-900/60 hover:bg-red-900/40' : 'bg-emerald-950/20 text-emerald-400 border-emerald-900/60 hover:bg-emerald-900/40'}`}>
-                              {p.activo ? 'Pausar' : 'Activar'}
-                            </button>
-                            <button onClick={() => toggleMercadito(p.id, p.mostrar_en_mercadito)} title={p.mostrar_en_mercadito ? 'Quitar del Mercadito' : 'Mostrar en Mercadito'} className={`px-2 py-1 rounded-md font-bold text-[11px] border transition-all ${p.mostrar_en_mercadito ? 'bg-[#4a1b0c]/40 text-[#dd8a6c] border-[#9b3f28]/60 hover:bg-[#4a1b0c]/60' : 'bg-[#1e2533] text-slate-400 border-slate-700 hover:border-[#9b3f28]/60 hover:text-[#dd8a6c]'}`}>
-                              🛍️ {p.mostrar_en_mercadito ? 'En Mercadito' : 'Mostrar'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
             </div>
           </div>
+        )}
 
-        </div>
       </div>
     </div>
   );

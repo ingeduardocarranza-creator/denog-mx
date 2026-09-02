@@ -4,15 +4,15 @@ import { useState, useEffect } from 'react'
 const ROL_LABEL = { vendedor: 'Vendedor', admin: 'Admin' }
 const ROL_COLOR = {
   vendedor: { bg: 'rgba(99,102,241,0.15)', border: 'rgba(99,102,241,0.3)', text: '#818cf8' },
-  admin:    { bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)', text: '#f59e0b' },
+  admin:    { bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)', text: 'var(--ambar)' },
 }
 
 const inputStyle = {
-  width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-  borderRadius: 8, padding: '9px 12px', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+  width: '100%', background: 'var(--w06)', border: '1px solid var(--w12)',
+  borderRadius: 8, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box',
 }
 const labelStyle = {
-  color: 'rgba(255,255,255,0.4)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
+  color: 'var(--w40)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
   display: 'block', marginBottom: 6,
 }
 
@@ -136,29 +136,29 @@ export default function ColaboradoresAdmin() {
     c.usuario?.toLowerCase().includes(buscador.toLowerCase())
   )
 
-  const card = { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14 }
+  const card = { background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14 }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#030712', padding: '24px 20px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--fondo)', padding: '24px 20px' }}>
       <div style={{ maxWidth: 780, margin: '0 auto' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
-            <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>👥 Equipo</div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4 }}>
+            <div style={{ color: 'var(--tinta)', fontSize: 20, fontWeight: 700 }}>👥 Equipo</div>
+            <div style={{ color: 'var(--w40)', fontSize: 13, marginTop: 4 }}>
               {colaboradores.length} colaborador{colaboradores.length !== 1 ? 'es' : ''} registrados
             </div>
           </div>
           <button onClick={() => { setMostrarForm(f => !f); setEditando(null) }}
-            style={{ padding: '9px 18px', borderRadius: 10, background: mostrarForm ? 'rgba(255,255,255,0.06)' : 'rgba(193,85,58,0.2)', border: `1px solid ${mostrarForm ? 'rgba(255,255,255,0.1)' : 'rgba(193,85,58,0.35)'}`, color: mostrarForm ? 'rgba(255,255,255,0.5)' : '#dd8a6c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            style={{ padding: '9px 18px', borderRadius: 10, background: mostrarForm ? 'var(--w06)' : 'rgba(193,85,58,0.2)', border: `1px solid ${mostrarForm ? 'var(--w10)' : 'rgba(193,85,58,0.35)'}`, color: mostrarForm ? 'var(--w50)' : 'var(--marca-t)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             {mostrarForm ? 'Cancelar' : '+ Nuevo colaborador'}
           </button>
         </div>
 
         {/* Mensaje global */}
         {msg.texto && (
-          <div style={{ background: msg.ok ? 'rgba(74,222,128,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${msg.ok ? 'rgba(74,222,128,0.2)' : 'rgba(239,68,68,0.2)'}`, borderRadius: 10, padding: '10px 16px', color: msg.ok ? '#4ade80' : '#f87171', fontSize: 13, marginBottom: 16 }}>
+          <div style={{ background: msg.ok ? 'rgba(74,222,128,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${msg.ok ? 'rgba(74,222,128,0.2)' : 'rgba(239,68,68,0.2)'}`, borderRadius: 10, padding: '10px 16px', color: msg.ok ? 'var(--verde)' : 'var(--rojo-t)', fontSize: 13, marginBottom: 16 }}>
             {msg.texto}
           </div>
         )}
@@ -166,7 +166,7 @@ export default function ColaboradoresAdmin() {
         {/* Formulario nuevo */}
         {mostrarForm && (
           <div style={{ ...card, padding: '20px 24px', marginBottom: 20 }}>
-            <div style={{ color: 'white', fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Nuevo colaborador</div>
+            <div style={{ color: 'var(--tinta)', fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Nuevo colaborador</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
               <div>
                 <label style={labelStyle}>Nombre completo</label>
@@ -175,13 +175,13 @@ export default function ColaboradoresAdmin() {
               </div>
               <div>
                 <label style={{ ...labelStyle }}>
-                  Usuario {!usuarioManual && <span style={{ color: '#dd8a6c', fontSize: 10 }}>(auto)</span>}
+                  Usuario {!usuarioManual && <span style={{ color: 'var(--marca-t)', fontSize: 10 }}>(auto)</span>}
                 </label>
-                <input style={{ ...inputStyle, borderColor: colaboradores.some(c => c.usuario === nuevo.usuario) ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.12)' }}
+                <input style={{ ...inputStyle, borderColor: colaboradores.some(c => c.usuario === nuevo.usuario) ? 'rgba(239,68,68,0.4)' : 'var(--w12)' }}
                   placeholder="nombre.apellido" value={nuevo.usuario}
                   onChange={e => { setUsuarioManual(true); setNuevo({ ...nuevo, usuario: e.target.value.toLowerCase().replace(/\s/g, '.') }) }} />
                 {colaboradores.some(c => c.usuario === nuevo.usuario) && nuevo.usuario && (
-                  <div style={{ color: '#f87171', fontSize: 10, marginTop: 4 }}>Este usuario ya está en uso</div>
+                  <div style={{ color: 'var(--rojo-t)', fontSize: 10, marginTop: 4 }}>Este usuario ya está en uso</div>
                 )}
               </div>
               <div>
@@ -199,7 +199,7 @@ export default function ColaboradoresAdmin() {
               </div>
             </div>
             <button onClick={crear} disabled={cargando}
-              style={{ padding: '10px 24px', borderRadius: 10, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: cargando ? 0.5 : 1 }}>
+              style={{ padding: '10px 24px', borderRadius: 10, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)', color: 'var(--verde)', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: cargando ? 0.5 : 1 }}>
               {cargando ? 'Guardando...' : 'Crear colaborador'}
             </button>
           </div>
@@ -214,14 +214,14 @@ export default function ColaboradoresAdmin() {
         {/* Lista */}
         <div style={{ ...card, overflow: 'hidden' }}>
           {/* Header tabla */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 12, padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 12, padding: '10px 20px', borderBottom: '1px solid var(--w06)' }}>
             {['Colaborador', 'Usuario', 'Rol', 'Estado', ''].map((h, i) => (
-              <div key={i} style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>{h}</div>
+              <div key={i} style={{ color: 'var(--w30)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>{h}</div>
             ))}
           </div>
 
           {filtrados.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--w25)', fontSize: 13 }}>
               {buscador ? 'Sin resultados' : 'No hay colaboradores registrados aún'}
             </div>
           ) : (
@@ -232,11 +232,11 @@ export default function ColaboradoresAdmin() {
               return (
                 <div key={c.id}>
                   {/* Fila */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 12, padding: '12px 20px', borderBottom: i < filtrados.length - 1 || isEditing ? '1px solid rgba(255,255,255,0.05)' : 'none', alignItems: 'center' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 12, padding: '12px 20px', borderBottom: i < filtrados.length - 1 || isEditing ? '1px solid var(--w05)' : 'none', alignItems: 'center' }}>
                     <div>
-                      <div style={{ color: 'white', fontSize: 13, fontWeight: 600 }}>{c.nombre}</div>
+                      <div style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 600 }}>{c.nombre}</div>
                     </div>
-                    <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{c.usuario}</div>
+                    <div style={{ color: 'var(--w40)', fontSize: 12 }}>{c.usuario}</div>
                     <div>
                       <span style={{ background: rc.bg, border: `1px solid ${rc.border}`, borderRadius: 20, padding: '3px 10px', color: rc.text, fontSize: 11, fontWeight: 600 }}>
                         {ROL_LABEL[c.rol] || c.rol}
@@ -244,13 +244,13 @@ export default function ColaboradoresAdmin() {
                     </div>
                     <div>
                       <button onClick={() => toggleActivo(c)}
-                        style={{ background: c.activo ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${c.activo ? 'rgba(74,222,128,0.2)' : 'rgba(239,68,68,0.2)'}`, borderRadius: 20, padding: '3px 10px', color: c.activo ? '#4ade80' : '#f87171', fontSize: 11, cursor: 'pointer' }}>
+                        style={{ background: c.activo ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${c.activo ? 'rgba(74,222,128,0.2)' : 'rgba(239,68,68,0.2)'}`, borderRadius: 20, padding: '3px 10px', color: c.activo ? 'var(--verde)' : 'var(--rojo-t)', fontSize: 11, cursor: 'pointer' }}>
                         {c.activo ? 'Activo' : 'Inactivo'}
                       </button>
                     </div>
                     <div>
                       <button onClick={() => isEditing ? setEditando(null) : abrirEdicion(c)}
-                        style={{ padding: '5px 12px', borderRadius: 8, background: isEditing ? 'rgba(255,255,255,0.08)' : 'rgba(193,85,58,0.12)', border: `1px solid ${isEditing ? 'rgba(255,255,255,0.1)' : 'rgba(193,85,58,0.25)'}`, color: isEditing ? 'rgba(255,255,255,0.4)' : '#dd8a6c', fontSize: 12, cursor: 'pointer' }}>
+                        style={{ padding: '5px 12px', borderRadius: 8, background: isEditing ? 'var(--w08)' : 'rgba(193,85,58,0.12)', border: `1px solid ${isEditing ? 'var(--w10)' : 'rgba(193,85,58,0.25)'}`, color: isEditing ? 'var(--w40)' : 'var(--marca-t)', fontSize: 12, cursor: 'pointer' }}>
                         {isEditing ? 'Cerrar' : 'Editar'}
                       </button>
                     </div>
@@ -258,7 +258,7 @@ export default function ColaboradoresAdmin() {
 
                   {/* Panel edición inline */}
                   {isEditing && (
-                    <div style={{ background: 'rgba(193,85,58,0.04)', borderBottom: i < filtrados.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', padding: '16px 20px' }}>
+                    <div style={{ background: 'rgba(193,85,58,0.04)', borderBottom: i < filtrados.length - 1 ? '1px solid var(--w05)' : 'none', padding: '16px 20px' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 14, marginBottom: 14 }}>
                         <div>
                           <label style={labelStyle}>Nombre completo</label>
@@ -289,11 +289,11 @@ export default function ColaboradoresAdmin() {
                       </div>
                       <div style={{ display: 'flex', gap: 10 }}>
                         <button onClick={guardarEdicion} disabled={cargando}
-                          style={{ padding: '8px 20px', borderRadius: 9, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: cargando ? 0.5 : 1 }}>
+                          style={{ padding: '8px 20px', borderRadius: 9, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)', color: 'var(--verde)', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: cargando ? 0.5 : 1 }}>
                           {cargando ? 'Guardando...' : 'Guardar cambios'}
                         </button>
                         <button onClick={() => setEditando(null)}
-                          style={{ padding: '8px 16px', borderRadius: 9, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', fontSize: 13, cursor: 'pointer' }}>
+                          style={{ padding: '8px 16px', borderRadius: 9, background: 'var(--w05)', border: '1px solid var(--w08)', color: 'var(--w40)', fontSize: 13, cursor: 'pointer' }}>
                           Cancelar
                         </button>
                       </div>

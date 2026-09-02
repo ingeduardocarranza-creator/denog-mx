@@ -53,6 +53,10 @@ export async function POST(req) {
       monto,
       motivo,
       estado,
+      // Quién sacó el dinero. Estaba sin guardar: TODOS los retiros históricos
+      // tienen admin_id null, así que la caja perdía efectivo sin nombre que
+      // lo respalde. En una operación con efectivo eso no puede quedar así.
+      admin_id: sesion.id,
       ...(estado === 'confirmado' ? { confirmado_en: new Date().toISOString() } : {})
     }])
     .select()

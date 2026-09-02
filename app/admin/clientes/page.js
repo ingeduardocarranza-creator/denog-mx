@@ -140,7 +140,7 @@ export default function Clientes() {
             <div className="text-gray-400 text-sm">{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</div>
           </div>
           <button onClick={() => { setMostrarForm(f => !f); setMsg('') }}
-            className="bg-[#c1553a] hover:bg-[#9b3f28] text-white px-4 py-2 rounded-xl text-sm font-medium">
+            className="bg-[#c1553a] hover:bg-[#9b3f28] sobre-color px-4 py-2 rounded-xl text-sm font-medium">
             {mostrarForm ? 'Cancelar' : '+ Nuevo cliente'}
           </button>
         </div>
@@ -198,7 +198,7 @@ export default function Clientes() {
             {msg && <div className="text-yellow-400 text-sm mb-3">{msg}</div>}
             <div className="flex gap-3">
               <button onClick={guardar} disabled={cargando}
-                className="bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50">
+                className="bg-green-700 hover:bg-green-600 sobre-color px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50">
                 {cargando ? 'Guardando...' : 'Guardar cliente'}
               </button>
               <button onClick={() => { setMostrarForm(false); setMsg('') }}
@@ -325,7 +325,7 @@ export default function Clientes() {
                       {msgEdit && <div className="text-red-400 text-sm mb-3">{msgEdit}</div>}
                       <div className="flex gap-3">
                         <button onClick={guardarEdicion}
-                          className="bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium">
+                          className="bg-green-700 hover:bg-green-600 sobre-color px-4 py-2 rounded-xl text-sm font-medium">
                           ✓ Guardar cambios
                         </button>
                         <button onClick={() => setEditando(null)}

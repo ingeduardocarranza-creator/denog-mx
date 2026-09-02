@@ -53,10 +53,10 @@ export default function ScoreClientes() {
       let categoria = ''
       let color = ''
       let badge = ''
-      if (score >= 80) { categoria = 'VIP'; color = '#f59e0b'; badge = '⭐' }
-      else if (score >= 60) { categoria = 'Buen cliente'; color = '#4ade80'; badge = '✅' }
+      if (score >= 80) { categoria = 'VIP'; color = 'var(--ambar)'; badge = '⭐' }
+      else if (score >= 60) { categoria = 'Buen cliente'; color = 'var(--verde)'; badge = '✅' }
       else if (score >= 40) { categoria = 'Vigilar'; color = '#fb923c'; badge = '⚠️' }
-      else { categoria = 'Riesgo'; color = '#f87171'; badge = '🔴' }
+      else { categoria = 'Riesgo'; color = 'var(--rojo-t)'; badge = '🔴' }
 
       return {
         ...c,
@@ -96,10 +96,10 @@ export default function ScoreClientes() {
         {/* Leyenda */}
         <div className="grid grid-cols-4 gap-3 mb-6">
           {[
-            { badge: '⭐', label: 'VIP', rango: '80-100', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)' },
-            { badge: '✅', label: 'Buen cliente', rango: '60-79', color: '#4ade80', bg: 'rgba(74,222,128,0.1)', border: 'rgba(74,222,128,0.2)' },
+            { badge: '⭐', label: 'VIP', rango: '80-100', color: 'var(--ambar)', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)' },
+            { badge: '✅', label: 'Buen cliente', rango: '60-79', color: 'var(--verde)', bg: 'rgba(74,222,128,0.1)', border: 'rgba(74,222,128,0.2)' },
             { badge: '⚠️', label: 'Vigilar', rango: '40-59', color: '#fb923c', bg: 'rgba(251,146,60,0.1)', border: 'rgba(251,146,60,0.2)' },
-            { badge: '🔴', label: 'Riesgo', rango: '0-39', color: '#f87171', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)' },
+            { badge: '🔴', label: 'Riesgo', rango: '0-39', color: 'var(--rojo-t)', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)' },
           ].map((cat, i) => (
             <div key={i} style={{ background: cat.bg, border: `1px solid ${cat.border}` }} className="rounded-2xl p-3 text-center">
               <div className="text-lg mb-1">{cat.badge}</div>

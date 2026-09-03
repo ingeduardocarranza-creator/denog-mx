@@ -173,12 +173,28 @@ export async function POST(req) {
         // no crean pendientes ni tocan dinero.
         if (campo === 'smb_message_echoes' || campo === 'message_echoes') {
           const ecos = valor.message_echoes || []
-          if (ecos.length) {
-            // Temporal: confirmar la forma real del payload la primera vez que
-            // llegue uno (procesarEcoStaff espera `to` o `recipient_id`).
-            console.log('[webhook whatsapp] eco recibido', {
+          // Temporal (3 sep 2026): los ecos SÍ están llegando —
+          // `smb_message_echoes`, con texto y con imagen— aunque en agosto se
+          // concluyó que este campo no se podía suscribir. Falta saber lo único
+          // que importa para el registro de ventas: si incluyen lo que Denog
+          // publica en el GRUPO "compras del día", o solo los chats 1 a 1. Si
+          // incluyeran el grupo, el sistema tendría el catálogo completo sin
+          // que nadie reenvíe nada. Este log mide justo eso. Quitar en cuanto
+          // se responda. Ver claude/ventas-whatsapp-desfase.md.
+          for (const eco of ecos) {
+            console.log('[eco] payload', {
               campo,
-              claves: Object.keys(ecos[0]),
+              claves: Object.keys(eco),
+              tipo: eco.type,
+              de: eco.from,
+              para: eco.to,
+              paraUsuario: eco.to_user_id,
+              // Si el destino es un grupo, tiene que asomar por aquí: Meta
+              // marca los mensajes de grupo con un group_id.
+              grupoId: eco.group_id || eco.recipient_group_id || null,
+              destinoParece: /-|@g\.us/.test(String(eco.to || '')) ? 'GRUPO' : 'persona',
+              texto: (eco.text?.body || eco.image?.caption || '').slice(0, 60) || null,
+              traeMedia: !!(eco.image?.id || eco.video?.id || eco.document?.id),
             })
           }
           for (const eco of ecos) {

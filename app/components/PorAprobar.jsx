@@ -216,6 +216,14 @@ export default function PorAprobar({ embebido = false }) {
               <p style={{ color: 'var(--w45)', fontSize: 13, margin: embebido ? 0 : '3px 0 0' }}>
                 Ventas registradas por WhatsApp. Nada aquí es real todavía.
               </p>
+              {/* En una ráfaga de reenvío el texto del cliente llega antes que
+                  su propia foto, así que el orden no alcanza para emparejar.
+                  Responder a la foto sí: WhatsApp manda el id de la foto citada. */}
+              <p style={{ color: 'var(--w35)', fontSize: 12, margin: '4px 0 0' }}>
+                Para que siempre empareje bien: en WhatsApp, desliza sobre la foto y
+                escribe ahí el cliente. Respondiendo a la foto el enlace es exacto,
+                sin importar en qué orden lleguen los mensajes.
+              </p>
             </div>
             {pedidos.length > 0 && (
               <div style={{ display: 'flex', gap: 8 }}>

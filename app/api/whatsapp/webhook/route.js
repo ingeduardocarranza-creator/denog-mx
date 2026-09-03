@@ -26,14 +26,15 @@ const supabase = createClient(
 // memoria unos minutos: así el encolado (que es lo que fija el orden dentro de
 // un mismo segundo) empieza sin una ida a la base de por medio.
 const CACHE_LISTA_MS = 5 * 60 * 1000
-const cacheVendedor = new Map() // telefono -> { valor, hasta }
+const cacheVendedor = new Map() // "origen:telefono" -> { valor, hasta }
 
-async function esVendedorVentasCacheado(telefono10) {
+async function esVendedorVentasCacheado(telefono10, origen = 'entrante') {
   if (!telefono10) return false
-  const guardado = cacheVendedor.get(telefono10)
+  const llave = `${origen}:${telefono10}`
+  const guardado = cacheVendedor.get(llave)
   if (guardado && guardado.hasta > Date.now()) return guardado.valor
-  const valor = await esVendedorVentas(supabase, telefono10)
-  cacheVendedor.set(telefono10, { valor, hasta: Date.now() + CACHE_LISTA_MS })
+  const valor = await esVendedorVentas(supabase, telefono10, origen)
+  cacheVendedor.set(llave, { valor, hasta: Date.now() + CACHE_LISTA_MS })
   return valor
 }
 
@@ -124,20 +125,6 @@ export async function POST(req) {
         // deje de reintentarlas.
         if (campo === 'history') continue
 
-        // Temporal (3 sep 2026): los ecos llegaban hasta las 04:58 y después
-        // dejaron de llegar, y en una prueba real quedaron 4 peticiones al
-        // webhook sin nada registrado. Antes, cualquier campo que no fuera
-        // `messages` ni un eco se caía del ruteo en silencio, así que no había
-        // forma de saber qué eran. Esto registra TODO lo que entra (menos
-        // `history`, que es un torrente y ya se descartó arriba). Quitar en
-        // cuanto se resuelva. Ver claude/whatsapp-ecos-smb-hallazgo.md.
-        console.log('[webhook whatsapp] campo recibido', {
-          campo,
-          claves: Object.keys(valor),
-          mensajes: (valor.messages || []).length,
-          ecos: (valor.message_echoes || []).length,
-          estados: (valor.statuses || []).length,
-        })
 
         // Mensajes entrantes de clientes: es lo único que crea pendientes
         // (incluidos comprobantes de pago), así que aquí SÍ exigimos que el
@@ -180,63 +167,60 @@ export async function POST(req) {
           continue
         }
 
-        // Ecos de lo que el equipo contesta desde la app del celular. Llegan
-        // por la suscripción del partner (campo `smb_message_echoes`), así que
-        // vienen firmados con SU secreto y no podemos validarlos con el
-        // nuestro. Se aceptan apoyados en la validación de identidad de
-        // arriba: lo único que hacen es marcar como atendida una conversación,
-        // no crean pendientes ni tocan dinero.
+        // Ecos: todo lo que sale del celular de Denog. Llegan por la
+        // suscripción del partner (campo `smb_message_echoes`), firmados con SU
+        // secreto, así que no se pueden validar con el nuestro; se aceptan
+        // apoyados en identidadEsperada() de arriba.
+        //
+        // Hacen dos cosas distintas según a quién le escriba Denog:
+        //   - A un destino de bitácora (lista blanca con origen 'eco'): es un
+        //     registro de venta y se encola igual que un reenvío. Termina en
+        //     "Por aprobar", nunca en una venta real sin revisión humana.
+        //   - A cualquier otro: es el equipo contestándole a un cliente, y solo
+        //     marca la conversación como atendida.
         if (campo === 'smb_message_echoes' || campo === 'message_echoes') {
           const ecos = valor.message_echoes || []
-          // Temporal (3 sep 2026): los ecos SÍ están llegando —
-          // `smb_message_echoes`, con texto y con imagen— aunque en agosto se
-          // concluyó que este campo no se podía suscribir. Falta saber lo único
-          // que importa para el registro de ventas: si incluyen lo que Denog
-          // publica en el GRUPO "compras del día", o solo los chats 1 a 1. Si
-          // incluyeran el grupo, el sistema tendría el catálogo completo sin
-          // que nadie reenvíe nada. Este log mide justo eso. Quitar en cuanto
-          // se responda. Ver claude/ventas-whatsapp-desfase.md.
           for (const eco of ecos) {
-            console.log('[eco] payload', {
-              campo,
-              claves: Object.keys(eco),
-              tipo: eco.type,
-              de: eco.from,
-              para: eco.to,
-              paraUsuario: eco.to_user_id,
-              // Si el destino es un grupo, tiene que asomar por aquí: Meta
-              // marca los mensajes de grupo con un group_id.
-              grupoId: eco.group_id || eco.recipient_group_id || null,
-              destinoParece: /-|@g\.us/.test(String(eco.to || '')) ? 'GRUPO' : 'persona',
-              texto: (eco.text?.body || eco.image?.caption || '').slice(0, 60) || null,
-              traeMedia: !!(eco.image?.id || eco.video?.id || eco.document?.id),
-            })
-          }
-          // Temporal (3 sep 2026): lo único que falta saber para poder capturar
-          // ventas desde el propio celular de Denog es si la FOTO de un eco se
-          // puede bajar. El eco trae el id de la imagen, pero es una imagen que
-          // subió el celular de Denog, no una que nos mandaron — que el id
-          // venga no garantiza que nuestro token la pueda descargar. Si esto
-          // funciona, se construye el flujo completo; si no, el camino del eco
-          // sirve para el texto pero no para las fotos.
-          // Quitar cuando se responda. Ver claude/whatsapp-ecos-smb-hallazgo.md.
-          for (const eco of ecos) {
-            const idMedia = eco.image?.id || eco.video?.id || eco.document?.id
-            if (idMedia) {
-              try {
-                const ruta = await descargarYGuardarMedia(idMedia, supabase, 'prueba_eco')
-                console.log('[eco] media DESCARGADA', { idMedia, ruta })
-              } catch (err) {
-                console.error('[eco] media NO se pudo descargar', { idMedia, error: err?.message })
+            // Ventas capturadas desde el PROPIO celular de Denog. Si Denog le
+            // escribe a un destino autorizado como bitácora (hoy: su propio
+            // chat "Mensajéate a ti mismo"), ese mensaje es un registro de
+            // venta y sigue exactamente el mismo camino que un reenvío: se
+            // encola crudo y el trabajo pesado va a after(). Ver
+            // claude/whatsapp-ecos-smb-hallazgo.md.
+            //
+            // El eco trae los mismos campos que un mensaje entrante (id,
+            // timestamp, type, image/text, context), así que se le puede pasar
+            // tal cual al encolado.
+            const destinoEco = a10Digitos(eco.to)
+            if (await esVendedorVentasCacheado(destinoEco, 'eco')) {
+              const fila = await encolarMensajeVenta(supabase, eco, destinoEco)
+              if (fila) {
+                console.log('[ventasWhatsapp] encolado (eco)', {
+                  orden: fila.orden,
+                  tipo: eco.type,
+                  clase: fila.clase,
+                  respondeA: eco.context?.id || null,
+                  texto: textoDeMensaje(eco),
+                })
+                after(() => enriquecerFila(supabase, fila))
               }
+              continue
             }
-          }
 
-          for (const eco of ecos) {
+            // Cualquier otro eco es el equipo contestándole a un cliente:
+            // marca la conversación como atendida y ya.
             await procesarEcoStaff(eco)
           }
           continue
         }
+
+        // Nada lo reclamó. Antes esto se caía en silencio y por eso no se supo
+        // durante semanas que los ecos sí llegaban; ahora al menos queda
+        // registrado qué entró.
+        console.log('[webhook whatsapp] campo sin manejar', {
+          campo,
+          claves: Object.keys(valor),
+        })
       }
     }
   } catch (err) {
@@ -273,6 +257,7 @@ async function procesarMensajeEntrante(msg, valor) {
       orden: fila.orden,
       tipo: msg.type,
       clase: fila.clase,
+      respondeA: msg.context?.id || null,
       texto: textoDeMensaje(msg),
     })
     after(() => enriquecerFila(supabase, fila))

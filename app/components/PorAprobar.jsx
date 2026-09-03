@@ -373,6 +373,22 @@ export default function PorAprobar({ embebido = false }) {
                       Falta {pendientes.join(' · ')}
                     </span>
                   )}
+                  {/* De dónde salió el cliente. "Por orden" es una deducción y
+                      puede estar mal; "por respuesta" es un enlace exacto que
+                      mandó WhatsApp. Con varias personas mandando a la vez,
+                      esta es la diferencia entre confiar y revisar todo. */}
+                  {p.emparejado_por === 'respuesta' && (
+                    <span title="El cliente se escribió respondiendo a esta foto: el enlace es exacto."
+                      style={{ background: status.info.bg, color: status.info.fg, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999 }}>
+                      ✓ por respuesta
+                    </span>
+                  )}
+                  {p.emparejado_por === 'orden' && (
+                    <span title="El cliente se dedujo del orden en que llegaron los mensajes. Vale la pena confirmar que sea el correcto."
+                      style={{ background: 'var(--w08)', color: 'var(--w50)', fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999 }}>
+                      por orden — confirma
+                    </span>
+                  )}
                 </div>
 
                 <div>

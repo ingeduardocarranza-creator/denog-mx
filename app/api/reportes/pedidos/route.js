@@ -92,6 +92,25 @@ export async function GET(req) {
     return NextResponse.json({ ok: true, pedidos: allData })
   }
 
+  // Cómo se pegó el cliente a esta foto: por RESPUESTA (el texto citaba la
+  // foto — enlace exacto, no hay nada que revisar) o por ORDEN (se dedujo de
+  // la secuencia de llegada — puede estar mal). Importa sobre todo cuando
+  // varias personas mandan al mismo tiempo desde el celular de Denog: ahí
+  // todos los mensajes llegan bajo el mismo número y el orden no separa a
+  // nadie. Ver claude/whatsapp-ecos-smb-hallazgo.md.
+  if (pendienteAprobacionParam === 'true' && allData.length > 0) {
+    const { data: origenes } = await supabase
+      .from('whatsapp_ventas_bandeja')
+      .select('pedido_id, responde_a')
+      .eq('clase', 'texto')
+      .in('pedido_id', allData.map(p => p.id))
+    const porRespuesta = new Set((origenes || []).filter(o => o.responde_a).map(o => o.pedido_id))
+    const conTexto = new Set((origenes || []).map(o => o.pedido_id))
+    for (const p of allData) {
+      p.emparejado_por = porRespuesta.has(p.id) ? 'respuesta' : (conTexto.has(p.id) ? 'orden' : null)
+    }
+  }
+
   // Una sola llamada para todas las fotos de la entrega, no una por pedido:
   // con 384 fotos, firmar de a una saturaba Storage y ~14 volvían sin firmar.
   const firmadas = await urlsFirmadas(supabase, allData.map(p => p.imagen_url), 3600)

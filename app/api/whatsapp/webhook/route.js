@@ -124,6 +124,21 @@ export async function POST(req) {
         // deje de reintentarlas.
         if (campo === 'history') continue
 
+        // Temporal (3 sep 2026): los ecos llegaban hasta las 04:58 y después
+        // dejaron de llegar, y en una prueba real quedaron 4 peticiones al
+        // webhook sin nada registrado. Antes, cualquier campo que no fuera
+        // `messages` ni un eco se caía del ruteo en silencio, así que no había
+        // forma de saber qué eran. Esto registra TODO lo que entra (menos
+        // `history`, que es un torrente y ya se descartó arriba). Quitar en
+        // cuanto se resuelva. Ver claude/whatsapp-ecos-smb-hallazgo.md.
+        console.log('[webhook whatsapp] campo recibido', {
+          campo,
+          claves: Object.keys(valor),
+          mensajes: (valor.messages || []).length,
+          ecos: (valor.message_echoes || []).length,
+          estados: (valor.statuses || []).length,
+        })
+
         // Mensajes entrantes de clientes: es lo único que crea pendientes
         // (incluidos comprobantes de pago), así que aquí SÍ exigimos que el
         // evento venga firmado con nuestro App Secret. Sin eso, cualquiera que

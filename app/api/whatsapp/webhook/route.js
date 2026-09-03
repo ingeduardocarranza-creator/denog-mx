@@ -172,12 +172,13 @@ export async function POST(req) {
         // secreto, así que no se pueden validar con el nuestro; se aceptan
         // apoyados en identidadEsperada() de arriba.
         //
-        // Hacen dos cosas distintas según a quién le escriba Denog:
-        //   - A un destino de bitácora (lista blanca con origen 'eco'): es un
-        //     registro de venta y se encola igual que un reenvío. Termina en
-        //     "Por aprobar", nunca en una venta real sin revisión humana.
-        //   - A cualquier otro: es el equipo contestándole a un cliente, y solo
-        //     marca la conversación como atendida.
+        // Solo interesan los que van a un destino de bitácora (lista blanca
+        // con origen 'eco'): ésos son registros de venta y se encolan igual que
+        // un reenvío, para terminar en "Por aprobar" — nunca en una venta real
+        // sin revisión humana. El resto son el equipo contestándole a clientes
+        // y se ignoran: lo único que hacíamos con ellos era alimentar
+        // `conversaciones_whatsapp`, que existía para el barrido de "sin
+        // responder" — sección eliminada el 1 sep 2026.
         if (campo === 'smb_message_echoes' || campo === 'message_echoes') {
           const ecos = valor.message_echoes || []
           for (const eco of ecos) {
@@ -192,15 +193,9 @@ export async function POST(req) {
             // timestamp, type, image/text, context), así que se le puede pasar
             // tal cual al encolado.
             const destinoEco = a10Digitos(eco.to)
-            if (await esVendedorVentasCacheado(destinoEco, 'eco')) {
-              const fila = await encolarMensajeVenta(supabase, eco, destinoEco)
-              if (fila) after(() => enriquecerFila(supabase, fila))
-              continue
-            }
-
-            // Cualquier otro eco es el equipo contestándole a un cliente:
-            // marca la conversación como atendida y ya.
-            await procesarEcoStaff(eco)
+            if (!(await esVendedorVentasCacheado(destinoEco, 'eco'))) continue
+            const fila = await encolarMensajeVenta(supabase, eco, destinoEco)
+            if (fila) after(() => enriquecerFila(supabase, fila))
           }
           continue
         }
@@ -250,17 +245,6 @@ async function procesarMensajeEntrante(msg, valor) {
 
   const contacto = (valor.contacts || []).find(c => c.wa_id === telefono)
   const nombre = contacto?.profile?.name || null
-  const ahora = new Date().toISOString()
-
-  // Estado de la conversación: para el barrido de "sin responder" y para
-  // saber, cuando llegue un eco, a quién había que contestarle.
-  await supabase.from('conversaciones_whatsapp').upsert({
-    telefono_whatsapp: telefono,
-    nombre_whatsapp: nombre,
-    ultimo_mensaje_cliente_en: ahora,
-    ultimo_mensaje_cliente_wa_id: msg.id,
-    actualizado_en: ahora,
-  }, { onConflict: 'telefono_whatsapp' })
 
   // OJO: cuando el cliente manda una foto CON texto en el mismo mensaje,
   // WhatsApp no pone ese texto en `text.body` sino en el `caption` del
@@ -359,15 +343,3 @@ async function procesarMensajeEntrante(msg, valor) {
   })
 }
 
-async function procesarEcoStaff(eco) {
-  const telefono = eco.to || eco.recipient_id
-  if (!telefono) return
-  const ahora = new Date().toISOString()
-
-  await supabase.from('conversaciones_whatsapp').upsert({
-    telefono_whatsapp: telefono,
-    ultima_respuesta_staff_en: ahora,
-    actualizado_en: ahora,
-  }, { onConflict: 'telefono_whatsapp' })
-
-}

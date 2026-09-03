@@ -384,9 +384,9 @@ export default function PorAprobar({ embebido = false }) {
                     </span>
                   )}
                   {p.emparejado_por === 'orden' && (
-                    <span title="El cliente se dedujo del orden en que llegaron los mensajes. Vale la pena confirmar que sea el correcto."
-                      style={{ background: 'var(--w08)', color: 'var(--w50)', fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999 }}>
-                      por orden — confirma
+                    <span title="El cliente se dedujo del orden de llegada dentro de su bitácora. Es lo normal; si quieres que sea exacto, responde a la foto en WhatsApp."
+                      style={{ background: 'var(--w08)', color: 'var(--w45)', fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999 }}>
+                      por orden
                     </span>
                   )}
                 </div>

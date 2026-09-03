@@ -212,6 +212,26 @@ export async function POST(req) {
               traeMedia: !!(eco.image?.id || eco.video?.id || eco.document?.id),
             })
           }
+          // Temporal (3 sep 2026): lo único que falta saber para poder capturar
+          // ventas desde el propio celular de Denog es si la FOTO de un eco se
+          // puede bajar. El eco trae el id de la imagen, pero es una imagen que
+          // subió el celular de Denog, no una que nos mandaron — que el id
+          // venga no garantiza que nuestro token la pueda descargar. Si esto
+          // funciona, se construye el flujo completo; si no, el camino del eco
+          // sirve para el texto pero no para las fotos.
+          // Quitar cuando se responda. Ver claude/whatsapp-ecos-smb-hallazgo.md.
+          for (const eco of ecos) {
+            const idMedia = eco.image?.id || eco.video?.id || eco.document?.id
+            if (idMedia) {
+              try {
+                const ruta = await descargarYGuardarMedia(idMedia, supabase, 'prueba_eco')
+                console.log('[eco] media DESCARGADA', { idMedia, ruta })
+              } catch (err) {
+                console.error('[eco] media NO se pudo descargar', { idMedia, error: err?.message })
+              }
+            }
+          }
+
           for (const eco of ecos) {
             await procesarEcoStaff(eco)
           }

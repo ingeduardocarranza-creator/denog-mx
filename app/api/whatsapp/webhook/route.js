@@ -5,7 +5,7 @@ import { clasificarMensaje } from '@/lib/whatsapp/clasificador'
 import { a10Digitos } from '@/lib/whatsapp/telefono'
 import { descargarYGuardarMedia, urlFirmada } from '@/lib/whatsapp/media'
 import { esVendedorVentas } from '@/lib/whatsapp/ventasWhatsapp'
-import { encolarMensajeVenta, enriquecerFila, textoDeMensaje } from '@/lib/whatsapp/ventasBandeja'
+import { encolarMensajeVenta, enriquecerFila } from '@/lib/whatsapp/ventasBandeja'
 
 // Enriquecer un mensaje (bajar el adjunto de Meta, subirlo a Storage,
 // mirarlo con la IA) se lleva varios segundos. Con el tope default de 10 s la
@@ -194,16 +194,7 @@ export async function POST(req) {
             const destinoEco = a10Digitos(eco.to)
             if (await esVendedorVentasCacheado(destinoEco, 'eco')) {
               const fila = await encolarMensajeVenta(supabase, eco, destinoEco)
-              if (fila) {
-                console.log('[ventasWhatsapp] encolado (eco)', {
-                  orden: fila.orden,
-                  tipo: eco.type,
-                  clase: fila.clase,
-                  respondeA: eco.context?.id || null,
-                  texto: textoDeMensaje(eco),
-                })
-                after(() => enriquecerFila(supabase, fila))
-              }
+              if (fila) after(() => enriquecerFila(supabase, fila))
               continue
             }
 
@@ -253,13 +244,6 @@ async function procesarMensajeEntrante(msg, valor) {
   if (await esVendedorVentasCacheado(diezEmisor)) {
     const fila = await encolarMensajeVenta(supabase, msg, diezEmisor)
     if (!fila) return // copia repetida de Meta, o un tipo que no es parte de una venta
-    console.log('[ventasWhatsapp] encolado', {
-      orden: fila.orden,
-      tipo: msg.type,
-      clase: fila.clase,
-      respondeA: msg.context?.id || null,
-      texto: textoDeMensaje(msg),
-    })
     after(() => enriquecerFila(supabase, fila))
     return
   }

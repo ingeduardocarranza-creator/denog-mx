@@ -54,6 +54,14 @@ export default function PorAprobar({ embebido = false }) {
   const [lugares, setLugares] = useState(LUGARES_BASE)
   const [agregandoTienda, setAgregandoTienda] = useState(false)
   const [tiendaNueva, setTiendaNueva] = useState('')
+  // Mensajes de WhatsApp que ya llegaron pero todavía se están procesando
+  // (bajando la foto, leyéndola con la IA). El armado se detiene en el primero
+  // que falte para no emparejar de más — ver lib/whatsapp/ventasBandeja.js.
+  const [enEspera, setEnEspera] = useState(0)
+  // Mensajes que fallaron varias veces y se dejaron pasar para no tener
+  // parada la lista. Se muestran porque un mensaje perdido en silencio es
+  // exactamente lo que se está tratando de evitar.
+  const [omitidos, setOmitidos] = useState(0)
 
   // Tipo de cambio, impuesto, tienda, fecha de compra y entrega son datos del
   // DÍA/sesión de revisión, no de cada venta individual — mismo patrón que
@@ -74,6 +82,16 @@ export default function PorAprobar({ embebido = false }) {
 
   const cargar = async () => {
     setCargando(true)
+    // Primero se arman las ventas que llegaron por WhatsApp desde la última
+    // revisión: se recorre la bandeja en orden de llegada y cada foto se cierra
+    // con el texto que venía después. Antes esto se hacía al vuelo, en
+    // paralelo, y por eso el cliente terminaba pegado a la foto de otra venta.
+    try {
+      const a = await fetch('/api/whatsapp/ventas/armar', { method: 'POST' }).then(r => r.json())
+      setEnEspera(a?.en_espera || 0)
+      setOmitidos(a?.omitidos || 0)
+    } catch { /* si falla el armado, igual se muestra lo que ya estaba */ }
+
     const [r, c, e] = await Promise.all([
       fetch('/api/reportes/pedidos?pendiente_aprobacion=true').then(r => r.json()),
       fetch('/api/clientes/listar').then(r => r.json()),
@@ -212,6 +230,27 @@ export default function PorAprobar({ embebido = false }) {
               </div>
             )}
           </div>
+
+          {omitidos > 0 && (
+            <div style={{ background: status.danger.bg, color: status.danger.fg, border: `1px solid ${status.danger.fg}33`, borderRadius: 14, padding: '12px 16px', marginBottom: 14, fontSize: 13.5 }}>
+              <strong>{omitidos} mensaje{omitidos === 1 ? '' : 's'} de WhatsApp no se pudo procesar.</strong>{' '}
+              Se dejaron pasar para no detener la lista, así que esa venta no está aquí y hay que capturarla
+              a mano o reenviarla.
+            </div>
+          )}
+
+          {enEspera > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, background: status.warning.bg, color: status.warning.fg, border: `1px solid ${status.warning.fg}33`, borderRadius: 14, padding: '12px 16px', marginBottom: 14, fontSize: 13.5 }}>
+              <span>
+                <strong>{enEspera} mensaje{enEspera === 1 ? '' : 's'} todavía en cola.</strong>{' '}
+                Las ventas se arman en el orden en que las mandaste, así que las que siguen esperan a la
+                que se está procesando. Dale unos segundos y refresca.
+              </span>
+              <button onClick={cargar} style={{ background: 'transparent', border: `1px solid ${status.warning.fg}55`, color: status.warning.fg, borderRadius: 999, padding: '5px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                Refrescar
+              </button>
+            </div>
+          )}
 
           <div style={{ background: 'var(--w04)', border: `1px solid ${clay[700]}55`, borderLeft: `3px solid ${clay[500]}`, borderRadius: 14, padding: '14px 16px' }}>
             <div style={{ fontSize: 11.5, fontWeight: 700, color: clay[300], textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>

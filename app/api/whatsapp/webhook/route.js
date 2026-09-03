@@ -1,10 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import crypto from 'crypto'
 import { clasificarMensaje } from '@/lib/whatsapp/clasificador'
 import { a10Digitos } from '@/lib/whatsapp/telefono'
 import { descargarYGuardarMedia, urlFirmada } from '@/lib/whatsapp/media'
-import { esVendedorVentas, procesarMensajeVentaFoto, procesarMensajeVentaTexto, yaFueProcesado } from '@/lib/whatsapp/ventasWhatsapp'
+import { esVendedorVentas } from '@/lib/whatsapp/ventasWhatsapp'
+import { encolarMensajeVenta, enriquecerFila, textoDeMensaje } from '@/lib/whatsapp/ventasBandeja'
+
+// Enriquecer un mensaje (bajar el adjunto de Meta, subirlo a Storage,
+// mirarlo con la IA) se lleva varios segundos. Con el tope default de 10 s la
+// función se cortaba a media descarga en las ráfagas grandes y ese mensaje se
+// perdía. El trabajo corre en after(), o sea DESPUÉS de contestarle a Meta.
+export const maxDuration = 60
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -14,6 +21,22 @@ const supabase = createClient(
 
 // Meta llama a esto UNA vez, al guardar la URL del webhook en el panel de
 // desarrolladores, para confirmar que el endpoint es tuyo.
+// La lista blanca se consulta en CADA mensaje entrante, y en una ráfaga es lo
+// primero que corre antes de encolar. Como casi nunca cambia, se guarda en
+// memoria unos minutos: así el encolado (que es lo que fija el orden dentro de
+// un mismo segundo) empieza sin una ida a la base de por medio.
+const CACHE_LISTA_MS = 5 * 60 * 1000
+const cacheVendedor = new Map() // telefono -> { valor, hasta }
+
+async function esVendedorVentasCacheado(telefono10) {
+  if (!telefono10) return false
+  const guardado = cacheVendedor.get(telefono10)
+  if (guardado && guardado.hasta > Date.now()) return guardado.valor
+  const valor = await esVendedorVentas(supabase, telefono10)
+  cacheVendedor.set(telefono10, { valor, hasta: Date.now() + CACHE_LISTA_MS })
+  return valor
+}
+
 export async function GET(req) {
   const { searchParams } = new URL(req.url)
   const modo = searchParams.get('hub.mode')
@@ -121,7 +144,7 @@ export async function POST(req) {
         if (campo === 'messages') {
           for (const msg of valor.messages || []) {
             const diezRemitente = a10Digitos(msg.from)
-            const esVentaWhitelist = diezRemitente ? await esVendedorVentas(supabase, diezRemitente) : false
+            const esVentaWhitelist = await esVendedorVentasCacheado(diezRemitente)
 
             if (!firmadoPorNosotros && !esVentaWhitelist) {
               console.error('[webhook whatsapp] evento "messages" sin firma válida, descartado', {
@@ -176,6 +199,35 @@ export async function POST(req) {
 
 async function procesarMensajeEntrante(msg, valor) {
   const telefono = msg.from // wa_id del cliente, ej. "5216625486432"
+  const diezEmisor = a10Digitos(telefono)
+
+  // ─── Ventas por WhatsApp: encolar primero, procesar después ──────────────
+  // Va ANTES que todo lo demás a propósito. En una ráfaga de ~100 reenvíos, el
+  // orden en que se guardan los mensajes es lo único que después permite saber
+  // qué texto va con qué foto (el timestamp de WhatsApp solo tiene precisión
+  // de un segundo). Cualquier consulta o descarga que se hiciera antes del
+  // encolado abre la puerta a que dos mensajes del mismo segundo se guarden
+  // al revés.
+  //
+  // El trabajo pesado (bajar el adjunto, mirarlo con la IA) se manda a
+  // after(): Meta recibe su 200 de inmediato y deja de reintentar, y el
+  // enriquecimiento sigue corriendo. Ese trabajo solo toca SU PROPIA fila de
+  // la bandeja, así que puede correr en paralelo sin pisar a nadie. Quién va
+  // con quién lo decide el armado, en orden y con candado
+  // (lib/whatsapp/ventasBandeja.js).
+  if (await esVendedorVentasCacheado(diezEmisor)) {
+    const fila = await encolarMensajeVenta(supabase, msg, diezEmisor)
+    if (!fila) return // copia repetida de Meta, o un tipo que no es parte de una venta
+    console.log('[ventasWhatsapp] encolado', {
+      orden: fila.orden,
+      tipo: msg.type,
+      clase: fila.clase,
+      texto: textoDeMensaje(msg),
+    })
+    after(() => enriquecerFila(supabase, fila))
+    return
+  }
+
   const contacto = (valor.contacts || []).find(c => c.wa_id === telefono)
   const nombre = contacto?.profile?.name || null
   const ahora = new Date().toISOString()
@@ -202,11 +254,6 @@ async function procesarMensajeEntrante(msg, valor) {
     || msg.interactive?.button_reply?.title
     || null
 
-  // Se decide antes de descargar nada, para guardar la foto en la carpeta
-  // correcta del storage (separado de los comprobantes de clientes).
-  const diezEmisor = a10Digitos(telefono)
-  const esVenta = diezEmisor ? await esVendedorVentas(supabase, diezEmisor) : false
-
   let pathImagen = null
   let urlParaClasificar = null
   let pathDocumento = null
@@ -214,7 +261,7 @@ async function procesarMensajeEntrante(msg, valor) {
 
   if (msg.type === 'image' && msg.image?.id) {
     try {
-      pathImagen = await descargarYGuardarMedia(msg.image.id, supabase, esVenta ? 'ventas_whatsapp' : 'comprobantes')
+      pathImagen = await descargarYGuardarMedia(msg.image.id, supabase, 'comprobantes')
       urlParaClasificar = await urlFirmada(supabase, pathImagen, 300)
     } catch (err) {
       console.error('[webhook whatsapp] no se pudo descargar la imagen:', err?.message)
@@ -239,46 +286,6 @@ async function procesarMensajeEntrante(msg, valor) {
     } catch (err) {
       console.error('[webhook whatsapp] no se pudo descargar el documento:', err?.message)
     }
-  }
-
-  // Registro de ventas por WhatsApp (ver
-  // claude/ventas-whatsapp-preaprobacion-diseno.md): si quien escribe está en
-  // la lista blanca de vendedores, este mensaje NUNCA pasa por el
-  // clasificador de comprobantes/pedido_especifico — es un flujo aparte y
-  // siempre termina en "Por aprobar" dentro de Encargos/Pedidos, nunca en
-  // Pendientes de WhatsApp.
-  if (esVenta) {
-    // Meta puede entregar el MISMO mensaje dos veces (una copia validando
-    // nuestra firma, otra sin validar — ver claude/whatsapp-webhook-b8-
-    // resuelto.md) y ahora aceptamos ambas para la lista blanca; sin este
-    // control cada mensaje se procesaba dos veces (2 ventas se veían como
-    // 4). Se descarta la segunda copia de plano, antes de tocar nada.
-    if (await yaFueProcesado(supabase, msg.id)) {
-      console.log('[ventasWhatsapp] mensaje duplicado, ignorado', { idMensaje: msg.id })
-      return
-    }
-    // Temporal: confirmar en logs qué llega realmente en cada mensaje de
-    // venta (tipo, si trae imagen, y el texto exacto) — así se puede seguir
-    // viendo en producción cómo se está clasificando cada mensaje.
-    console.log('[ventasWhatsapp] mensaje entrante', {
-      tipo: msg.type,
-      traeImagen: !!urlParaClasificar,
-      texto,
-    })
-    try {
-      if (urlParaClasificar) {
-        // Mensaje de foto — el precio viene en el caption si es solo un
-        // número; si no, llega como su propio mensaje (ver ventasWhatsapp.js).
-        await procesarMensajeVentaFoto(supabase, { pathImagen, imagenUrlFirmada: urlParaClasificar, caption: texto })
-      } else if (texto) {
-        // Mensaje de precio MXN (solo número) o de cliente + costo USD —
-        // procesarMensajeVentaTexto distingue cuál es.
-        await procesarMensajeVentaTexto(supabase, { texto })
-      }
-    } catch (err) {
-      console.error('[webhook whatsapp] error registrando venta por WhatsApp:', err?.message)
-    }
-    return
   }
 
   if (!texto && !urlParaClasificar && !urlDocumentoParaClasificar) return // audio, sticker, ubicación, etc. — nada que clasificar por ahora

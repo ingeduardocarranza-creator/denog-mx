@@ -62,6 +62,10 @@ export default function PorAprobar({ embebido = false }) {
   // parada la lista. Se muestran porque un mensaje perdido en silencio es
   // exactamente lo que se está tratando de evitar.
   const [omitidos, setOmitidos] = useState(0)
+  // Eduardo revisa conversación por conversación: entra a una bitácora,
+  // aprueba todo lo de ahí, termina, y luego se mete a la otra. Mezclarlas en
+  // una sola lista lo obliga a entrar y salir.
+  const [bitacora, setBitacora] = useState('todas')
 
   // Tipo de cambio, impuesto, tienda, fecha de compra y entrega son datos del
   // DÍA/sesión de revisión, no de cada venta individual — mismo patrón que
@@ -196,7 +200,15 @@ export default function PorAprobar({ embebido = false }) {
     )
   }
 
-  const listas = pedidos.filter(p => faltantes(p).length === 0).length
+  // Las bitácoras salen de los propios pedidos, no de una lista fija: si
+  // mañana se da de alta una tercera, su pestaña aparece sola.
+  const etiquetaDe = p => p.bitacora_etiqueta || 'Sin bitácora'
+  const bitacoras = [...new Set(pedidos.map(etiquetaDe))].sort()
+  // Si la bitácora elegida se vacía al aprobar lo último, se vuelve a "Todas"
+  // en vez de dejar la pantalla en blanco sin explicación.
+  const filtro = bitacoras.includes(bitacora) ? bitacora : 'todas'
+  const visibles = filtro === 'todas' ? pedidos : pedidos.filter(p => etiquetaDe(p) === filtro)
+  const listas = visibles.filter(p => faltantes(p).length === 0).length
 
   return (
     <div style={{ minHeight: embebido ? 0 : '100vh', background: embebido ? 'transparent' : 'var(--fondo)', color: 'var(--tinta)' }}>
@@ -225,10 +237,10 @@ export default function PorAprobar({ embebido = false }) {
                 sin importar en qué orden lleguen los mensajes.
               </p>
             </div>
-            {pedidos.length > 0 && (
+            {visibles.length > 0 && (
               <div style={{ display: 'flex', gap: 8 }}>
                 <span style={{ background: status.info.bg, color: status.info.fg, fontSize: 12.5, fontWeight: 700, padding: '5px 12px', borderRadius: 999 }}>
-                  {pedidos.length} pendiente{pedidos.length === 1 ? '' : 's'}
+                  {visibles.length} pendiente{visibles.length === 1 ? '' : 's'}
                 </span>
                 {listas > 0 && (
                   <span style={{ background: status.success.bg, color: status.success.fg, fontSize: 12.5, fontWeight: 700, padding: '5px 12px', borderRadius: 999 }}>
@@ -238,6 +250,28 @@ export default function PorAprobar({ embebido = false }) {
               </div>
             )}
           </div>
+
+          {/* Una pestaña por bitácora. Solo aparecen si de verdad hay más de
+              una conversación de dónde escoger. */}
+          {bitacoras.length > 1 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+              {['todas', ...bitacoras].map(op => {
+                const n = op === 'todas' ? pedidos.length : pedidos.filter(p => etiquetaDe(p) === op).length
+                const activa = filtro === op
+                return (
+                  <button key={op} onClick={() => setBitacora(op)} style={{
+                    background: activa ? clay[500] : 'var(--w06)',
+                    color: activa ? '#fff' : 'var(--w55)',
+                    border: `1px solid ${activa ? clay[500] : 'var(--w12)'}`,
+                    borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700,
+                    cursor: 'pointer', transition: 'background .15s',
+                  }}>
+                    {op === 'todas' ? 'Todas' : op} <span style={{ opacity: 0.75, fontWeight: 600 }}>{n}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
           {omitidos > 0 && (
             <div style={{ background: status.danger.bg, color: status.danger.fg, border: `1px solid ${status.danger.fg}33`, borderRadius: 14, padding: '12px 16px', marginBottom: 14, fontSize: 13.5 }}>
@@ -319,15 +353,24 @@ export default function PorAprobar({ embebido = false }) {
       </div>
 
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '24px 24px 48px' }}>
-        {pedidos.length === 0 && (
+        {visibles.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--w40)' }}>
             <div style={{ fontSize: 40, marginBottom: 10 }}>🎉</div>
-            <div style={{ fontSize: 15 }}>No hay nada pendiente de aprobar.</div>
+            <div style={{ fontSize: 15 }}>
+              {filtro === 'todas'
+                ? 'No hay nada pendiente de aprobar.'
+                : `Terminaste con ${filtro}.`}
+            </div>
+            {filtro !== 'todas' && pedidos.length > 0 && (
+              <button onClick={() => setBitacora('todas')} style={{ marginTop: 12, background: 'transparent', border: '1px solid var(--w15)', color: 'var(--w55)', borderRadius: 999, padding: '6px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Ver las otras ({pedidos.length})
+              </button>
+            )}
           </div>
         )}
 
         <div style={{ display: 'grid', gap: 14 }}>
-          {pedidos.map(p => {
+          {visibles.map(p => {
             const { costo_mxn, utilidad } = calcular(p)
             const busq = busquedas[p.id] ?? (clientes.find(c => c.id === p.cliente_id)?.nombre || '')
             const sugerencias = !p.cliente_id && busq.trim()
@@ -377,6 +420,14 @@ export default function PorAprobar({ embebido = false }) {
                       puede estar mal; "por respuesta" es un enlace exacto que
                       mandó WhatsApp. Con varias personas mandando a la vez,
                       esta es la diferencia entre confiar y revisar todo. */}
+                  {/* De qué conversación vino. Solo hace falta cuando se
+                      están viendo todas juntas; dentro de una pestaña sería
+                      repetir lo mismo en cada tarjeta. */}
+                  {filtro === 'todas' && p.bitacora_etiqueta && (
+                    <span style={{ background: 'var(--w06)', color: 'var(--w45)', fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999 }}>
+                      {p.bitacora_etiqueta}
+                    </span>
+                  )}
                   {p.emparejado_por === 'respuesta' && (
                     <span title="El cliente se escribió respondiendo a esta foto: el enlace es exacto."
                       style={{ background: status.info.bg, color: status.info.fg, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999 }}>

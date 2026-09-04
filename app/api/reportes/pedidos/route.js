@@ -101,13 +101,28 @@ export async function GET(req) {
   if (pendienteAprobacionParam === 'true' && allData.length > 0) {
     const { data: origenes } = await supabase
       .from('whatsapp_ventas_bandeja')
-      .select('pedido_id, responde_a')
-      .eq('clase', 'texto')
+      .select('pedido_id, responde_a, clase, telefono')
       .in('pedido_id', allData.map(p => p.id))
-    const porRespuesta = new Set((origenes || []).filter(o => o.responde_a).map(o => o.pedido_id))
-    const conTexto = new Set((origenes || []).map(o => o.pedido_id))
+    const filas = origenes || []
+    const porRespuesta = new Set(filas.filter(o => o.clase === 'texto' && o.responde_a).map(o => o.pedido_id))
+    const conTexto = new Set(filas.filter(o => o.clase === 'texto').map(o => o.pedido_id))
+
+    // De qué bitácora vino cada venta. Eduardo revisa conversación por
+    // conversación —entra a una, aprueba todo lo de ahí, y luego a la otra—
+    // así que la pantalla las separa en pestañas. La etiqueta vive en la lista
+    // blanca para que dar de alta una bitácora nueva no requiera tocar código.
+    const bitacoraDe = new Map(filas.map(o => [o.pedido_id, o.telefono]))
+    const { data: destinos } = await supabase
+      .from('vendedores_whatsapp_ventas')
+      .select('telefono, etiqueta')
+      .eq('origen', 'eco')
+    const etiquetas = new Map((destinos || []).map(d => [d.telefono, d.etiqueta]))
+
     for (const p of allData) {
       p.emparejado_por = porRespuesta.has(p.id) ? 'respuesta' : (conTexto.has(p.id) ? 'orden' : null)
+      const tel = bitacoraDe.get(p.id) || null
+      p.bitacora = tel
+      p.bitacora_etiqueta = tel ? (etiquetas.get(tel) || tel) : null
     }
   }
 

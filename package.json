@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.3",
-    "@napi-rs/canvas": "^1.0.8",
     "@supabase/supabase-js": "^2.105.4",
     "bcryptjs": "^3.0.3",
     "exceljs": "^4.4.0",

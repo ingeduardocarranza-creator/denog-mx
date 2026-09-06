@@ -36,7 +36,10 @@ export async function GET(req) {
 
     supabase.from('pedidos')
       .select('id, cliente_id, descripcion, precio_venta, cantidad, estado')
-      .eq('entrega_id', entrega_id),
+      .eq('entrega_id', entrega_id)
+      // Borradores de WhatsApp y descartados no son mercancía.
+      .eq('pendiente_aprobacion', false)
+      .neq('estado', 'descartado'),
 
     supabase.from('pagos')
       .select('id, cliente_id, monto, metodo, tipo, creado_en, pendiente_id')

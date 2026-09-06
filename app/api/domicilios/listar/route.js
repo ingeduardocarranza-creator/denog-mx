@@ -38,7 +38,10 @@ export async function GET(req) {
         .select('descripcion, precio_venta, cantidad, entrega_id, entregas(fecha_entrega)')
         .eq('cliente_id', d.cliente_id)
         .in('entrega_id', d.entrega_ids || [])
-        .not('estado', 'in', '("Cancelado","no_llego","pendiente")')
+        // Borradores de WhatsApp y descartados no son mercancía: no se cobran
+        // en la puerta. Mismo criterio que lib/estadosCuenta/datosServidor.js.
+        .eq('pendiente_aprobacion', false)
+        .not('estado', 'in', '("Cancelado","no_llego","pendiente","descartado")')
 
       const { data: anticipos } = await supabase
         .from('pagos')

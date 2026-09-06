@@ -18,7 +18,11 @@ export async function GET(req) {
     .from('pedidos')
     .select('*, entregas(fecha_entrega, estado)')
     .eq('cliente_id', cliente_id)
-    .not('estado', 'in', '("Cancelado","no_llego","pendiente")')
+    // Un pedido con pendiente_aprobacion=true es un borrador que armó la IA desde
+    // WhatsApp (y 'descartado' es un borrador rechazado): no es mercancía real.
+    // Mismo criterio que lib/estadosCuenta/datosServidor.js.
+    .eq('pendiente_aprobacion', false)
+    .not('estado', 'in', '("Cancelado","no_llego","pendiente","descartado")')
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
 

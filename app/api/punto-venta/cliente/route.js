@@ -18,11 +18,17 @@ export async function GET(req) {
   if (!cliente_id) return NextResponse.json({ ok: false, mensaje: 'cliente_id requerido' })
 
   const [pedidosRes, mercaditoRes, anticiposRes] = await Promise.all([
+    // Mismo criterio que el estado de cuenta (lib/estadosCuenta/datosServidor.js):
+    // un pedido que sigue en 'pendiente_aprobacion' es un BORRADOR que armó la IA
+    // desde WhatsApp — todavía no es una compra. Los descartados son borradores
+    // rechazados. Sin este filtro el POS le cobraba al cliente mercancía que
+    // nunca existió, y el saldo no coincidía con su estado de cuenta.
     supabase
       .from('pedidos')
       .select('*')
       .eq('cliente_id', cliente_id)
-      .not('estado', 'in', '("Pagado","Entregado","Cancelado","no_llego","pendiente")'),
+      .eq('pendiente_aprobacion', false)
+      .not('estado', 'in', '("Pagado","Entregado","Cancelado","no_llego","pendiente","descartado")'),
 
     supabase
       .from('pedidos_mercadito')

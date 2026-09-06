@@ -70,6 +70,27 @@ export async function GET(req) {
       .select('id, fecha_entrega, estado, nota')
       .in('id', idsEntregas)
     entregas = data || []
+
+    // La cuenta de cada entrega, para que la pantalla calcule lo mismo que el
+    // servidor: mercancia que el cliente YA se llevo de esa entrega, y todo lo
+    // que ya abono ahi (anticipos incluidos). Sin esto, una entrega cobrada en
+    // dos vueltas descontaria el mismo anticipo dos veces.
+    const [{ data: pedsEnt }, { data: pagosEnt }] = await Promise.all([
+      supabase.from('pedidos')
+        .select('entrega_id, precio_venta')
+        .eq('cliente_id', cliente_id)
+        .eq('pendiente_aprobacion', false)
+        .eq('estado', 'Entregado')
+        .in('entrega_id', idsEntregas),
+      supabase.from('pagos')
+        .select('entrega_id, monto')
+        .eq('cliente_id', cliente_id)
+        .in('entrega_id', idsEntregas),
+    ])
+    const yaEnt = {}, pagEnt = {}
+    for (const x of (pedsEnt || [])) yaEnt[x.entrega_id] = (yaEnt[x.entrega_id] || 0) + Number(x.precio_venta || 0)
+    for (const x of (pagosEnt || [])) pagEnt[x.entrega_id] = (pagEnt[x.entrega_id] || 0) + Number(x.monto || 0)
+    entregas = entregas.map(e => ({ ...e, ya_entregado: yaEnt[e.id] || 0, pagado: pagEnt[e.id] || 0 }))
   }
 
   // Un anticipo que ya quedó atribuido a una entrega liquidada NO se vuelve a

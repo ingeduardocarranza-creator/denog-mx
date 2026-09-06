@@ -93,18 +93,32 @@ export async function POST(req) {
           .map(a => [a.id, { ...a, monto: Number(a.monto) || 0 }])
       )
 
-      // Cuántos pedidos le quedan al cliente en cada entrega. Sirve para saber
-      // si este cobro cierra la entrega completa o solo una parte de ella.
-      const { data: pendientesCliente } = await supabase
-        .from('pedidos')
-        .select('id, entrega_id')
-        .eq('cliente_id', clienteId)
-        .eq('pendiente_aprobacion', false)
-        .not('estado', 'in', '("Pagado","Entregado","Cancelado","no_llego","pendiente","descartado")')
-      const pendientesPorEntrega = {}
-      for (const p of (pendientesCliente || [])) {
-        if (!p.entrega_id) continue
-        ;(pendientesPorEntrega[p.entrega_id] || (pendientesPorEntrega[p.entrega_id] = [])).push(p.id)
+      // La cuenta de cada entrega, tal como la ven el estado de cuenta y la
+      // pantalla de Anticipos: TODO lo que vale la entrega menos TODOS sus
+      // pagos. Se relee de la base entera, no solo lo que se esta cobrando
+      // ahora, porque una entrega se puede cobrar en dos vueltas.
+      const idsBloques = [...new Set((bloquesOrdenados || []).map(b => b.entregaId).filter(Boolean))]
+      const yaEntregado = {}   // por entrega: mercancia que ya se llevo
+      const pagadoEntrega = {} // por entrega: todo lo que ya abono ahi
+      if (idsBloques.length > 0) {
+        const [{ data: pedsEntrega }, { data: pagosEntrega }] = await Promise.all([
+          supabase.from('pedidos')
+            .select('entrega_id, precio_venta')
+            .eq('cliente_id', clienteId)
+            .eq('pendiente_aprobacion', false)
+            .eq('estado', 'Entregado')
+            .in('entrega_id', idsBloques),
+          supabase.from('pagos')
+            .select('entrega_id, monto')
+            .eq('cliente_id', clienteId)
+            .in('entrega_id', idsBloques),
+        ])
+        for (const x of (pedsEntrega || [])) {
+          yaEntregado[x.entrega_id] = (yaEntregado[x.entrega_id] || 0) + Number(x.precio_venta || 0)
+        }
+        for (const x of (pagosEntrega || [])) {
+          pagadoEntrega[x.entrega_id] = (pagadoEntrega[x.entrega_id] || 0) + Number(x.monto || 0)
+        }
       }
 
       // ── Candado: nada que no esté en tienda se cobra ──────────────────
@@ -130,33 +144,30 @@ export async function POST(req) {
       }
 
       for (const bloque of (bloquesOrdenados || [])) {
-        const { entregaId, pedidoIds, anticiposDeEstaEntrega } = bloque
+        const { entregaId, pedidoIds } = bloque
 
         // Calculate verified total from DB prices (ignores client-supplied value)
         const totalVerificado = (pedidoIds || []).reduce((s, id) => s + (precioPorPedido[id] || 0), 0)
         if (!totalVerificado || totalVerificado === 0) continue
 
-        let netoBloque = totalVerificado
-
-        // Un anticipo de ESTA entrega ya es un pago registrado contra ella:
-        // solo baja lo que falta por cobrar. NO se borra.
+        // Lo que falta por cobrar de ESTA entrega, no solo de lo que se esta
+        // entregando en este momento:
         //
-        // Borrarlo era el bug: al liquidar, el dinero del anticipo desaparecía
-        // de `pagos` y la entrega se quedaba para siempre con saldo — la
-        // pantalla de Anticipos nunca la veía liquidada, aunque el cliente ya
-        // hubiera pagado todo. Y si el anticipo cubría el pedido completo, no
-        // se insertaba ningún pago: quedaba cobrado $0.
-        for (const ref of (anticiposDeEstaEntrega || [])) {
-          if (netoBloque <= 0) break
-          const a = anticipoPorId[ref.id]
-          if (!a || a.monto <= 0) continue
-          const usar = Math.min(a.monto, netoBloque)
-          a.monto -= usar
-          netoBloque -= usar
-        }
+        //   (mercancia ya entregada + la que se entrega ahora) - todo lo pagado
+        //
+        // Los anticipos de la entrega ya estan dentro de `pagadoEntrega`, asi
+        // que descuentan solos y NO hay que tocarlos. Antes se "gastaban"
+        // borrando la fila: eso hacia desaparecer el dinero del registro y,
+        // ademas, una entrega cobrada en dos vueltas descontaba el mismo
+        // anticipo dos veces porque la segunda vuelta solo miraba lo que se
+        // estaba entregando.
+        let netoBloque = Math.max(
+          0,
+          (yaEntregado[entregaId] || 0) + totalVerificado - (pagadoEntrega[entregaId] || 0)
+        )
 
-        // Un anticipo general (sin entrega) sí se mueve, pero para atribuirlo:
-        // se le pone la entrega que está pagando. Si solo se usa una parte, se
+        // Un anticipo general (sin entrega) si se mueve, pero para atribuirlo:
+        // se le pone la entrega que esta pagando. Si solo se usa una parte, se
         // parte en dos filas — la suma de `pagos` no cambia nunca.
         for (const ref of (anticiposGenerales || [])) {
           if (netoBloque <= 0) break
@@ -175,32 +186,6 @@ export async function POST(req) {
           }
           a.monto -= usar
           netoBloque -= usar
-        }
-
-        // Si el anticipo de esta entrega alcanzó para todo y todavía sobra, ese
-        // sobrante es saldo a favor del cliente: se despega de la entrega y
-        // vuelve a ser anticipo general, para que el POS se lo pueda ofrecer la
-        // próxima vez. Solo cuando este cobro cierra la entrega completa — si
-        // se está cobrando nada más una parte, el resto sigue haciendo falta ahí.
-        const pendientesDeLaEntrega = pendientesPorEntrega[entregaId] || []
-        const cierraLaEntrega = pendientesDeLaEntrega.every(id => (pedidoIds || []).includes(id))
-        if (netoBloque <= 0 && cierraLaEntrega) {
-          for (const ref of (anticiposDeEstaEntrega || [])) {
-            const a = anticipoPorId[ref.id]
-            if (!a || a.monto <= 0.5) continue
-            const original = (anticiposDB || []).find(x => x.id === a.id)
-            const usado = Number(original?.monto || 0) - a.monto
-            if (usado > 0.5) {
-              await supabase.from('pagos').update({ monto: usado }).eq('id', a.id)
-              await supabase.from('pagos').insert({
-                cliente_id: clienteId, entrega_id: null, tipo: 'Anticipo',
-                monto: a.monto, metodo: a.metodo, vendedor_id: colaboradorId,
-              })
-            } else {
-              await supabase.from('pagos').update({ entrega_id: null }).eq('id', a.id)
-            }
-            a.monto = 0
-          }
         }
 
         // Apply received payment to the remaining net

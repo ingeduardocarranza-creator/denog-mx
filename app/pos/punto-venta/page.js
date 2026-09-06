@@ -458,17 +458,26 @@ const horariosDelDia = (f) => {
   let desgloseTicketEncargos = [];
   let sumaEncargosTotalNeto = 0;
 
+  // Lo que falta por cobrar de una entrega es la cuenta COMPLETA de esa
+  // entrega, no solo lo que se esta entregando en este momento:
+  //
+  //   (lo que ya se llevo + lo que se lleva ahora) - todo lo que ya abono
+  //
+  // `ya_entregado` y `pagado` vienen de /api/punto-venta/cliente y son la misma
+  // cuenta que hace el servidor al cobrar. Si aqui se restaran los anticipos
+  // por separado, una entrega cobrada en dos vueltas los descontaria dos veces.
   bloquesEntregas.forEach((b, idx) => {
     let subtotalArticulos = 0;
     b.pedidos.forEach(p => { if (productosSeleccionados[p.id]) subtotalArticulos += Number(p.precio_venta) || 0; });
-    const anticiposDeEsteBloque = listaAnticipos.filter(ant => ant.entrega_id === b.entrega.id);
-    if (idx === 0) {
-      const anticiposGenerales = listaAnticipos.filter(ant => !ant.entrega_id);
-      anticiposDeEsteBloque.push(...anticiposGenerales);
-    }
-    const totalDescuentoAnticipos = anticiposDeEsteBloque.reduce((acc, a) => acc + Number(a.monto), 0);
-    const subtotalNetoEntrega = Math.max(0, subtotalArticulos - totalDescuentoAnticipos);
-    if (subtotalArticulos > 0 || totalDescuentoAnticipos > 0) {
+    const yaEntregado = Number(b.entrega.ya_entregado || 0);
+    const yaPagado = Number(b.entrega.pagado || 0);
+    // Los anticipos sin entrega se ofrecen al bloque mas viejo, igual que en el servidor.
+    const generales = idx === 0
+      ? listaAnticipos.filter(a => !a.entrega_id).reduce((acc, a) => acc + Number(a.monto), 0)
+      : 0;
+    const subtotalNetoEntrega = Math.max(0, yaEntregado + subtotalArticulos - yaPagado - generales);
+    const descuento = (yaEntregado + subtotalArticulos) - subtotalNetoEntrega;
+    if (subtotalArticulos > 0 || descuento > 0) {
       desgloseTicketEncargos.push({ fecha: b.entrega.fecha_entrega, montoNeto: subtotalNetoEntrega });
       sumaEncargosTotalNeto += subtotalNetoEntrega;
     }

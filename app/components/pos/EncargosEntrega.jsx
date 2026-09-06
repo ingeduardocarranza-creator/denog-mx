@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import FotoPedido from '../FotoPedido';
-import { crearLineaCatalogo, calcularTotalesCarrito } from '../../../lib/pos/tiendaUtils';
+import { crearLineaCatalogo, crearLineaMonto, calcularTotalesCarrito } from '../../../lib/pos/tiendaUtils';
 import Foto from './ProductoFoto';
 import DescuentoForm from './DescuentoForm';
 import { clay } from '../../../lib/theme/colors';
@@ -121,6 +121,20 @@ export default function EncargosEntrega({
       return [...prev, crearLineaCatalogo(producto)];
     });
     setQuery('');
+  };
+
+  // Venta por monto libre dentro de Encargos. La pestaña Tienda ya lo tenía;
+  // aquí faltaba, y el cliente que recoge su pedido muchas veces se lleva algo
+  // que no está dado de alta en el catálogo. Sin esto había que cobrarlo por
+  // fuera y ese peso no quedaba apuntado en ningún lado.
+  const [montoLibre, setMontoLibre] = useState('');
+  const [descLibre, setDescLibre] = useState('');
+  const agregarMontoLibre = () => {
+    const valor = Number(montoLibre);
+    if (!valor || valor <= 0) return;
+    setCart((prev) => [...prev, crearLineaMonto(descLibre, valor)]);
+    setMontoLibre('');
+    setDescLibre('');
   };
 
   const cambiarCantidad = (id, delta) => {
@@ -654,6 +668,54 @@ export default function EncargosEntrega({
               ))}
             </div>
           )}
+
+          {/* Lo que no está en el catálogo. Se guarda como venta de tienda con
+              origen 'manual_monto' y sin costo: el admin lo concilia después.
+              Lo importante es que el peso quede apuntado con su descripción. */}
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--w08)' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--w40)', marginBottom: 7 }}>
+              ¿No está en el catálogo?
+            </div>
+            <div className="flex gap-2" style={{ marginBottom: 7 }}>
+              <div style={{ position: 'relative', width: 116, flex: 'none' }}>
+                <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--w40)', fontSize: 14, fontWeight: 700, pointerEvents: 'none' }}>$</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={montoLibre}
+                  onChange={(e) => setMontoLibre(e.target.value)}
+                  placeholder="0"
+                  className="w-full outline-none"
+                  style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 11, padding: '10px 10px 10px 24px', fontSize: 14, fontWeight: 700, color: 'var(--tinta)', fontVariantNumeric: 'tabular-nums' }}
+                />
+              </div>
+              <input
+                type="text"
+                value={descLibre}
+                onChange={(e) => setDescLibre(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && agregarMontoLibre()}
+                placeholder="Qué se llevó"
+                className="flex-1 min-w-0 outline-none"
+                style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 11, padding: '10px 12px', fontSize: 13, color: 'var(--tinta)' }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={agregarMontoLibre}
+              disabled={!Number(montoLibre)}
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: 11, border: '1px solid rgba(193,85,58,0.4)',
+                background: Number(montoLibre) ? 'rgba(193,85,58,0.16)' : 'var(--w04)',
+                color: Number(montoLibre) ? 'var(--marca-t)' : 'var(--w30)',
+                fontSize: 12.5, fontWeight: 700, cursor: Number(montoLibre) ? 'pointer' : 'default',
+              }}
+            >
+              Agregar por monto
+            </button>
+            <div style={{ fontSize: 10.5, color: 'var(--w30)', marginTop: 6, lineHeight: 1.45 }}>
+              Queda registrado como venta de tienda sin costo, para conciliar después.
+            </div>
+          </div>
 
           {lineasTienda.length > 0 && (
             <div className="mt-3.5 flex flex-col gap-2">

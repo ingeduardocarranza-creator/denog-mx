@@ -252,6 +252,39 @@ const horariosDelDia = (fecha) => {
     const totalPago = monto1 + monto2
     let restante = totalPago
     const entregasOrdenadas = [...(d.entrega_ids || [])]
+    const prop = totalPago > 0 ? monto1 / totalPago : 1
+
+    // Un solo lugar para partir el cobro entre los dos métodos de pago.
+    const cobrar = async (monto, extra) => {
+      if (monto <= 0) return
+      const montoM1 = Math.round(monto * prop)
+      const montoM2 = monto - montoM1
+      if (montoM1 > 0) await fetch('/api/punto-venta/pagar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...extra, pagos: [{ monto: montoM1, metodo: m1 }] }),
+      })
+      if (monto2 > 0 && m2 && montoM2 > 0) await fetch('/api/punto-venta/pagar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...extra, pagos: [{ monto: montoM2, metodo: m2 }] }),
+      })
+    }
+
+    // El envío va en su PROPIO renglón, con tipo 'Envío' y ligado al
+    // domicilio. Antes se sumaba al pago de la mercancía y la entrega recibía
+    // más dinero del que valía: el cliente quedaba marcado "a favor" por el
+    // monto exacto del envío, y no había forma de saber cuánto se llevaba
+    // cobrado de domicilios.
+    const envio = Number(d.costo_envio || 0)
+    if (envio > 0 && restante > 0) {
+      const aplicarEnvio = Math.min(restante, envio)
+      await cobrar(aplicarEnvio, {
+        cliente_id: d.cliente_id,
+        entrega_id: entregasOrdenadas[0] || null,
+        tipo: 'Envío',
+        domicilio_id: d.id,
+      })
+      restante -= aplicarEnvio
+    }
 
     for (let i = 0; i < entregasOrdenadas.length; i++) {
       const entrega_id = entregasOrdenadas[i]
@@ -259,31 +292,13 @@ const horariosDelDia = (fecha) => {
       const anticiposEntrega = (d.anticipos_detalle || []).filter(a => a.entrega_id === entrega_id)
       const subtotalEntrega = productosEntrega.reduce((s, p) => s + (p.precio_venta || 0), 0)
       const totalAnticiposEntrega = anticiposEntrega.reduce((s, a) => s + (a.monto || 0), 0)
-      let porPagarEntrega = Math.max(0, subtotalEntrega - totalAnticiposEntrega)
-      if (i === 0) porPagarEntrega += (d.costo_envio || 0)
+      const porPagarEntrega = Math.max(0, subtotalEntrega - totalAnticiposEntrega)
 
       const montoAplicar = Math.min(restante, porPagarEntrega)
       restante -= montoAplicar
       if (montoAplicar <= 0) continue
 
-      const prop = totalPago > 0 ? monto1 / totalPago : 1
-      const montoM1 = Math.round(montoAplicar * prop)
-      const montoM2 = montoAplicar - montoM1
-
-      if (montoM1 > 0) {
-        await fetch('/api/punto-venta/pagar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cliente_id: d.cliente_id, entrega_id, pagos: [{ monto: montoM1, metodo: m1 }] })
-        })
-      }
-      if (monto2 > 0 && m2 && montoM2 > 0) {
-        await fetch('/api/punto-venta/pagar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cliente_id: d.cliente_id, entrega_id, pagos: [{ monto: montoM2, metodo: m2 }] })
-        })
-      }
+      await cobrar(montoAplicar, { cliente_id: d.cliente_id, entrega_id })
       await fetch('/api/pedidos/actualizar-estado', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

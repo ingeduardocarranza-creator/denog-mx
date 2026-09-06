@@ -82,9 +82,11 @@ export async function GET(req) {
         .eq('pendiente_aprobacion', false)
         .eq('estado', 'Entregado')
         .in('entrega_id', idsEntregas),
+      // Sin los envíos: pagan el domicilio, no la mercancía.
       supabase.from('pagos')
         .select('entrega_id, monto')
         .eq('cliente_id', cliente_id)
+        .neq('tipo', 'Envío')
         .in('entrega_id', idsEntregas),
     ])
     const yaEnt = {}, pagEnt = {}

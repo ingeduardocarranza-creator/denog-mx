@@ -56,13 +56,16 @@ export async function GET(req) {
   const pagosDeTienda = new Set(ventas.map(v => v.pago_id).filter(Boolean))
   const clase = (p) =>
     pagosDeTienda.has(p.id) ? 'tienda'
+    // El envío a domicilio es ingreso por servicio, no venta de mercancía.
+    // Sin esta línea caería en 'otros' y parecería un flujo sin clasificar.
+    : p.tipo === 'Envío' ? 'envios'
     : p.tipo === 'Anticipo' ? 'anticipos'
     : p.entrega_id ? 'entregas'
     : 'otros'
 
   const suma = (arr, f = x => x.monto) => Math.round(arr.reduce((s, x) => s + Number(f(x) || 0), 0) * 100) / 100
 
-  const ingresos = { entregas: 0, anticipos: 0, tienda: 0, otros: 0 }
+  const ingresos = { entregas: 0, anticipos: 0, tienda: 0, envios: 0, otros: 0 }
   const porMetodo = { Efectivo: 0, Transferencia: 0, Terminal: 0, Otro: 0 }
   for (const p of pagos) {
     ingresos[clase(p)] += Number(p.monto || 0)

@@ -108,9 +108,11 @@ export async function POST(req) {
             .eq('pendiente_aprobacion', false)
             .eq('estado', 'Entregado')
             .in('entrega_id', idsBloques),
+          // El envío se excluye a propósito: es un servicio, no mercancía.
           supabase.from('pagos')
             .select('entrega_id, monto')
             .eq('cliente_id', clienteId)
+            .neq('tipo', 'Envío')
             .in('entrega_id', idsBloques),
         ])
         for (const x of (pedsEntrega || [])) {

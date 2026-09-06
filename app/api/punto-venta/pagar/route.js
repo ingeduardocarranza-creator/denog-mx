@@ -11,7 +11,13 @@ const supabase = createClient(
 export async function POST(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  const { cliente_id, entrega_id, pagos, vendedor_id } = await req.json()
+  const { cliente_id, entrega_id, pagos, vendedor_id, tipo, domicilio_id } = await req.json()
+
+  // 'Envío' es el costo del domicilio: entra a la caja como cualquier cobro,
+  // pero NO es mercancía y por eso no cuenta contra el saldo de la entrega.
+  // Antes se sumaba al mismo renglón que la mercancía y el cliente quedaba
+  // marcado "a favor" por el monto exacto del envío.
+  const tipoPago = ['Venta Liquidación', 'Envío'].includes(tipo) ? tipo : 'Venta Liquidación'
 
   // Mismo candado que en /api/punto-venta/cobrar: esta ruta es la que usa el
   // cobro a domicilio, y también liquida una entrega. Si la mercancía todavía
@@ -35,7 +41,8 @@ export async function POST(req) {
     entrega_id,
     monto: p.monto,
     metodo: p.metodo,
-    tipo: 'Venta Liquidación',
+    tipo: tipoPago,
+    domicilio_id: domicilio_id || null,
     // Quién cobró. Se venía mandando desde el POS y se tiraba aquí: todos los
     // cobros a domicilio quedaban sin responsable, igual que pasaba con los
     // retiros de caja.

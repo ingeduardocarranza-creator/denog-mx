@@ -41,9 +41,12 @@ export async function GET(req) {
       .eq('pendiente_aprobacion', false)
       .neq('estado', 'descartado'),
 
+    // El envío del domicilio no entra: no es mercancía de esta entrega y
+    // haría ver al cliente con saldo a favor por el monto exacto del envío.
     supabase.from('pagos')
       .select('id, cliente_id, monto, metodo, tipo, creado_en, pendiente_id')
       .eq('entrega_id', entrega_id)
+      .neq('tipo', 'Envío')
       .order('creado_en', { ascending: true }),
 
     supabase.from('clientes').select('id, nombre, telefono').neq('rol', 'admin'),

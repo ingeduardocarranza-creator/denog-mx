@@ -57,7 +57,7 @@ export async function GET(req) {
       : (firmadas[p.imagen_url] || null),
   }))
   const mercadito = mercaditoRes.data || []
-  const anticipos = anticiposRes.data || []
+  const todosAnticipos = anticiposRes.data || []
 
   // El POS necesita saber si la mercancía ya llegó. Una entrega "en proceso"
   // se muestra, pero bloqueada: el colaborador ve que el encargo existe (para
@@ -71,6 +71,13 @@ export async function GET(req) {
       .in('id', idsEntregas)
     entregas = data || []
   }
+
+  // Un anticipo que ya quedó atribuido a una entrega liquidada NO se vuelve a
+  // ofrecer: ya se gastó. Se muestran los generales (sin entrega) y los de las
+  // entregas que el cliente todavía tiene pendientes. Antes esto no hacía falta
+  // porque el cobro BORRABA el anticipo al usarlo — y con él, el registro del
+  // dinero. Ahora la fila se conserva, así que el filtro va aquí.
+  const anticipos = todosAnticipos.filter(a => !a.entrega_id || idsEntregas.includes(a.entrega_id))
 
   // Fetch payments already made on the mercadito orders to calculate balance
   let pagosMercadito = []

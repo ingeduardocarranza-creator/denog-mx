@@ -572,6 +572,9 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, onDesc
           </div>
           <div style={{ color: 'var(--w30)', fontSize: 11, marginTop: 3 }}>
             {r.articulos} artículo{r.articulos !== 1 ? 's' : ''} · {fmt(r.total)} · abonado {fmt(r.pagado)}
+            {r.entregado_en && (
+              <span style={{ color: 'var(--verde)', fontWeight: 600 }}> · recogió {fechaCorta(r.entregado_en)}</span>
+            )}
           </div>
           <div style={{ height: 3, background: 'var(--w06)', borderRadius: 2, marginTop: 7, overflow: 'hidden' }}>
             <div style={{ width: `${pct}%`, height: '100%', background: est.tono, borderRadius: 2, transition: 'width .3s' }} />
@@ -645,22 +648,38 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, onDesc
             </div>
           )}
 
+          {/* Anticipos y cobro final van separados: al consultar una cuenta lo
+              que se pregunta es "cuanto habia abonado" y "cuanto pago al
+              recoger", y en una sola lista revuelta eso no se ve. */}
           {r.pagos.length > 0 && (
-            <div style={{ marginTop: 13 }}>
-              <div style={{ color: 'var(--w28)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 0.9, fontWeight: 600, marginBottom: 6 }}>
-                Abonos registrados
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {r.pagos.map(p => (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--w03)', border: '1px solid var(--w04)', borderRadius: 9, padding: '8px 11px' }}>
-                    <span className="monto" style={{ color: ESTADO.liquidado.tono, fontSize: 12.5, fontWeight: 800, width: 82 }}>{fmt(p.monto)}</span>
-                    <span style={{ color: 'var(--w33)', fontSize: 11, flex: 1 }}>
-                      {fechaCorta(p.creado_en)} · {p.metodo}{p.pendiente_id ? ' · desde comprobante' : ''}
-                    </span>
-                    <button className="btn btn-cancelar" onClick={() => onCancelar(p)}>Cancelar</button>
+            <div style={{ marginTop: 13, display: 'flex', flexDirection: 'column', gap: 11 }}>
+              {[
+                { et: 'Anticipos', lista: r.pagos.filter(p => p.tipo === 'Anticipo'), suma: r.anticipos },
+                { et: 'Cobro final al recoger', lista: r.pagos.filter(p => p.tipo !== 'Anticipo'), suma: r.cobro_final },
+              ].filter(g => g.lista.length > 0).map(g => (
+                <div key={g.et}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+                    <span style={{ color: 'var(--w28)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 0.9, fontWeight: 600 }}>{g.et}</span>
+                    <span className="monto" style={{ color: 'var(--w33)', fontSize: 11, fontWeight: 700 }}>{fmt(g.suma)}</span>
                   </div>
-                ))}
-              </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {g.lista.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--w03)', border: '1px solid var(--w04)', borderRadius: 9, padding: '8px 11px' }}>
+                        <span className="monto" style={{ color: ESTADO.liquidado.tono, fontSize: 12.5, fontWeight: 800, width: 82 }}>{fmt(p.monto)}</span>
+                        <span style={{ color: 'var(--w33)', fontSize: 11, flex: 1 }}>
+                          {fechaCorta(p.creado_en)} · {p.metodo}{p.pendiente_id ? ' · desde comprobante' : ''}
+                        </span>
+                        <button className="btn btn-cancelar" onClick={() => onCancelar(p)}>Cancelar</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {r.entregado_en && (
+                <div style={{ color: 'var(--w28)', fontSize: 10.5 }}>
+                  Mercancía entregada el <span style={{ color: 'var(--verde)', fontWeight: 700 }}>{fechaCorta(r.entregado_en)}</span>
+                </div>
+              )}
             </div>
           )}
         </div>

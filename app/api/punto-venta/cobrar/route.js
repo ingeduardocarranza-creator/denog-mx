@@ -9,6 +9,18 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 )
 
+// Hora de Hermosillo en el formato que guarda la base (timestamp sin zona).
+// `new Date().toISOString()` guardaria UTC y los cobros de la tarde saldrian
+// con fecha del dia siguiente.
+function horaLocal() {
+  const p = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Hermosillo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(new Date())
+  return p.replace(' ', 'T')
+}
+
 export async function POST(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
@@ -238,10 +250,14 @@ export async function POST(req) {
         })
       }
 
-      // Mark pedidos as Entregado
+      // Mark pedidos as Entregado. `entregado_en` es el dia real en que el
+      // cliente se llevo la mercancia — no se puede deducir despues: si el
+      // anticipo cubria todo, no queda ni un pago con esa fecha. Hora local de
+      // Hermosillo, misma convencion que pagos.creado_en.
+      const entregadoEn = horaLocal()
       const todosLosIds = (bloquesOrdenados || []).flatMap(b => b.pedidoIds || [])
       for (const id of todosLosIds) {
-        await supabase.from('pedidos').update({ estado: 'Entregado' }).eq('id', id)
+        await supabase.from('pedidos').update({ estado: 'Entregado', entregado_en: entregadoEn }).eq('id', id)
       }
 
       // Update stock for tienda items in encargo — re-query DB stock to avoid client manipulation

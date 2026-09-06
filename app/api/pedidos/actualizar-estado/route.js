@@ -8,6 +8,16 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 )
 
+// Hora de Hermosillo en el formato que guarda la base (timestamp sin zona).
+function horaLocal() {
+  const p = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Hermosillo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(new Date())
+  return p.replace(' ', 'T')
+}
+
 export async function POST(req) {
   if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const { cliente_id, entrega_id, estado } = await req.json()
@@ -38,9 +48,14 @@ export async function POST(req) {
     }
   }
 
+  // Al marcar Entregado se sella el dia real de la entrega. Es el mismo dato
+  // que escribe el POS al cobrar; esta ruta la usa el cobro a domicilio.
+  const cambios = { estado }
+  if (estado === 'Entregado') cambios.entregado_en = horaLocal()
+
   const { error } = await supabase
     .from('pedidos')
-    .update({ estado })
+    .update(cambios)
     .eq('cliente_id', cliente_id)
     .eq('entrega_id', entrega_id)
 

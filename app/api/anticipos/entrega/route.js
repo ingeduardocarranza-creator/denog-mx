@@ -35,7 +35,7 @@ export async function GET(req) {
     supabase.from('entregas').select('id, fecha_entrega, nota, estado').eq('id', entrega_id).single(),
 
     supabase.from('pedidos')
-      .select('id, cliente_id, descripcion, precio_venta, cantidad, estado')
+      .select('id, cliente_id, descripcion, precio_venta, cantidad, estado, entregado_en')
       .eq('entrega_id', entrega_id)
       // Borradores de WhatsApp y descartados no son mercancía.
       .eq('pendiente_aprobacion', false)
@@ -73,14 +73,24 @@ export async function GET(req) {
       nombre: porId[p.cliente_id]?.nombre || 'Sin nombre',
       telefono: porId[p.cliente_id]?.telefono || null,
       articulos: 0, total: 0, pagos: [], pagado: 0, saldo: 0,
+      anticipos: 0, cobro_final: 0, entregado_en: null,
     })
     r.articulos += 1
     r.total += Number(p.precio_venta || 0)
+    // Cuando recogio. Se toma el mas reciente de sus pedidos: si vino en dos
+    // vueltas, la que importa para una consulta es la ultima.
+    if (p.entregado_en && (!r.entregado_en || p.entregado_en > r.entregado_en)) {
+      r.entregado_en = p.entregado_en
+    }
   }
   for (const g of pagos) {
     if (!g.cliente_id || !roster[g.cliente_id]) continue
     roster[g.cliente_id].pagos.push(g)
     roster[g.cliente_id].pagado += Number(g.monto || 0)
+    // Anticipo (lo que abono antes) y cobro final (lo que pago al recoger) son
+    // dos cosas distintas para quien consulta una cuenta. Se suman aparte.
+    if (g.tipo === 'Anticipo') roster[g.cliente_id].anticipos += Number(g.monto || 0)
+    else roster[g.cliente_id].cobro_final += Number(g.monto || 0)
   }
 
   const lista = Object.values(roster).map(r => {

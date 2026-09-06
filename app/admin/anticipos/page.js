@@ -524,6 +524,10 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, onDesc
   const [monto, setMonto] = useState('')
   const [metodo, setMetodo] = useState('Transferencia')
   const [fecha, setFecha] = useState(hoyISO())
+  // Un abono que llegó antes de recoger y un cobro hecho en el mostrador son
+  // dos cosas distintas en Reportes. Antes todo lo capturado aquí entraba como
+  // anticipo, aunque el cliente estuviera enfrente pagando.
+  const [enMostrador, setEnMostrador] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const ref = useRef(null)
 
@@ -538,6 +542,7 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, onDesc
     setGuardando(true)
     const ok = await onGuardar({
       cliente_id: r.cliente_id, entrega_id: entregaId, monto: valor, metodo,
+      tipo: enMostrador ? 'Venta Liquidación' : 'Anticipo',
       creado_en: `${fecha}T${new Date().toLocaleTimeString('es-MX', { hour12: false })}.000Z`,
     })
     setGuardando(false)
@@ -611,11 +616,27 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, onDesc
             </div>
           </div>
 
+          {/* De dónde viene el dinero. Decide si el renglón se guarda como
+              anticipo o como cobro del mostrador, que es lo que separa las dos
+              barras de Reportes. */}
+          <div style={{ display: 'flex', gap: 3, background: 'var(--w03)', padding: 3, borderRadius: 10, marginTop: 8, width: 'fit-content' }}>
+            {[
+              { v: false, et: 'Abono anticipado' },
+              { v: true, et: 'Cobro en mostrador' },
+            ].map(o => (
+              <button key={o.et} onClick={() => setEnMostrador(o.v)}
+                style={{ padding: '6px 12px', borderRadius: 7, fontSize: 11, cursor: 'pointer', border: 'none',
+                  background: enMostrador === o.v ? 'rgba(15,138,99,0.24)' : 'transparent',
+                  color: enMostrador === o.v ? 'var(--verde)' : 'var(--w40)',
+                  fontWeight: enMostrador === o.v ? 700 : 500 }}>{o.et}</button>
+            ))}
+          </div>
+
           {/* Naranja = abonar lo que tecleaste. Verde = liquidar todo el saldo,
               sin teclear. Colores distintos para que no se confundan. */}
           <div style={{ display: 'flex', gap: 7, marginTop: 9 }}>
             <button className="btn btn-abono" onClick={() => registrar()} disabled={guardando || !Number(monto)}>
-              {guardando ? '…' : (Number(monto) ? `Abonar ${fmt(monto)}` : 'Abonar')}
+              {guardando ? '…' : (Number(monto) ? `${enMostrador ? 'Cobrar' : 'Abonar'} ${fmt(monto)}` : (enMostrador ? 'Cobrar' : 'Abonar'))}
             </button>
             {r.saldo > 0 && (
               <button className="btn btn-liquidar" onClick={() => registrar(r.saldo)} disabled={guardando}>

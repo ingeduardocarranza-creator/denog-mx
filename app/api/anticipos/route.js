@@ -26,9 +26,19 @@ export async function GET(req) {
   return NextResponse.json({ ok: true, anticipos: data })
 }
 
+// Los dos unicos tipos que existen en `pagos`:
+//   Anticipo         — dinero que entro ANTES de recoger (transferencia, abono).
+//   Venta Liquidacion — dinero que entro EN el mostrador al recoger.
+// Esta pantalla los registraba todos como Anticipo, aunque el cliente
+// estuviera enfrente pagando. En Reportes eso caia en la barra equivocada.
+const TIPOS = ['Anticipo', 'Venta Liquidación']
+
 export async function POST(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  const { cliente_id, entrega_id, monto, metodo, creado_en, pendiente_id, confirmar_duplicado } = await req.json()
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const { cliente_id, entrega_id, monto, metodo, creado_en, pendiente_id, confirmar_duplicado, tipo } = await req.json()
+
+  const tipoPago = TIPOS.includes(tipo) ? tipo : 'Anticipo'
 
   if (!cliente_id || !monto || Number(monto) <= 0) {
     return NextResponse.json({ ok: false, mensaje: 'Faltan datos obligatorios' })
@@ -90,7 +100,11 @@ export async function POST(req) {
       entrega_id: entrega_id || null,
       monto: Number(monto),
       metodo,
-      tipo: 'Anticipo',
+      tipo: tipoPago,
+      // Quien lo registro. El POS ya lo sellaba y este formulario no: los
+      // pagos capturados aqui quedaban sin responsable, igual que pasaba con
+      // los retiros de caja.
+      vendedor_id: sesion.id,
       pendiente_id: pendiente_id || null,
       creado_en,
     })

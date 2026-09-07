@@ -339,11 +339,16 @@ const horariosDelDia = (f) => {
       const antEnt   = (d.anticipos_detalle || []).filter(a => a.entrega_id === entrega_id)
       const subEnt   = prodsEnt.reduce((s, p) => s + (p.precio_venta || 0), 0)
       const antSumEnt = antEnt.reduce((s, a) => s + (a.monto || 0), 0)
-      const porPagar = Math.max(0, subEnt - antSumEnt)
+      // Contra TODO lo pagado de esa entrega, no solo sus anticipos: si no,
+      // una entrega vieja ya liquidada se vuelve a cobrar.
+      const yaPagado = Number((d.pagado_por_entrega || {})[entrega_id] ?? antSumEnt)
+      const porPagar = Math.max(0, subEnt - yaPagado)
       const aplicar = Math.min(restante, porPagar)
       restante -= aplicar
-      if (aplicar <= 0) continue
-      await cobrar(aplicar, { cliente_id: d.cliente_id, entrega_id })
+      // Se cobra si falta algo, pero la mercancía se entrega siempre. El
+      // `continue` que había aquí dejaba sin marcar los bloques que el
+      // anticipo ya cubría.
+      if (aplicar > 0) await cobrar(aplicar, { cliente_id: d.cliente_id, entrega_id })
       await fetch('/api/pedidos/actualizar-estado', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cliente_id: d.cliente_id, entrega_id, estado: 'Entregado' })

@@ -292,13 +292,19 @@ const horariosDelDia = (fecha) => {
       const anticiposEntrega = (d.anticipos_detalle || []).filter(a => a.entrega_id === entrega_id)
       const subtotalEntrega = productosEntrega.reduce((s, p) => s + (p.precio_venta || 0), 0)
       const totalAnticiposEntrega = anticiposEntrega.reduce((s, a) => s + (a.monto || 0), 0)
-      const porPagarEntrega = Math.max(0, subtotalEntrega - totalAnticiposEntrega)
+      // Lo que falta de esta entrega contra TODO lo que ya pagó de ella, no
+      // solo contra sus anticipos.
+      const yaPagadoEntrega = Number((d.pagado_por_entrega || {})[entrega_id] || totalAnticiposEntrega)
+      const porPagarEntrega = Math.max(0, subtotalEntrega - yaPagadoEntrega)
 
       const montoAplicar = Math.min(restante, porPagarEntrega)
       restante -= montoAplicar
-      if (montoAplicar <= 0) continue
 
-      await cobrar(montoAplicar, { cliente_id: d.cliente_id, entrega_id })
+      // Se cobra solo si falta algo, pero la mercancía SE ENTREGA SIEMPRE.
+      // Antes había un `continue` aquí: si el anticipo ya cubría la entrega,
+      // el bloque se saltaba entero y sus pedidos nunca pasaban a Entregado.
+      // Le pasó a Yulissa Gutiérrez el 7 de septiembre.
+      if (montoAplicar > 0) await cobrar(montoAplicar, { cliente_id: d.cliente_id, entrega_id })
       await fetch('/api/pedidos/actualizar-estado', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

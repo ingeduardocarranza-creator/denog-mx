@@ -51,6 +51,21 @@ export async function GET(req) {
         .in('entrega_id', d.entrega_ids || [])
         .order('creado_en', { ascending: true })
 
+      // TODO lo que ya pagó de esas entregas, no solo los anticipos. Con solo
+      // los anticipos, una entrega vieja que ya estaba pagada volvía a salir
+      // como pendiente y se le cobraba de nuevo. Los envíos no cuentan: son
+      // servicio, no mercancía.
+      const { data: pagosEntregas } = await supabase
+        .from('pagos')
+        .select('monto, entrega_id')
+        .eq('cliente_id', d.cliente_id)
+        .neq('tipo', 'Envío')
+        .in('entrega_id', d.entrega_ids || [])
+      const pagado_por_entrega = {}
+      for (const g of (pagosEntregas || [])) {
+        pagado_por_entrega[g.entrega_id] = (pagado_por_entrega[g.entrega_id] || 0) + Number(g.monto || 0)
+      }
+
       const { data: mercadito } = await supabase
         .from('pedidos_mercadito')
         .select('id, items, estado')
@@ -61,6 +76,7 @@ export async function GET(req) {
         ...d,
         productos_detalle: pedidos || [],
         anticipos_detalle: anticipos || [],
+        pagado_por_entrega,
         mercadito_detalle: mercadito || [],
       }
     })

@@ -55,6 +55,7 @@ export default function PedidosWhatsApp({ embebido = false }) {
 
   const [clientes, setClientes] = useState([])
   const [descarteReciente, setDescarteReciente] = useState(null) // { id, resumen } para el "Deshacer"
+  const [avisoAccion, setAvisoAccion] = useState('') // por qué el servidor no dejó cerrar algo
 
   const cargar = useCallback(async () => {
     const res = await fetch(`/api/pendientes?vista=${vista}`)
@@ -81,11 +82,18 @@ export default function PedidosWhatsApp({ embebido = false }) {
   }, [])
 
   const accion = async (id, accion) => {
-    await fetch('/api/pendientes', {
+    const r = await fetch('/api/pendientes', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, accion }),
-    })
+    }).then(res => res.json()).catch(() => ({ ok: false }))
+    // El servidor ahora puede negarse a cerrar un comprobante sin su pago.
+    // Ese mensaje tiene que verse, si no el colaborador cree que ya quedo.
+    if (!r.ok && r.mensaje) {
+      setAvisoAccion(r.mensaje)
+      setTimeout(() => setAvisoAccion(''), 9000)
+      return
+    }
     cargar()
   }
 
@@ -298,6 +306,19 @@ export default function PedidosWhatsApp({ embebido = false }) {
       {/* Aviso flotante de "Deshacer" — reemplaza a la doble confirmación:
           no estorba cuando el descarte era correcto (que será casi siempre)
           y protege igual cuando fue error de dedo. */}
+      {/* Cuando el servidor se niega a cerrar un comprobante sin su pago, el
+          motivo tiene que verse. Si no, el colaborador da "Listo", no pasa
+          nada visible, y asume que quedó — que es justo como se acumularon 39
+          comprobantes resueltos con el dinero fuera del sistema. */}
+      {avisoAccion && (
+        <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 60, display: 'flex', alignItems: 'flex-start', gap: 12, background: '#2a1a16', border: '1px solid rgba(193,85,58,0.5)', borderRadius: 12, padding: '13px 16px', boxShadow: '0 8px 28px rgba(0,0,0,0.55)', maxWidth: 'min(520px, calc(100vw - 32px))' }}>
+          <span style={{ fontSize: 15, lineHeight: 1.2, flexShrink: 0 }}>⚠️</span>
+          <span style={{ color: 'var(--w80)', fontSize: 12.5, lineHeight: 1.5 }}>{avisoAccion}</span>
+          <button onClick={() => setAvisoAccion('')}
+            style={{ background: 'transparent', border: 'none', color: 'var(--w45)', fontSize: 16, cursor: 'pointer', lineHeight: 1, flexShrink: 0, padding: 0 }}>×</button>
+        </div>
+      )}
+
       {descarteReciente && (
         <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 50, display: 'flex', alignItems: 'center', gap: 14, background: '#1c1c22', border: '1px solid var(--w14)', borderRadius: 12, padding: '11px 16px', boxShadow: '0 8px 28px rgba(0,0,0,0.5)', maxWidth: 'calc(100vw - 32px)' }}>
           <span style={{ color: 'var(--w75)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 320 }}>

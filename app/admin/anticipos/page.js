@@ -94,6 +94,24 @@ export default function Anticipos() {
     return true
   }
 
+  // "Ya estaba cobrado": el dinero de este comprobante ya entro por otra via
+  // (mostrador, domicilio, venta de tienda). No se crea un pago nuevo — se le
+  // pone el comprobante al que ya existe. Sin esta salida, el unico camino
+  // honesto para esos casos era dejarlos en la bandeja para siempre, y el
+  // atajo era marcarlos "listo" sin registrar nada, que es como se perdieron
+  // $27,785.
+  const ligar = async (pendiente_id, pago_id) => {
+    const res = await fetch('/api/pendientes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: pendiente_id, accion: 'ligar', pago_id }),
+    }).then(r => r.json())
+    if (!res.ok) { notificar('error', res.mensaje || 'No se pudo ligar'); return false }
+    notificar('exito', 'Comprobante ligado al pago que ya existía')
+    await cargar()
+    return true
+  }
+
   const cancelar = async () => {
     if (!motivo.trim()) return
     const res = await fetch('/api/anticipos', {
@@ -321,6 +339,7 @@ export default function Anticipos() {
                   onCancelar={p => { setCancelando(p); setMotivo('') }}
                   onDescartar={descartarComprobante}
                   roster={roster}
+                  onLigar={ligar}
                   comprobantes={bandeja.filter(b => b.cliente_sugerido?.id === r.cliente_id)} />
               ))}
             </div>
@@ -383,7 +402,7 @@ export default function Anticipos() {
               )}
               {bandejaVisible.map(b => (
                 <Comprobante key={b.id} b={b} entregaId={entregaId} roster={roster}
-                  onGuardar={guardar} onDescartar={() => descartarComprobante(b.id)} />
+                  onGuardar={guardar} onLigar={ligar} onDescartar={() => descartarComprobante(b.id)} />
               ))}
             </div>
           </div>
@@ -519,7 +538,7 @@ function Modal({ titulo, children, onCerrar }) {
 
 // Renglón de una persona. Cerrado es un resumen con su barra de avance;
 // abierto es el capturador, con el saldo ya escrito.
-function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, onDescartar, roster, comprobantes }) {
+function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onLigar, onCancelar, onDescartar, roster, comprobantes }) {
   const est = ESTADO[r.estado]
   const [monto, setMonto] = useState('')
   const [metodo, setMetodo] = useState('Transferencia')
@@ -663,7 +682,7 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, onDesc
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
                 {comprobantes.map(b => (
                   <Comprobante key={b.id} b={b} entregaId={entregaId} roster={roster} dentroDeCliente
-                    onGuardar={onGuardar} onDescartar={() => onDescartar(b.id)} />
+                    onGuardar={onGuardar} onLigar={onLigar} onDescartar={() => onDescartar(b.id)} />
                 ))}
               </div>
             </div>
@@ -716,10 +735,24 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onCancelar, onDesc
 // una persona. Ahí el selector de "aplicar a" sobra —ya sabemos de quién es—
 // y además es peligroso: desde el renglón de Abigail se podría aplicar la
 // transferencia a otra persona sin darse cuenta.
-function Comprobante({ b, entregaId, roster, onGuardar, onDescartar, dentroDeCliente = false }) {
+function Comprobante({ b, entregaId, roster, onGuardar, onLigar, onDescartar, dentroDeCliente = false }) {
   const [monto, setMonto] = useState(b.monto ? String(b.monto) : '')
   const [cliente, setCliente] = useState(b.cliente_sugerido?.id || '')
   const [guardando, setGuardando] = useState(false)
+  const [modoLigar, setModoLigar] = useState(false)
+  const [pagoElegido, setPagoElegido] = useState('')
+
+  // Pagos de esa persona que todavia no tienen comprobante. Son los
+  // candidatos cuando el dinero ya entro por otra via.
+  const filaCliente = roster.find(x => x.cliente_id === cliente)
+  const pagosSinComprobante = (filaCliente?.pagos || []).filter(p => !p.pendiente_id)
+
+  const ligarAhora = async () => {
+    if (!pagoElegido) return
+    setGuardando(true)
+    await onLigar(b.id, pagoElegido)
+    setGuardando(false)
+  }
 
   const aplicar = async () => {
     if (!cliente || !Number(monto)) return
@@ -818,6 +851,37 @@ function Comprobante({ b, entregaId, roster, onGuardar, onDescartar, dentroDeCli
           </button>
           <button className="btn btn-neutro" onClick={onDescartar} title="La IA no debió generar esto">No era</button>
         </div>
+
+        {/* Tercera salida: el dinero ya está capturado y este comprobante es
+            el respaldo de ese pago. Ligarlo no crea dinero nuevo. */}
+        {onLigar && cliente && (
+          <div style={{ marginTop: 7 }}>
+            {!modoLigar ? (
+              <button onClick={() => setModoLigar(true)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--w40)', fontSize: 10.5, cursor: 'pointer', padding: '2px 0', textDecoration: 'underline' }}>
+                Este dinero ya estaba cobrado
+              </button>
+            ) : pagosSinComprobante.length === 0 ? (
+              <div style={{ color: 'var(--w35)', fontSize: 10.5, lineHeight: 1.45 }}>
+                Esta persona no tiene ningún pago sin comprobante en esta entrega.{' '}
+                <button onClick={() => setModoLigar(false)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--marca-t)', fontSize: 10.5, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>cancelar</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select value={pagoElegido} onChange={e => setPagoElegido(e.target.value)}
+                  style={{ ...input, flex: 1, minWidth: 150, height: 31, fontSize: 11, padding: '0 7px' }}>
+                  <option value="">-- ¿cuál pago? --</option>
+                  {pagosSinComprobante.map(p => (
+                    <option key={p.id} value={p.id}>{fmt(p.monto)} · {fechaCorta(p.creado_en)} · {p.metodo}</option>
+                  ))}
+                </select>
+                <button className="btn btn-neutro" onClick={ligarAhora} disabled={guardando || !pagoElegido}>Ligar</button>
+                <button className="btn btn-cancelar" onClick={() => setModoLigar(false)}>Cancelar</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

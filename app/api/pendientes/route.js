@@ -125,14 +125,57 @@ export async function PATCH(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
 
-  const { id, accion, motivo } = await req.json()
+  const { id, accion, motivo, pago_id } = await req.json()
   if (!id || !accion) return NextResponse.json({ ok: false, mensaje: 'Faltan datos' })
+
+  const cerrado = () => ({ estado: 'resuelto', resuelto_por: sesion.id, resuelto_en: new Date().toISOString() })
 
   let cambios
   if (accion === 'ver') {
     cambios = { estado: 'visto', atendido_por: sesion.id, atendido_en: new Date().toISOString() }
   } else if (accion === 'resolver') {
-    cambios = { estado: 'resuelto', resuelto_por: sesion.id, resuelto_en: new Date().toISOString() }
+    // ── El candado que faltaba ──────────────────────────────────────────
+    // Un comprobante es dinero. Marcarlo "listo" sin registrar su pago fue
+    // exactamente lo que dejo 39 comprobantes resueltos y $27,785 fuera del
+    // sistema. Cerrarlo tiene que pasar por una de tres puertas, y las tres
+    // dejan rastro: aplicarlo (crea el pago), ligarlo a un pago que ya
+    // existe, o descartarlo con motivo.
+    const { data: pend } = await supabase
+      .from('pendientes').select('tipo, monto').eq('id', id).single()
+
+    if (pend?.tipo === 'comprobante' && pend.monto != null) {
+      const { count } = await supabase
+        .from('pagos').select('id', { count: 'exact', head: true }).eq('pendiente_id', id)
+      if (!count) {
+        return NextResponse.json({
+          ok: false,
+          mensaje: 'Este comprobante no se puede marcar como listo sin registrar su pago. '
+                 + 'Aplicalo desde Anticipos, o marcalo "Ya estaba cobrado" si ese dinero ya esta capturado. '
+                 + 'Si no era un comprobante, usa "Esto no era".',
+        })
+      }
+    }
+    cambios = cerrado()
+  } else if (accion === 'ligar') {
+    // "Ya estaba cobrado": el dinero ya esta en `pagos`, entro por otra via
+    // (mostrador, domicilio, venta de tienda). No se crea nada nuevo; se le
+    // pone el comprobante al pago que ya existia. Sin esto, la unica salida
+    // honesta para ese caso era dejarlo en la bandeja para siempre.
+    if (!pago_id) return NextResponse.json({ ok: false, mensaje: 'Falta indicar el pago' })
+
+    const [{ data: pago }, { data: pend }] = await Promise.all([
+      supabase.from('pagos').select('id, cliente_id, pendiente_id').eq('id', pago_id).single(),
+      supabase.from('pendientes').select('cliente_id').eq('id', id).single(),
+    ])
+    if (!pago) return NextResponse.json({ ok: false, mensaje: 'No se encontro ese pago' })
+    if (pago.pendiente_id) return NextResponse.json({ ok: false, mensaje: 'Ese pago ya tiene un comprobante ligado' })
+    if (pend?.cliente_id && pago.cliente_id && pend.cliente_id !== pago.cliente_id) {
+      return NextResponse.json({ ok: false, mensaje: 'Ese pago es de otro cliente' })
+    }
+
+    const { error: eLigar } = await supabase.from('pagos').update({ pendiente_id: id }).eq('id', pago_id)
+    if (eLigar) return NextResponse.json({ ok: false, mensaje: eLigar.message })
+    cambios = cerrado()
   } else if (accion === 'reabrir') {
     cambios = { estado: 'nuevo', resuelto_por: null, resuelto_en: null }
   } else if (accion === 'descartar') {

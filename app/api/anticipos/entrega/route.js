@@ -73,9 +73,17 @@ export async function GET(req) {
 
   const pedidos = pedidosRes.data || []
   const pagos = pagosRes.data || []
+  // El envío se cobra UNA vez por domicilio, no una por cada entrega que ese
+  // domicilio lleve. Cuando cubre varias, el cobro lo carga a la PRIMERA
+  // (entrega_ids[0], tanto en el admin como en el POS), así que aquí se cuenta
+  // en esa misma. Contarlo en todas hacía que el cliente apareciera debiendo
+  // el envío otra vez en las demás — le pasó a Yulissa Gutiérrez, que salía
+  // con $50 parciales en la del 5 de septiembre teniendo su envío pagado en
+  // Veranito 2.0. Hay 13 domicilios con más de una entrega.
   const envioPorCliente = {}
   for (const d of (domiciliosRes.data || [])) {
-    if (!d.cliente_id || !(d.entrega_ids || []).includes(entrega_id)) continue
+    if (!d.cliente_id) continue
+    if ((d.entrega_ids || [])[0] !== entrega_id) continue
     envioPorCliente[d.cliente_id] = (envioPorCliente[d.cliente_id] || 0) + Number(d.costo_envio || 0)
   }
   const clientes = clientesRes.data || []

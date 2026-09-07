@@ -17,8 +17,12 @@ export async function GET(req) {
 
   if (resumen === 'true') {
     const desde = searchParams.get('desde')
+    const hasta = searchParams.get('hasta')
     const inicio = desde || `${fecha}T00:00:00`
-    const fin = `${fecha}T23:59:59`
+    // El corte cubre hasta AHORA, no hasta el final del día. Con el fin en
+    // 23:59 el resumen incluía lo que todavía no pasaba, y dos turnos del
+    // mismo día se pisaban.
+    const fin = hasta || `${fecha}T23:59:59`
     const { data, error } = await supabase
       .from('pagos')
       .select('monto, metodo')
@@ -70,6 +74,7 @@ export async function POST(req) {
     monedas_20, monedas_10, monedas_5, monedas_2, monedas_1, monedas_50c,
     total_contado, total_esperado, diferencia, justificacion,
     total_efectivo, total_transferencia, total_terminal, total_retiros,
+    desde,
   } = await req.json()
 
   if (!['apertura', 'corte'].includes(tipo)) {
@@ -85,6 +90,11 @@ export async function POST(req) {
       monedas_20, monedas_10, monedas_5, monedas_2, monedas_1, monedas_50c,
       total_contado, total_esperado, diferencia, justificacion,
       total_efectivo, total_transferencia, total_terminal, total_retiros,
+      // Qué periodo cubre este corte. Sin este dato el corte no se puede
+      // conciliar contra `pagos`: no hay contra qué rango compararlo, y hay
+      // que adivinar la ventana. Adivinarla daba cortes con $40,128 de
+      // transferencias en 73 minutos.
+      desde: desde || null,
     }])
     .select()
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })

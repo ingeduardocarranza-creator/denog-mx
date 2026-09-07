@@ -35,7 +35,7 @@ export async function GET(req) {
     supabase.from('ventas_tienda')
       .select('id, pago_id, nombre_producto, categoria, cantidad, precio_unitario, costo_unitario, vendedor_id, origen, descuento_tipo, descuento_valor, creado_en')
       .gte('creado_en', ini).lte('creado_en', fin),
-    supabase.from('cortes_caja').select('id, colaborador_id, tipo, total_contado, total_esperado, diferencia, justificacion, creado_en')
+    supabase.from('cortes_caja').select('id, colaborador_id, tipo, total_contado, total_esperado, diferencia, justificacion, creado_en, desde, total_efectivo, total_transferencia, total_terminal')
       .gte('creado_en', ini).lte('creado_en', fin),
     supabase.from('retiros_caja').select('id, admin_id, monto, motivo, estado, creado_en')
       .gte('creado_en', ini).lte('creado_en', fin),
@@ -200,10 +200,64 @@ export async function GET(req) {
   }
   visitas.reverse()
 
+  // ── Cuadre de cada corte contra lo que hay en `pagos` ───────────────────
+  // Lo que el corte anotó por método, en el momento en que se tomó, contra lo
+  // que hoy queda registrado en ese mismo periodo. Si no coincide, algo se
+  // borró o se capturó después. Así se destapó el bug del POS que borraba
+  // anticipos: el corte del 5 sep había anotado $12,217.50 de transferencias
+  // y en `pagos` quedaban $9,537.50 — los $2,680 de Lupita Sifuentes.
+  //
+  // Un corte SIN `desde` no se puede cuadrar: no se sabe qué periodo cubre.
+  // Adivinar la ventana daba disparates (cortes con $40,128 en 73 minutos),
+  // así que esos se marcan como no conciliables en vez de inventar una cifra.
+  const cuadreCortes = cortesCierre.map(c => {
+    // Sin periodo, o con un periodo que empieza antes del rango del reporte:
+    // en los dos casos faltan pagos para comparar y saldría un descuadre
+    // falso. Mejor decir que no se puede cuadrar.
+    if (!c.desde || c.desde < desde) {
+      return {
+        id: c.id, creado_en: c.creado_en,
+        quien: nombre[c.colaborador_id] || 'Sin responsable',
+        conciliable: false,
+        motivo: !c.desde ? 'El corte no registró qué periodo cubre' : 'Su periodo empieza antes del rango consultado',
+      }
+    }
+    const enVentana = (metodo) => Math.round(pagos
+      .filter(p => p.metodo === metodo && p.creado_en > c.desde && p.creado_en <= c.creado_en)
+      .reduce((t, p) => t + Number(p.monto || 0), 0) * 100) / 100
+
+    const metodos = ['Efectivo', 'Transferencia', 'Terminal'].map(m => {
+      const clave = m === 'Efectivo' ? 'total_efectivo' : m === 'Transferencia' ? 'total_transferencia' : 'total_terminal'
+      const anoto = Number(c[clave] || 0)
+      const hay = enVentana(m)
+      return { metodo: m, anoto, hay, diferencia: Math.round((anoto - hay) * 100) / 100 }
+    })
+
+    return {
+      id: c.id,
+      creado_en: c.creado_en,
+      desde: c.desde,
+      quien: nombre[c.colaborador_id] || 'Sin responsable',
+      conciliable: true,
+      metodos,
+      // Positivo = el corte contó dinero que hoy ya no está en `pagos`.
+      descuadre: Math.round(metodos.reduce((t, m) => t + m.diferencia, 0) * 100) / 100,
+    }
+  })
+
+  const cortesDescuadrados = cuadreCortes.filter(c => c.conciliable && Math.abs(c.descuadre) > 0.5)
+
   return NextResponse.json({
     ok: true,
     periodo: { desde, hasta },
     visitas,
+    cuadreCortes,
+    alertaCortes: {
+      revisados: cuadreCortes.filter(c => c.conciliable).length,
+      sin_periodo: cuadreCortes.filter(c => !c.conciliable).length,
+      descuadrados: cortesDescuadrados.length,
+      monto: Math.round(cortesDescuadrados.reduce((t, c) => t + c.descuadre, 0) * 100) / 100,
+    },
     ingresos, porMetodo, total,
     tienda: {
       lineas: ventas.length,

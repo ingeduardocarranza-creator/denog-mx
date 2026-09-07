@@ -121,8 +121,9 @@ export default function CajaPage() {
     const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
     const ref = apertura ?? turnoActual
     const desde = ref?.creado_en ? `&desde=${encodeURIComponent(ref.creado_en)}` : ''
-    console.log('[caja] cargarResumenTurno desde:', ref?.creado_en ?? '(sin desde, usa inicio del día)')
-    const res = await fetch(`/api/caja?resumen=true&fecha=${hoy}${desde}`)
+    // Hasta ahora, no hasta el final del día.
+    const ahoraLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19)
+    const res = await fetch(`/api/caja?resumen=true&fecha=${hoy}${desde}&hasta=${encodeURIComponent(ahoraLocal)}`)
     const data = await res.json()
     console.log('[caja] resumenTurno raw:', data)
     if (data.ok) {
@@ -217,6 +218,9 @@ export default function CajaPage() {
         total_transferencia: resumenTurno.transferencia,
         total_terminal: resumenTurno.terminal,
         total_retiros: resumenTurno.totalRetiros,
+        // El periodo que cubre este corte, para que después se pueda cuadrar
+        // contra los pagos sin adivinar la ventana.
+        desde: turnoActual?.creado_en || null,
         justificacion: hayDiferenciaCorte ? justificacion : null
       })
     })

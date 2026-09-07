@@ -517,6 +517,74 @@ export default function Reportes() {
                   </div>
                 </div>
 
+                {/* ── Cada corte contra los pagos que quedaron ──────────────
+                    El cuadre de arriba compara efectivo esperado contra
+                    contado. Este compara lo que el corte anotó por método
+                    contra lo que HOY sigue en `pagos` en ese mismo periodo:
+                    detecta dinero que se registró y después desapareció. Es
+                    la comparación que destapó el bug de los anticipos
+                    borrados, tres semanas tarde. */}
+                {general.cuadreCortes?.length > 0 && (
+                  <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }}>
+                    <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--w06)' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }}>
+                          Cada corte contra lo registrado
+                        </span>
+                        {general.alertaCortes?.descuadrados > 0 ? (
+                          <span className="monto" style={{ color: 'var(--rojo-t)', fontSize: 13, fontWeight: 800 }}>
+                            {general.alertaCortes.descuadrados} descuadrado{general.alertaCortes.descuadrados !== 1 ? 's' : ''} · {fmt(general.alertaCortes.monto)}
+                          </span>
+                        ) : general.alertaCortes?.revisados > 0 ? (
+                          <span style={{ color: 'var(--verde)', fontSize: 13, fontWeight: 700 }}>Todos cuadran</span>
+                        ) : null}
+                      </div>
+                      <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6, maxWidth: 620, lineHeight: 1.5 }}>
+                        Lo que el corte anotó por método contra lo que sigue registrado en ese mismo periodo.
+                        Si el corte contó más, algo se borró o se canceló después.
+                        {general.alertaCortes?.sin_periodo > 0 && ` ${general.alertaCortes.sin_periodo} corte${general.alertaCortes.sin_periodo !== 1 ? 's' : ''} no se puede${general.alertaCortes.sin_periodo !== 1 ? 'n' : ''} cuadrar: son anteriores al cambio que guarda el periodo.`}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {general.cuadreCortes.map((c) => {
+                        const hora = new Date(c.creado_en).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                        if (!c.conciliable) {
+                          return (
+                            <div key={c.id} style={{ padding: '11px 22px', borderTop: '1px solid var(--w04)', display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                              <span style={{ color: 'var(--w45)', fontSize: 12.5, minWidth: 130 }}>{hora}</span>
+                              <span style={{ color: 'var(--w35)', fontSize: 12 }}>{c.quien}</span>
+                              <span style={{ color: 'var(--w28)', fontSize: 11.5, marginLeft: 'auto' }}>{c.motivo || 'No conciliable'}</span>
+                            </div>
+                          )
+                        }
+                        const mal = Math.abs(c.descuadre) > 0.5
+                        return (
+                          <div key={c.id} style={{ padding: '13px 22px', borderTop: '1px solid var(--w04)', background: mal ? 'rgba(var(--rojo-rgb),0.07)' : 'transparent' }}>
+                            <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                              <span style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600, minWidth: 130 }}>{hora}</span>
+                              <span style={{ color: 'var(--w40)', fontSize: 12 }}>{c.quien}</span>
+                              <span className="monto" style={{ marginLeft: 'auto', fontSize: 13.5, fontWeight: 800, color: mal ? 'var(--rojo-t)' : 'var(--verde)' }}>
+                                {mal ? `faltan ${fmt(c.descuadre)}` : 'cuadra'}
+                              </span>
+                            </div>
+                            {mal && (
+                              <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 8 }}>
+                                {c.metodos.filter(m => Math.abs(m.diferencia) > 0.5).map(m => (
+                                  <div key={m.metodo} style={{ fontSize: 11.5, color: 'var(--w45)' }}>
+                                    <span style={{ fontWeight: 600, color: 'var(--w60)' }}>{m.metodo}:</span>{' '}
+                                    anotó <span className="monto">{fmt(m.anoto)}</span>, hay <span className="monto">{fmt(m.hay)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* ── Señales de control ────────────────────────────────── */}
                 {(general.tienda.manuales > 0 || general.tienda.lineasSinCosto > 0 || general.comprobantesResueltos > 0 || general.cancelados.length > 0) && (
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -554,6 +622,7 @@ export default function Reportes() {
                       ['Entregas', general.ingresos.entregas, '#c1553a'],
                       ['Anticipos', general.ingresos.anticipos, '#2563eb'],
                       ['Tienda', general.ingresos.tienda, '#0f8a63'],
+                      ['Envíos', general.ingresos.envios || 0, '#a06d14'],
                       ['Otros', general.ingresos.otros, '#8a8178'],
                     ]} fmt={fmt} />
                     <div style={{ height: 20 }} />

@@ -19,19 +19,25 @@ function leerSesionEdge(req) {
   }
 }
 
+// Regresar a la portada sin decir nada se ve como si el botón no sirviera.
+// Con ?sesion=expirada la portada limpia el dato viejo y avisa por qué rebotó.
+function aLaPortada(req) {
+  return NextResponse.redirect(new URL('/?sesion=expirada', req.url))
+}
+
 export function middleware(req) {
   const { pathname } = req.nextUrl
   const sesion = leerSesionEdge(req)
 
   if (pathname.startsWith('/admin') || pathname.startsWith('/pos')) {
     if (!sesion || !ROLES_STAFF.includes(sesion.rol)) {
-      return NextResponse.redirect(new URL('/', req.url))
+      return aLaPortada(req)
     }
   }
 
   if (pathname.startsWith('/cliente')) {
     if (!sesion) {
-      return NextResponse.redirect(new URL('/', req.url))
+      return aLaPortada(req)
     }
   }
 

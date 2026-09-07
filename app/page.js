@@ -51,6 +51,7 @@ export default function Portada() {
   const [logoHover,  setLogoHover]  = useState(false)
   const [productosMercadito, setProductosMercadito] = useState([])
   const [sesionActiva, setSesionActiva] = useState(null)
+  const [aviso,      setAviso]      = useState('')
   const heroRef = useRef(null)
   const loginRef = useRef(null)
   const usuarioInputRef = useRef(null)
@@ -61,22 +62,70 @@ export default function Portada() {
     : (rol === 'vendedor' || rol === 'colaborador') ? '/admin/inicio'
     : '/cliente'
 
-  const irALogin = () => {
-    if (sesionActiva) { router.push(rutaSegunRol(sesionActiva.rol)); return }
+  const irAlFormulario = () => {
     loginRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     setTimeout(() => usuarioInputRef.current?.focus(), 350)
   }
 
-  const cerrarSesionPortada = () => {
+  // La única sesión que de verdad deja entrar es la cookie firmada, que dura
+  // 30 días. El dato de localStorage no caduca nunca, así que por sí solo
+  // hacía que la portada dijera "Sesión activa" cuando ya no había nada.
+  const verificarSesion = async () => {
+    let data
+    try {
+      const res = await fetch('/api/auth/sesion', { cache: 'no-store' })
+      data = await res.json()
+    } catch {
+      return { error: 'red' }   // sin conexión: no tocamos lo que ya se ve
+    }
+    if (data?.ok) {
+      localStorage.setItem('cliente', JSON.stringify(data.sesion))
+      setSesionActiva(data.sesion)
+      return { sesion: data.sesion }
+    }
     localStorage.removeItem('cliente')
     setSesionActiva(null)
+    return { sesion: null }
+  }
+
+  const irAMiCuenta = async () => {
+    // Se vuelve a preguntar por si la cookie caducó con la portada abierta.
+    const r = await verificarSesion()
+    if (r.sesion) { router.push(rutaSegunRol(r.sesion.rol)); return }
+    if (r.error) { setAviso('No hay conexión. Revisa tu internet e intenta de nuevo.'); return }
+    setAviso('Tu sesión expiró. Vuelve a entrar con tu usuario y contraseña.')
+    irAlFormulario()
+  }
+
+  const irALogin = () => {
+    if (sesionActiva) { irAMiCuenta(); return }
+    irAlFormulario()
+  }
+
+  const cerrarSesionPortada = async () => {
+    // Antes solo borraba el dato del navegador: la cookie seguía viva 30 días.
+    try { await fetch('/api/auth/logout', { method: 'POST' }) } catch { /* igual limpiamos aquí */ }
+    localStorage.removeItem('cliente')
+    setSesionActiva(null)
+    setAviso('')
+    irAlFormulario()
   }
 
   useEffect(() => {
+    // Se pinta al instante con lo que haya guardado y en seguida se confirma
+    // contra la cookie, que es la que manda.
     const datos = localStorage.getItem('cliente')
     if (datos) {
-      try { setSesionActiva(JSON.parse(datos)) } catch { /* dato corrupto, se ignora */ }
+      try { setSesionActiva(JSON.parse(datos)) } catch { localStorage.removeItem('cliente') }
     }
+    const expirada = new URLSearchParams(window.location.search).get('sesion') === 'expirada'
+    if (expirada) {
+      setAviso('Tu sesión expiró. Vuelve a entrar con tu usuario y contraseña.')
+      window.history.replaceState(null, '', '/')
+    }
+    // Solo se pregunta si hay algo que confirmar. La portada la abre gente sin
+    // sesión todo el día y no tiene caso gastar una llamada por cada visita.
+    if (datos || expirada) verificarSesion()
   }, [])
 
   useEffect(() => {
@@ -106,6 +155,7 @@ export default function Portada() {
     if (!usuario.trim() || !password.trim()) { setError('Completa todos los campos'); return }
     setCargando(true)
     setError('')
+    setAviso('')
     try {
       const res  = await fetch('/api/auth/login', {
         method: 'POST',
@@ -294,6 +344,15 @@ export default function Portada() {
 
         {/* Login derecha */}
         <div ref={loginRef} style={{ flex: '1 1 320px', minWidth: 'min(100%, 300px)', maxWidth: 420 }}>
+          {aviso && (
+            <div style={{
+              marginBottom: 14, padding: '12px 16px', borderRadius: 14,
+              background: 'rgba(193,85,58,.08)', border: '1px solid rgba(193,85,58,.3)',
+              color: '#8f3a25', fontSize: 14, fontWeight: 600, lineHeight: 1.45,
+            }}>
+              {aviso}
+            </div>
+          )}
           {sesionActiva ? (
             <div style={{
               padding: 'clamp(26px,3vw,34px) clamp(22px,2.5vw,32px)',
@@ -310,7 +369,7 @@ export default function Portada() {
                 <div style={{ fontSize: 14, color: 'rgba(42,33,24,0.55)', marginTop: 4 }}>Ya iniciaste sesión en este dispositivo.</div>
               </div>
 
-              <button onClick={() => router.push(rutaSegunRol(sesionActiva.rol))} style={{
+              <button onClick={irAMiCuenta} style={{
                 height: 56, borderRadius: 14, border: 'none', fontFamily: 'inherit',
                 cursor: 'pointer', background: '#c1553a',
                 color: '#fff', fontWeight: 700, fontSize: 16,

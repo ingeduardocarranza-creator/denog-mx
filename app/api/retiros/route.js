@@ -13,13 +13,20 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url)
   const fecha = searchParams.get('fecha')
   const estado = searchParams.get('estado')
+  // `desde` sirve para "los retiros posteriores a este momento", que es lo que
+  // necesita la caja para saber cuanto quedo en el cajon. Con `fecha` sola, un
+  // retiro de ayer desaparecia del calculo hoy y el fondo esperado salia
+  // inflado por el monto del retiro.
+  const desde = searchParams.get('desde')
 
   let query = supabase
     .from('retiros_caja')
     .select('*')
     .order('creado_en', { ascending: false })
 
-  if (fecha) {
+  if (desde) {
+    query = query.gte('creado_en', desde)
+  } else if (fecha) {
     const inicio = `${fecha}T00:00:00`
     const fin = `${fecha}T23:59:59`
     query = query.gte('creado_en', inicio).lte('creado_en', fin)

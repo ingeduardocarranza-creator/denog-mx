@@ -90,24 +90,28 @@ export default function CajaPage() {
     }
   }
 
+  // El fondo que se espera encontrar en el cajon sale del ULTIMO movimiento de
+  // caja, sea corte o apertura: los dos dejan registrado cuanto efectivo se
+  // conto en ese momento. Antes se tomaba solo el ultimo `corte`, y ademas los
+  // retiros se pedian con `fecha=hoy`: al dia siguiente el retiro que habia
+  // vaciado la caja ya no contaba, y el fondo esperado salia inflado por ese
+  // monto. Caso real: corte de $6,961, retiro de $6,600 un minuto despues,
+  // apertura de $361 esa noche — y al otro dia la pantalla pedia $6,961.
   const cargarUltimoCorteGlobal = async () => {
-    const res = await fetch('/api/caja?tipo=corte')
+    const res = await fetch('/api/caja')
     const data = await res.json()
     if (data.ok && data.cortes.length > 0) {
-      const corte = data.cortes[0]
-      setUltimoCorte(corte)
-      const ahora = new Date()
-      const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
-      const retirosRes = await fetch(`/api/retiros?fecha=${hoy}&estado=confirmado`)
+      const movimiento = data.cortes[0]
+      setUltimoCorte(movimiento)
+      const retirosRes = await fetch(
+        `/api/retiros?estado=confirmado&desde=${encodeURIComponent(movimiento.creado_en)}`
+      )
       const retirosData = await retirosRes.json()
-      console.log('[caja] retiros confirmados hoy:', retirosData.retiros?.length ?? 0, retirosData.retiros)
       if (retirosData.ok) {
-        const postCorte = (retirosData.retiros || []).filter(r =>
-          new Date(r.creado_en) > new Date(corte.creado_en)
+        const posteriores = (retirosData.retiros || []).filter(r =>
+          new Date(r.creado_en) > new Date(movimiento.creado_en)
         )
-        const totalPostCorte = postCorte.reduce((s, r) => s + r.monto, 0)
-        console.log('[caja] fondo bruto:', corte.total_contado, '| retiros post-corte:', totalPostCorte, '| fondo final:', corte.total_contado - totalPostCorte)
-        setRetirosPostCorte(totalPostCorte)
+        setRetirosPostCorte(posteriores.reduce((s, r) => s + r.monto, 0))
       }
     }
   }
@@ -298,7 +302,7 @@ export default function CajaPage() {
               <div style={{ background: 'rgba(193,85,58,0.08)', border: '1px solid rgba(193,85,58,0.3)', borderRadius: 16, padding: 18, marginBottom: 20 }}>
                 <div style={{ fontSize: 12, letterSpacing: '0.14em', fontWeight: 700, textTransform: 'uppercase', color: 'var(--marca-t)' }}>Fondo disponible</div>
                 <div style={{ color: 'var(--marca-t)', fontSize: 32, fontWeight: 900, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{fmt(fondoEsperado)}</div>
-                <div style={{ color: 'var(--w40)', fontSize: 12, marginTop: 6 }}>Corte de {ultimoCorte.clientes?.nombre} — {formatearFecha(ultimoCorte.creado_en)}</div>
+                <div style={{ color: 'var(--w40)', fontSize: 12, marginTop: 6 }}>{ultimoCorte.tipo === 'apertura' ? 'Apertura' : 'Corte'} de {ultimoCorte.clientes?.nombre} — {formatearFecha(ultimoCorte.creado_en)}</div>
                 {retirosPostCorte > 0 && (
                   <div style={{ color: 'var(--rojo-t)', fontSize: 11, marginTop: 4 }}>
                     {fmt(ultimoCorte.total_contado)} fondo − {fmt(retirosPostCorte)} retiros registrados

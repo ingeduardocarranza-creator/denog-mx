@@ -595,7 +595,9 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onLigar, onCancela
             )}
           </div>
           <div style={{ color: 'var(--w30)', fontSize: 11, marginTop: 3 }}>
-            {r.articulos} artículo{r.articulos !== 1 ? 's' : ''} · {fmt(r.total)} · abonado {fmt(r.pagado)}
+            {r.articulos} artículo{r.articulos !== 1 ? 's' : ''} · {fmt(r.total)}
+            {r.envio > 0 && <span style={{ color: 'var(--marca-t)' }}> (incluye {fmt(r.envio)} de envío)</span>}
+            {' · abonado '}{fmt(r.pagado)}
             {r.entregado_en && (
               <span style={{ color: 'var(--verde)', fontWeight: 600 }}> · recogió {fechaCorta(r.entregado_en)}</span>
             )}
@@ -688,6 +690,22 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onLigar, onCancela
             </div>
           )}
 
+          {/* Qué se le está cobrando. Con domicilio son dos conceptos y hay
+              que verlos separados: la mercancía y el envío. */}
+          {r.envio > 0 && (
+            <div style={{ marginTop: 4, marginBottom: 4, background: 'var(--w03)', border: '1px solid var(--w06)', borderRadius: 10, padding: '9px 12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--w45)' }}>
+                <span>Mercancía</span><span className="monto">{fmt(r.mercancia)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--marca-t)', marginTop: 3 }}>
+                <span>🛵 Envío a domicilio</span><span className="monto">{fmt(r.envio)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 700, color: 'var(--tinta)', marginTop: 5, paddingTop: 5, borderTop: '1px solid var(--w06)' }}>
+                <span>Total a pagar</span><span className="monto">{fmt(r.total)}</span>
+              </div>
+            </div>
+          )}
+
           {/* Anticipos y cobro final van separados: al consultar una cuenta lo
               que se pregunta es "cuanto habia abonado" y "cuanto pago al
               recoger", y en una sola lista revuelta eso no se ve. */}
@@ -695,7 +713,8 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onLigar, onCancela
             <div style={{ marginTop: 13, display: 'flex', flexDirection: 'column', gap: 11 }}>
               {[
                 { et: 'Anticipos', lista: r.pagos.filter(p => p.tipo === 'Anticipo'), suma: r.anticipos },
-                { et: 'Cobro final al recoger', lista: r.pagos.filter(p => p.tipo !== 'Anticipo'), suma: r.cobro_final },
+                { et: 'Cobro final al recoger', lista: r.pagos.filter(p => p.tipo !== 'Anticipo' && p.tipo !== 'Envío'), suma: r.cobro_final },
+                { et: 'Envío a domicilio', lista: r.pagos.filter(p => p.tipo === 'Envío'), suma: r.pagos.filter(p => p.tipo === 'Envío').reduce((a, p) => a + Number(p.monto || 0), 0) },
               ].filter(g => g.lista.length > 0).map(g => (
                 <div key={g.et}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>

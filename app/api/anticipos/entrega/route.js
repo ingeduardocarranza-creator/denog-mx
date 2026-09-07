@@ -31,7 +31,7 @@ export async function GET(req) {
   const entrega_id = searchParams.get('entrega_id')
   if (!entrega_id) return NextResponse.json({ ok: false, mensaje: 'entrega_id requerido' })
 
-  const [entregaRes, pedidosRes, pagosRes, clientesRes, compRes] = await Promise.all([
+  const [entregaRes, pedidosRes, pagosRes, clientesRes, domiciliosRes, compRes] = await Promise.all([
     supabase.from('entregas').select('id, fecha_entrega, nota, estado').eq('id', entrega_id).single(),
 
     supabase.from('pedidos')
@@ -41,15 +41,25 @@ export async function GET(req) {
       .eq('pendiente_aprobacion', false)
       .neq('estado', 'descartado'),
 
-    // El envío del domicilio no entra: no es mercancía de esta entrega y
-    // haría ver al cliente con saldo a favor por el monto exacto del envío.
+    // Aquí SÍ entran los pagos de envío. Esta pantalla muestra la cuenta
+    // COMPLETA del cliente, no solo la mercancía: si pagó $370 por $300 de
+    // producto más $70 de domicilio, tiene que verse que quedó en ceros.
+    // (En el POS es al revés: ahí el envío se excluye porque el domicilio no
+    // se cobra en el mostrador. Son dos preguntas distintas: "cuánto debe en
+    // total" contra "cuánto le cobro aquí".)
     supabase.from('pagos')
       .select('id, cliente_id, monto, metodo, tipo, creado_en, pendiente_id')
       .eq('entrega_id', entrega_id)
-      .neq('tipo', 'Envío')
       .order('creado_en', { ascending: true }),
 
     supabase.from('clientes').select('id, nombre, telefono').neq('rol', 'admin'),
+
+    // Domicilios de esta entrega. El costo de envío es parte de lo que el
+    // cliente debe, aunque no sea mercancía. Sin esto, quien pagó su envío
+    // aparecía con saldo A FAVOR por el monto exacto del envío.
+    supabase.from('domicilios')
+      .select('id, cliente_id, costo_envio, entrega_ids, estado')
+      .neq('estado', 'cancelado'),
 
     // Bandeja: comprobantes abiertos + los resueltos que nunca generaron pago.
     supabase.from('pendientes')
@@ -63,6 +73,11 @@ export async function GET(req) {
 
   const pedidos = pedidosRes.data || []
   const pagos = pagosRes.data || []
+  const envioPorCliente = {}
+  for (const d of (domiciliosRes.data || [])) {
+    if (!d.cliente_id || !(d.entrega_ids || []).includes(entrega_id)) continue
+    envioPorCliente[d.cliente_id] = (envioPorCliente[d.cliente_id] || 0) + Number(d.costo_envio || 0)
+  }
   const clientes = clientesRes.data || []
   const porId = Object.fromEntries(clientes.map(c => [c.id, c]))
 
@@ -77,9 +92,13 @@ export async function GET(req) {
       telefono: porId[p.cliente_id]?.telefono || null,
       articulos: 0, total: 0, pagos: [], pagado: 0, saldo: 0,
       anticipos: 0, cobro_final: 0, entregado_en: null,
+      // Mercancía y envío se guardan por separado para poder mostrarlos como
+      // dos renglones; `total` es la suma, que es lo que el cliente debe.
+      mercancia: 0, envio: Number(envioPorCliente[p.cliente_id] || 0),
     })
     r.articulos += 1
-    r.total += Number(p.precio_venta || 0)
+    r.mercancia += Number(p.precio_venta || 0)
+    r.total = r.mercancia + r.envio
     // Cuando recogio. Se toma el mas reciente de sus pedidos: si vino en dos
     // vueltas, la que importa para una consulta es la ultima.
     if (p.entregado_en && (!r.entregado_en || p.entregado_en > r.entregado_en)) {
@@ -93,7 +112,7 @@ export async function GET(req) {
     // Anticipo (lo que abono antes) y cobro final (lo que pago al recoger) son
     // dos cosas distintas para quien consulta una cuenta. Se suman aparte.
     if (g.tipo === 'Anticipo') roster[g.cliente_id].anticipos += Number(g.monto || 0)
-    else roster[g.cliente_id].cobro_final += Number(g.monto || 0)
+    else if (g.tipo !== 'Envío') roster[g.cliente_id].cobro_final += Number(g.monto || 0)
   }
 
   const lista = Object.values(roster).map(r => {

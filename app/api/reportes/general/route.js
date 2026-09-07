@@ -223,7 +223,7 @@ export async function GET(req) {
       }
     }
     const enVentana = (metodo) => Math.round(pagos
-      .filter(p => p.metodo === metodo && p.creado_en > c.desde && p.creado_en <= c.creado_en)
+      .filter(p => p.metodo === metodo && p.creado_en >= c.desde && p.creado_en <= c.creado_en)
       .reduce((t, p) => t + Number(p.monto || 0), 0) * 100) / 100
 
     const metodos = ['Efectivo', 'Transferencia', 'Terminal'].map(m => {
@@ -256,7 +256,9 @@ export async function GET(req) {
       revisados: cuadreCortes.filter(c => c.conciliable).length,
       sin_periodo: cuadreCortes.filter(c => !c.conciliable).length,
       descuadrados: cortesDescuadrados.length,
-      monto: Math.round(cortesDescuadrados.reduce((t, c) => t + c.descuadre, 0) * 100) / 100,
+      monto: Math.round(cortesDescuadrados.reduce((t, c) => t + Math.abs(c.descuadre), 0) * 100) / 100,
+      faltante: Math.round(cortesDescuadrados.filter(c => c.descuadre > 0).reduce((t, c) => t + c.descuadre, 0) * 100) / 100,
+      sobrante: Math.round(cortesDescuadrados.filter(c => c.descuadre < 0).reduce((t, c) => t - c.descuadre, 0) * 100) / 100,
     },
     ingresos, porMetodo, total,
     tienda: {

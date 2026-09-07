@@ -565,7 +565,7 @@ export default function Reportes() {
                               <span style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600, minWidth: 130 }}>{hora}</span>
                               <span style={{ color: 'var(--w40)', fontSize: 12 }}>{c.quien}</span>
                               <span className="monto" style={{ marginLeft: 'auto', fontSize: 13.5, fontWeight: 800, color: mal ? 'var(--rojo-t)' : 'var(--verde)' }}>
-                                {mal ? `faltan ${fmt(c.descuadre)}` : 'cuadra'}
+                                {!mal ? 'cuadra' : c.descuadre > 0 ? `faltan ${fmt(c.descuadre)}` : `sobran ${fmt(-c.descuadre)}`}
                               </span>
                             </div>
                             {mal && (

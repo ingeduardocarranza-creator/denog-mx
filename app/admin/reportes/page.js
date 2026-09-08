@@ -692,16 +692,23 @@ export default function Reportes() {
                                       ENCARGO + TIENDA
                                     </span>
                                   )}
+                                  {v.sinCobro && (
+                                    <span style={{ border: '1px solid var(--w14)', color: 'var(--w45)', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 5, letterSpacing: 0.3 }}>
+                                      YA ESTABA PAGADO
+                                    </span>
+                                  )}
                                 </div>
                                 <div style={{ color: 'var(--w38)', fontSize: 11, marginTop: 3 }}>
                                   {new Date(v.desde).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                                   {' · '}
-                                  {[
-                                    v.entregas > 0 && `encargo ${fmt(v.entregas)}`,
-                                    v.tienda > 0 && `tienda ${fmt(v.tienda)}`,
-                                    v.anticipos > 0 && `anticipo ${fmt(v.anticipos)}`,
-                                    v.otros > 0 && `otros ${fmt(v.otros)}`,
-                                  ].filter(Boolean).join(' + ')}
+                                  {v.sinCobro
+                                    ? `recogió ${fmt(v.valorRecogido)} en mercancía · no se cobró nada`
+                                    : [
+                                      v.entregas > 0 && `encargo ${fmt(v.entregas)}`,
+                                      v.tienda > 0 && `tienda ${fmt(v.tienda)}`,
+                                      v.anticipos > 0 && `anticipo ${fmt(v.anticipos)}`,
+                                      v.otros > 0 && `otros ${fmt(v.otros)}`,
+                                    ].filter(Boolean).join(' + ')}
                                 </div>
                                 <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                                   {Object.entries(v.metodos).map(([m, monto]) => (
@@ -711,7 +718,7 @@ export default function Reportes() {
                                   ))}
                                 </div>
                               </div>
-                              <div className="monto" style={{ color: 'var(--marca-t)', fontSize: 17, fontWeight: 800, flexShrink: 0 }}>{fmt(v.total)}</div>
+                              <div className="monto" style={{ color: v.sinCobro ? 'var(--w30)' : 'var(--marca-t)', fontSize: 17, fontWeight: 800, flexShrink: 0 }}>{fmt(v.total)}</div>
                             </div>
 
                             {abierta && (

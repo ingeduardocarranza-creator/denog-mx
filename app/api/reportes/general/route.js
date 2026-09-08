@@ -198,7 +198,53 @@ export async function GET(req) {
       .map(x => ({ descripcion: x.descripcion, cantidad: x.cantidad, precio: x.precio_venta }))
     delete v.quien
   }
-  visitas.reverse()
+
+  // ── Visitas donde no se cobró nada ──────────────────────────────────────
+  // Las visitas se armaban recorriendo `pagos`. Quien ya había pagado todo por
+  // adelantado no genera ningún renglón al recoger, así que su visita no salía
+  // en el reporte: la mercancía se iba y no quedaba constancia.
+  // Caso que lo destapó: Ingrid Gutiérrez, anticipo de $295 el 14 de agosto,
+  // recogió su pedido de $295 el 7 de septiembre, no debía nada, no apareció.
+  // Se rescatan por `entregado_en`, que es la hora real en que se llevó.
+  const { data: recogidasPeriodo } = await supabase
+    .from('pedidos')
+    .select('cliente_id, entrega_id, descripcion, cantidad, precio_venta, entregado_en')
+    .gte('entregado_en', ini).lte('entregado_en', fin)
+
+  const cerca = (a, b) => Math.abs(new Date(a) - new Date(b)) <= VENTANA_MS
+  const sinCobro = []
+  for (const r of (recogidasPeriodo || [])) {
+    if (!r.cliente_id || !r.entregado_en) continue
+    // Si esa persona ya tiene una visita a esa hora, o una visita que cobró
+    // algo de esta misma entrega, el pedido ya está contado ahí.
+    const yaContado = visitas.some(v => v.cliente_id === r.cliente_id && (
+      (r.entrega_id && v.entregaIds.includes(r.entrega_id)) ||
+      cerca(r.entregado_en, v.desde) || cerca(r.entregado_en, v.hasta)
+    ))
+    if (yaContado) continue
+
+    let g = sinCobro.find(v => v.cliente_id === r.cliente_id && cerca(r.entregado_en, v.hasta))
+    if (!g) {
+      g = {
+        cliente_id: r.cliente_id,
+        nombre: nombre[r.cliente_id] || 'Cliente sin cuenta',
+        desde: r.entregado_en, hasta: r.entregado_en,
+        total: 0, metodos: {}, entregas: 0, anticipos: 0, tienda: 0, otros: 0,
+        entregaIds: [], articulos: [], recogio: [],
+        // No entró dinero: ya estaba pagado antes de este periodo.
+        sinCobro: true, valorRecogido: 0,
+      }
+      sinCobro.push(g)
+    }
+    if (r.entregado_en < g.desde) g.desde = r.entregado_en
+    if (r.entregado_en > g.hasta) g.hasta = r.entregado_en
+    if (r.entrega_id && !g.entregaIds.includes(r.entrega_id)) g.entregaIds.push(r.entrega_id)
+    g.recogio.push({ descripcion: r.descripcion, cantidad: r.cantidad, precio: r.precio_venta })
+    g.valorRecogido += Number(r.precio_venta || 0) * Number(r.cantidad || 0)
+  }
+  for (const g of sinCobro) g.valorRecogido = Math.round(g.valorRecogido * 100) / 100
+  visitas.push(...sinCobro)
+  visitas.sort((a, b) => new Date(b.desde) - new Date(a.desde))
 
   // ── Cuadre de cada corte contra lo que hay en `pagos` ───────────────────
   // Lo que el corte anotó por método, en el momento en que se tomó, contra lo

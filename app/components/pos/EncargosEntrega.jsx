@@ -38,6 +38,7 @@ export default function EncargosEntrega({
   setBusquedaCliente,
   clientesFiltrados,
   onSeleccionarCliente,
+  onEscanear,
   bloquesEntregas,
   productosSeleccionados,
   setProductosSeleccionados,
@@ -217,39 +218,51 @@ export default function EncargosEntrega({
           style={{ background: 'var(--sup)', border: '1px solid var(--w08)' }}
         >
           {!clienteSeleccionado ? (
-            <div className="relative w-full">
-              <div
-                className="flex items-center gap-3 h-14 px-5 rounded-2xl"
-                style={{ background: 'var(--w03)', border: `2px solid ${clay[500]}` }}
-              >
-                <span style={{ color: clay[300] }}>🔍</span>
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre de cliente o teléfono..."
-                  value={busquedaCliente}
-                  onChange={(e) => setBusquedaCliente(e.target.value)}
-                  className="flex-1 bg-transparent outline-none text-[15px]"
-                  // El texto iba en semibold y el marcador de posición en
-                  // gris frío de Tailwind (placeholder:text-gray-400, que el
-                  // remapeo del tema no alcanza). Junto a la tinta café del
-                  // panel se leía como si fuera otra tipografía. Ahora usa los
-                  // tokens y el mismo peso que el resto de los campos.
-                  style={{ color: 'var(--tinta)', fontWeight: 500 }}
-                />
-              </div>
-              {clientesFiltrados.length > 0 && (
-                <div className="absolute top-full left-0 right-0 bg-gray-800 border border-gray-700 rounded-xl mt-2 z-20 divide-y divide-gray-700">
-                  {clientesFiltrados.map((c) => (
-                    <div
-                      key={c.id}
-                      onClick={() => onSeleccionarCliente(c)}
-                      className="p-3 text-sm cursor-pointer flex justify-between" style={{ color: 'var(--tinta)' }}
-                    >
-                      <span>{c.nombre}</span>
-                      <span className="text-gray-400 tabular-nums text-xs">{c.telefono}</span>
-                    </div>
-                  ))}
+            <div className="flex items-center gap-3 w-full">
+              <div className="relative flex-1">
+                <div
+                  className="flex items-center gap-3 h-14 px-5 rounded-2xl"
+                  style={{ background: 'var(--w03)', border: `2px solid ${clay[500]}` }}
+                >
+                  <span style={{ color: clay[300] }}>🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre de cliente o teléfono..."
+                    value={busquedaCliente}
+                    onChange={(e) => setBusquedaCliente(e.target.value)}
+                    className="flex-1 bg-transparent outline-none text-[15px]"
+                    // El texto iba en semibold y el marcador de posición en
+                    // gris frío de Tailwind (placeholder:text-gray-400, que el
+                    // remapeo del tema no alcanza). Junto a la tinta café del
+                    // panel se leía como si fuera otra tipografía. Ahora usa los
+                    // tokens y el mismo peso que el resto de los campos.
+                    style={{ color: 'var(--tinta)', fontWeight: 500 }}
+                  />
                 </div>
+                {clientesFiltrados.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 bg-gray-800 border border-gray-700 rounded-xl mt-2 z-20 divide-y divide-gray-700">
+                    {clientesFiltrados.map((c) => (
+                      <div
+                        key={c.id}
+                        onClick={() => onSeleccionarCliente(c)}
+                        className="p-3 text-sm cursor-pointer flex justify-between" style={{ color: 'var(--tinta)' }}
+                      >
+                        <span>{c.nombre}</span>
+                        <span className="text-gray-400 tabular-nums text-xs">{c.telefono}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {onEscanear && (
+                <button
+                  onClick={onEscanear}
+                  title="Escanear código del cliente"
+                  className="flex-none h-14 px-5 rounded-2xl"
+                  style={{ background: 'var(--w03)', border: `2px solid ${clay[500]}`, color: clay[300], fontSize: 20 }}
+                >
+                  📷
+                </button>
               )}
             </div>
           ) : (

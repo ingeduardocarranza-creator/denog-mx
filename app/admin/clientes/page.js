@@ -106,6 +106,29 @@ export default function Clientes() {
     else setMsgEdit(data.mensaje || 'Error al guardar')
   }
 
+  const [regenerando, setRegenerando] = useState(null)
+
+  // Es una acción aparte del "Guardar cambios": regenerar el código no debe
+  // depender de si el resto del formulario quedó bien llenado, y el cliente
+  // se entera al toque de cuál es el nuevo (el viejo deja de servir de
+  // inmediato, así que hay que decírselo).
+  const regenerarCodigo = async (c) => {
+    if (!confirm(`¿Generar un código nuevo para ${c.nombre}? El código anterior (${c.codigo_recoleccion || 'ninguno'}) deja de servir.`)) return
+    setRegenerando(c.id)
+    const res = await fetch('/api/clientes/actualizar', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: c.id, regenerar_codigo: true })
+    })
+    const data = await res.json()
+    setRegenerando(null)
+    if (data.ok) {
+      alert(`Nuevo código de ${c.nombre}: ${data.cliente.codigo_recoleccion}`)
+      cargarClientes()
+    } else {
+      alert(data.mensaje || 'No se pudo regenerar el código')
+    }
+  }
+
   const toggleActivo = async (c) => {
     await fetch('/api/clientes/actualizar', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -320,6 +343,18 @@ export default function Clientes() {
                           <input type="password" value={edit.password} placeholder="••••••••"
                             onChange={e => setEdit({...edit, password: e.target.value})}
                             className={iStyle} />
+                        </div>
+                        <div>
+                          <label className={lStyle}>Código de recolección</label>
+                          <div className="flex items-center gap-2">
+                            <div className={iStyle + ' font-mono tracking-wider'} style={{ opacity: 0.85 }}>
+                              {c.codigo_recoleccion || '—'}
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => regenerarCodigo(c)} disabled={regenerando === c.id}
+                            className="text-xs text-[#dd8a6c] hover:underline mt-1 disabled:opacity-50">
+                            {regenerando === c.id ? 'Generando...' : '↻ Regenerar código'}
+                          </button>
                         </div>
                       </div>
                       {msgEdit && <div className="text-red-400 text-sm mb-3">{msgEdit}</div>}

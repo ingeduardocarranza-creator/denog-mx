@@ -15,7 +15,7 @@ export async function GET(req) {
 
   let query = supabase
     .from('clientes')
-    .select('id, nombre, usuario, telefono, activo, rol, direccion, colonia, referencias, celular_contacto, limite_credito, requiere_anticipo')
+    .select('id, nombre, usuario, telefono, activo, rol, direccion, colonia, referencias, celular_contacto, limite_credito, requiere_anticipo, codigo_recoleccion')
     .order('nombre')
 
   if (!incluirInactivos) query = query.eq('activo', true)

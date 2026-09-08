@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import TiendaTienda from '../../components/pos/TiendaTienda';
 import EncargosEntrega from '../../components/pos/EncargosEntrega';
+import EscanearQR from '../../components/pos/EscanearQR';
 import { calcularTotalesCarrito } from '../../../lib/pos/tiendaUtils';
 
 const formatearFecha = (fecha) => {
@@ -51,6 +52,14 @@ export default function PuntoDeVenta() {
   const [todosProductos, setTodosProductos] = useState([]);
   const [todasEntregas, setTodasEntregas] = useState([]);
   const [busquedaCliente, setBusquedaCliente] = useState('');
+  const [escaneando, setEscaneando] = useState(false);
+  const [errorEscaneo, setErrorEscaneo] = useState('');
+
+  useEffect(() => {
+    if (!errorEscaneo) return;
+    const t = setTimeout(() => setErrorEscaneo(''), 4000);
+    return () => clearTimeout(t);
+  }, [errorEscaneo]);
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [bloquesEntregas, setBloquesEntregas] = useState([]);
   const [pedidosMercaditoCliente, setPedidosMercaditoCliente] = useState([]);
@@ -481,6 +490,21 @@ const horariosDelDia = (f) => {
     const seleccionInicial = {};
     historialPedidos.forEach(p => { seleccionInicial[p.id] = !entregasBloqueadas.has(p.entrega_id); });
     setProductosSeleccionados(seleccionInicial);
+  };
+
+  // El código no distingue mayúsculas/minúsculas ni espacios de más — la
+  // cámara a veces lee con basura alrededor, y si el cajero lo teclea a mano
+  // puede escribirlo en minúsculas.
+  const manejarCodigoEscaneado = (codigoCrudo) => {
+    const codigo = codigoCrudo.trim().toUpperCase();
+    const cliente = todosClientes.find(c => (c.codigo_recoleccion || '').toUpperCase() === codigo);
+    if (!cliente) {
+      setErrorEscaneo('Ese código no corresponde a ningún cliente.');
+      return;
+    }
+    setErrorEscaneo('');
+    setEscaneando(false);
+    seleccionarClienteEncargo(cliente);
   };
 
   let desgloseTicketEncargos = [];
@@ -1242,6 +1266,7 @@ const horariosDelDia = (f) => {
                 setBusquedaCliente={setBusquedaCliente}
                 clientesFiltrados={clientesFiltrados}
                 onSeleccionarCliente={seleccionarClienteEncargo}
+                onEscanear={() => { setErrorEscaneo(''); setEscaneando(true); }}
                 bloquesEntregas={bloquesEntregas}
                 productosSeleccionados={productosSeleccionados}
                 setProductosSeleccionados={setProductosSeleccionados}
@@ -1591,6 +1616,17 @@ const horariosDelDia = (f) => {
 
     {renderModalCobroPOS()}
     {renderModalCobroDomicilio()}
+    {escaneando && (
+      <EscanearQR
+        onDetectado={manejarCodigoEscaneado}
+        onCerrar={() => { setEscaneando(false); setErrorEscaneo(''); }}
+      />
+    )}
+    {errorEscaneo && !escaneando && (
+      <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'var(--rojo)', color: '#fff', padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, zIndex: 90 }}>
+        ⚠️ {errorEscaneo}
+      </div>
+    )}
     </>
   );
 }

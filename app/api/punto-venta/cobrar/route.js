@@ -42,9 +42,21 @@ export async function POST(req) {
       descuentoVentaTienda,
       clienteTiendaId,
       vendedorTiendaId,
+      // Para el ticket: lo que el cliente puso en la mano y lo que se le
+      // regresó. Opcionales — si el POS todavía no los manda, el ticket
+      // simplemente no muestra ese renglón.
+      efectivoRecibido,
+      cambio,
     } = await req.json()
 
     const colaboradorId = sesion.id
+
+    // Todo lo que este cobro cree, para poder amarrarlo a su transacción al
+    // final. El folio se pide hasta que el cobro ya salió bien: así un cobro
+    // que truena a medias no quema un folio y no deja hueco en la numeración.
+    const pagosCreados = []
+    const ventasCreadas = []
+    const anotarVentas = (res) => { for (const v of (res?.data || [])) ventasCreadas.push(v.id) }
 
     // Build the payment wallet
     const restante = {}
@@ -62,6 +74,7 @@ export async function POST(req) {
         const usar = Math.min(restante[metodo], porCubrir)
         if (usar <= 0) continue
         const { data } = await supabase.from('pagos').insert({ ...campos, monto: usar, metodo }).select('id').single()
+        if (data?.id) pagosCreados.push(data.id)
         insertados.push({ metodo, monto: usar, id: data?.id || null })
         restante[metodo] -= usar
         porCubrir -= usar
@@ -181,10 +194,11 @@ export async function POST(req) {
             a.entrega_id = entregaId
           } else {
             await supabase.from('pagos').update({ monto: a.monto - usar }).eq('id', a.id)
-            await supabase.from('pagos').insert({
+            const { data: partido } = await supabase.from('pagos').insert({
               cliente_id: clienteId, entrega_id: entregaId, tipo: 'Anticipo',
               monto: usar, metodo: a.metodo, vendedor_id: colaboradorId,
-            })
+            }).select('id').single()
+            if (partido?.id) pagosCreados.push(partido.id)
           }
           a.monto -= usar
           netoBloque -= usar
@@ -226,7 +240,7 @@ export async function POST(req) {
             vendedorId: colaboradorId,
           })
           if (pagosTienda[1]) detalleVenta.forEach(v => { v.pago_id_2 = pagosTienda[1].id })
-          await supabase.from('ventas_tienda').insert(detalleVenta)
+          anotarVentas(await supabase.from('ventas_tienda').insert(detalleVenta).select('id'))
         }
       }
 
@@ -273,7 +287,7 @@ export async function POST(req) {
           vendedorId: vendedorIdTienda,
         })
         if (pagosTienda[1]) detalleVenta.forEach(v => { v.pago_id_2 = pagosTienda[1].id })
-        await supabase.from('ventas_tienda').insert(detalleVenta)
+        anotarVentas(await supabase.from('ventas_tienda').insert(detalleVenta).select('id'))
       }
 
       // Update stock for tienda sale — re-query DB stock to avoid client manipulation
@@ -289,7 +303,48 @@ export async function POST(req) {
       }
     }
 
-    return NextResponse.json({ ok: true })
+    // ── La transacción y su folio ────────────────────────────────────────
+    // Hasta aquí, porque hasta aquí se sabe que el cobro salió bien. El folio
+    // se toma de un contador que vive en la base y se mueve dentro de la misma
+    // operación: no se repite y no deja huecos.
+    let folio = null
+    if (pagosCreados.length > 0 || ventasCreadas.length > 0) {
+      // Lo cobrado en esta transacción es el dinero que cambió de manos ahora.
+      // Los anticipos que se aplicaron no cuentan: ese dinero entró otro día.
+      const cobradoAhora = Math.round(((monto1 || 0) + (monto2 || 0)) * 100) / 100
+      const entregaDeLaVisita = (bloquesOrdenados || [])[0]?.entregaId || null
+
+      const { data: transaccion, error: errorTx } = await supabase
+        .from('transacciones')
+        .insert({
+          canal: 'mostrador',
+          cliente_id: clienteId || clienteTiendaId || null,
+          entrega_id: entregaDeLaVisita,
+          vendedor_id: vendedorTiendaId || colaboradorId,
+          total: cobradoAhora,
+          efectivo_recibido: efectivoRecibido ?? null,
+          cambio: cambio ?? null,
+        })
+        .select('id, folio')
+        .single()
+
+      // Si la transacción falla, el cobro YA quedó registrado y no se toca: el
+      // dinero es lo que importa. Se avisa sin folio en vez de fingir que todo
+      // salió bien, para que se pueda revisar.
+      if (errorTx) {
+        console.error('[cobrar] el cobro quedó pero no se pudo crear la transacción:', errorTx.message)
+      } else if (transaccion) {
+        folio = transaccion.folio
+        if (pagosCreados.length) {
+          await supabase.from('pagos').update({ transaccion_id: transaccion.id }).in('id', pagosCreados)
+        }
+        if (ventasCreadas.length) {
+          await supabase.from('ventas_tienda').update({ transaccion_id: transaccion.id }).in('id', ventasCreadas)
+        }
+      }
+    }
+
+    return NextResponse.json({ ok: true, folio })
   } catch (err) {
     console.error('Error en cobro POS:', err)
     return NextResponse.json({ ok: false, mensaje: 'Error al procesar el cobro' }, { status: 500 })

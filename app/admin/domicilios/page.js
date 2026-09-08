@@ -254,19 +254,27 @@ const horariosDelDia = (fecha) => {
     const entregasOrdenadas = [...(d.entrega_ids || [])]
     const prop = totalPago > 0 ? monto1 / totalPago : 1
 
+    // Todos los renglones que genere este cobro, para amarrarlos a su
+    // transacción al final y darle un folio D-xxx.
+    const pagosCreados = []
+    const anotar = async (res) => {
+      const d = await res.json().catch(() => null)
+      for (const id of (d?.pagos_ids || [])) pagosCreados.push(id)
+    }
+
     // Un solo lugar para partir el cobro entre los dos métodos de pago.
     const cobrar = async (monto, extra) => {
       if (monto <= 0) return
       const montoM1 = Math.round(monto * prop)
       const montoM2 = monto - montoM1
-      if (montoM1 > 0) await fetch('/api/punto-venta/pagar', {
+      if (montoM1 > 0) await anotar(await fetch('/api/punto-venta/pagar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...extra, pagos: [{ monto: montoM1, metodo: m1 }] }),
-      })
-      if (monto2 > 0 && m2 && montoM2 > 0) await fetch('/api/punto-venta/pagar', {
+      }))
+      if (monto2 > 0 && m2 && montoM2 > 0) await anotar(await fetch('/api/punto-venta/pagar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...extra, pagos: [{ monto: montoM2, metodo: m2 }] }),
-      })
+      }))
     }
 
     // El envío va en su PROPIO renglón, con tipo 'Envío' y ligado al
@@ -309,6 +317,25 @@ const horariosDelDia = (fecha) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cliente_id: d.cliente_id, entrega_id, estado: 'Entregado' })
+      })
+    }
+
+    // El folio se pide hasta aquí: cuando el cobro ya quedó. Si algo tronó a
+    // medias, no se gasta un número y la numeración no queda con huecos.
+    if (pagosCreados.length > 0) {
+      const recibido = Number(modalRecibido) || null
+      await fetch('/api/transacciones', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          canal: 'domicilio',
+          cliente_id: d.cliente_id,
+          entrega_id: entregasOrdenadas[0] || null,
+          domicilio_id: d.id,
+          total: totalPago,
+          efectivo_recibido: recibido,
+          cambio: recibido && recibido > totalPago ? Math.round((recibido - totalPago) * 100) / 100 : null,
+          pagos_ids: pagosCreados,
+        }),
       })
     }
 

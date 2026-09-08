@@ -49,8 +49,11 @@ export async function POST(req) {
     vendedor_id: vendedor_id || sesion.id,
   }))
 
-  const { error } = await supabase.from('pagos').insert(registros)
+  // Devuelve los ids para que quien llame pueda amarrarlos a una transacción.
+  // El cobro a domicilio hace varias llamadas aquí (mercancía y envío, por dos
+  // métodos de pago); la transacción se crea al final, con todos juntos.
+  const { data, error } = await supabase.from('pagos').insert(registros).select('id')
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, pagos_ids: (data || []).map(r => r.id) })
 }

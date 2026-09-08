@@ -14,6 +14,13 @@ const nextConfig = {
       './lib/estadosCuenta/fuentes/**',
       './public/logo-estado-cuenta.png',
     ],
+    // El ticket usa el mismo motor y por lo tanto las mismas fuentes y el mismo
+    // logo. Sin esta línea la imagen del ticket saldría sin texto: Vercel no
+    // sube archivos que no ve referenciados desde la ruta.
+    '/api/tickets/**': [
+      './lib/estadosCuenta/fuentes/**',
+      './public/logo-estado-cuenta.png',
+    ],
   },
   async headers() {
     return [

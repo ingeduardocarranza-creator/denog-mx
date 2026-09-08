@@ -41,6 +41,7 @@ export default function AdminCaja() {
   const [mensajeRetiro, setMensajeRetiro] = useState('')
   const [metricas, setMetricas] = useState({ efectivo: 0, transferencia: 0, terminal: 0 })
   const [metricasTurno, setMetricasTurno] = useState({ efectivo: 0, transferencia: 0, terminal: 0 })
+  const [metricasPostCorte, setMetricasPostCorte] = useState({ efectivo: 0 })
 
   useEffect(() => { cargar() }, [fecha])
 
@@ -112,7 +113,6 @@ export default function AdminCaja() {
     ? retiros.filter(r => r.estado === 'confirmado' && r.creado_en >= aperturaActual.creado_en).reduce((s, r) => s + r.monto, 0)
     : 0
   const efectivoEnCaja = fondoInicial + metricasTurno.efectivo - retirosConfirmadosTurno
-  const fondoActualTurno = fondoInicial - retirosConfirmadosTurno
   const totalDia = metricas.efectivo + metricas.transferencia + metricas.terminal
 
   // Fondo inicial del día: la apertura más antigua (primera del día), orden explícito por fecha
@@ -125,11 +125,26 @@ export default function AdminCaja() {
   const retirosPostCorte = ultimoCorteHoy
     ? retiros.filter(r => r.estado === 'confirmado' && new Date(r.creado_en) > new Date(ultimoCorteHoy.creado_en)).reduce((s, r) => s + r.monto, 0)
     : 0
+  // Sin turno abierto: lo que se contó en el último corte más lo que se haya
+  // cobrado en efectivo después de ese corte.
+  useEffect(() => {
+    if (turnoActivo || !ultimoCorteHoy?.creado_en) { setMetricasPostCorte({ efectivo: 0 }); return }
+    fetch(`/api/caja?resumen=true&fecha=${fecha}&desde=${encodeURIComponent(ultimoCorteHoy.creado_en)}`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) setMetricasPostCorte({ efectivo: d.efectivo }) })
+  }, [fecha, cortes])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // El efectivo que debe haber en la caja es el fondo MÁS lo que se cobró en
+  // efectivo, menos los retiros. Antes el titular mostraba solo fondo − retiros
+  // y no contaba las ventas del turno: con $2,541 de fondo y $3,575 cobrados
+  // decía $2,541 cuando en la caja había $6,116. El número correcto ya se
+  // calculaba (`efectivoEnCaja`) y se mostraba más abajo en la misma pantalla,
+  // así que la pantalla se contradecía sola.
   const fondoActualDia = turnoActivo
-    ? fondoActualTurno
+    ? efectivoEnCaja
     : ultimoCorteHoy
-    ? Math.max(0, (ultimoCorteHoy.total_contado || 0) - retirosPostCorte)
-    : Math.max(0, fondoDia - retirosConfirmadosDia)
+    ? Math.max(0, (ultimoCorteHoy.total_contado || 0) + metricasPostCorte.efectivo - retirosPostCorte)
+    : Math.max(0, fondoDia + metricas.efectivo - retirosConfirmadosDia)
 
   // Historial: una fila por turno, emparejando por timestamp.
   // Ordenamos aperturas y cortes ASC; el corte de una apertura es el que ocurre
@@ -214,10 +229,10 @@ export default function AdminCaja() {
               </div>
               <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>
                 {turnoActivo
-                  ? `${fmt(fondoInicial)} de fondo inicial − ${fmt(retirosConfirmadosTurno)} de retiros del turno`
+                  ? `${fmt(fondoInicial)} de fondo inicial + ${fmt(metricasTurno.efectivo)} cobrado en efectivo − ${fmt(retirosConfirmadosTurno)} de retiros del turno`
                   : ultimoCorteHoy
-                  ? `${fmt(ultimoCorteHoy.total_contado)} del último corte − ${fmt(retirosPostCorte)} de retiros posteriores`
-                  : `${fmt(fondoDia)} de fondo inicial − ${fmt(retirosConfirmadosDia)} de retiros confirmados`}
+                  ? `${fmt(ultimoCorteHoy.total_contado)} del último corte + ${fmt(metricasPostCorte.efectivo)} cobrado después − ${fmt(retirosPostCorte)} de retiros posteriores`
+                  : `${fmt(fondoDia)} de fondo inicial + ${fmt(metricas.efectivo)} cobrado en efectivo − ${fmt(retirosConfirmadosDia)} de retiros confirmados`}
               </div>
             </div>
             <div className="monto" style={{ color: 'var(--ambar)', fontSize: 40, fontWeight: 900, letterSpacing: -1.5, lineHeight: 1 }}>

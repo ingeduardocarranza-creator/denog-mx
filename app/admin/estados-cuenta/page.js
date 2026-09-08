@@ -27,6 +27,8 @@ export default function EstadosCuenta() {
   const [copiado, setCopiado] = useState(false)
   const [errorClip, setErrorClip] = useState(false)
   const [imagenURL, setImagenURL] = useState(null)
+  const [envioWa, setEnvioWa] = useState(null) // null | 'enviando' | 'ok' | 'error'
+  const [envioWaMensaje, setEnvioWaMensaje] = useState('')
   const canvasRef = useRef(null)
 
   // Edición de pedidos
@@ -248,12 +250,38 @@ export default function EstadosCuenta() {
   useEffect(() => {
     if (datos.length > 0 && datos[indice]) {
       setImagenURL(null)
+      setEnvioWa(null)
+      setEnvioWaMensaje('')
       dibujarEnNavegador(datos[indice]).then(canvas => {
         canvasRef.current = canvas
         setImagenURL(canvas.toDataURL('image/png'))
       })
     }
   }, [indice, datos])
+
+  // Manda la MISMA imagen que se ve en pantalla, ya como mensaje de WhatsApp:
+  // libre si el cliente escribió en las últimas 24h, o con la plantilla
+  // aprobada si no. Solo tiene sentido en modo "Por entrega": ahí sí hay un
+  // entrega_id único, que es lo que pide el motor de envío del lado del
+  // servidor para generar la misma imagen otra vez y no depender de lo que
+  // haya en el navegador.
+  const enviarPorWhatsapp = async () => {
+    if (!clienteActual || modo !== 'entrega' || !entregaId) return
+    setEnvioWa('enviando')
+    setEnvioWaMensaje('')
+    try {
+      const res = await fetch('/api/whatsapp/enviar-estado-cuenta', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entrega_id: entregaId, cliente_id: clienteActual.cliente.id }),
+      })
+      const data = await res.json()
+      setEnvioWa(data.ok ? 'ok' : 'error')
+      setEnvioWaMensaje(data.ok ? '' : (data.mensaje || 'No se pudo enviar'))
+    } catch {
+      setEnvioWa('error')
+      setEnvioWaMensaje('Error de conexión')
+    }
+  }
 
   const siguiente = () => { if (indice < datos.length - 1) setIndice(i => i + 1) }
 
@@ -727,6 +755,26 @@ export default function EstadosCuenta() {
                 </div>
               )}
             </div>
+
+            {modo === 'entrega' && (
+              <div style={{ marginBottom: 10 }}>
+                <button onClick={enviarPorWhatsapp} disabled={!imagenURL || !clienteActual.cliente.telefono || envioWa === 'enviando'}
+                  style={{ width: '100%', padding: '14px', borderRadius: 12,
+                    background: envioWa === 'ok' ? 'rgba(74,222,128,0.15)' : 'rgba(37,211,102,0.12)',
+                    border: `1px solid ${envioWa === 'ok' ? 'rgba(74,222,128,0.35)' : 'rgba(37,211,102,0.3)'}`,
+                    color: envioWa === 'ok' ? 'var(--verde)' : 'var(--verde)', fontSize: 15, fontWeight: 700,
+                    cursor: (!imagenURL || !clienteActual.cliente.telefono) ? 'default' : 'pointer',
+                    opacity: (!imagenURL || !clienteActual.cliente.telefono) ? 0.4 : 1 }}>
+                  {envioWa === 'enviando' ? 'Enviando…' : envioWa === 'ok' ? '✅ Enviado por WhatsApp' : '🚀 Enviar automático por WhatsApp'}
+                </button>
+                {envioWa === 'error' && (
+                  <div style={{ color: 'var(--rojo-t)', fontSize: 12, marginTop: 6, textAlign: 'center' }}>
+                    ⚠️ {envioWaMensaje}
+                  </div>
+                )}
+              </div>
+            )}
+
             <button onClick={() => setIndice(i => Math.min(datos.length - 1, i + 1))} disabled={indice >= datos.length - 1}
               style={{ width: '100%', padding: '12px', borderRadius: 12, background: indice < datos.length - 1 ? 'var(--w06)' : 'var(--w02)', border: `1px solid ${indice < datos.length - 1 ? 'var(--w12)' : 'var(--w04)'}`, color: indice < datos.length - 1 ? 'var(--w60)' : 'var(--w15)', fontSize: 14, fontWeight: 600, cursor: indice < datos.length - 1 ? 'pointer' : 'default' }}>
               Siguiente cliente → ({indice + 1} / {datos.length})

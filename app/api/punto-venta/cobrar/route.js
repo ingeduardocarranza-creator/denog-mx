@@ -308,6 +308,7 @@ export async function POST(req) {
     // se toma de un contador que vive en la base y se mueve dentro de la misma
     // operación: no se repite y no deja huecos.
     let folio = null
+    let transaccionId = null
     if (pagosCreados.length > 0 || ventasCreadas.length > 0) {
       // Lo cobrado en esta transacción es el dinero que cambió de manos ahora.
       // Los anticipos que se aplicaron no cuentan: ese dinero entró otro día.
@@ -335,6 +336,7 @@ export async function POST(req) {
         console.error('[cobrar] el cobro quedó pero no se pudo crear la transacción:', errorTx.message)
       } else if (transaccion) {
         folio = transaccion.folio
+        transaccionId = transaccion.id
         if (pagosCreados.length) {
           await supabase.from('pagos').update({ transaccion_id: transaccion.id }).in('id', pagosCreados)
         }
@@ -344,7 +346,7 @@ export async function POST(req) {
       }
     }
 
-    return NextResponse.json({ ok: true, folio })
+    return NextResponse.json({ ok: true, folio, transaccion_id: transaccionId })
   } catch (err) {
     console.error('Error en cobro POS:', err)
     return NextResponse.json({ ok: false, mensaje: 'Error al procesar el cobro' }, { status: 500 })

@@ -246,6 +246,19 @@ async function procesarMensajeEntrante(msg, valor) {
   const contacto = (valor.contacts || []).find(c => c.wa_id === telefono)
   const nombre = contacto?.profile?.name || null
 
+  // Ventana de servicio de 24h: de aquí en adelante SÍ es un cliente real
+  // escribiéndonos (no un reenvío de ventas). Se guarda para saber, cuando
+  // se le mande un ticket o estado de cuenta, si se puede mandar la imagen
+  // libre o hay que usar la plantilla aprobada. No bloquea el resto del
+  // procesamiento si falla.
+  if (diezEmisor) {
+    after(() => supabase
+      .from('whatsapp_ventana')
+      .upsert({ telefono: diezEmisor, nombre, ultimo_mensaje_en: new Date().toISOString() })
+      .then(({ error }) => { if (error) console.error('[webhook whatsapp] no se pudo guardar la ventana:', error.message) })
+    )
+  }
+
   // OJO: cuando el cliente manda una foto CON texto en el mismo mensaje,
   // WhatsApp no pone ese texto en `text.body` sino en el `caption` del
   // adjunto. Sin esto, un "¿me consigues este artículo?" escrito junto a la

@@ -23,6 +23,24 @@ export default function Domicilios() {
     fecha_preferida: '', horario: '', notas: ''
   })
   const [guardando, setGuardando] = useState(false)
+  const [ticketListoDomicilio, setTicketListoDomicilio] = useState(null) // { transaccionId, nombre }
+  const [envioTicketDomicilioEstado, setEnvioTicketDomicilioEstado] = useState(null) // null | 'enviando' | 'ok' | 'error'
+
+  const enviarTicketDomicilio = async () => {
+    if (!ticketListoDomicilio?.transaccionId) return
+    setEnvioTicketDomicilioEstado('enviando')
+    try {
+      const res = await fetch('/api/whatsapp/enviar-ticket', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaccion_id: ticketListoDomicilio.transaccionId }),
+      })
+      const data = await res.json()
+      setEnvioTicketDomicilioEstado(data.ok ? 'ok' : 'error')
+      if (!data.ok) console.error('[ticket whatsapp domicilio]', data.mensaje)
+    } catch {
+      setEnvioTicketDomicilioEstado('error')
+    }
+  }
 
   const HORARIOS_SEMANA = ['10:00am - 1:30pm', '3:00pm - 7:00pm']
   const HORARIOS_SABADO = ['10:00am - 1:00pm', '2:00pm - 5:00pm']
@@ -324,7 +342,7 @@ const horariosDelDia = (fecha) => {
     // medias, no se gasta un número y la numeración no queda con huecos.
     if (pagosCreados.length > 0) {
       const recibido = Number(modalRecibido) || null
-      await fetch('/api/transacciones', {
+      const resTx = await fetch('/api/transacciones', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           canal: 'domicilio',
@@ -337,6 +355,10 @@ const horariosDelDia = (fecha) => {
           pagos_ids: pagosCreados,
         }),
       })
+      const datosTx = await resTx.json().catch(() => null)
+      if (datosTx?.ok && datosTx.id) {
+        setTicketListoDomicilio({ transaccionId: datosTx.id, nombre: getNombreCliente(d) })
+      }
     }
 
     await fetch('/api/domicilios/actualizar', {
@@ -546,6 +568,31 @@ const horariosDelDia = (fecha) => {
             </div>
           )}
         </div>
+
+        {ticketListoDomicilio && envioTicketDomicilioEstado !== 'ok' && (
+          <div style={{ background: 'var(--verdeFondo, #e8f4ef)', border: '1px solid var(--verde, #0f8a63)', borderRadius: 14, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: 'var(--tinta)' }}>
+              {envioTicketDomicilioEstado === 'error'
+                ? `⚠️ No se pudo enviar el ticket de ${ticketListoDomicilio.nombre}. Puedes intentar de nuevo.`
+                : `Entrega registrada. ¿Enviar el ticket de ${ticketListoDomicilio.nombre} por WhatsApp?`}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={enviarTicketDomicilio} disabled={envioTicketDomicilioEstado === 'enviando'}
+                style={{ background: 'var(--verde, #0f8a63)', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: envioTicketDomicilioEstado === 'enviando' ? 0.6 : 1 }}>
+                {envioTicketDomicilioEstado === 'enviando' ? 'Enviando…' : '💬 Enviar Ticket'}
+              </button>
+              <button onClick={() => { setTicketListoDomicilio(null); setEnvioTicketDomicilioEstado(null) }}
+                style={{ background: 'transparent', color: 'var(--w40)', border: 'none', fontSize: 12, cursor: 'pointer' }}>
+                Omitir
+              </button>
+            </div>
+          </div>
+        )}
+        {ticketListoDomicilio && envioTicketDomicilioEstado === 'ok' && (
+          <div style={{ background: 'var(--verdeFondo, #e8f4ef)', border: '1px solid var(--verde, #0f8a63)', borderRadius: 14, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--tinta)' }}>
+            ✅ Ticket de {ticketListoDomicilio.nombre} enviado por WhatsApp.
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <div style={{ flex: 1, background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>

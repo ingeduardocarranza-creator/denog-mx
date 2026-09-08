@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { sugerirFechaLimite } from '../../../lib/entregas/fechaLimite'
 
 export default function Entregas() {
   const [entregas, setEntregas] = useState([])
@@ -8,7 +9,7 @@ export default function Entregas() {
   const [form, setForm] = useState({ fecha_entrega: '', nota: '' })
   const [msg, setMsg] = useState('')
   const [editando, setEditando] = useState(null)
-  const [editForm, setEditForm] = useState({ fecha_entrega: '', nota: '' })
+  const [editForm, setEditForm] = useState({ fecha_entrega: '', nota: '', fecha_limite: '' })
   const [editMsg, setEditMsg] = useState('')
   const [guardandoEdit, setGuardandoEdit] = useState(false)
 
@@ -64,7 +65,7 @@ export default function Entregas() {
 
   const abrirEdicion = (e) => {
     setEditando(e.id)
-    setEditForm({ fecha_entrega: e.fecha_entrega, nota: e.nota || '' })
+    setEditForm({ fecha_entrega: e.fecha_entrega, nota: e.nota || '', fecha_limite: e.fecha_limite || '' })
     setEditMsg('')
   }
 
@@ -79,7 +80,7 @@ export default function Entregas() {
     const res = await fetch('/api/entregas', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, fecha_entrega: editForm.fecha_entrega, nota: editForm.nota })
+      body: JSON.stringify({ id, fecha_entrega: editForm.fecha_entrega, nota: editForm.nota, fecha_limite: editForm.fecha_limite || null })
     })
     const data = await res.json()
     setGuardandoEdit(false)
@@ -324,6 +325,9 @@ export default function Entregas() {
                   <div>
                     <div style={{ color: 'var(--tinta)', fontSize: 16, fontWeight: 700 }}>📅 {e.fecha_entrega}</div>
                     {e.nota && <div style={{ color: 'var(--w40)', fontSize: 12, marginTop: 2 }}>{e.nota}</div>}
+                    <div style={{ color: e.fecha_limite ? 'var(--w45)' : 'var(--ambar)', fontSize: 11.5, marginTop: 3 }}>
+                      {e.fecha_limite ? `Recoger hasta el ${e.fecha_limite}` : 'Sin fecha límite — no saldrá en el estado de cuenta'}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button onClick={() => abrirEdicion(e)}
@@ -355,6 +359,32 @@ export default function Entregas() {
                         <input type="text" value={editForm.nota} onChange={ev => setEditForm({ ...editForm, nota: ev.target.value })}
                           placeholder="Ej: Viaje Arizona mayo"
                           style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w12)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                      </div>
+                      {/* Va impresa en el estado de cuenta del cliente, así que la
+                          pone el admin. El botón solo sugiere: 7 días sin contar
+                          domingos. Los días que no se abre los ajusta él. */}
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>
+                          Fecha límite para recoger
+                        </label>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input type="date" value={editForm.fecha_limite} onChange={ev => setEditForm({ ...editForm, fecha_limite: ev.target.value })}
+                            style={{ background: 'var(--w05)', border: '1px solid var(--w12)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none' }} />
+                          <button type="button"
+                            onClick={() => setEditForm({ ...editForm, fecha_limite: sugerirFechaLimite(editForm.fecha_entrega) || '' })}
+                            style={{ background: 'var(--w06)', border: '1px solid var(--w14)', borderRadius: 10, padding: '9px 14px', color: 'var(--w70)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Sugerir 7 días
+                          </button>
+                          {editForm.fecha_limite && (
+                            <button type="button" onClick={() => setEditForm({ ...editForm, fecha_limite: '' })}
+                              style={{ background: 'transparent', border: 'none', color: 'var(--w40)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
+                              Quitar
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ color: 'var(--w35)', fontSize: 11, marginTop: 6 }}>
+                          Aparece en el estado de cuenta del cliente. La sugerencia cuenta 7 días de lunes a sábado; si cierras algún día, córrela a mano.
+                        </div>
                       </div>
                     </div>
                     {editMsg && <div style={{ color: 'var(--rojo-t)', fontSize: 12, marginBottom: 10 }}>{editMsg}</div>}

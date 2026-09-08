@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
+import { sugerirFechaLimite } from '@/lib/entregas/fechaLimite'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -21,11 +22,14 @@ export async function GET(req) {
 
 export async function POST(req) {
   if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  const { fecha_entrega, nota } = await req.json()
+  const { fecha_entrega, nota, fecha_limite } = await req.json()
 
   const { data, error } = await supabase
     .from('entregas')
-    .insert([{ fecha_entrega, nota, estado: 'futura' }])
+    // Si no viene, se propone: 7 días después, sin contar domingos. Es una
+    // sugerencia — se puede cambiar en cualquier momento desde Entregas.
+    .insert([{ fecha_entrega, nota, estado: 'futura',
+               fecha_limite: fecha_limite || sugerirFechaLimite(fecha_entrega) }])
     .select()
     .single()
 
@@ -35,12 +39,17 @@ export async function POST(req) {
 
 export async function PUT(req) {
   if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
-  const { id, fecha_entrega, nota } = await req.json()
+  const { id, fecha_entrega, nota, fecha_limite } = await req.json()
   if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })
+
+  // `fecha_limite` solo se toca si viene en la petición: así una edición de la
+  // nota no borra la fecha que Lalo ya había ajustado a mano.
+  const cambios = { fecha_entrega, nota }
+  if (fecha_limite !== undefined) cambios.fecha_limite = fecha_limite || null
 
   const { data, error } = await supabase
     .from('entregas')
-    .update({ fecha_entrega, nota })
+    .update(cambios)
     .eq('id', id)
     .select()
     .single()

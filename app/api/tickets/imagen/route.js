@@ -34,7 +34,8 @@ export async function GET(req) {
   if (searchParams.get('datos')) return NextResponse.json({ ok: true, ticket: datos })
 
   try {
-    const png = await pngDeDibujo(dibujarTicket, datos)
+    // ?paleta=cielo|dulce|menta — para comparar diseños sin tocar código.
+    const png = await pngDeDibujo(dibujarTicket, datos, { paleta: searchParams.get('paleta') || undefined })
     return new Response(png, {
       headers: {
         'Content-Type': 'image/png',

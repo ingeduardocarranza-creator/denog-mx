@@ -18,6 +18,32 @@ const supabase = createClient(
 //   · anticipos = tipo 'Anticipo'
 //   · otros     = todo lo demás (mercadito, cobros sueltos). NO se esconde:
 //                 si aparece dinero aquí, es que hay un flujo sin clasificar.
+// PostgREST devuelve como máximo 1000 renglones y NO avisa cuando corta. Es la
+// peor clase de error: el reporte sale, se ve completo, y le faltan datos.
+//
+// Ya estaba mordiendo. La consulta de "qué recogió" pedía todos los pedidos de
+// las entregas tocadas en el periodo — el 7 de septiembre eran cuatro entregas
+// con 2,377 pedidos entre todas — y se quedaba con los primeros mil. A quien
+// cayera después de ese renglón le salía "Nada marcado como entregado" aunque
+// sí hubiera recogido. Así aparecieron Ibeth Higuera y Cristina García.
+//
+// Los pagos son la siguiente mina: 1,277 en total. Un reporte de tres meses ya
+// habría perdido dinero en silencio.
+const PAGINA = 1000
+const MAX_PAGINAS = 60   // 60,000 renglones: tope de seguridad, no un límite real
+
+async function traerTodo(hacerConsulta) {
+  const filas = []
+  for (let i = 0; i < MAX_PAGINAS; i++) {
+    const { data, error } = await hacerConsulta(i * PAGINA, i * PAGINA + PAGINA - 1)
+    if (error) throw new Error(error.message)
+    const lote = data || []
+    filas.push(...lote)
+    if (lote.length < PAGINA) return filas
+  }
+  return filas
+}
+
 export async function GET(req) {
   if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
 
@@ -29,29 +55,24 @@ export async function GET(req) {
   const ini = `${desde}T00:00:00`
   const fin = `${hasta}T23:59:59`
 
-  const [pagosRes, ventasRes, cortesRes, retirosRes, canceladosRes, clientesRes, huerfanosRes] = await Promise.all([
-    supabase.from('pagos').select('id, monto, metodo, tipo, entrega_id, creado_en, vendedor_id, cliente_id')
-      .gte('creado_en', ini).lte('creado_en', fin),
-    supabase.from('ventas_tienda')
+  const [pagos, ventas, cortes, retiros, cancelados, listaClientes, huerfanosRes] = await Promise.all([
+    traerTodo((a, b) => supabase.from('pagos').select('id, monto, metodo, tipo, entrega_id, creado_en, vendedor_id, cliente_id')
+      .gte('creado_en', ini).lte('creado_en', fin).range(a, b)),
+    traerTodo((a, b) => supabase.from('ventas_tienda')
       .select('id, pago_id, nombre_producto, categoria, cantidad, precio_unitario, costo_unitario, vendedor_id, origen, descuento_tipo, descuento_valor, creado_en')
-      .gte('creado_en', ini).lte('creado_en', fin),
-    supabase.from('cortes_caja').select('id, colaborador_id, tipo, total_contado, total_esperado, diferencia, justificacion, creado_en, desde, hasta, total_efectivo, total_transferencia, total_terminal')
-      .gte('creado_en', ini).lte('creado_en', fin),
-    supabase.from('retiros_caja').select('id, admin_id, monto, motivo, estado, creado_en')
-      .gte('creado_en', ini).lte('creado_en', fin),
-    supabase.from('pagos_cancelados').select('id, monto, metodo, cancelado_por, cancelado_en, cancelado_motivo, cliente_id')
-      .gte('cancelado_en', ini).lte('cancelado_en', fin),
-    supabase.from('clientes').select('id, nombre'),
+      .gte('creado_en', ini).lte('creado_en', fin).range(a, b)),
+    traerTodo((a, b) => supabase.from('cortes_caja').select('id, colaborador_id, tipo, total_contado, total_esperado, diferencia, justificacion, creado_en, desde, hasta, total_efectivo, total_transferencia, total_terminal')
+      .gte('creado_en', ini).lte('creado_en', fin).range(a, b)),
+    traerTodo((a, b) => supabase.from('retiros_caja').select('id, admin_id, monto, motivo, estado, creado_en')
+      .gte('creado_en', ini).lte('creado_en', fin).range(a, b)),
+    traerTodo((a, b) => supabase.from('pagos_cancelados').select('id, monto, metodo, cancelado_por, cancelado_en, cancelado_motivo, cliente_id')
+      .gte('cancelado_en', ini).lte('cancelado_en', fin).range(a, b)),
+    traerTodo((a, b) => supabase.from('clientes').select('id, nombre').range(a, b)),
     supabase.from('pendientes').select('id', { count: 'exact', head: true })
       .eq('tipo', 'comprobante').eq('estado', 'resuelto'),
   ])
 
-  const pagos = pagosRes.data || []
-  const ventas = ventasRes.data || []
-  const cortes = cortesRes.data || []
-  const retiros = retirosRes.data || []
-  const cancelados = canceladosRes.data || []
-  const nombre = Object.fromEntries((clientesRes.data || []).map(c => [c.id, c.nombre]))
+  const nombre = Object.fromEntries(listaClientes.map(c => [c.id, c.nombre]))
 
   const pagosDeTienda = new Set(ventas.map(v => v.pago_id).filter(Boolean))
   const clase = (p) =>
@@ -174,14 +195,14 @@ export async function GET(req) {
   }
 
   // Qué recogió: los pedidos entregados de esa persona en esa entrega.
-  const paresEntrega = [...new Set(visitas.flatMap(v => v.entregaIds.map(e => `${v.cliente_id}|${e}`)))]
+  const idsEntregas = [...new Set(visitas.flatMap(v => v.entregaIds))]
   let pedidosEntregados = []
-  if (paresEntrega.length) {
-    const { data } = await supabase
+  if (idsEntregas.length) {
+    pedidosEntregados = await traerTodo((a, b) => supabase
       .from('pedidos')
       .select('cliente_id, entrega_id, descripcion, cantidad, precio_venta, estado')
-      .in('entrega_id', [...new Set(visitas.flatMap(v => v.entregaIds))])
-    pedidosEntregados = data || []
+      .in('entrega_id', idsEntregas)
+      .range(a, b))
   }
   for (const v of visitas) {
     v.total = Math.round(v.total * 100) / 100
@@ -206,14 +227,14 @@ export async function GET(req) {
   // Caso que lo destapó: Ingrid Gutiérrez, anticipo de $295 el 14 de agosto,
   // recogió su pedido de $295 el 7 de septiembre, no debía nada, no apareció.
   // Se rescatan por `entregado_en`, que es la hora real en que se llevó.
-  const { data: recogidasPeriodo } = await supabase
+  const recogidasPeriodo = await traerTodo((a, b) => supabase
     .from('pedidos')
     .select('cliente_id, entrega_id, descripcion, cantidad, precio_venta, entregado_en')
-    .gte('entregado_en', ini).lte('entregado_en', fin)
+    .gte('entregado_en', ini).lte('entregado_en', fin).range(a, b))
 
   const cerca = (a, b) => Math.abs(new Date(a) - new Date(b)) <= VENTANA_MS
   const sinCobro = []
-  for (const r of (recogidasPeriodo || [])) {
+  for (const r of recogidasPeriodo) {
     if (!r.cliente_id || !r.entregado_en) continue
     // Si esa persona ya tiene una visita a esa hora, o una visita que cobró
     // algo de esta misma entrega, el pedido ya está contado ahí.

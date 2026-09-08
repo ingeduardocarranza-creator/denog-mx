@@ -8,13 +8,17 @@ import jsQR from 'jsqr';
 // pantalla no tiene cámara — pasa en algunas computadoras de mostrador), se
 // cae a un campo de texto: el código también se imprime en letra grande en
 // el estado de cuenta, así que siempre hay cómo teclearlo a mano.
-export default function EscanearQR({ onDetectado, onCerrar }) {
+export default function EscanearQR({ onDetectado, onCerrar, colaborador }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const rafRef = useRef(null);
   const [error, setError] = useState(null);
   const [manual, setManual] = useState('');
+  // El escaneo con cámara lee el QR de verdad — eso ya es suficiente prueba.
+  // Lo escrito a mano no: cualquiera puede teclear un código sin ver el papel,
+  // así que antes de aceptarlo se pide que el colaborador en turno lo autorice.
+  const [autorizando, setAutorizando] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -82,25 +86,52 @@ export default function EscanearQR({ onDetectado, onCerrar }) {
         <canvas ref={canvasRef} style={{ display: 'none' }} />
 
         <div style={{ marginTop: 14 }}>
-          <div style={{ color: 'var(--w40)', fontSize: 11.5, marginBottom: 6 }}>
-            {error ? 'Escribe el código que aparece en el estado de cuenta del cliente:' : 'O escríbelo a mano si la cámara no lo lee:'}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              value={manual}
-              onChange={e => setManual(e.target.value.toUpperCase())}
-              placeholder="D-XXXXX"
-              onKeyDown={e => { if (e.key === 'Enter' && manual.trim()) onDetectado(manual.trim()) }}
-              style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--w12)', background: 'var(--w03)', color: 'var(--tinta)', fontSize: 14, fontWeight: 700, letterSpacing: 1 }}
-            />
-            <button
-              onClick={() => manual.trim() && onDetectado(manual.trim())}
-              disabled={!manual.trim()}
-              style={{ padding: '10px 18px', borderRadius: 10, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', color: 'var(--marca-t)', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: manual.trim() ? 1 : 0.5 }}
-            >
-              Buscar
-            </button>
-          </div>
+          {!autorizando ? (
+            <>
+              <div style={{ color: 'var(--w40)', fontSize: 11.5, marginBottom: 6 }}>
+                {error ? 'Escribe el código que aparece en el estado de cuenta del cliente:' : 'O escríbelo a mano si la cámara no lo lee:'}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={manual}
+                  onChange={e => setManual(e.target.value.toUpperCase())}
+                  placeholder="D-XXXXX"
+                  onKeyDown={e => { if (e.key === 'Enter' && manual.trim()) setAutorizando(true) }}
+                  style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--w12)', background: 'var(--w03)', color: 'var(--tinta)', fontSize: 14, fontWeight: 700, letterSpacing: 1 }}
+                />
+                <button
+                  onClick={() => manual.trim() && setAutorizando(true)}
+                  disabled={!manual.trim()}
+                  style={{ padding: '10px 18px', borderRadius: 10, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', color: 'var(--marca-t)', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: manual.trim() ? 1 : 0.5 }}
+                >
+                  Buscar
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={{ background: 'var(--w03)', border: '1px solid var(--w12)', borderRadius: 10, padding: 12 }}>
+              <div style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>
+                Código escrito a mano: {manual.trim()}
+              </div>
+              <div style={{ color: 'var(--w40)', fontSize: 11.5, marginBottom: 10 }}>
+                Esto no pasó por la cámara. Confirma que tú, {colaborador?.nombre || 'colaborador en turno'}, autorizas entregar con este código.
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setAutorizando(false)}
+                  style={{ flex: 1, padding: '10px 14px', borderRadius: 10, background: 'transparent', border: '1px solid var(--w12)', color: 'var(--w40)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => onDetectado(manual.trim())}
+                  style={{ flex: 1, padding: '10px 14px', borderRadius: 10, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', color: 'var(--marca-t)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                >
+                  Autorizo, buscar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

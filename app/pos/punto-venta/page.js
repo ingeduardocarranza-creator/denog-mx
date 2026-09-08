@@ -1620,6 +1620,7 @@ const horariosDelDia = (f) => {
       <EscanearQR
         onDetectado={manejarCodigoEscaneado}
         onCerrar={() => { setEscaneando(false); setErrorEscaneo(''); }}
+        colaborador={colaborador}
       />
     )}
     {errorEscaneo && !escaneando && (

@@ -55,10 +55,10 @@ export async function GET(req) {
   if (!datos) return NextResponse.json({ ok: false, mensaje: 'Ese cliente no tiene estado de cuenta en esta entrega' }, { status: 404 })
 
   try {
-    // ?paleta=cielo — para comparar diseños sin tocar código.
+    // Sale en Cielo por default. ?paleta=... y ?marco=... solo para comparar.
     const png = await pngEstadoCuenta(datos, {
       paleta: searchParams.get('paleta') || undefined,
-      marco: searchParams.get('paleta') === 'cielo' ? 'cielo' : undefined,
+      marco: searchParams.get('marco') || undefined,
     })
     return new Response(png, {
       headers: {

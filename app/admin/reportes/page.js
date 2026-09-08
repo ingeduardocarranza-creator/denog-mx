@@ -8,6 +8,7 @@ export default function Reportes() {
 
   const [general, setGeneral] = useState(null)
   const [cargandoGeneral, setCargandoGeneral] = useState(false)
+  const [errorGeneral, setErrorGeneral] = useState('')
   // Un solo día no revela nada: un faltante de $50 un martes es ruido, pero
   // acumulado en el mes es una señal. Por eso el general va por rango.
   const [rango, setRango] = useState('hoy')
@@ -84,8 +85,15 @@ export default function Reportes() {
     setVisitaAbierta(null)
     fetch(`/api/reportes/general?desde=${d}&hasta=${h}`)
       .then(r => r.json())
-      .then(r => { if (r.ok) setGeneral(r); setCargandoGeneral(false) })
-      .catch(() => setCargandoGeneral(false))
+      .then(r => {
+        if (r.ok) { setGeneral(r); setErrorGeneral('') }
+        // Sin esto, un error dejaba la pantalla vacía y parecía que no había
+        // datos del periodo. Callar un fallo en una pantalla de control es
+        // peor que enseñarlo feo.
+        else setErrorGeneral(r.mensaje || 'No se pudo cargar el reporte')
+        setCargandoGeneral(false)
+      })
+      .catch(() => { setErrorGeneral('No se pudo conectar con el servidor'); setCargandoGeneral(false) })
   }, [rango, rangoDesde, rangoHasta])
 
   const rotulo = { color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }
@@ -484,6 +492,20 @@ export default function Reportes() {
             </div>
 
             {cargandoGeneral && <div style={{ color: 'var(--w30)', textAlign: 'center', padding: 40 }}>Cargando…</div>}
+
+            {!cargandoGeneral && errorGeneral && (
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 14, padding: '16px 18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 17 }}>🔴</span>
+                <div>
+                  <div style={{ color: 'var(--rojo-t)', fontSize: 13.5, fontWeight: 700 }}>El reporte no se pudo armar</div>
+                  <div style={{ color: 'var(--w45)', fontSize: 12.5, marginTop: 4 }}>{errorGeneral}</div>
+                  <div style={{ color: 'var(--w35)', fontSize: 11.5, marginTop: 6, maxWidth: '58ch' }}>
+                    Se muestra el error en vez de una pantalla vacía a propósito: en una pantalla
+                    de control, media verdad es peor que ninguna.
+                  </div>
+                </div>
+              </div>
+            )}
 
             {!cargandoGeneral && general && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

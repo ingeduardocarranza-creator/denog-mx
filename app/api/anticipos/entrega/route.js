@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirAdmin } from '@/lib/auth/session'
+import { traerTodo } from '@/lib/traerTodo'
 import { urlsFirmadas } from '@/lib/whatsapp/media'
 import { a10Digitos } from '@/lib/whatsapp/telefono'
 
@@ -34,12 +35,16 @@ export async function GET(req) {
   const [entregaRes, pedidosRes, pagosRes, clientesRes, domiciliosRes, compRes] = await Promise.all([
     supabase.from('entregas').select('id, fecha_entrega, nota, estado').eq('id', entrega_id).single(),
 
-    supabase.from('pedidos')
+    // Paginado: una entrega ya trae 682 pedidos y va creciendo. Al pasar de
+    // 1000, PostgREST corta sin avisar y esta pantalla —que es la cuenta de
+    // cada cliente— empezaría a esconder mercancía en silencio.
+    traerTodo((a, b) => supabase.from('pedidos')
       .select('id, cliente_id, descripcion, precio_venta, cantidad, estado, entregado_en')
       .eq('entrega_id', entrega_id)
       // Borradores de WhatsApp y descartados no son mercancía.
       .eq('pendiente_aprobacion', false)
-      .neq('estado', 'descartado'),
+      .neq('estado', 'descartado')
+      .range(a, b)).then(data => ({ data })),
 
     // Aquí SÍ entran los pagos de envío. Esta pantalla muestra la cuenta
     // COMPLETA del cliente, no solo la mercancía: si pagó $370 por $300 de
@@ -47,10 +52,11 @@ export async function GET(req) {
     // (En el POS es al revés: ahí el envío se excluye porque el domicilio no
     // se cobra en el mostrador. Son dos preguntas distintas: "cuánto debe en
     // total" contra "cuánto le cobro aquí".)
-    supabase.from('pagos')
+    traerTodo((a, b) => supabase.from('pagos')
       .select('id, cliente_id, monto, metodo, tipo, creado_en, pendiente_id')
       .eq('entrega_id', entrega_id)
-      .order('creado_en', { ascending: true }),
+      .order('creado_en', { ascending: true })
+      .range(a, b)).then(data => ({ data })),
 
     supabase.from('clientes').select('id, nombre, telefono').neq('rol', 'admin'),
 

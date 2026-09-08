@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirAdmin } from '@/lib/auth/session'
+import { traerTodo } from '@/lib/traerTodo'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -18,33 +19,23 @@ const supabase = createClient(
 //   · anticipos = tipo 'Anticipo'
 //   · otros     = todo lo demás (mercadito, cobros sueltos). NO se esconde:
 //                 si aparece dinero aquí, es que hay un flujo sin clasificar.
-// PostgREST devuelve como máximo 1000 renglones y NO avisa cuando corta. Es la
-// peor clase de error: el reporte sale, se ve completo, y le faltan datos.
-//
-// Ya estaba mordiendo. La consulta de "qué recogió" pedía todos los pedidos de
-// las entregas tocadas en el periodo — el 7 de septiembre eran cuatro entregas
-// con 2,377 pedidos entre todas — y se quedaba con los primeros mil. A quien
-// cayera después de ese renglón le salía "Nada marcado como entregado" aunque
-// sí hubiera recogido. Así aparecieron Ibeth Higuera y Cristina García.
-//
-// Los pagos son la siguiente mina: 1,277 en total. Un reporte de tres meses ya
-// habría perdido dinero en silencio.
-const PAGINA = 1000
-const MAX_PAGINAS = 60   // 60,000 renglones: tope de seguridad, no un límite real
-
-async function traerTodo(hacerConsulta) {
-  const filas = []
-  for (let i = 0; i < MAX_PAGINAS; i++) {
-    const { data, error } = await hacerConsulta(i * PAGINA, i * PAGINA + PAGINA - 1)
-    if (error) throw new Error(error.message)
-    const lote = data || []
-    filas.push(...lote)
-    if (lote.length < PAGINA) return filas
+// El reporte se cae entero si una sola consulta falla, y así debe ser: media
+// verdad en una pantalla de control es peor que ninguna. Pero tiene que decir
+// QUÉ falló. Antes, un error aquí llegaba al navegador como un 500 pelón, la
+// pantalla se quedaba en blanco y parecía que "no había datos". Fue lo que pasó
+// cuando salió que `pagos_cancelados` no tenía permisos de lectura.
+export async function GET(req) {
+  try {
+    return await armarReporte(req)
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, mensaje: `No se pudo armar el reporte: ${e.message}` },
+      { status: 500 }
+    )
   }
-  return filas
 }
 
-export async function GET(req) {
+async function armarReporte(req) {
   if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)

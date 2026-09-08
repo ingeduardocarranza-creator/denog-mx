@@ -45,6 +45,8 @@ const grupos = [
     items: [
       { label: 'Colaboradores', icon: '🏆', href: '/admin/colaboradores' },
       { label: 'Gestión equipo', icon: '👤', href: '/admin/colaboradores-admin' },
+      // Sólo en el menú de admin: es el registro de quién tocó el dinero.
+      { label: 'Bitácora',       icon: '🕵️', href: '/admin/bitacora' },
     ],
   },
 ]

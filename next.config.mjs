@@ -1,5 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // @napi-rs/canvas trae un binario nativo (.node). Turbopack no lo puede meter
+  // dentro del paquete: hay que dejarlo fuera para que la funcion lo cargue en
+  // tiempo de ejecucion. Sin esto el build truena con "non-ecmascript placeable
+  // asset". Va junto con el render de estados de cuenta en servidor.
+  serverExternalPackages: ['@napi-rs/canvas'],
+
+  // El render del estado de cuenta en el servidor lee las fuentes y el logo del
+  // disco. Sin esto, Vercel no los sube con la funcion y la imagen sale sin
+  // texto (o revienta al no encontrar el archivo).
+  outputFileTracingIncludes: {
+    '/api/estados-cuenta/**': [
+      './lib/estadosCuenta/fuentes/**',
+      './public/logo-estado-cuenta.png',
+    ],
+  },
   async headers() {
     return [
       {

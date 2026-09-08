@@ -26,13 +26,13 @@ export default function Domicilios() {
   const [ticketListoDomicilio, setTicketListoDomicilio] = useState(null) // { transaccionId, nombre }
   const [envioTicketDomicilioEstado, setEnvioTicketDomicilioEstado] = useState(null) // null | 'enviando' | 'ok' | 'error'
 
-  const enviarTicketDomicilio = async () => {
-    if (!ticketListoDomicilio?.transaccionId) return
+  const enviarTicketDomicilio = async (transaccionId) => {
+    if (!transaccionId) return
     setEnvioTicketDomicilioEstado('enviando')
     try {
       const res = await fetch('/api/whatsapp/enviar-ticket', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transaccion_id: ticketListoDomicilio.transaccionId }),
+        body: JSON.stringify({ transaccion_id: transaccionId }),
       })
       const data = await res.json()
       setEnvioTicketDomicilioEstado(data.ok ? 'ok' : 'error')
@@ -41,6 +41,15 @@ export default function Domicilios() {
       setEnvioTicketDomicilioEstado('error')
     }
   }
+
+  // Se manda solo en cuanto se cierra la entrega, sin que nadie tenga que
+  // darle click a nada.
+  useEffect(() => {
+    if (ticketListoDomicilio?.transaccionId && envioTicketDomicilioEstado === null) {
+      enviarTicketDomicilio(ticketListoDomicilio.transaccionId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketListoDomicilio])
 
   const HORARIOS_SEMANA = ['10:00am - 1:30pm', '3:00pm - 7:00pm']
   const HORARIOS_SABADO = ['10:00am - 1:00pm', '2:00pm - 5:00pm']
@@ -573,14 +582,16 @@ const horariosDelDia = (fecha) => {
           <div style={{ background: 'var(--verdeFondo, #e8f4ef)', border: '1px solid var(--verde, #0f8a63)', borderRadius: 14, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, color: 'var(--tinta)' }}>
               {envioTicketDomicilioEstado === 'error'
-                ? `⚠️ No se pudo enviar el ticket de ${ticketListoDomicilio.nombre}. Puedes intentar de nuevo.`
-                : `Entrega registrada. ¿Enviar el ticket de ${ticketListoDomicilio.nombre} por WhatsApp?`}
+                ? `⚠️ No se pudo enviar el ticket de ${ticketListoDomicilio.nombre} solo. Puedes intentar de nuevo.`
+                : `Entrega registrada. Enviando el ticket de ${ticketListoDomicilio.nombre} por WhatsApp…`}
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={enviarTicketDomicilio} disabled={envioTicketDomicilioEstado === 'enviando'}
-                style={{ background: 'var(--verde, #0f8a63)', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: envioTicketDomicilioEstado === 'enviando' ? 0.6 : 1 }}>
-                {envioTicketDomicilioEstado === 'enviando' ? 'Enviando…' : '💬 Enviar Ticket'}
-              </button>
+              {envioTicketDomicilioEstado === 'error' && (
+                <button onClick={() => enviarTicketDomicilio(ticketListoDomicilio.transaccionId)}
+                  style={{ background: 'var(--verde, #0f8a63)', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  💬 Reintentar
+                </button>
+              )}
               <button onClick={() => { setTicketListoDomicilio(null); setEnvioTicketDomicilioEstado(null) }}
                 style={{ background: 'transparent', color: 'var(--w40)', border: 'none', fontSize: 12, cursor: 'pointer' }}>
                 Omitir

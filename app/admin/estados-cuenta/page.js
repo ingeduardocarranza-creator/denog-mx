@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { armarPorEntrega } from '@/lib/estadosCuenta/armar'
 import { dibujarEnNavegador } from '@/lib/estadosCuenta/navegador'
 import { fmt, fmtFecha, saldoDeGrupos } from '@/lib/estadosCuenta/dibujar'
+import { sugerirFechaLimite } from '@/lib/entregas/fechaLimite'
 
 
 
@@ -29,6 +30,15 @@ export default function EstadosCuenta() {
   const [imagenURL, setImagenURL] = useState(null)
   const [envioWa, setEnvioWa] = useState(null) // null | 'enviando' | 'ok' | 'error'
   const [envioWaMensaje, setEnvioWaMensaje] = useState('')
+
+  // Envío por lote: mandar el estado de cuenta a varios clientes de una
+  // entrega de un jalón, con la misma fecha límite para todos.
+  const [loteSeleccion, setLoteSeleccion] = useState({}) // { [cliente_id]: true }
+  const [loteFechaLimite, setLoteFechaLimite] = useState('')
+  const [loteGuardandoFecha, setLoteGuardandoFecha] = useState(false)
+  const [loteEnviando, setLoteEnviando] = useState(false)
+  const [loteResultados, setLoteResultados] = useState({}) // { [cliente_id]: 'enviando' | 'ok' | 'error' }
+  const [loteMensaje, setLoteMensaje] = useState('')
   const canvasRef = useRef(null)
 
   // Edición de pedidos
@@ -148,6 +158,60 @@ export default function EstadosCuenta() {
     setDatos(lista)
     setIndice(0)
     setCargando(false)
+
+    if (modo === 'lote') {
+      setLoteSeleccion(Object.fromEntries(
+        lista.filter(d => d.cliente.telefono && saldoDeGrupos(d.grupos) > 0).map(d => [d.cliente.id, true])
+      ))
+      setLoteResultados({})
+      setLoteMensaje('')
+      const ent = entregas.find(e => String(e.id) === String(entregaId))
+      setLoteFechaLimite(ent?.fecha_limite || '')
+    }
+  }
+
+  const toggleLote = (clienteId) => {
+    setLoteSeleccion(prev => ({ ...prev, [clienteId]: !prev[clienteId] }))
+  }
+
+  const guardarFechaLimiteLote = async () => {
+    const ent = entregas.find(e => String(e.id) === String(entregaId))
+    if (!ent) return
+    setLoteGuardandoFecha(true)
+    await fetch('/api/entregas', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: ent.id, fecha_entrega: ent.fecha_entrega, nota: ent.nota, fecha_limite: loteFechaLimite || null }),
+    })
+    const entregasRes = await fetch('/api/entregas').then(r => r.json())
+    if (entregasRes.ok) setEntregas(entregasRes.entregas || [])
+    setLoteGuardandoFecha(false)
+  }
+
+  // Manda uno por uno, no todos a la vez: así Meta no ve una ráfaga de
+  // mensajes idénticos en el mismo segundo (la plantilla está "calidad
+  // pendiente" — recién estrenada, sin historial todavía) y en la pantalla
+  // se ve el avance real, cliente por cliente, en vez de un solo resultado
+  // al final.
+  const enviarLote = async () => {
+    const seleccionados = datos.filter(d => loteSeleccion[d.cliente.id])
+    if (seleccionados.length === 0) return
+    setLoteEnviando(true)
+    setLoteMensaje('')
+    for (const d of seleccionados) {
+      setLoteResultados(prev => ({ ...prev, [d.cliente.id]: 'enviando' }))
+      try {
+        const res = await fetch('/api/whatsapp/enviar-estado-cuenta', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entrega_id: entregaId, cliente_id: d.cliente.id }),
+        })
+        const data = await res.json()
+        setLoteResultados(prev => ({ ...prev, [d.cliente.id]: data.ok ? 'ok' : 'error' }))
+      } catch {
+        setLoteResultados(prev => ({ ...prev, [d.cliente.id]: 'error' }))
+      }
+      await new Promise(r => setTimeout(r, 400))
+    }
+    setLoteEnviando(false)
   }
 
   const cargarPorCliente = async () => {
@@ -305,7 +369,7 @@ export default function EstadosCuenta() {
 
         {/* Mode tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {[['entrega', '📅 Por entrega'], ['cliente', '🔍 Buscar cliente']].map(([m, lbl]) => (
+          {[['entrega', '📅 Por entrega'], ['cliente', '🔍 Buscar cliente'], ['lote', '📤 Enviar por lote']].map(([m, lbl]) => (
             <button key={m} onClick={() => { setModo(m); setDatos([]); setIndice(0) }}
               style={{ padding: '8px 18px', borderRadius: 10, border: `1px solid ${modo === m ? 'rgba(193,85,58,0.5)' : 'var(--w10)'}`, background: modo === m ? 'rgba(193,85,58,0.15)' : 'var(--w04)', color: modo === m ? 'var(--marca-t)' : 'var(--w50)', fontSize: 13, fontWeight: modo === m ? 600 : 400, cursor: 'pointer' }}>
               {lbl}
@@ -315,7 +379,7 @@ export default function EstadosCuenta() {
 
         {/* Filters */}
         <div style={{ background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14, padding: '16px 20px', marginBottom: 20 }}>
-          {modo === 'entrega' ? (
+          {(modo === 'entrega' || modo === 'lote') ? (
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Entrega</label>
@@ -363,8 +427,85 @@ export default function EstadosCuenta() {
           )}
         </div>
 
+        {/* Envío por lote */}
+        {modo === 'lote' && datos.length > 0 && (() => {
+          const ent = entregas.find(e => String(e.id) === String(entregaId))
+          const totalSeleccionados = Object.values(loteSeleccion).filter(Boolean).length
+          const hechos = Object.keys(loteResultados).length
+          const okCount = Object.values(loteResultados).filter(v => v === 'ok').length
+          const errCount = Object.values(loteResultados).filter(v => v === 'error').length
+          return (
+            <div>
+              <div style={{ background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14, padding: '16px 20px', marginBottom: 16 }}>
+                <label style={labelStyle}>Fecha límite para recoger (esta entrega)</label>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="date" value={loteFechaLimite} onChange={e => setLoteFechaLimite(e.target.value)} style={{ ...inputStyle, maxWidth: 180 }} />
+                  <button onClick={() => setLoteFechaLimite(sugerirFechaLimite(ent?.fecha_entrega) || '')}
+                    style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--w06)', border: '1px solid var(--w12)', color: 'var(--w60)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    Sugerir 7 días
+                  </button>
+                  <button onClick={guardarFechaLimiteLote} disabled={loteGuardandoFecha}
+                    style={{ padding: '8px 14px', borderRadius: 8, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', color: 'var(--marca-t)', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: loteGuardandoFecha ? 0.5 : 1 }}>
+                    {loteGuardandoFecha ? 'Guardando...' : 'Guardar fecha'}
+                  </button>
+                  <span style={{ fontSize: 11.5, color: 'var(--w40)' }}>
+                    {loteFechaLimite ? `Se manda en la plantilla como fecha límite.` : 'Sin fecha límite — se manda "por confirmar".'}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setLoteSeleccion(Object.fromEntries(datos.filter(d => d.cliente.telefono).map(d => [d.cliente.id, true])))}
+                    style={{ padding: '6px 12px', borderRadius: 8, background: 'var(--w05)', border: '1px solid var(--w10)', color: 'var(--w55)', fontSize: 12, cursor: 'pointer' }}>
+                    Seleccionar todos
+                  </button>
+                  <button onClick={() => setLoteSeleccion({})}
+                    style={{ padding: '6px 12px', borderRadius: 8, background: 'var(--w05)', border: '1px solid var(--w10)', color: 'var(--w55)', fontSize: 12, cursor: 'pointer' }}>
+                    Quitar selección
+                  </button>
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--w40)' }}>{totalSeleccionados} de {datos.length} seleccionados</span>
+              </div>
+
+              <div style={{ border: '1px solid var(--w07)', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+                {datos.map(d => {
+                  const saldo = saldoDeGrupos(d.grupos)
+                  const estado = loteResultados[d.cliente.id]
+                  return (
+                    <div key={d.cliente.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: '1px solid var(--w05)', background: 'var(--sup)' }}>
+                      <input type="checkbox" checked={!!loteSeleccion[d.cliente.id]} disabled={!d.cliente.telefono || loteEnviando}
+                        onChange={() => toggleLote(d.cliente.id)} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: 'var(--tinta)', fontSize: 13.5, fontWeight: 600 }}>{d.cliente.nombre}</div>
+                        <div style={{ color: 'var(--w40)', fontSize: 11.5 }}>{d.cliente.telefono || 'Sin teléfono'}</div>
+                      </div>
+                      <div style={{ color: saldo > 0 ? 'var(--rojo-t)' : 'var(--verde)', fontSize: 14, fontWeight: 700 }}>{fmt(saldo)}</div>
+                      <div style={{ width: 90, textAlign: 'right', fontSize: 12 }}>
+                        {estado === 'enviando' && <span style={{ color: 'var(--w40)' }}>Enviando…</span>}
+                        {estado === 'ok' && <span style={{ color: 'var(--verde)' }}>✅ Enviado</span>}
+                        {estado === 'error' && <span style={{ color: 'var(--rojo-t)' }}>⚠️ Error</span>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <button onClick={enviarLote} disabled={totalSeleccionados === 0 || loteEnviando}
+                style={{ width: '100%', padding: '16px', borderRadius: 12, background: 'rgba(37,211,102,0.12)', border: '1px solid rgba(37,211,102,0.3)', color: 'var(--verde)', fontSize: 15, fontWeight: 700, cursor: (totalSeleccionados === 0 || loteEnviando) ? 'default' : 'pointer', opacity: (totalSeleccionados === 0 || loteEnviando) ? 0.5 : 1 }}>
+                {loteEnviando ? `Enviando… (${hechos}/${totalSeleccionados})` : `🚀 Enviar a ${totalSeleccionados} cliente${totalSeleccionados !== 1 ? 's' : ''}`}
+              </button>
+              {!loteEnviando && hechos > 0 && (
+                <div style={{ textAlign: 'center', fontSize: 12.5, color: 'var(--w45)', marginTop: 8 }}>
+                  {okCount} enviados{errCount > 0 ? ` · ${errCount} con error` : ''}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
         {/* Client view */}
-        {datos.length > 0 && clienteActual && (
+        {modo !== 'lote' && datos.length > 0 && clienteActual && (
           <>
             {/* Navegación avanzada */}
             <div className="flex items-center gap-2 flex-wrap justify-center mb-4">
@@ -782,7 +923,7 @@ export default function EstadosCuenta() {
           </>
         )}
 
-        {!cargando && datos.length === 0 && entregaId && modo === 'entrega' && (
+        {!cargando && datos.length === 0 && entregaId && (modo === 'entrega' || modo === 'lote') && (
           <div style={{ textAlign: 'center', color: 'var(--w25)', fontSize: 13, padding: 40 }}>
             No hay clientes con pedidos pendientes en esta entrega
           </div>

@@ -622,11 +622,35 @@ const horariosDelDia = (f) => {
   };
 
   // El ticket real (folio + imagen con lo que se llevó y lo que pagó) se manda
-  // solo, sin abrir WhatsApp Web: sube el PNG y lo manda como mensaje libre si
-  // el cliente escribió hoy, o con la plantilla aprobada si no. Si por algo no
-  // hay transacción (p. ej. un pedido que se cubrió entero con anticipo y no
-  // generó folio), se cae al mensaje de texto de siempre, para no dejar al
-  // cajero sin forma de avisarle al cliente.
+  // solo, sin que el cajero tenga que darle click a nada: sube el PNG y lo
+  // manda como mensaje libre si el cliente escribió hoy, o con la plantilla
+  // aprobada si no. El efecto de abajo lo dispara en cuanto el cobro cierra.
+  const enviarTicketReal = async (transaccionId) => {
+    setEnvioTicketEstado('enviando');
+    try {
+      const res = await fetch('/api/whatsapp/enviar-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaccion_id: transaccionId }),
+      });
+      const data = await res.json();
+      setEnvioTicketEstado(data.ok ? 'ok' : 'error');
+      if (!data.ok) console.error('[ticket whatsapp]', data.mensaje);
+    } catch (err) {
+      setEnvioTicketEstado('error');
+    }
+  };
+
+  useEffect(() => {
+    if (ticketListo?.transaccionId && envioTicketEstado === null) {
+      enviarTicketReal(ticketListo.transaccionId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketListo]);
+
+  // Solo se usa si por algo no hay transacción (p. ej. un pedido que se cubrió
+  // entero con anticipo y no generó folio) o para reintentar a mano si el
+  // envío automático falló.
   const enviarWhatsApp = async () => {
     if (!ticketListo) return;
 
@@ -646,19 +670,7 @@ const horariosDelDia = (f) => {
       return;
     }
 
-    setEnvioTicketEstado('enviando');
-    try {
-      const res = await fetch('/api/whatsapp/enviar-ticket', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transaccion_id: ticketListo.transaccionId }),
-      });
-      const data = await res.json();
-      setEnvioTicketEstado(data.ok ? 'ok' : 'error');
-      if (!data.ok) console.error('[ticket whatsapp]', data.mensaje);
-    } catch (err) {
-      setEnvioTicketEstado('error');
-    }
+    await enviarTicketReal(ticketListo.transaccionId);
   };
 
   const clientesFiltrados = busquedaCliente ? todosClientes.filter(c => {
@@ -1193,17 +1205,19 @@ const horariosDelDia = (f) => {
           {ticketListo && (
             <div className="max-w-4xl mx-auto p-4 bg-[#4a1b0c]/40 border border-[#6d2a19] rounded-2xl mb-6 flex flex-col sm:flex-row justify-between items-center gap-3">
               <span className="text-xs text-[#dd8a6c] font-medium">
-                {envioTicketEstado === 'ok' ? '✅ Ticket enviado por WhatsApp.'
-                  : envioTicketEstado === 'error' ? '⚠️ No se pudo enviar el ticket. Puedes intentar de nuevo.'
-                  : 'El cobro cerró de forma exitosa. ¿Quieres enviarle el ticket digital al cliente?'}
+                {envioTicketEstado === 'ok' ? '✅ Ticket enviado por WhatsApp automáticamente.'
+                  : envioTicketEstado === 'error' ? '⚠️ No se pudo enviar el ticket solo. Puedes intentar de nuevo.'
+                  : envioTicketEstado === 'enviando' ? 'Enviando el ticket por WhatsApp…'
+                  : ticketListo.transaccionId ? 'El cobro cerró de forma exitosa.'
+                  : 'El cobro cerró de forma exitosa. ¿Quieres enviarle el comprobante al cliente?'}
               </span>
-              {envioTicketEstado !== 'ok' && (
+              {envioTicketEstado !== 'ok' && (envioTicketEstado === 'error' || !ticketListo.transaccionId) && (
                 <button
                   onClick={enviarWhatsApp}
                   disabled={envioTicketEstado === 'enviando'}
                   className="bg-green-700 hover:bg-green-800 sobre-color px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all disabled:opacity-60"
                 >
-                  {envioTicketEstado === 'enviando' ? 'Enviando…' : '💬 Enviar Ticket por WhatsApp'}
+                  {envioTicketEstado === 'enviando' ? 'Enviando…' : envioTicketEstado === 'error' ? '💬 Reintentar' : '💬 Enviar Ticket por WhatsApp'}
                 </button>
               )}
             </div>

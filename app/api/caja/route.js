@@ -74,7 +74,7 @@ export async function POST(req) {
     monedas_20, monedas_10, monedas_5, monedas_2, monedas_1, monedas_50c,
     total_contado, total_esperado, diferencia, justificacion,
     total_efectivo, total_transferencia, total_terminal, total_retiros,
-    desde,
+    desde, hasta,
   } = await req.json()
 
   if (!['apertura', 'corte'].includes(tipo)) {
@@ -95,6 +95,11 @@ export async function POST(req) {
       // que adivinar la ventana. Adivinarla daba cortes con $40,128 de
       // transferencias en 73 minutos.
       desde: desde || null,
+      // Y hasta dónde. Es el mismo momento con el que se calcularon los totales
+      // que el colaborador vio en pantalla al contar. Sin él, el cuadre
+      // comparaba hasta la hora de guardar y un cobro hecho mientras se contaba
+      // el efectivo salía como sobrante falso.
+      hasta: hasta || null,
     }])
     .select()
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })

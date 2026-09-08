@@ -23,7 +23,7 @@ export default function CajaPage() {
     m20: 0, m10: 0, m5: 0, m2: 0, m1: 0, m50c: 0
   })
   const [resumenTurno, setResumenTurno] = useState({
-    efectivo: 0, transferencia: 0, terminal: 0, totalRetiros: 0
+    efectivo: 0, transferencia: 0, terminal: 0, totalRetiros: 0, hasta: null
   })
   const [justificacion, setJustificacion] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -132,6 +132,10 @@ export default function CajaPage() {
         efectivo: data.efectivo,
         transferencia: data.transferencia,
         terminal: data.terminal,
+        // Hasta qué momento están medidas estas cifras. Es lo que se guarda en
+        // el corte, para que el cuadre compare contra la misma ventana que el
+        // colaborador tenía enfrente cuando contó el efectivo.
+        hasta: ahoraLocal,
         totalRetiros: data.totalRetiros || 0
       })
     }
@@ -221,6 +225,7 @@ export default function CajaPage() {
         // El periodo que cubre este corte, para que después se pueda cuadrar
         // contra los pagos sin adivinar la ventana.
         desde: turnoActual?.creado_en || null,
+        hasta: resumenTurno.hasta,
         justificacion: hayDiferenciaCorte ? justificacion : null
       })
     })

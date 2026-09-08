@@ -35,7 +35,7 @@ export async function GET(req) {
     supabase.from('ventas_tienda')
       .select('id, pago_id, nombre_producto, categoria, cantidad, precio_unitario, costo_unitario, vendedor_id, origen, descuento_tipo, descuento_valor, creado_en')
       .gte('creado_en', ini).lte('creado_en', fin),
-    supabase.from('cortes_caja').select('id, colaborador_id, tipo, total_contado, total_esperado, diferencia, justificacion, creado_en, desde, total_efectivo, total_transferencia, total_terminal')
+    supabase.from('cortes_caja').select('id, colaborador_id, tipo, total_contado, total_esperado, diferencia, justificacion, creado_en, desde, hasta, total_efectivo, total_transferencia, total_terminal')
       .gte('creado_en', ini).lte('creado_en', fin),
     supabase.from('retiros_caja').select('id, admin_id, monto, motivo, estado, creado_en')
       .gte('creado_en', ini).lte('creado_en', fin),
@@ -268,8 +268,13 @@ export async function GET(req) {
         motivo: !c.desde ? 'El corte no registró qué periodo cubre' : 'Su periodo empieza antes del rango consultado',
       }
     }
+    // El fin de la ventana es el que el corte midió, no la hora de guardar:
+    // entre una cosa y la otra el colaborador estuvo contando billetes, y un
+    // cobro hecho en ese rato no está en sus totales. Los cortes viejos no
+    // guardaron `hasta`; para ellos se usa `creado_en`, como antes.
+    const fin = c.hasta || c.creado_en
     const enVentana = (metodo) => Math.round(pagos
-      .filter(p => p.metodo === metodo && p.creado_en >= c.desde && p.creado_en <= c.creado_en)
+      .filter(p => p.metodo === metodo && p.creado_en >= c.desde && p.creado_en <= fin)
       .reduce((t, p) => t + Number(p.monto || 0), 0) * 100) / 100
 
     const metodos = ['Efectivo', 'Transferencia', 'Terminal'].map(m => {
@@ -283,6 +288,7 @@ export async function GET(req) {
       id: c.id,
       creado_en: c.creado_en,
       desde: c.desde,
+      hasta: fin,
       quien: nombre[c.colaborador_id] || 'Sin responsable',
       conciliable: true,
       metodos,

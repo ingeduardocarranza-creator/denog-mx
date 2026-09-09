@@ -15,7 +15,6 @@
     "bcryptjs": "^3.0.3",
     "exceljs": "^4.4.0",
     "jsonwebtoken": "^9.0.3",
-    "jsqr": "^1.4.0",
     "lucide-react": "^1.30.0",
     "next": "16.2.6",
     "qrcode": "^1.5.4",

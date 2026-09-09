@@ -19,7 +19,8 @@ function horaLocal() {
 }
 
 export async function POST(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const { cliente_id, entrega_id, estado } = await req.json()
 
   // No permitir marcar como Entregado si el cliente aún tiene saldo pendiente en esa entrega
@@ -48,10 +49,17 @@ export async function POST(req) {
     }
   }
 
-  // Al marcar Entregado se sella el dia real de la entrega. Es el mismo dato
-  // que escribe el POS al cobrar; esta ruta la usa el cobro a domicilio.
+  // Al marcar Entregado se sella el dia real de la entrega, y quién estaba
+  // en el POS en ese momento (cobrando y/o entregando) — para el ticket de
+  // "ya pagado, solo recoge" (lib/ticket/datosEntrega.js), que no tiene
+  // ninguna transacción de la que sacar un vendedor_id como sí lo hace el
+  // cobro normal. Es el mismo dato que escribe el POS al cobrar; esta ruta
+  // la usa el cobro a domicilio.
   const cambios = { estado }
-  if (estado === 'Entregado') cambios.entregado_en = horaLocal()
+  if (estado === 'Entregado') {
+    cambios.entregado_en = horaLocal()
+    cambios.entregado_por = sesion.nombre || null
+  }
 
   const { error } = await supabase
     .from('pedidos')

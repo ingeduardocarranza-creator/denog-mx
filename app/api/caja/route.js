@@ -72,10 +72,40 @@ export async function POST(req) {
     total_contado, total_esperado, diferencia, justificacion,
     total_efectivo, total_transferencia, total_terminal, total_retiros,
     desde, hasta,
+    // El resumen por método se calcula en pantalla llamando a este mismo
+    // endpoint con resumen=true. Si esa llamada falla, el corte no debe
+    // guardarse con ceros disfrazados de "no hubo ventas": totales_verificados
+    // en false dice explícitamente que esos números no se pudieron calcular.
+    totales_verificados,
   } = await req.json()
 
   if (!['apertura', 'corte'].includes(tipo)) {
     return NextResponse.json({ ok: false, mensaje: 'Tipo inválido' })
+  }
+
+  const esNumero = (v) => typeof v === 'number' && Number.isFinite(v)
+
+  if (tipo === 'corte') {
+    const verificados = totales_verificados !== false
+    if (verificados) {
+      // Caso normal: el resumen del turno cargó bien, y estos cuatro números
+      // vienen de ahí, no de lo que el colaborador escribió a mano.
+      if (![total_efectivo, total_transferencia, total_terminal, total_retiros].every(esNumero)) {
+        return NextResponse.json({
+          ok: false,
+          mensaje: 'Faltan los totales por método del turno (efectivo, transferencia, terminal). Actualiza el resumen antes de cerrar.',
+        })
+      }
+    } else if (!justificacion || !justificacion.trim()) {
+      // Válvula de escape: si el resumen de verdad no carga, no se puede dejar
+      // a un colaborador sin poder cerrar su turno. Pero cerrar sin esos
+      // totales exige explicar por qué, siempre — no solo cuando hay
+      // diferencia de efectivo.
+      return NextResponse.json({
+        ok: false,
+        mensaje: 'Para cerrar sin los totales verificados hay que explicar qué pasó.',
+      })
+    }
   }
 
   const { data, error } = await supabase
@@ -86,7 +116,10 @@ export async function POST(req) {
       billetes_1000, billetes_500, billetes_200, billetes_100, billetes_50, billetes_20,
       monedas_20, monedas_10, monedas_5, monedas_2, monedas_1, monedas_50c,
       total_contado, total_esperado, diferencia, justificacion,
-      total_efectivo, total_transferencia, total_terminal, total_retiros,
+      total_efectivo: esNumero(total_efectivo) ? total_efectivo : null,
+      total_transferencia: esNumero(total_transferencia) ? total_transferencia : null,
+      total_terminal: esNumero(total_terminal) ? total_terminal : null,
+      total_retiros: esNumero(total_retiros) ? total_retiros : null,
       // Qué periodo cubre este corte. Sin este dato el corte no se puede
       // conciliar contra `pagos`: no hay contra qué rango compararlo, y hay
       // que adivinar la ventana. Adivinarla daba cortes con $40,128 de
@@ -97,6 +130,7 @@ export async function POST(req) {
       // comparaba hasta la hora de guardar y un cobro hecho mientras se contaba
       // el efectivo salía como sobrante falso.
       hasta: hasta || null,
+      totales_verificados: tipo === 'corte' ? totales_verificados !== false : true,
     }])
     .select()
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })

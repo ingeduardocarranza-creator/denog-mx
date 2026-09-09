@@ -537,6 +537,14 @@ export default function Reportes() {
                       </div>
                     </div>
                   </div>
+                  {general.cuadre.sin_verificar > 0 && (
+                    <div style={{ padding: '10px 22px', borderTop: '1px solid var(--w07)', background: 'rgba(245,158,11,0.08)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13 }}>⚠️</span>
+                      <span style={{ color: 'var(--ambar-t)', fontSize: 12, fontWeight: 600 }}>
+                        {general.cuadre.sin_verificar} {general.cuadre.sin_verificar === 1 ? 'corte se cerró' : 'cortes se cerraron'} sin poder calcular sus totales por método — revísalos a mano contra los pagos.
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* ── Cada corte contra los pagos que quedaron ──────────────

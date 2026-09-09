@@ -29,6 +29,14 @@ export default function CajaPage() {
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
   const [retirosPostCorte, setRetirosPostCorte] = useState(0)
+  // El resumen por método (efectivo/transferencia/terminal) es lo que hace
+  // que el corte cuadre contra `pagos`. Si esa consulta falla, el corte no se
+  // debe guardar con ceros que parecen "no hubo ventas". resumenListo dice si
+  // el último intento sí trajo esos números; sin eso el botón normal de
+  // cerrar turno se bloquea.
+  const [resumenListo, setResumenListo] = useState(false)
+  const [resumenFallo, setResumenFallo] = useState(false)
+  const [forzarSinVerificar, setForzarSinVerificar] = useState(false)
 
   useEffect(() => {
     const datos = localStorage.getItem('cliente')
@@ -123,21 +131,31 @@ export default function CajaPage() {
     const desde = ref?.creado_en ? `&desde=${encodeURIComponent(ref.creado_en)}` : ''
     // Hasta ahora, no hasta el final del día.
     const ahoraLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19)
-    const res = await fetch(`/api/caja?resumen=true&fecha=${hoy}${desde}&hasta=${encodeURIComponent(ahoraLocal)}`)
-    const data = await res.json()
-    console.log('[caja] resumenTurno raw:', data)
-    if (data.ok) {
-      console.log('[caja] totalRetiros del turno:', data.totalRetiros, '| efectivo:', data.efectivo)
-      setResumenTurno({
-        efectivo: data.efectivo,
-        transferencia: data.transferencia,
-        terminal: data.terminal,
-        // Hasta qué momento están medidas estas cifras. Es lo que se guarda en
-        // el corte, para que el cuadre compare contra la misma ventana que el
-        // colaborador tenía enfrente cuando contó el efectivo.
-        hasta: ahoraLocal,
-        totalRetiros: data.totalRetiros || 0
-      })
+    try {
+      const res = await fetch(`/api/caja?resumen=true&fecha=${hoy}${desde}&hasta=${encodeURIComponent(ahoraLocal)}`)
+      const data = await res.json()
+      console.log('[caja] resumenTurno raw:', data)
+      if (data.ok) {
+        console.log('[caja] totalRetiros del turno:', data.totalRetiros, '| efectivo:', data.efectivo)
+        setResumenTurno({
+          efectivo: data.efectivo,
+          transferencia: data.transferencia,
+          terminal: data.terminal,
+          // Hasta qué momento están medidas estas cifras. Es lo que se guarda en
+          // el corte, para que el cuadre compare contra la misma ventana que el
+          // colaborador tenía enfrente cuando contó el efectivo.
+          hasta: ahoraLocal,
+          totalRetiros: data.totalRetiros || 0
+        })
+        setResumenListo(true)
+        setResumenFallo(false)
+      } else {
+        console.error('[caja] el resumen del turno respondió sin ok:', data)
+        setResumenFallo(true)
+      }
+    } catch (err) {
+      console.error('[caja] no se pudo cargar el resumen del turno', err)
+      setResumenFallo(true)
     }
   }
 
@@ -192,9 +210,17 @@ export default function CajaPage() {
     else setError(data.mensaje)
   }
 
-  const registrarCorte = async () => {
-    if (hayDiferenciaCorte && !justificacion.trim()) {
-      setError('Escribe una justificación para la diferencia'); return
+  const registrarCorte = async (opts = {}) => {
+    const sinVerificar = !!opts.sinVerificar
+    // Candado: sin resumen cargado no se cierra por la vía normal. La única
+    // salida es la explícita de abajo, que exige explicar por qué.
+    if (!sinVerificar && !resumenListo) {
+      setError('No se pudo calcular el resumen del turno. Reintenta, o usa "Cerrar sin verificar totales" si el problema sigue.')
+      return
+    }
+    if ((hayDiferenciaCorte || sinVerificar) && !justificacion.trim()) {
+      setError(sinVerificar ? 'Explica qué pasó para cerrar sin los totales verificados.' : 'Escribe una justificación para la diferencia')
+      return
     }
     setGuardando(true)
     const res = await fetch('/api/caja', {
@@ -218,20 +244,24 @@ export default function CajaPage() {
         total_contado: totalContado,
         total_esperado: totalEsperadoCorte,
         diferencia: diferenciaCorte,
-        total_efectivo: resumenTurno.efectivo,
-        total_transferencia: resumenTurno.transferencia,
-        total_terminal: resumenTurno.terminal,
-        total_retiros: resumenTurno.totalRetiros,
+        // Si se está cerrando sin verificar y jamás se logró cargar el
+        // resumen, no hay nada confiable que mandar: mejor null explícito que
+        // un cero que se vería como "turno sin ventas".
+        total_efectivo: resumenListo ? resumenTurno.efectivo : null,
+        total_transferencia: resumenListo ? resumenTurno.transferencia : null,
+        total_terminal: resumenListo ? resumenTurno.terminal : null,
+        total_retiros: resumenListo ? resumenTurno.totalRetiros : null,
         // El periodo que cubre este corte, para que después se pueda cuadrar
         // contra los pagos sin adivinar la ventana.
         desde: turnoActual?.creado_en || null,
         hasta: resumenTurno.hasta,
-        justificacion: hayDiferenciaCorte ? justificacion : null
+        justificacion: (hayDiferenciaCorte || sinVerificar) ? justificacion : null,
+        totales_verificados: !sinVerificar,
       })
     })
     const data = await res.json()
     setGuardando(false)
-    if (data.ok) cargarEstado(colaborador.id)
+    if (data.ok) { setForzarSinVerificar(false); cargarEstado(colaborador.id) }
     else setError(data.mensaje)
   }
 
@@ -468,6 +498,9 @@ export default function CajaPage() {
             <button onClick={() => {
               setPaso('haciendo_corte')
               setDenominaciones({ b1000: 0, b500: 0, b200: 0, b100: 0, b50: 0, b20: 0, m20: 0, m10: 0, m5: 0, m2: 0, m1: 0, m50c: 0 })
+              setJustificacion('')
+              setError('')
+              setForzarSinVerificar(false)
             }}
               style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 14, padding: 18, fontSize: 17, fontWeight: 900, cursor: 'pointer', ...ctaPrimaria }}>
               🔒 Hacer corte de turno
@@ -553,17 +586,61 @@ export default function CajaPage() {
               )}
             </div>
 
+            {!resumenListo && (
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 16, padding: '16px 18px', marginTop: 16 }}>
+                <div style={{ color: 'var(--rojo-t)', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                  ⚠️ No se pudieron calcular los totales del turno
+                </div>
+                <div style={{ color: 'var(--w45)', fontSize: 12.5, marginBottom: 12 }}>
+                  Efectivo, transferencia y terminal no cargaron desde el sistema. Sin eso el corte
+                  no se puede cuadrar contra los pagos. Reintenta antes de cerrar.
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button onClick={() => cargarResumenTurno(turnoActual)}
+                    style={{ background: 'rgba(193,85,58,0.14)', color: 'var(--marca-t)', border: '1px solid rgba(193,85,58,0.35)', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    ↻ Reintentar
+                  </button>
+                  <button onClick={() => setForzarSinVerificar(v => !v)}
+                    style={{ background: 'transparent', color: 'var(--w55)', border: '1px solid var(--w15)', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    {forzarSinVerificar ? 'Cancelar cierre sin verificar' : 'Cerrar sin verificar totales'}
+                  </button>
+                </div>
+                {forzarSinVerificar && (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--w70)', marginBottom: 6 }}>
+                      Explica qué pasó (obligatorio)
+                    </div>
+                    <textarea value={justificacion} onChange={e => setJustificacion(e.target.value)}
+                      placeholder="Ej: el resumen no cargó después de varios intentos, se cierra el turno para no dejar la caja abierta…"
+                      rows={3}
+                      style={{ width: '100%', minHeight: 76, resize: 'vertical', background: 'var(--w25)', border: '1px solid var(--w15)', borderRadius: 10, padding: '12px 14px', color: 'var(--tinta)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
+                    <button
+                      onClick={() => registrarCorte({ sinVerificar: true })}
+                      disabled={guardando || totalContado === 0 || !justificacion.trim()}
+                      style={{
+                        width: '100%', borderRadius: 12, padding: 14, fontSize: 14, fontWeight: 800,
+                        cursor: guardando || totalContado === 0 || !justificacion.trim() ? 'not-allowed' : 'pointer',
+                        background: guardando || totalContado === 0 || !justificacion.trim() ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.85)',
+                        color: '#fff', border: 'none',
+                      }}>
+                      {guardando ? 'Registrando...' : '⚠️ Registrar corte sin verificar'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {error && <div style={{ color: 'var(--rojo-t)', fontSize: 12, marginTop: 10 }}>{error}</div>}
 
             <div style={{ display: 'flex', gap: 12, marginTop: 18 }}>
               <button
-                onClick={registrarCorte}
-                disabled={guardando || totalContado === 0 || (hayDiferenciaCorte && !justificacion.trim())}
+                onClick={() => registrarCorte()}
+                disabled={guardando || totalContado === 0 || !resumenListo || (hayDiferenciaCorte && !justificacion.trim())}
                 style={{
                   flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
                   borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 900,
-                  cursor: guardando || totalContado === 0 || (hayDiferenciaCorte && !justificacion.trim()) ? 'not-allowed' : 'pointer',
-                  ...(guardando || totalContado === 0 || (hayDiferenciaCorte && !justificacion.trim()) ? ctaPrimariaDeshabilitada : ctaPrimaria),
+                  cursor: guardando || totalContado === 0 || !resumenListo || (hayDiferenciaCorte && !justificacion.trim()) ? 'not-allowed' : 'pointer',
+                  ...(guardando || totalContado === 0 || !resumenListo || (hayDiferenciaCorte && !justificacion.trim()) ? ctaPrimariaDeshabilitada : ctaPrimaria),
                 }}>
                 {guardando ? 'Registrando...' : '🔒 Registrar corte'}
               </button>

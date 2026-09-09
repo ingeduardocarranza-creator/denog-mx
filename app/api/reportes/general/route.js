@@ -52,7 +52,7 @@ async function armarReporte(req) {
     traerTodo((a, b) => supabase.from('ventas_tienda')
       .select('id, pago_id, nombre_producto, categoria, cantidad, precio_unitario, costo_unitario, vendedor_id, origen, descuento_tipo, descuento_valor, creado_en')
       .gte('creado_en', ini).lte('creado_en', fin).range(a, b)),
-    traerTodo((a, b) => supabase.from('cortes_caja').select('id, colaborador_id, tipo, total_contado, total_esperado, diferencia, justificacion, creado_en, desde, hasta, total_efectivo, total_transferencia, total_terminal')
+    traerTodo((a, b) => supabase.from('cortes_caja').select('id, colaborador_id, tipo, total_contado, total_esperado, diferencia, justificacion, creado_en, desde, hasta, total_efectivo, total_transferencia, total_terminal, totales_verificados')
       .gte('creado_en', ini).lte('creado_en', fin).range(a, b)),
     traerTodo((a, b) => supabase.from('retiros_caja').select('id, admin_id, monto, motivo, estado, creado_en')
       .gte('creado_en', ini).lte('creado_en', fin).range(a, b)),
@@ -104,6 +104,10 @@ async function armarReporte(req) {
     esperado: suma(cortesCierre, c => c.total_esperado),
     contado: suma(cortesCierre, c => c.total_contado),
     diferencia: suma(cortesCierre, c => c.diferencia),
+    // Cortes cerrados sin que el resumen por método (efectivo/transferencia/
+    // terminal) se pudiera calcular. Sus totales por método no son
+    // confiables — hay que revisarlos a mano contra `pagos`.
+    sin_verificar: cortesCierre.filter(c => c.totales_verificados === false).length,
   }
 
   // ── Control por persona ─────────────────────────────────────────────────

@@ -507,6 +507,19 @@ const horariosDelDia = (f) => {
     seleccionarClienteEncargo(cliente);
   };
 
+  // La pistola de mostrador no necesita el botón de la cámara: escribe donde
+  // esté el cursor, igual que un teclado. El buscador de "Encargos" ya está
+  // ahí y ya tiene el foco al entrar, así que en cuanto lo que llegue calce
+  // exacto con el código de algún cliente, se selecciona solo — sin abrir
+  // ningún modal ni esperar a que falle la cámara.
+  useEffect(() => {
+    const codigo = busquedaCliente.trim().toUpperCase();
+    if (!codigo.startsWith('D-') || codigo.length < 4) return;
+    const cliente = todosClientes.find(c => (c.codigo_recoleccion || '').toUpperCase() === codigo);
+    if (cliente) seleccionarClienteEncargo(cliente);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busquedaCliente, todosClientes]);
+
   let desgloseTicketEncargos = [];
   let sumaEncargosTotalNeto = 0;
 

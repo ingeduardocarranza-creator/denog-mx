@@ -227,7 +227,7 @@ export default function EncargosEntrega({
                   <span style={{ color: clay[300] }}>🔍</span>
                   <input
                     type="text"
-                    placeholder="Buscar por nombre de cliente o teléfono..."
+                    placeholder="Buscar por nombre, teléfono, o dispara tu lector aquí..."
                     value={busquedaCliente}
                     onChange={(e) => setBusquedaCliente(e.target.value)}
                     className="flex-1 bg-transparent outline-none text-[15px]"
@@ -237,6 +237,11 @@ export default function EncargosEntrega({
                     // panel se leía como si fuera otra tipografía. Ahora usa los
                     // tokens y el mismo peso que el resto de los campos.
                     style={{ color: 'var(--tinta)', fontWeight: 500 }}
+                    // Con el foco puesto aquí desde que se abre Encargos, una
+                    // pistola lectora USB dispara directo sin que nadie tenga
+                    // que hacer clic primero — este mismo cuadro es el campo
+                    // de escaneo en las computadoras sin cámara.
+                    autoFocus
                   />
                 </div>
                 {clientesFiltrados.length > 0 && (

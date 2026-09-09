@@ -4,21 +4,21 @@ import { useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
 
 // Modal de escaneo: abre la cámara, busca un QR en cada cuadro y avisa en
-// cuanto encuentra uno. Si la cámara no arranca (permiso negado, o la
-// pantalla no tiene cámara — pasa en algunas computadoras de mostrador), se
-// cae a un campo de texto: el código también se imprime en letra grande en
-// el estado de cuenta, así que siempre hay cómo teclearlo a mano.
-export default function EscanearQR({ onDetectado, onCerrar, colaborador }) {
+// cuanto encuentra uno. Como en las computadoras de mostrador normalmente
+// no hay cámara, también hay un campo de texto siempre listo (con el foco
+// puesto ahí desde que se abre) para que una pistola lectora USB dispare
+// directo — una pistola no es más que un teclado que escribe muy rápido y
+// manda Enter solo, así que no necesita nada especial del lado del código.
+// Ese mismo campo también sirve para teclear el código a mano si hace
+// falta: el código va impreso en letra grande en el estado de cuenta.
+export default function EscanearQR({ onDetectado, onCerrar }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const rafRef = useRef(null);
+  const inputRef = useRef(null);
   const [error, setError] = useState(null);
   const [manual, setManual] = useState('');
-  // El escaneo con cámara lee el QR de verdad — eso ya es suficiente prueba.
-  // Lo escrito a mano no: cualquiera puede teclear un código sin ver el papel,
-  // así que antes de aceptarlo se pide que el colaborador en turno lo autorice.
-  const [autorizando, setAutorizando] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -34,7 +34,7 @@ export default function EscanearQR({ onDetectado, onCerrar, colaborador }) {
         }
         buscar();
       } catch (e) {
-        setError('No se pudo abrir la cámara. Puedes escribir el código a mano.');
+        setError('No se pudo abrir la cámara. Usa tu lector o escribe el código.');
       }
     }
 
@@ -68,6 +68,17 @@ export default function EscanearQR({ onDetectado, onCerrar, colaborador }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // El foco va al campo desde que se abre el modal: una pistola lectora
+  // escribe donde esté el cursor, y así dispara sin que nadie tenga que
+  // hacer clic primero.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const buscarManual = () => {
+    if (manual.trim()) onDetectado(manual.trim());
+  };
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ background: 'var(--sup)', borderRadius: 16, padding: 20, maxWidth: 420, width: '100%' }}>
@@ -86,52 +97,26 @@ export default function EscanearQR({ onDetectado, onCerrar, colaborador }) {
         <canvas ref={canvasRef} style={{ display: 'none' }} />
 
         <div style={{ marginTop: 14 }}>
-          {!autorizando ? (
-            <>
-              <div style={{ color: 'var(--w40)', fontSize: 11.5, marginBottom: 6 }}>
-                {error ? 'Escribe el código que aparece en el estado de cuenta del cliente:' : 'O escríbelo a mano si la cámara no lo lee:'}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  value={manual}
-                  onChange={e => setManual(e.target.value.toUpperCase())}
-                  placeholder="D-XXXXX"
-                  onKeyDown={e => { if (e.key === 'Enter' && manual.trim()) setAutorizando(true) }}
-                  style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--w12)', background: 'var(--w03)', color: 'var(--tinta)', fontSize: 14, fontWeight: 700, letterSpacing: 1 }}
-                />
-                <button
-                  onClick={() => manual.trim() && setAutorizando(true)}
-                  disabled={!manual.trim()}
-                  style={{ padding: '10px 18px', borderRadius: 10, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', color: 'var(--marca-t)', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: manual.trim() ? 1 : 0.5 }}
-                >
-                  Buscar
-                </button>
-              </div>
-            </>
-          ) : (
-            <div style={{ background: 'var(--w03)', border: '1px solid var(--w12)', borderRadius: 10, padding: 12 }}>
-              <div style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>
-                Código escrito a mano: {manual.trim()}
-              </div>
-              <div style={{ color: 'var(--w40)', fontSize: 11.5, marginBottom: 10 }}>
-                Esto no pasó por la cámara. Confirma que tú, {colaborador?.nombre || 'colaborador en turno'}, autorizas entregar con este código.
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => setAutorizando(false)}
-                  style={{ flex: 1, padding: '10px 14px', borderRadius: 10, background: 'transparent', border: '1px solid var(--w12)', color: 'var(--w40)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => onDetectado(manual.trim())}
-                  style={{ flex: 1, padding: '10px 14px', borderRadius: 10, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', color: 'var(--marca-t)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                >
-                  Autorizo, buscar
-                </button>
-              </div>
-            </div>
-          )}
+          <div style={{ color: 'var(--w40)', fontSize: 11.5, marginBottom: 6 }}>
+            {error ? 'Dispara tu lector aquí, o escribe el código:' : 'O usa tu lector / escríbelo a mano aquí:'}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              ref={inputRef}
+              value={manual}
+              onChange={e => setManual(e.target.value.toUpperCase())}
+              placeholder="D-XXXXX"
+              onKeyDown={e => { if (e.key === 'Enter') buscarManual() }}
+              style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--w12)', background: 'var(--w03)', color: 'var(--tinta)', fontSize: 14, fontWeight: 700, letterSpacing: 1 }}
+            />
+            <button
+              onClick={buscarManual}
+              disabled={!manual.trim()}
+              style={{ padding: '10px 18px', borderRadius: 10, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', color: 'var(--marca-t)', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: manual.trim() ? 1 : 0.5 }}
+            >
+              Buscar
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -193,6 +193,11 @@ export async function GET(req) {
       // El bug histórico: marcado resuelto pero el pago nunca se creó.
       huerfano_resuelto: c.estado === 'resuelto',
       posible_duplicado,
+      // Regla de control interno: un comprobante sin aplicar más de 2 días
+      // es dinero que ya debió conciliarse. `dias` es entero, redondeado
+      // hacia abajo — a las 47h todavía dice "1 día", a las 48h ya es "2".
+      dias: Math.floor((Date.now() - new Date(c.creado_en).getTime()) / 864e5),
+      vencido: (Date.now() - new Date(c.creado_en).getTime()) > 2 * 864e5,
     }
   }))
 
@@ -227,6 +232,7 @@ export async function GET(req) {
       comprobantes_sin_aplicar: bandeja.length,
       huerfanos: bandeja.filter(b => b.huerfano_resuelto).length,
       comprobantes_de_esta_entrega: bandeja.filter(b => b.en_esta_entrega).length,
+      comprobantes_vencidos: bandeja.filter(b => b.vencido).length,
     },
   })
 }

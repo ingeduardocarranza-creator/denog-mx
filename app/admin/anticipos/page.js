@@ -158,6 +158,7 @@ export default function Anticipos() {
     return bandeja.filter(b => {
       if (filtroBandeja === 'huerfanos' && !b.huerfano_resuelto) return false
       if (filtroBandeja === 'entrega' && !b.en_esta_entrega) return false
+      if (filtroBandeja === 'vencidos' && !b.vencido) return false
       if (!q) return true
       // Se busca por el cliente que el sistema sugirió, por el nombre con el
       // que aparece en WhatsApp (que a veces es el único dato) y por teléfono.
@@ -372,6 +373,7 @@ export default function Anticipos() {
               {[
                 ['todos', 'Todos', bandeja.length, 'var(--w50)'],
                 ['huerfanos', 'Sin pago', c?.huerfanos || 0, 'var(--rojo-t)'],
+                ['vencidos', '+2 días', c?.comprobantes_vencidos || 0, 'var(--rojo-t)'],
                 ['entrega', 'De esta entrega', c?.comprobantes_de_esta_entrega || 0, ESTADO.liquidado.tono],
               ].map(([v, t, n, tono]) => {
                 const on = filtroBandeja === v
@@ -786,19 +788,32 @@ function Comprobante({ b, entregaId, roster, onGuardar, onLigar, onDescartar, de
   const wa = b.telefono_whatsapp ? `https://wa.me/${paraWaMe(b.telefono_whatsapp)}` : null
   const alerta = b.huerfano_resuelto
   const listo = !!cliente && !!Number(monto)
-  const borde = alerta ? 'rgba(var(--rojo-rgb),0.4)' : b.posible_duplicado ? 'rgba(234,179,8,0.4)' : 'var(--w07)'
+  const borde = alerta ? 'rgba(var(--rojo-rgb),0.4)'
+    : b.vencido ? 'rgba(var(--rojo-rgb),0.3)'
+    : b.posible_duplicado ? 'rgba(234,179,8,0.4)' : 'var(--w07)'
 
   return (
     // flexShrink:0 es obligatorio: la bandeja es un contenedor flex con altura
     // maxima, y sin esto cada tarjeta se comprime y se le corta el contenido.
     <div className="tarjeta" style={{ ...card, padding: 0, borderColor: borde, overflow: 'hidden', flexShrink: 0 }}>
-      {(alerta || b.posible_duplicado) && (
-        <div style={{
-          padding: '7px 12px', fontSize: 9.5, fontWeight: 800, letterSpacing: 0.4, lineHeight: 1.3,
-          background: alerta ? 'rgba(var(--rojo-rgb),0.12)' : 'rgba(234,179,8,0.12)',
-          color: alerta ? 'var(--rojo-t)' : '#eab308',
-        }}>
-          {alerta ? '⚠ ATENDIDO SIN PAGO REGISTRADO' : '⚠ YA HAY UN PAGO IGUAL EN ESTOS DÍAS'}
+      {(alerta || b.vencido || b.posible_duplicado) && (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {(alerta || b.vencido) && (
+            <div style={{
+              padding: '7px 12px', fontSize: 9.5, fontWeight: 800, letterSpacing: 0.4, lineHeight: 1.3,
+              background: 'rgba(var(--rojo-rgb),0.12)', color: 'var(--rojo-t)',
+            }}>
+              {alerta ? '⚠ ATENDIDO SIN PAGO REGISTRADO' : `⚠ ${b.dias} DÍAS SIN APLICAR`}
+            </div>
+          )}
+          {b.posible_duplicado && (
+            <div style={{
+              padding: '7px 12px', fontSize: 9.5, fontWeight: 800, letterSpacing: 0.4, lineHeight: 1.3,
+              background: 'rgba(234,179,8,0.12)', color: '#eab308',
+            }}>
+              ⚠ YA HAY UN PAGO IGUAL EN ESTOS DÍAS
+            </div>
+          )}
         </div>
       )}
 

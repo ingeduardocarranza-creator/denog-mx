@@ -7,10 +7,13 @@ import {
 
 // Bitácora: qué cambió, cuándo, y cómo estaba antes.
 //
-// La base sólo ve al rol de servicio, así que no puede saber qué persona hizo
-// cada cambio. Lo que sí queda es el renglón completo antes y después, y ahí
-// vienen vendedor_id / colaborador_id / resuelto_por. De eso se deduce el
-// responsable, y así se dice en pantalla: "según el registro", no "fue fulano".
+// Desde el 9 de septiembre de 2026 cada renglón trae actor_nombre: quién
+// estaba logueado en el POS cuando hizo el cambio, capturado por la propia
+// base al momento de guardar. Para renglones de antes de esa fecha, o de
+// rutas sin sesión de staff (el webhook de WhatsApp), no hay actor_nombre y
+// el responsable se deduce del propio renglón (vendedor_id / colaborador_id /
+// resuelto_por…) — por eso ese caso se dice en pantalla "según el registro",
+// no "fue fulano".
 
 const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const dinero = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
@@ -111,11 +114,13 @@ export default function Bitacora() {
     return partes.join('  ·  ') || 'Sin detalle'
   }
 
-  // Quién, deducido del propio renglón.
+  // Quién. Primero el actor real de sesión (confiable); si el renglón es de
+  // antes de que existiera esa columna, se deduce del propio renglón.
   const responsable = (m) => {
+    if (m.actor_nombre) return { txt: m.actor_nombre, seguro: true }
     const fila = m.despues || m.antes || {}
     for (const c of ['cancelado_por', 'resuelto_por', 'descartado_por', 'vendedor_id', 'colaborador_id', 'admin_id']) {
-      if (fila[c] && nombres[fila[c]]) return nombres[fila[c]]
+      if (fila[c] && nombres[fila[c]]) return { txt: nombres[fila[c]], seguro: false }
     }
     return null
   }
@@ -223,7 +228,11 @@ export default function Bitacora() {
                       <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
                         <span style={{ color: tonoColor[op.tono], fontSize: 13, fontWeight: 700 }}>{op.nombre}</span>
                         <span style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 600 }}>{t.nombre.toLowerCase()}</span>
-                        {quien && <span style={{ color: 'var(--w35)', fontSize: 11.5 }}>· según el registro, {quien}</span>}
+                        {quien && (
+                          <span style={{ color: 'var(--w35)', fontSize: 11.5 }}>
+                            · {quien.seguro ? `hecho por ${quien.txt}` : `según el registro, ${quien.txt}`}
+                          </span>
+                        )}
                       </div>
                       <div style={{ color: 'var(--w45)', fontSize: 12, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {resumen(m)}

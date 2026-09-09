@@ -1,15 +1,11 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false } }
-)
+import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 
 export async function GET(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
   const { searchParams } = new URL(req.url)
   const desde = searchParams.get('desde')
   const hasta = searchParams.get('hasta')
@@ -30,7 +26,9 @@ export async function GET(req) {
 // manuales (origen manual_monto/manual_producto) que se cobraron sin costo
 // conocido, para que la utilidad de esa venta quede exacta.
 export async function PATCH(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
   const { id, costo_unitario, conciliado_por } = await req.json()
   if (!id || costo_unitario == null || isNaN(Number(costo_unitario))) {
     return NextResponse.json({ ok: false, mensaje: 'id y costo_unitario son requeridos.' })

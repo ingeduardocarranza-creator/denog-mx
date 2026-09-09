@@ -1,14 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
 import { a10Digitos } from '@/lib/whatsapp/telefono'
 import { urlsFirmadas } from '@/lib/whatsapp/media'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false } }
-)
+import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 
 const SELECT = `
   id, tipo, estado, cliente_id, telefono_whatsapp, nombre_whatsapp,
@@ -28,6 +22,7 @@ const SELECT = `
 export async function GET(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
 
   const { searchParams } = new URL(req.url)
   const vista = searchParams.get('vista') || 'activos'
@@ -65,6 +60,7 @@ export async function GET(req) {
 export async function POST(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
 
   const {
     tipo, telefono_whatsapp, nombre_whatsapp, resumen, detalle,
@@ -124,6 +120,7 @@ export async function POST(req) {
 export async function PATCH(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
 
   const { id, accion, motivo, pago_id } = await req.json()
   if (!id || !accion) return NextResponse.json({ ok: false, mensaje: 'Faltan datos' })

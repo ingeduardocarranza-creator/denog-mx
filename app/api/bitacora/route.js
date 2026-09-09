@@ -11,10 +11,14 @@ const supabase = createClient(
 // La bitácora la escribe un trigger de la base, no la aplicación. Aquí sólo se
 // lee. Sólo admin: es el registro de quién tocó el dinero.
 //
-// La tabla no tiene columna de "quién": la base sólo ve al rol de servicio. El
-// responsable se infiere del propio renglón (vendedor_id, colaborador_id,
-// resuelto_por…), que queda guardado en el antes/después. Por eso se resuelven
-// aquí los nombres: sin esto la pantalla mostraría uuids.
+// Desde el 9 de septiembre de 2026 el trigger guarda actor_id/actor_nombre:
+// quién estaba realmente logueado cuando se hizo el cambio (viaja en un header
+// de la petición, lo pone supabaseConSesion). Para movimientos de antes de esa
+// fecha, o de rutas sin sesión de staff (el webhook de WhatsApp, por ejemplo),
+// esas columnas quedan vacías y el responsable se infiere del propio renglón
+// (vendedor_id, colaborador_id, resuelto_por…), que queda guardado en el
+// antes/después. Por eso se resuelven aquí los nombres: sin esto la pantalla
+// mostraría uuids.
 const CAMPOS_PERSONA = [
   'cliente_id', 'vendedor_id', 'colaborador_id', 'admin_id',
   'resuelto_por', 'atendido_por', 'cancelado_por', 'descartado_por',
@@ -38,7 +42,7 @@ export async function GET(req) {
 
   let q = supabase
     .from('bitacora')
-    .select('id, tabla, operacion, registro_id, antes, despues, cambios, ocurrio_en')
+    .select('id, tabla, operacion, registro_id, antes, despues, cambios, ocurrio_en, actor_id, actor_nombre')
     .order('ocurrio_en', { ascending: false })
     .order('id', { ascending: false })
     // Se pide uno de más para saber si hay página siguiente sin contar todo.

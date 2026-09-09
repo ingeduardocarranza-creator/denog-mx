@@ -1,15 +1,11 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false } }
-)
+import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 
 export async function PUT(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesionPut = requerirStaff(req)
+  if (!sesionPut) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesionPut)
   const { id, cliente_id, entrega_id, descripcion, lugar_compra, cantidad, fecha_compra,
     precio_usd, tipo_cambio, impuesto_pct, costo_mxn, precio_venta, utilidad, notas, estado, vendedor_id, categoria, apartado_fragil, imagen_url, tipo_empaque, pendiente_aprobacion } = await req.json()
 
@@ -59,7 +55,9 @@ export async function PUT(req) {
 }
 
 export async function DELETE(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
   const { id } = await req.json()
   if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })
 

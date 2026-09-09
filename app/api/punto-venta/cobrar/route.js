@@ -1,13 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
 import { construirVentaItems } from '@/lib/pos/tiendaUtils'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false } }
-)
+import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 
 // Hora de Hermosillo en el formato que guarda la base (timestamp sin zona).
 // `new Date().toISOString()` guardaria UTC y los cobros de la tarde saldrian
@@ -24,6 +18,7 @@ function horaLocal() {
 export async function POST(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
 
   try {
     const {

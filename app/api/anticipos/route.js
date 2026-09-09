@@ -1,17 +1,13 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff, requerirDuenoOStaff } from '@/lib/auth/session'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false } }
-)
+import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url)
   const cliente_id = searchParams.get('cliente_id')
-  if (!requerirDuenoOStaff(req, cliente_id)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesionGet = requerirDuenoOStaff(req, cliente_id)
+  if (!sesionGet) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesionGet)
 
   let query = supabase
     .from('pagos')
@@ -36,6 +32,7 @@ const TIPOS = ['Anticipo', 'Venta Liquidación']
 export async function POST(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
   const { cliente_id, entrega_id, monto, metodo, creado_en, pendiente_id, confirmar_duplicado, tipo } = await req.json()
 
   const tipoPago = TIPOS.includes(tipo) ? tipo : 'Anticipo'
@@ -117,10 +114,9 @@ export async function POST(req) {
   // cierra aqui mismo. Nunca son dos acciones separadas: esa separacion es
   // la que dejo 22 comprobantes resueltos sin pago entre agosto y hoy.
   if (pendiente_id) {
-    const sesion = requerirStaff(req)
     await supabase
       .from('pendientes')
-      .update({ estado: 'resuelto', resuelto_por: sesion?.id || null, resuelto_en: new Date().toISOString() })
+      .update({ estado: 'resuelto', resuelto_por: sesion.id, resuelto_en: new Date().toISOString() })
       .eq('id', pendiente_id)
   }
 
@@ -128,7 +124,9 @@ export async function POST(req) {
 }
 
 export async function PATCH(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesionPatch = requerirStaff(req)
+  if (!sesionPatch) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesionPatch)
   const { id, monto } = await req.json()
   if (!id || !monto || Number(monto) <= 0) {
     return NextResponse.json({ ok: false, mensaje: 'ID y monto requeridos' })
@@ -145,6 +143,7 @@ export async function PATCH(req) {
 export async function DELETE(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
   const { id, motivo } = await req.json()
   if (!id) return NextResponse.json({ ok: false, mensaje: 'ID requerido' })
   if (!motivo || !String(motivo).trim()) {

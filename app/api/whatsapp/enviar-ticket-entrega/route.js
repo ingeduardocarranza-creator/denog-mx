@@ -28,6 +28,10 @@ export async function POST(req) {
     const resultado = await enviarTicketDeEntregaPorWhatsapp(supabase, {
       clienteId,
       enviadoPor: sesion?.id || null,
+      // "Te atendió" en el ticket: por default, quien está mandando el
+      // ticket ahora mismo (nombre viene ya en la sesión); se puede mandar
+      // otro nombre explícito en el body si hace falta.
+      atendio: body?.atendio || sesion?.nombre || null,
     })
     return NextResponse.json(resultado, { status: resultado.ok ? 200 : 400 })
   } catch (e) {

@@ -32,7 +32,7 @@ export async function GET(req) {
   const entrega_id = searchParams.get('entrega_id')
   if (!entrega_id) return NextResponse.json({ ok: false, mensaje: 'entrega_id requerido' })
 
-  const [entregaRes, pedidosRes, pagosRes, clientesRes, domiciliosRes, compRes] = await Promise.all([
+  const [entregaRes, pedidosRes, pagosRes, clientesRes, domiciliosRes, enviosForaneosRes, compRes] = await Promise.all([
     supabase.from('entregas').select('id, fecha_entrega, nota, estado').eq('id', entrega_id).single(),
 
     // Paginado: una entrega ya trae 682 pedidos y va creciendo. Al pasar de
@@ -67,6 +67,14 @@ export async function GET(req) {
       .select('id, cliente_id, costo_envio, entrega_ids, estado')
       .neq('estado', 'cancelado'),
 
+    // Envíos foráneos (paquetería dentro del país). Mismo principio que
+    // domicilios: el costo es parte de lo que el cliente debe aunque no sea
+    // mercancía. Solo cuenta si ya se aprobó -- un borrador todavía no es un
+    // compromiso de cobro. Ver claude/envios-foraneos-plan.md.
+    supabase.from('envios_foraneos')
+      .select('id, cliente_id, costo_envio, entrega_ids, estado')
+      .in('estado', ['aprobado', 'notificado']),
+
     // Bandeja: comprobantes abiertos + los resueltos que nunca generaron pago.
     supabase.from('pendientes')
       .select('id, estado, cliente_id, telefono_whatsapp, nombre_whatsapp, resumen, monto, monto_no_coincide, imagen_url, creado_en, resuelto_en')
@@ -92,6 +100,16 @@ export async function GET(req) {
     if ((d.entrega_ids || [])[0] !== entrega_id) continue
     envioPorCliente[d.cliente_id] = (envioPorCliente[d.cliente_id] || 0) + Number(d.costo_envio || 0)
   }
+
+  // Un envío foráneo puede juntar varias entregas (Lalo: "puede ser una o
+  // más entregas, hay clientes que dejan que se les acumulen"). Igual que
+  // domicilio, el cargo se cuenta UNA vez, en la primera entrega del arreglo.
+  const envioForaneoPorCliente = {}
+  for (const e of (enviosForaneosRes.data || [])) {
+    if (!e.cliente_id) continue
+    if ((e.entrega_ids || [])[0] !== entrega_id) continue
+    envioForaneoPorCliente[e.cliente_id] = (envioForaneoPorCliente[e.cliente_id] || 0) + Number(e.costo_envio || 0)
+  }
   const clientes = clientesRes.data || []
   const porId = Object.fromEntries(clientes.map(c => [c.id, c]))
 
@@ -107,12 +125,13 @@ export async function GET(req) {
       articulos: 0, total: 0, pagos: [], pagado: 0, saldo: 0,
       anticipos: 0, cobro_final: 0, entregado_en: null,
       // Mercancía y envío se guardan por separado para poder mostrarlos como
-      // dos renglones; `total` es la suma, que es lo que el cliente debe.
+      // renglones aparte; `total` es la suma, que es lo que el cliente debe.
       mercancia: 0, envio: Number(envioPorCliente[p.cliente_id] || 0),
+      envio_foraneo: Number(envioForaneoPorCliente[p.cliente_id] || 0),
     })
     r.articulos += 1
     r.mercancia += Number(p.precio_venta || 0)
-    r.total = r.mercancia + r.envio
+    r.total = r.mercancia + r.envio + r.envio_foraneo
     // Cuando recogio. Se toma el mas reciente de sus pedidos: si vino en dos
     // vueltas, la que importa para una consulta es la ultima.
     if (p.entregado_en && (!r.entregado_en || p.entregado_en > r.entregado_en)) {
@@ -126,7 +145,7 @@ export async function GET(req) {
     // Anticipo (lo que abono antes) y cobro final (lo que pago al recoger) son
     // dos cosas distintas para quien consulta una cuenta. Se suman aparte.
     if (g.tipo === 'Anticipo') roster[g.cliente_id].anticipos += Number(g.monto || 0)
-    else if (g.tipo !== 'Envío') roster[g.cliente_id].cobro_final += Number(g.monto || 0)
+    else if (g.tipo !== 'Envío' && g.tipo !== 'Envío Foráneo') roster[g.cliente_id].cobro_final += Number(g.monto || 0)
   }
 
   const lista = Object.values(roster).map(r => {

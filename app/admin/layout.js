@@ -30,6 +30,7 @@ const grupos = [
       { label: 'Entregas',          icon: '📅', href: '/admin/entregas' },
       { label: 'Empacado',          icon: '📦', href: '/admin/empacado' },
       { label: 'Anticipos',         icon: '💳', href: '/admin/anticipos' },
+      { label: 'Envíos foráneos',   icon: '📦', href: '/admin/envios-foraneos' },
       { label: 'Estados de cuenta', icon: '📋', href: '/admin/estados-cuenta' },
       { label: 'Cotizador',         icon: '🧮', href: '/admin/cotizador' },
     ],

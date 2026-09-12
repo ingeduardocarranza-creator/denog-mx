@@ -692,16 +692,23 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onLigar, onCancela
             </div>
           )}
 
-          {/* Qué se le está cobrando. Con domicilio son dos conceptos y hay
-              que verlos separados: la mercancía y el envío. */}
-          {r.envio > 0 && (
+          {/* Qué se le está cobrando. Con domicilio o envío foráneo hay más
+              de un concepto y hay que verlos separados: mercancía, envío. */}
+          {(r.envio > 0 || r.envio_foraneo > 0) && (
             <div style={{ marginTop: 4, marginBottom: 4, background: 'var(--w03)', border: '1px solid var(--w06)', borderRadius: 10, padding: '9px 12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--w45)' }}>
                 <span>Mercancía</span><span className="monto">{fmt(r.mercancia)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--marca-t)', marginTop: 3 }}>
-                <span>🛵 Envío a domicilio</span><span className="monto">{fmt(r.envio)}</span>
-              </div>
+              {r.envio > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--marca-t)', marginTop: 3 }}>
+                  <span>🛵 Envío a domicilio</span><span className="monto">{fmt(r.envio)}</span>
+                </div>
+              )}
+              {r.envio_foraneo > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--marca-t)', marginTop: 3 }}>
+                  <span>📦 Envío foráneo</span><span className="monto">{fmt(r.envio_foraneo)}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 700, color: 'var(--tinta)', marginTop: 5, paddingTop: 5, borderTop: '1px solid var(--w06)' }}>
                 <span>Total a pagar</span><span className="monto">{fmt(r.total)}</span>
               </div>
@@ -715,8 +722,9 @@ function Renglon({ r, entregaId, abierto, onAbrir, onGuardar, onLigar, onCancela
             <div style={{ marginTop: 13, display: 'flex', flexDirection: 'column', gap: 11 }}>
               {[
                 { et: 'Anticipos', lista: r.pagos.filter(p => p.tipo === 'Anticipo'), suma: r.anticipos },
-                { et: 'Cobro final al recoger', lista: r.pagos.filter(p => p.tipo !== 'Anticipo' && p.tipo !== 'Envío'), suma: r.cobro_final },
+                { et: 'Cobro final al recoger', lista: r.pagos.filter(p => p.tipo !== 'Anticipo' && p.tipo !== 'Envío' && p.tipo !== 'Envío Foráneo'), suma: r.cobro_final },
                 { et: 'Envío a domicilio', lista: r.pagos.filter(p => p.tipo === 'Envío'), suma: r.pagos.filter(p => p.tipo === 'Envío').reduce((a, p) => a + Number(p.monto || 0), 0) },
+                { et: 'Envío foráneo', lista: r.pagos.filter(p => p.tipo === 'Envío Foráneo'), suma: r.pagos.filter(p => p.tipo === 'Envío Foráneo').reduce((a, p) => a + Number(p.monto || 0), 0) },
               ].filter(g => g.lista.length > 0).map(g => (
                 <div key={g.et}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>

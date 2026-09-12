@@ -68,9 +68,10 @@ async function armarReporte(req) {
   const pagosDeTienda = new Set(ventas.map(v => v.pago_id).filter(Boolean))
   const clase = (p) =>
     pagosDeTienda.has(p.id) ? 'tienda'
-    // El envío a domicilio es ingreso por servicio, no venta de mercancía.
-    // Sin esta línea caería en 'otros' y parecería un flujo sin clasificar.
-    : p.tipo === 'Envío' ? 'envios'
+    // El envío (a domicilio o foráneo) es ingreso por servicio, no venta de
+    // mercancía. Sin esta línea caería en 'otros' y parecería un flujo sin
+    // clasificar.
+    : (p.tipo === 'Envío' || p.tipo === 'Envío Foráneo') ? 'envios'
     : p.tipo === 'Anticipo' ? 'anticipos'
     : p.entrega_id ? 'entregas'
     : 'otros'

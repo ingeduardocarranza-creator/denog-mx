@@ -12,7 +12,7 @@ const grupos = [
       { label: 'Domicilios',     icon: '🚚', href: '/admin/domicilios', badgeKey: 'domicilios' },
       { label: 'Caja',           icon: '💰', href: '/admin/caja' },
       { label: 'Catálogo',       icon: '🏷️', href: '/admin/catalogo' },
-      { label: 'Inventario',     icon: '🔢', href: '/admin/inventario' },
+      { label: 'Inventario',     icon: '🗃️', href: '/admin/inventario' },
       { label: 'Reportes',       icon: '📊', href: '/admin/reportes' },
     ],
   },
@@ -47,7 +47,7 @@ const grupos = [
       { label: 'Colaboradores', icon: '🏆', href: '/admin/colaboradores' },
       { label: 'Gestión equipo', icon: '👤', href: '/admin/colaboradores-admin' },
       // Sólo en el menú de admin: es el registro de quién tocó el dinero.
-      { label: 'Bitácora',       icon: '🕵️', href: '/admin/bitacora' },
+      { label: 'Bitácora',       icon: '📜', href: '/admin/bitacora' },
     ],
   },
 ]

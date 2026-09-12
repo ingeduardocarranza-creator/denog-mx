@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server'
-import { requerirAdmin } from '@/lib/auth/session'
+import { requerirStaff } from '@/lib/auth/session'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 
 export async function POST(req) {
-  const sesion = requerirAdmin(req)
+  // Confirmar lo puede hacer cualquier colaborador (admin o vendedor), no
+  // solo admin: la idea es que el colaborador en turno "se dé por
+  // enterado" de que le sacaron dinero de su caja, para que después no
+  // ande buscando de dónde falta. Sacar dinero (crear el retiro) sigue
+  // siendo exclusivo de admin — eso no cambia.
+  const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const supabase = supabaseConSesion(sesion)
   const { id } = await req.json()
-
-  // Cualquier admin puede confirmar, incluso el que sacó el dinero — no
-  // hace falta un segundo admin. Lo que importa es que quede registrado
-  // quién lo sacó (admin_id) y quién lo confirmó (confirmado_por), aunque
-  // sea la misma persona.
   const { data: retiro, error: errBusca } = await supabase
     .from('retiros_caja')
     .select('admin_id, estado')

@@ -215,7 +215,7 @@ function VistaLista({ categorias, sesiones, cargando, error, onIniciar, onAbrir 
                   </button>
                 ) : (
                   <button onClick={() => onIniciar(c.categoria)}
-                    style={{ width: '100%', background: 'var(--tinta)', color: 'var(--fondo)', border: 'none', borderRadius: 10, padding: '8px 10px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                    style={{ width: '100%', background: 'var(--tinta)', color: 'var(--sup)', border: 'none', borderRadius: 10, padding: '8px 10px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
                     Iniciar conteo
                   </button>
                 )}
@@ -293,7 +293,7 @@ function VistaContando({ sesion, items, totalItems, contados, conDiferencia, sin
           {sinContar > 0 ? `Faltan ${sinContar} productos por contar.` : 'Todo contado.'}
         </div>
         <button onClick={onCerrar}
-          style={{ background: 'var(--tinta)', color: 'var(--fondo)', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          style={{ background: 'var(--tinta)', color: 'var(--sup)', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
           🔒 Cerrar conteo{sinContar > 0 ? ` (faltan ${sinContar})` : ''}
         </button>
       </div>
@@ -384,7 +384,7 @@ function RenglonProducto({ item, onGuardar }) {
           />
         )}
         <button onClick={guardar} disabled={guardando}
-          style={{ background: 'var(--tinta)', color: 'var(--fondo)', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12.5, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.6 : 1 }}>
+          style={{ background: 'var(--tinta)', color: 'var(--sup)', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12.5, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.6 : 1 }}>
           {guardando ? 'Guardando…' : 'Guardar'}
         </button>
       </div>

@@ -12,6 +12,7 @@ const grupos = [
       { label: 'Domicilios',     icon: '🚚', href: '/admin/domicilios', badgeKey: 'domicilios' },
       { label: 'Caja',           icon: '💰', href: '/admin/caja' },
       { label: 'Catálogo',       icon: '🏷️', href: '/admin/catalogo' },
+      { label: 'Inventario',     icon: '🔢', href: '/admin/inventario' },
       { label: 'Reportes',       icon: '📊', href: '/admin/reportes' },
     ],
   },

@@ -1,12 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false } }
-)
+import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 
 const CAMPOS_PERMITIDOS = [
   'nombre', 'codigo_barras', 'costo', 'precio_venta', 'stock',
@@ -16,7 +10,9 @@ const CAMPOS_PERMITIDOS = [
 
 // Returns all products (including inactive) with creator join
 export async function GET(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
   const { data, error } = await supabase
     .from('productos_tienda')
     .select('*, creador:clientes(nombre)')
@@ -29,6 +25,7 @@ export async function GET(req) {
 export async function POST(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
   const body = await req.json()
   const datos = Object.fromEntries(CAMPOS_PERMITIDOS.filter(k => k in body).map(k => [k, body[k]]))
   datos.creado_por = sesion.id
@@ -37,9 +34,14 @@ export async function POST(req) {
   return NextResponse.json({ ok: true, id: data.id })
 }
 
-// Update an existing product
+// Update an existing product. Si cambia stock/costo/precio_venta, la
+// bitácora lo registra con quién de verdad lo hizo (supabaseConSesion manda
+// el header que el trigger lee) — antes se guardaba con el rol de servicio y
+// no quedaba rastro de quién tocó el número.
 export async function PATCH(req) {
-  if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const sesion = requerirStaff(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
   const body = await req.json()
   const { id, ...rest } = body
   if (!id) return NextResponse.json({ ok: false, mensaje: 'id requerido' })

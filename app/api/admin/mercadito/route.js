@@ -1,17 +1,12 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false } }
-)
+import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 
 // Returns all pedidos_mercadito with client info, pagos map, and stock map
 export async function GET(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
 
   const [pedidosRes, pagosRes, stockRes] = await Promise.all([
     supabase.from('pedidos_mercadito').select('*, clientes(nombre, telefono)').order('creado_en', { ascending: false }),
@@ -38,6 +33,7 @@ export async function GET(req) {
 export async function PATCH(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
 
   const { id, patch, historialLabel, actorNombre, historialCompleto } = await req.json()
   if (!id) return NextResponse.json({ ok: false, mensaje: 'id requerido' })
@@ -77,6 +73,7 @@ export async function PATCH(req) {
 export async function PUT(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  const supabase = supabaseConSesion(sesion)
 
   const { id } = await req.json()
   if (!id) return NextResponse.json({ ok: false, mensaje: 'id requerido' })

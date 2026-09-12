@@ -31,10 +31,15 @@ export async function GET(req) {
     const transferencia = data.filter(p => p.metodo?.toLowerCase() === 'transferencia').reduce((s, p) => s + p.monto, 0)
     const terminal = data.filter(p => p.metodo?.toLowerCase() === 'terminal').reduce((s, p) => s + p.monto, 0)
 
+    // El dinero sale de caja en el momento del retiro, no cuando otro
+    // admin lo confirma despues. `confirmado` es un control de auditoria
+    // (segregacion de funciones), no debe afectar el calculo de efectivo:
+    // si se filtrara solo por confirmados, un retiro pendiente de confirmar
+    // se veria como si el dinero siguiera en el cajon, y el corte saldria
+    // sobrante por el monto exacto del retiro.
     const { data: retiros } = await supabase
       .from('retiros_caja')
       .select('monto')
-      .eq('estado', 'confirmado')
       .gte('creado_en', inicio)
       .lte('creado_en', fin)
 
@@ -43,9 +48,14 @@ export async function GET(req) {
     return NextResponse.json({ ok: true, efectivo, transferencia, terminal, totalRetiros })
   }
 
+  // El embed automático de `clientes` quedó ambiguo desde que cortes_caja
+  // tiene dos FK hacia clientes (colaborador_id y el nuevo revisado_por,
+  // Fase 5). Sin el hint del nombre de columna, PostgREST no sabe por cuál
+  // unir y la consulta entera fallaba (rompía apertura de turno y toda la
+  // pantalla de caja del admin).
   let query = supabase
     .from('cortes_caja')
-    .select('*, clientes(nombre)')
+    .select('*, clientes!colaborador_id(nombre)')
     .order('creado_en', { ascending: false })
 
   if (fecha) {

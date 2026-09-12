@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
-import { construirVentaItems } from '@/lib/pos/tiendaUtils'
+import { construirVentaItems, evaluarDescuento } from '@/lib/pos/tiendaUtils'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 
 // Hora de Hermosillo en el formato que guarda la base (timestamp sin zona).
@@ -42,9 +42,29 @@ export async function POST(req) {
       // simplemente no muestra ese renglón.
       efectivoRecibido,
       cambio,
+      // Nombre de quien autorizó, solo se pide cuando el descuento es
+      // grande (Fase 5: segregación de funciones). No bloquea la venta si
+      // no se manda y el descuento es chico.
+      autorizadoDescuentoPor,
     } = await req.json()
 
     const colaboradorId = sesion.id
+
+    // ── Descuentos grandes necesitan quién autoriza ──────────────────────
+    // Más de 20% o más de $200 (lo que se cumpla primero) pide un nombre.
+    // No bloquea la venta: si no hay nombre, se rechaza el cobro con un
+    // mensaje claro para que la pantalla pida el dato y reintente — el
+    // staff no se queda atorado, solo tiene que decir quién lo autorizó.
+    const carritoParaDescuento = (modo === 'modo1' && clienteId) ? carritoEncargoTienda : carritoVentaTienda
+    const descuentoVentaParaCheck = (modo === 'modo1' && clienteId) ? { tipo: null, valor: 0 } : (descuentoVentaTienda || { tipo: null, valor: 0 })
+    const infoDescuento = evaluarDescuento(carritoParaDescuento || [], descuentoVentaParaCheck)
+    if (infoDescuento.esGrande && !(autorizadoDescuentoPor || '').trim()) {
+      return NextResponse.json({
+        ok: false,
+        mensaje: 'Este descuento es grande (más de 20% o más de $200). Escribe quién lo autoriza para poder cobrar.',
+        requiereAutorizacionDescuento: true,
+      }, { status: 409 })
+    }
 
     // Todo lo que este cobro cree, para poder amarrarlo a su transacción al
     // final. El folio se pide hasta que el cobro ya salió bien: así un cobro
@@ -320,6 +340,7 @@ export async function POST(req) {
           total: cobradoAhora,
           efectivo_recibido: efectivoRecibido ?? null,
           cambio: cambio ?? null,
+          descuento_autorizado_por: infoDescuento.esGrande ? (autorizadoDescuentoPor || '').trim() : null,
         })
         .select('id, folio')
         .single()

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import TiendaTienda from '../../components/pos/TiendaTienda';
 import EncargosEntrega from '../../components/pos/EncargosEntrega';
-import { calcularTotalesCarrito } from '../../../lib/pos/tiendaUtils';
+import { calcularTotalesCarrito, evaluarDescuento } from '../../../lib/pos/tiendaUtils';
 
 const formatearFecha = (fecha) => {
   if (!fecha) return ''
@@ -61,6 +61,9 @@ export default function PuntoDeVenta() {
   const [carritoEncargoTienda, setCarritoEncargoTienda] = useState([]);
   const [carritoVentaTienda, setCarritoVentaTienda] = useState([]);
   const [descuentoVentaTienda, setDescuentoVentaTienda] = useState({ tipo: null, valor: 0 });
+  // Fase 5: si el descuento es grande (>20% o >$200) hay que decir quién lo
+  // autoriza antes de poder cobrar. No bloquea descuentos chicos.
+  const [autorizadoDescuentoPor, setAutorizadoDescuentoPor] = useState('');
   const [clienteTienda, setClienteTienda] = useState(null);
   const [mostrarModalCobro, setMostrarModalCobro] = useState(false);
   const [modalMetodo1, setModalMetodo1] = useState('Efectivo');
@@ -531,6 +534,9 @@ const horariosDelDia = (f) => {
   const totalesEncargoTienda = calcularTotalesCarrito(carritoEncargoTienda, { tipo: null, valor: 0 });
   const totalesVentaTienda = calcularTotalesCarrito(carritoVentaTienda, descuentoVentaTienda);
   const subtotalTienda = modo === 'modo1' ? totalesEncargoTienda.total : modo === 'modo2' ? totalesVentaTienda.total : 0;
+  const descuentoInfo = modo === 'modo1'
+    ? evaluarDescuento(carritoEncargoTienda, { tipo: null, valor: 0 })
+    : evaluarDescuento(carritoVentaTienda, descuentoVentaTienda);
   const totalGeneral = modo === 'modo1' ? (sumaEncargosTotalNeto + sumaMercaditoSeleccionado + subtotalTienda) : subtotalTienda;
   const procesarCobroFinal = async ({ metodo1: m1, monto1, metodo2: m2, monto2 }) => {
     setLoading(true);
@@ -595,6 +601,7 @@ const horariosDelDia = (f) => {
           descuentoVentaTienda,
           clienteTiendaId: clienteTienda?.id ?? null,
           vendedorTiendaId: vendedorTienda?.id ?? null,
+          autorizadoDescuentoPor,
         }),
       });
 
@@ -619,6 +626,7 @@ const horariosDelDia = (f) => {
       setCarritoEncargoTienda([]);
       setCarritoVentaTienda([]);
       setDescuentoVentaTienda({ tipo: null, valor: 0 });
+      setAutorizadoDescuentoPor('');
       setClienteTienda(null);
       setMostrarModalCobro(false);
       setModalMonto1('');
@@ -628,7 +636,7 @@ const horariosDelDia = (f) => {
       setModalMetodo1('Efectivo');
       setModalMetodo2('Transferencia');
     } catch (err) {
-      setMensaje({ tipo: 'error', texto: 'Error de conexión.' });
+      setMensaje({ tipo: 'error', texto: err?.message || 'Error de conexión.' });
     } finally {
       setLoading(false);
     }
@@ -841,6 +849,20 @@ const horariosDelDia = (f) => {
             </div>
           )}
 
+          {/* Descuento grande: pide quién autoriza, no bloquea el resto del
+              cobro — solo hace falta el nombre para poder confirmar. */}
+          {descuentoInfo.esGrande && (
+            <div className="flex flex-col gap-2 mt-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+              <span className="text-[11px] font-bold tracking-wider text-amber-300 uppercase">
+                ⚠ Descuento grande ({Math.round(descuentoInfo.descuentoPct * 100)}% · {money(descuentoInfo.descuentoTotal)}) — ¿quién lo autoriza?
+              </span>
+              <input type="text" value={autorizadoDescuentoPor}
+                onChange={e => setAutorizadoDescuentoPor(e.target.value)}
+                placeholder="Nombre de quien autoriza"
+                className="h-11 px-3.5 rounded-xl bg-gray-950 border-2 border-amber-500/50 outline-none text-white text-sm" />
+            </div>
+          )}
+
           {/* Resumen + confirmar */}
           <div className="flex flex-col gap-2.5 mt-5">
             <div className={`px-4 py-2.5 rounded-xl text-center text-[13px] font-semibold border ${puedeConfirmar ? 'bg-green-500/10 text-green-300 border-green-500/30' : 'bg-red-500/5 text-red-300 border-red-500/30'}`}>
@@ -1048,6 +1070,11 @@ const horariosDelDia = (f) => {
     if (monto1 <= 0) motivo = 'Escribe el monto del primer método.';
     else if (monto1 >= total) motivo = 'El primer monto debe ser menor al total.';
     else if (efectivoEnSplit !== null && recSplit < efectivoEnSplit) { puedeConfirmar = false; motivo = 'El efectivo no alcanza para su parte.'; }
+  }
+  // Descuento grande: no se puede confirmar sin decir quién lo autoriza.
+  if (puedeConfirmar && descuentoInfo.esGrande && !autorizadoDescuentoPor.trim()) {
+    puedeConfirmar = false;
+    motivo = 'Este descuento es grande — escribe quién lo autoriza.';
   }
 
   return (
@@ -1271,7 +1298,7 @@ const horariosDelDia = (f) => {
                 loading={loading}
                 onCobrar={() => {
                   if (!clienteSeleccionado) return;
-                  if (totalGeneral === 0) {
+                  if (totalGeneral === 0 && !descuentoInfo.esGrande) {
                     procesarCobroFinal({ metodo1: null, monto1: 0, metodo2: null, monto2: 0 });
                     return;
                   }
@@ -1300,7 +1327,7 @@ const horariosDelDia = (f) => {
                 loading={loading}
                 onCobrar={() => {
                   if (carritoVentaTienda.length === 0) return;
-                  if (totalesVentaTienda.total === 0) {
+                  if (totalesVentaTienda.total === 0 && !descuentoInfo.esGrande) {
                     procesarCobroFinal({ metodo1: null, monto1: 0, metodo2: null, monto2: 0 });
                     return;
                   }

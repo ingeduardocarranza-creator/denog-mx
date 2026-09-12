@@ -30,12 +30,9 @@ export async function GET(req) {
 
   if (estado) {
     query = query.eq('estado', estado)
-    // Solo retiros pendientes del día actual
-    if (estado === 'pendiente') {
-      const ahora = new Date()
-      const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
-      query = query.gte('creado_en', `${hoy}T00:00:00`).lte('creado_en', `${hoy}T23:59:59`)
-    }
+    // Nota: antes esto limitaba "pendiente" al día actual. Como ya no hay
+    // auto-confirmación, un retiro puede quedar pendiente más de un día —
+    // limitarlo a hoy lo escondía de la lista de pendientes por confirmar.
   }
 
   const { data, error } = await query
@@ -44,24 +41,23 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const sesion = requerirStaff(req)
+  // Solo el admin puede sacar dinero de caja. La sección de retiro es
+  // exclusiva de admin (decisión de Eduardo), así que aquí también se
+  // exige admin y no solo staff.
+  const sesion = requerirAdmin(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const supabase = supabaseConSesion(sesion)
-  const { monto, motivo, estado: estadoSolicitado } = await req.json()
-  // Only admins can create a retiro already confirmed; vendors always go through approval.
-  const esAdmin = sesion.rol === 'admin'
-  const estado = esAdmin && estadoSolicitado === 'confirmado' ? 'confirmado' : 'pendiente'
+  const { monto, motivo } = await req.json()
+  // Todo retiro nace pendiente. Ya no existe la auto-confirmación: hace
+  // falta un paso extra de "Confirmar" (lo puede dar cualquier admin,
+  // incluso el mismo que lo sacó) para que quede marcado como confirmado.
   const { data, error } = await supabase
     .from('retiros_caja')
     .insert([{
       monto,
       motivo,
-      estado,
-      // Quién sacó el dinero. Estaba sin guardar: TODOS los retiros históricos
-      // tienen admin_id null, así que la caja perdía efectivo sin nombre que
-      // lo respalde. En una operación con efectivo eso no puede quedar así.
+      estado: 'pendiente',
       admin_id: sesion.id,
-      ...(estado === 'confirmado' ? { confirmado_en: new Date().toISOString() } : {})
     }])
     .select()
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })

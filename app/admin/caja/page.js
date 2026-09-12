@@ -42,6 +42,19 @@ export default function AdminCaja() {
   const [metricas, setMetricas] = useState({ efectivo: 0, transferencia: 0, terminal: 0 })
   const [metricasTurno, setMetricasTurno] = useState({ efectivo: 0, transferencia: 0, terminal: 0 })
   const [metricasPostCorte, setMetricasPostCorte] = useState({ efectivo: 0 })
+  const [usuarioActual, setUsuarioActual] = useState(null)
+  const [confirmandoRetiroId, setConfirmandoRetiroId] = useState(null)
+  const [revisandoCorteId, setRevisandoCorteId] = useState(null)
+  const [mensajeCorte, setMensajeCorte] = useState('')
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('cliente')
+      if (raw) setUsuarioActual(JSON.parse(raw))
+    } catch {}
+  }, [])
+  // La sección de retiro es exclusiva de admin: los vendedores no la ven.
+  const esAdmin = usuarioActual?.rol === 'admin'
 
   useEffect(() => { cargar() }, [fecha])
 
@@ -62,17 +75,56 @@ export default function AdminCaja() {
     const res = await fetch('/api/retiros', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ monto: parseFloat(montoRetiro), motivo: motivoRetiro, estado: 'confirmado' })
+      body: JSON.stringify({ monto: parseFloat(montoRetiro), motivo: motivoRetiro })
     })
     const data = await res.json()
     setEnviandoRetiro(false)
     if (data.ok) {
       setMontoRetiro('')
       setMotivoRetiro('')
-      setMensajeRetiro('✅ Retiro registrado correctamente')
+      setMensajeRetiro('✅ Retiro registrado. Queda pendiente hasta que otro admin lo confirme')
       await cargar()
       setTimeout(() => setMensajeRetiro(''), 5000)
+    } else {
+      setMensajeRetiro(`⚠️ ${data.mensaje || 'No se pudo registrar el retiro'}`)
+      setTimeout(() => setMensajeRetiro(''), 5000)
     }
+  }
+
+  const confirmarRetiro = async (id) => {
+    setConfirmandoRetiroId(id)
+    const res = await fetch('/api/retiros/confirmar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    })
+    const data = await res.json()
+    setConfirmandoRetiroId(null)
+    if (data.ok) {
+      setMensajeRetiro('✅ Retiro confirmado')
+      await cargar()
+    } else {
+      setMensajeRetiro(`⚠️ ${data.mensaje || 'No se pudo confirmar'}`)
+    }
+    setTimeout(() => setMensajeRetiro(''), 5000)
+  }
+
+  const revisarCorte = async (id) => {
+    setRevisandoCorteId(id)
+    const res = await fetch('/api/caja/revisar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    })
+    const data = await res.json()
+    setRevisandoCorteId(null)
+    if (data.ok) {
+      setMensajeCorte('✅ Corte revisado')
+      await cargar()
+    } else {
+      setMensajeCorte(`⚠️ ${data.mensaje || 'No se pudo revisar'}`)
+    }
+    setTimeout(() => setMensajeCorte(''), 5000)
   }
 
   // Agrupar registros por colaborador
@@ -109,21 +161,24 @@ export default function AdminCaja() {
 
   const aperturaActual = turnoActivo?.aperturas[0]
   const fondoInicial = aperturaActual?.total_contado || 0
-  const retirosConfirmadosTurno = aperturaActual
-    ? retiros.filter(r => r.estado === 'confirmado' && r.creado_en >= aperturaActual.creado_en).reduce((s, r) => s + r.monto, 0)
+  // Se cuentan todos los retiros del turno, confirmados o no: el dinero ya
+  // salió de la caja en el momento del retiro. "Confirmado" es solo el
+  // control de que otro admin lo revisó, no cambia cuánto efectivo hay.
+  const retirosTurno = aperturaActual
+    ? retiros.filter(r => r.creado_en >= aperturaActual.creado_en).reduce((s, r) => s + r.monto, 0)
     : 0
-  const efectivoEnCaja = fondoInicial + metricasTurno.efectivo - retirosConfirmadosTurno
+  const efectivoEnCaja = fondoInicial + metricasTurno.efectivo - retirosTurno
   const totalDia = metricas.efectivo + metricas.transferencia + metricas.terminal
 
   // Fondo inicial del día: la apertura más antigua (primera del día), orden explícito por fecha
   const todasAperturas = cortes.filter(c => c.tipo === 'apertura').sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en))
   const fondoDia = todasAperturas.length > 0 ? (todasAperturas[0]?.total_contado || 0) : 0
-  const retirosConfirmadosDia = retiros.filter(r => r.estado === 'confirmado').reduce((s, r) => s + r.monto, 0)
+  const retirosDia = retiros.reduce((s, r) => s + r.monto, 0)
 
   // Fondo actual: si hay un corte del día, el fondo arranca desde ese corte (no desde la apertura inicial)
   const ultimoCorteHoy = cortes.filter(c => c.tipo === 'corte').sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en))[0]
   const retirosPostCorte = ultimoCorteHoy
-    ? retiros.filter(r => r.estado === 'confirmado' && new Date(r.creado_en) > new Date(ultimoCorteHoy.creado_en)).reduce((s, r) => s + r.monto, 0)
+    ? retiros.filter(r => new Date(r.creado_en) > new Date(ultimoCorteHoy.creado_en)).reduce((s, r) => s + r.monto, 0)
     : 0
   // Sin turno abierto: lo que se contó en el último corte más lo que se haya
   // cobrado en efectivo después de ese corte.
@@ -144,7 +199,7 @@ export default function AdminCaja() {
     ? efectivoEnCaja
     : ultimoCorteHoy
     ? Math.max(0, (ultimoCorteHoy.total_contado || 0) + metricasPostCorte.efectivo - retirosPostCorte)
-    : Math.max(0, fondoDia + metricas.efectivo - retirosConfirmadosDia)
+    : Math.max(0, fondoDia + metricas.efectivo - retirosDia)
 
   // Historial: una fila por turno, emparejando por timestamp.
   // Ordenamos aperturas y cortes ASC; el corte de una apertura es el que ocurre
@@ -229,10 +284,10 @@ export default function AdminCaja() {
               </div>
               <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>
                 {turnoActivo
-                  ? `${fmt(fondoInicial)} de fondo inicial + ${fmt(metricasTurno.efectivo)} cobrado en efectivo − ${fmt(retirosConfirmadosTurno)} de retiros del turno`
+                  ? `${fmt(fondoInicial)} de fondo inicial + ${fmt(metricasTurno.efectivo)} cobrado en efectivo − ${fmt(retirosTurno)} de retiros del turno`
                   : ultimoCorteHoy
                   ? `${fmt(ultimoCorteHoy.total_contado)} del último corte + ${fmt(metricasPostCorte.efectivo)} cobrado después − ${fmt(retirosPostCorte)} de retiros posteriores`
-                  : `${fmt(fondoDia)} de fondo inicial + ${fmt(metricas.efectivo)} cobrado en efectivo − ${fmt(retirosConfirmadosDia)} de retiros confirmados`}
+                  : `${fmt(fondoDia)} de fondo inicial + ${fmt(metricas.efectivo)} cobrado en efectivo − ${fmt(retirosDia)} de retiros`}
               </div>
             </div>
             <div className="monto" style={{ color: 'var(--ambar)', fontSize: 40, fontWeight: 900, letterSpacing: -1.5, lineHeight: 1 }}>
@@ -291,7 +346,7 @@ export default function AdminCaja() {
                 { label: 'Efectivo cobrado', valor: metricasTurno.efectivo },
                 { label: 'Transferencias', valor: metricasTurno.transferencia },
                 { label: 'Terminal', valor: metricasTurno.terminal },
-                { label: 'Retiros confirmados', valor: retirosConfirmadosTurno, rojo: retirosConfirmadosTurno > 0 },
+                { label: 'Retiros', valor: retirosTurno, rojo: retirosTurno > 0 },
               ].map((m, i) => (
                 <div key={i} style={{ ...miniCard }}>
                   <div style={{ color: 'var(--w35)', fontSize: 9, marginBottom: 4 }}>{m.label}</div>
@@ -305,7 +360,7 @@ export default function AdminCaja() {
               <div>
                 <div style={{ color: 'var(--w50)', fontSize: 12, fontWeight: 600 }}>Efectivo total en caja ahora</div>
                 <div style={{ color: 'var(--w30)', fontSize: 10, marginTop: 2 }}>
-                  {fmt(fondoInicial)} fondo + {fmt(metricasTurno.efectivo)} cobrado − {fmt(retirosConfirmadosTurno)} retiros
+                  {fmt(fondoInicial)} fondo + {fmt(metricasTurno.efectivo)} cobrado − {fmt(retirosTurno)} retiros
                 </div>
               </div>
               <div style={{ color: 'var(--verde)', fontSize: 26, fontWeight: 800 }}>{fmt(efectivoEnCaja)}</div>
@@ -319,6 +374,11 @@ export default function AdminCaja() {
           {/* Historial de turnos */}
           <div>
             <div style={{ ...secLabel }}>Historial de turnos</div>
+            {mensajeCorte && (
+              <div style={{ background: 'var(--verde-suave)', border: '1px solid var(--verde-borde)', borderRadius: 9, padding: '8px 12px', color: 'var(--verde)', fontSize: 12, marginBottom: 10, fontWeight: 600 }}>
+                {mensajeCorte}
+              </div>
+            )}
             {cargando ? (
               <div style={{ color: 'var(--w30)', fontSize: 13, padding: 20, textAlign: 'center' }}>Cargando...</div>
             ) : turnosHistorial.length === 0 ? (
@@ -390,6 +450,22 @@ export default function AdminCaja() {
                           Justificación: "{corte.justificacion}"
                         </div>
                       )}
+
+                      {/* Revisión de corte ajeno: no bloquea el cierre de
+                          nadie, solo deja constancia de que otro colaborador
+                          lo revisó después. */}
+                      {corte && (
+                        corte.revisado_por ? (
+                          <div style={{ marginTop: 8, fontSize: 10, color: 'var(--w35)' }}>✓ Revisado</div>
+                        ) : corte.colaborador_id !== usuarioActual?.id ? (
+                          <button onClick={() => revisarCorte(corte.id)} disabled={revisandoCorteId === corte.id}
+                            style={{ marginTop: 8, background: 'var(--w06)', border: '1px solid var(--w10)', borderRadius: 8, padding: '4px 10px', color: 'var(--w55)', fontSize: 10.5, fontWeight: 600, cursor: revisandoCorteId === corte.id ? 'not-allowed' : 'pointer' }}>
+                            {revisandoCorteId === corte.id ? 'Revisando…' : 'Marcar como revisado'}
+                          </button>
+                        ) : (
+                          <div style={{ marginTop: 8, fontSize: 10, color: 'var(--w25)' }}>Sin revisar (necesita otro colaborador)</div>
+                        )
+                      )}
                     </div>
                   )
                 })}
@@ -397,7 +473,9 @@ export default function AdminCaja() {
             )}
           </div>
 
-          {/* Retiros */}
+          {/* Retiros — solo admin: Eduardo pidió que esta sección sea
+              exclusiva de admin, incluyendo verla. */}
+          {esAdmin && (
           <div>
             <div style={{ ...secLabel, marginTop: 0 }}>Retiro de caja</div>
             {/* Sacar dinero de la caja es una acción con consecuencia, no un
@@ -466,7 +544,7 @@ export default function AdminCaja() {
                 {enviandoRetiro ? 'Registrando…' : montoRetiro ? `Registrar retiro de ${fmt(Number(montoRetiro))}` : 'Registrar retiro'}
               </button>
               <div style={{ color: 'var(--w30)', fontSize: 10.5, textAlign: 'center', marginTop: 8 }}>
-                Queda registrado como confirmado y descuenta de la caja al instante
+                El efectivo se descuenta de la caja al instante. Queda pendiente hasta que otro admin lo confirme.
               </div>
             </div>
 
@@ -477,18 +555,32 @@ export default function AdminCaja() {
               </div>
             ) : (
               <div style={{ background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14, overflow: 'hidden' }}>
-                {retiros.map((r, i) => (
-                  <div key={r.id} style={{ padding: '10px 14px', borderBottom: i < retiros.length - 1 ? '1px solid var(--w05)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {retiros.map((r, i) => {
+                  // Cualquier admin puede confirmar, incluso el que lo sacó —
+                  // no hace falta un segundo admin. Ya queda registrado quién
+                  // lo sacó y quién lo confirmó.
+                  const puedeConfirmar = r.estado === 'pendiente' && !!usuarioActual?.id
+                  return (
+                  <div key={r.id} style={{ padding: '10px 14px', borderBottom: i < retiros.length - 1 ? '1px solid var(--w05)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                     <div>
                       <div style={{ color: 'var(--tinta)', fontSize: 12, fontWeight: 600 }}>{fmt(r.monto)}</div>
                       <div style={{ color: 'var(--w30)', fontSize: 10 }}>{r.motivo}</div>
                       <div style={{ color: 'var(--w20)', fontSize: 9 }}>{formatearHora(r.creado_en)}</div>
                     </div>
-                    <span style={{ background: r.estado === 'confirmado' ? 'rgba(74,222,128,0.1)' : 'rgba(245,158,11,0.1)', border: `1px solid ${r.estado === 'confirmado' ? 'rgba(74,222,128,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: 20, padding: '2px 10px', color: r.estado === 'confirmado' ? 'var(--verde)' : 'var(--ambar)', fontSize: 10 }}>
-                      {r.estado === 'confirmado' ? '✓ Confirmado' : '⏳ Pendiente'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {puedeConfirmar && (
+                        <button onClick={() => confirmarRetiro(r.id)} disabled={confirmandoRetiroId === r.id}
+                          style={{ background: 'var(--verde)', border: 'none', borderRadius: 8, padding: '5px 10px', color: 'var(--sup)', fontSize: 10.5, fontWeight: 700, cursor: confirmandoRetiroId === r.id ? 'not-allowed' : 'pointer' }}>
+                          {confirmandoRetiroId === r.id ? 'Confirmando…' : 'Confirmar'}
+                        </button>
+                      )}
+                      <span style={{ background: r.estado === 'confirmado' ? 'rgba(74,222,128,0.1)' : 'rgba(245,158,11,0.1)', border: `1px solid ${r.estado === 'confirmado' ? 'rgba(74,222,128,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: 20, padding: '2px 10px', color: r.estado === 'confirmado' ? 'var(--verde)' : 'var(--ambar)', fontSize: 10, whiteSpace: 'nowrap' }}>
+                        {r.estado === 'confirmado' ? '✓ Confirmado' : '⏳ Pendiente'}
+                      </span>
+                    </div>
                   </div>
-                ))}
+                  )
+                })}
                 <div style={{ padding: '8px 14px', borderTop: '1px solid var(--w05)', display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--w40)', fontSize: 11 }}>Total retirado</span>
                   <span style={{ color: 'var(--rojo-t)', fontSize: 12, fontWeight: 700 }}>{fmt(retiros.reduce((s, r) => s + r.monto, 0))}</span>
@@ -496,6 +588,7 @@ export default function AdminCaja() {
               </div>
             )}
           </div>
+          )}
 
         </div>
       </div>

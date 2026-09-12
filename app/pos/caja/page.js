@@ -111,8 +111,10 @@ export default function CajaPage() {
     if (data.ok && data.cortes.length > 0) {
       const movimiento = data.cortes[0]
       setUltimoCorte(movimiento)
+      // Sin filtro de estado: el efectivo sale de la caja en el momento
+      // del retiro, no cuando otro admin lo confirma despues.
       const retirosRes = await fetch(
-        `/api/retiros?estado=confirmado&desde=${encodeURIComponent(movimiento.creado_en)}`
+        `/api/retiros?desde=${encodeURIComponent(movimiento.creado_en)}`
       )
       const retirosData = await retirosRes.json()
       if (retirosData.ok) {
@@ -485,7 +487,7 @@ export default function CajaPage() {
               </div>
               {resumenTurno.totalRetiros > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid var(--w06)' }}>
-                  <span style={{ fontSize: 14, color: 'var(--w60)' }}>− Retiros confirmados</span>
+                  <span style={{ fontSize: 14, color: 'var(--w60)' }}>− Retiros</span>
                   <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--rojo-t)', fontVariantNumeric: 'tabular-nums' }}>−{fmt(resumenTurno.totalRetiros)}</span>
                 </div>
               )}
@@ -522,7 +524,7 @@ export default function CajaPage() {
               </div>
               {resumenTurno.totalRetiros > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 0', borderBottom: '1px solid var(--w06)' }}>
-                  <span style={{ fontSize: 14, color: 'var(--w60)' }}>− Retiros confirmados</span>
+                  <span style={{ fontSize: 14, color: 'var(--w60)' }}>− Retiros</span>
                   <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--rojo-t)', fontVariantNumeric: 'tabular-nums' }}>−{fmt(resumenTurno.totalRetiros)}</span>
                 </div>
               )}

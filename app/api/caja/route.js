@@ -93,6 +93,28 @@ export async function POST(req) {
     return NextResponse.json({ ok: false, mensaje: 'Tipo inválido' })
   }
 
+  // Solo hay UNA caja física: no puede haber dos turnos abiertos al mismo
+  // tiempo, ni aunque sea la misma persona dándole doble clic a "Abrir
+  // turno". Si el último movimiento registrado (de cualquier colaborador)
+  // es una apertura sin corte después, ya hay alguien con el turno abierto
+  // y no se deja abrir otro hasta que esa persona cierre el suyo.
+  if (tipo === 'apertura') {
+    const { data: ultimoMovimiento, error: errUltimo } = await supabase
+      .from('cortes_caja')
+      .select('tipo, colaborador_id, clientes!colaborador_id(nombre)')
+      .order('creado_en', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (errUltimo) return NextResponse.json({ ok: false, mensaje: errUltimo.message })
+    if (ultimoMovimiento?.tipo === 'apertura') {
+      const quien = ultimoMovimiento.colaborador_id === sesion.id ? 'Tú ya tienes' : `${ultimoMovimiento.clientes?.nombre || 'Alguien'} ya tiene`
+      return NextResponse.json({
+        ok: false,
+        mensaje: `${quien} un turno abierto. Hay que cerrarlo antes de poder abrir otro — solo hay una caja.`,
+      }, { status: 409 })
+    }
+  }
+
   const esNumero = (v) => typeof v === 'number' && Number.isFinite(v)
 
   if (tipo === 'corte') {

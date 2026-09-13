@@ -24,6 +24,41 @@ const getFechaLocal = () => {
   return `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
 }
 
+const inputEstilo = { background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 8, padding: '7px 10px', color: 'var(--tinta)', fontSize: 13, outline: 'none' }
+
+// Bloque reutilizable de moneda: MXN/USD + tipo de cambio + impuesto cuando
+// es USD, con el total en pesos calculado al vuelo — mismo patrón que ya
+// usan los pedidos (precio_usd, tipo_cambio, impuesto_pct → costo_mxn), para
+// que se sienta igual. Va fuera del componente de página: declararlo adentro
+// lo recrea en cada render y React lo trata como un componente nuevo cada
+// vez, perdiendo el foco del input a media escritura.
+function BloqueMoneda({ valores, onCambiar }) {
+  const montoMxn = valores.moneda === 'USD'
+    ? (Number(valores.monto) || 0) * (1 + (Number(valores.impuesto_pct) || 0) / 100) * (Number(valores.tipo_cambio) || 0)
+    : (Number(valores.monto) || 0)
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {['MXN', 'USD'].map(m => (
+          <button key={m} type="button" onClick={() => onCambiar('moneda', m)}
+            style={{ padding: '6px 10px', borderRadius: 7, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', border: `1px solid ${valores.moneda === m ? 'var(--marca)' : 'var(--w10)'}`, background: valores.moneda === m ? 'rgba(193,85,58,0.15)' : 'var(--w04)', color: valores.moneda === m ? 'var(--marca-t)' : 'var(--w40)' }}>
+            {m}
+          </button>
+        ))}
+      </div>
+      {valores.moneda === 'USD' && (
+        <>
+          <input style={{ ...inputEstilo, width: 90 }} type="number" step="0.0001" value={valores.tipo_cambio} onChange={ev => onCambiar('tipo_cambio', ev.target.value)} placeholder="Tipo de cambio" />
+          <input style={{ ...inputEstilo, width: 80 }} type="number" step="0.01" value={valores.impuesto_pct} onChange={ev => onCambiar('impuesto_pct', ev.target.value)} placeholder="Impuesto %" />
+          {Number(valores.monto) > 0 && Number(valores.tipo_cambio) > 0 && (
+            <span style={{ color: 'var(--ambar)', fontSize: 12, fontWeight: 700 }}>= {fmt(montoMxn)} MXN</span>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function AdminGastos() {
   const [vista, setVista] = useState('pendientes')
   const [gastos, setGastos] = useState([])
@@ -36,7 +71,7 @@ export default function AdminGastos() {
   const [msg, setMsg] = useState('')
 
   const [mostrarForm, setMostrarForm] = useState(false)
-  const [form, setForm] = useState({ monto: '', categoria: 'Gasolina', descripcion: '', fecha_gasto: getFechaLocal(), entrega_id: '' })
+  const [form, setForm] = useState({ monto: '', moneda: 'MXN', tipo_cambio: '', impuesto_pct: '', categoria: 'Gasolina', descripcion: '', fecha_gasto: getFechaLocal(), entrega_id: '' })
 
   useEffect(() => {
     if (vista === 'devoluciones') cargarDevoluciones()
@@ -66,6 +101,9 @@ export default function AdminGastos() {
       for (const g of data.gastos) {
         base[g.id] = {
           monto: g.monto ?? '',
+          moneda: g.moneda || 'MXN',
+          tipo_cambio: g.tipo_cambio ?? '',
+          impuesto_pct: g.impuesto_pct ?? '',
           categoria: g.categoria || 'Otro',
           descripcion: g.descripcion || '',
           fecha_gasto: g.fecha_gasto || getFechaLocal(),
@@ -84,6 +122,7 @@ export default function AdminGastos() {
   const aprobar = async (id) => {
     const e = edicion[id]
     if (!e?.monto) { setMsg('Falta el monto'); return }
+    if (e.moneda === 'USD' && !(Number(e.tipo_cambio) > 0)) { setMsg('Falta el tipo de cambio'); return }
     setGuardando(id)
     setMsg('')
     const res = await fetch('/api/gastos/aprobar', {
@@ -92,6 +131,9 @@ export default function AdminGastos() {
       body: JSON.stringify({
         id,
         monto: Number(e.monto),
+        moneda: e.moneda,
+        tipo_cambio: e.moneda === 'USD' ? Number(e.tipo_cambio) : null,
+        impuesto_pct: e.moneda === 'USD' ? Number(e.impuesto_pct || 0) : null,
         categoria: e.categoria,
         descripcion: e.descripcion,
         fecha_gasto: e.fecha_gasto,
@@ -118,15 +160,22 @@ export default function AdminGastos() {
 
   const crear = async () => {
     if (!form.monto) { setMsg('Falta el monto'); return }
+    if (form.moneda === 'USD' && !(Number(form.tipo_cambio) > 0)) { setMsg('Falta el tipo de cambio'); return }
     const res = await fetch('/api/gastos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, monto: Number(form.monto), entrega_id: form.entrega_id || null }),
+      body: JSON.stringify({
+        ...form,
+        monto: Number(form.monto),
+        tipo_cambio: form.moneda === 'USD' ? Number(form.tipo_cambio) : null,
+        impuesto_pct: form.moneda === 'USD' ? Number(form.impuesto_pct || 0) : null,
+        entrega_id: form.entrega_id || null,
+      }),
     })
     const data = await res.json()
     if (data.ok) {
       setMsg('✓ Gasto agregado, pendiente de aprobar')
-      setForm({ monto: '', categoria: 'Gasolina', descripcion: '', fecha_gasto: getFechaLocal(), entrega_id: '' })
+      setForm({ monto: '', moneda: 'MXN', tipo_cambio: '', impuesto_pct: '', categoria: 'Gasolina', descripcion: '', fecha_gasto: getFechaLocal(), entrega_id: '' })
       setMostrarForm(false)
       setVista('pendientes')
       cargar()
@@ -138,6 +187,7 @@ export default function AdminGastos() {
   const tarjeta = { background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16 }
   const input = { background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 8, padding: '7px 10px', color: 'var(--tinta)', fontSize: 13, outline: 'none' }
   const btn = { border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }
+
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--fondo)', padding: '22px 24px 60px' }}>
@@ -165,6 +215,10 @@ export default function AdminGastos() {
             <div>
               <div style={{ color: 'var(--w40)', fontSize: 11, marginBottom: 4 }}>Monto</div>
               <input style={input} type="number" value={form.monto} onChange={e => setForm({ ...form, monto: e.target.value })} placeholder="0.00" />
+            </div>
+            <div>
+              <div style={{ color: 'var(--w40)', fontSize: 11, marginBottom: 4 }}>Moneda</div>
+              <BloqueMoneda valores={form} onCambiar={(campo, valor) => setForm({ ...form, [campo]: valor })} />
             </div>
             <div>
               <div style={{ color: 'var(--w40)', fontSize: 11, marginBottom: 4 }}>Categoría</div>
@@ -256,21 +310,29 @@ export default function AdminGastos() {
                   )}
                   <div style={{ flex: 1, minWidth: 260 }}>
                     {enRevision ? (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                        <input style={{ ...input, width: 100 }} type="number" value={e.monto} onChange={ev => cambiar(g.id, 'monto', ev.target.value)} placeholder="Monto" />
-                        <select style={input} value={e.categoria} onChange={ev => cambiar(g.id, 'categoria', ev.target.value)}>
-                          {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <input style={{ ...input, flex: 1, minWidth: 140 }} value={e.descripcion} onChange={ev => cambiar(g.id, 'descripcion', ev.target.value)} placeholder="Descripción" />
-                        <input style={input} type="date" value={e.fecha_gasto} onChange={ev => cambiar(g.id, 'fecha_gasto', ev.target.value)} />
-                        <select style={input} value={e.entrega_id} onChange={ev => cambiar(g.id, 'entrega_id', ev.target.value)}>
-                          <option value="">General (sin viaje)</option>
-                          {entregas.map(en => <option key={en.id} value={en.id}>{formatearFecha(en.fecha_entrega)}{en.nota ? ` — ${en.nota}` : ''}</option>)}
-                        </select>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          <input style={{ ...input, width: 100 }} type="number" value={e.monto} onChange={ev => cambiar(g.id, 'monto', ev.target.value)} placeholder="Monto" />
+                          <select style={input} value={e.categoria} onChange={ev => cambiar(g.id, 'categoria', ev.target.value)}>
+                            {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <input style={{ ...input, flex: 1, minWidth: 140 }} value={e.descripcion} onChange={ev => cambiar(g.id, 'descripcion', ev.target.value)} placeholder="Descripción" />
+                          <input style={input} type="date" value={e.fecha_gasto} onChange={ev => cambiar(g.id, 'fecha_gasto', ev.target.value)} />
+                          <select style={input} value={e.entrega_id} onChange={ev => cambiar(g.id, 'entrega_id', ev.target.value)}>
+                            <option value="">General (sin viaje)</option>
+                            {entregas.map(en => <option key={en.id} value={en.id}>{formatearFecha(en.fecha_entrega)}{en.nota ? ` — ${en.nota}` : ''}</option>)}
+                          </select>
+                        </div>
+                        <BloqueMoneda valores={e} onCambiar={(campo, valor) => cambiar(g.id, campo, valor)} />
                       </div>
                     ) : (
                       <div style={{ marginBottom: 6 }}>
-                        <span style={{ color: 'var(--tinta)', fontSize: 15, fontWeight: 700 }}>{fmt(g.monto)}</span>
+                        <span style={{ color: 'var(--tinta)', fontSize: 15, fontWeight: 700 }}>{fmt(g.monto_mxn ?? g.monto)}</span>
+                        {g.moneda === 'USD' && (
+                          <span style={{ color: 'var(--w32)', fontSize: 11.5, marginLeft: 6 }}>
+                            (${Number(g.monto).toFixed(2)} USD × {g.tipo_cambio})
+                          </span>
+                        )}
                         <span style={{ color: 'var(--w40)', fontSize: 12.5, marginLeft: 8 }}>{g.categoria}</span>
                         {g.descripcion && <span style={{ color: 'var(--w40)', fontSize: 12.5, marginLeft: 8 }}>— {g.descripcion}</span>}
                       </div>

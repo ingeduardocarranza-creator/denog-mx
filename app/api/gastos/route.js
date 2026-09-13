@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 import { urlFirmada } from '@/lib/whatsapp/media'
-import { CATEGORIAS_GASTO } from '@/lib/whatsapp/gastos'
+import { CATEGORIAS_GASTO, calcularMontoMxn } from '@/lib/whatsapp/gastos'
 
 const SELECT = `
-  id, monto, categoria, descripcion, fecha_gasto, entrega_id, imagen_url,
+  id, monto, moneda, tipo_cambio, impuesto_pct, monto_mxn, categoria, descripcion,
+  fecha_gasto, entrega_id, imagen_url,
   estado, origen, telefono_whatsapp, creado_en,
   entregas(fecha_entrega, nota),
   registrado:clientes!gastos_registrado_por_fkey(nombre),
@@ -56,15 +57,24 @@ export async function POST(req) {
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const supabase = supabaseConSesion(sesion)
 
-  const { monto, categoria, descripcion, fecha_gasto, entrega_id } = await req.json()
+  const { monto, moneda, tipo_cambio, impuesto_pct, categoria, descripcion, fecha_gasto, entrega_id } = await req.json()
 
   if (!monto || !categoria) return NextResponse.json({ ok: false, mensaje: 'Faltan datos obligatorios (monto, categoría)' })
   if (!CATEGORIAS_GASTO.includes(categoria)) return NextResponse.json({ ok: false, mensaje: 'Categoría no válida' })
+  const monedaFinal = moneda === 'USD' ? 'USD' : 'MXN'
+  if (monedaFinal === 'USD' && !(Number(tipo_cambio) > 0)) {
+    return NextResponse.json({ ok: false, mensaje: 'Falta el tipo de cambio para convertir a pesos' })
+  }
+  const montoMxn = calcularMontoMxn({ monto, moneda: monedaFinal, tipo_cambio, impuesto_pct })
 
   const { data, error } = await supabase
     .from('gastos')
     .insert([{
       monto,
+      moneda: monedaFinal,
+      tipo_cambio: monedaFinal === 'USD' ? tipo_cambio : null,
+      impuesto_pct: monedaFinal === 'USD' ? (impuesto_pct || 0) : null,
+      monto_mxn: montoMxn,
       categoria,
       descripcion: descripcion || null,
       fecha_gasto: fecha_gasto || new Date().toISOString().slice(0, 10),

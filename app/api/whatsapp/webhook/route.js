@@ -313,6 +313,11 @@ async function procesarMensajeEntrante(msg, valor) {
     const datosGasto = await extraerGasto({ texto, imagenUrl: urlParaClasificar })
     await supabase.from('gastos').insert({
       monto: datosGasto.monto,
+      moneda: datosGasto.moneda,
+      // monto_mxn solo se puede calcular cuando la moneda es MXN (no hay
+      // nada que convertir). Si es USD hace falta el tipo de cambio del
+      // día, que Eduardo pone a mano al aprobar — ahí se calcula.
+      monto_mxn: datosGasto.moneda === 'MXN' ? datosGasto.monto : null,
       categoria: datosGasto.categoria,
       descripcion: datosGasto.descripcion,
       imagen_url: pathImagen || pathDocumento,

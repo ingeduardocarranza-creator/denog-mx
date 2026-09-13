@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requerirAdmin } from '@/lib/auth/session'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
-import { CATEGORIAS_GASTO } from '@/lib/whatsapp/gastos'
+import { CATEGORIAS_GASTO, calcularMontoMxn } from '@/lib/whatsapp/gastos'
 
 // Aprobar un gasto (por WhatsApp o manual) lo vuelve real: a partir de aquí
 // cuenta en reportes. Antes de aprobar, Eduardo puede corregir lo que la IA
@@ -11,7 +11,7 @@ export async function POST(req) {
   const sesion = requerirAdmin(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const supabase = supabaseConSesion(sesion)
-  const { id, monto, categoria, descripcion, fecha_gasto, entrega_id } = await req.json()
+  const { id, monto, moneda, tipo_cambio, impuesto_pct, categoria, descripcion, fecha_gasto, entrega_id } = await req.json()
 
   const { data: gasto, error: errBusca } = await supabase
     .from('gastos')
@@ -24,11 +24,20 @@ export async function POST(req) {
 
   if (!monto) return NextResponse.json({ ok: false, mensaje: 'Falta el monto' })
   if (!CATEGORIAS_GASTO.includes(categoria)) return NextResponse.json({ ok: false, mensaje: 'Categoría no válida' })
+  const monedaFinal = moneda === 'USD' ? 'USD' : 'MXN'
+  if (monedaFinal === 'USD' && !(Number(tipo_cambio) > 0)) {
+    return NextResponse.json({ ok: false, mensaje: 'Falta el tipo de cambio para convertir a pesos' })
+  }
+  const montoMxn = calcularMontoMxn({ monto, moneda: monedaFinal, tipo_cambio, impuesto_pct })
 
   const { error } = await supabase
     .from('gastos')
     .update({
       monto,
+      moneda: monedaFinal,
+      tipo_cambio: monedaFinal === 'USD' ? tipo_cambio : null,
+      impuesto_pct: monedaFinal === 'USD' ? (impuesto_pct || 0) : null,
+      monto_mxn: montoMxn,
       categoria,
       descripcion: descripcion || null,
       fecha_gasto: fecha_gasto || new Date().toISOString().slice(0, 10),

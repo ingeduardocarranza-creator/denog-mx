@@ -48,64 +48,52 @@ export default function EnviosForaneos() {
   // -- ya escribe directo en el campo enfocado, como ya se confirmó y se usa
   // en Encargos (ver claude/codigo-recoleccion-qr.md). Este botón es para
   // cuando se captura desde un celular/tablet con cámara.
-  // Detección perezosa: en el primer render del servidor no hay `window`,
-  // así que arranca en false ahí y se corrige solo en el navegador -- evita
-  // el parpadeo de un botón que aparece y desaparece.
-  const [soportaCamara, setSoportaCamara] = useState(() =>
-    typeof window !== 'undefined' && 'BarcodeDetector' in window && !!navigator.mediaDevices?.getUserMedia
+  //
+  // Se usa @zxing/browser (canvas + video, decodifica en JS) en vez del
+  // BarcodeDetector nativo del navegador: ese solo existe en Chrome/Edge --
+  // en Safari (la que usa Lalo en su Mac) el botón nunca aparecía. ZXing
+  // funciona igual en los dos.
+  const [soportaCamara] = useState(() =>
+    typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
   )
   const [escaneando, setEscaneando] = useState(null) // null | 'nuevo' | 'edit'
   const videoRef = useRef(null)
-  const streamRef = useRef(null)
+  const lectorRef = useRef(null)
+  const controlesRef = useRef(null)
 
   const detenerEscaneo = () => {
-    streamRef.current?.getTracks().forEach(t => t.stop())
-    streamRef.current = null
+    controlesRef.current?.stop()
+    controlesRef.current = null
     setEscaneando(null)
   }
 
   const iniciarEscaneo = async (destino) => {
+    setEscaneando(destino)
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      streamRef.current = stream
-      setEscaneando(destino)
+      const { BrowserMultiFormatReader } = await import('@zxing/browser')
+      if (!lectorRef.current) lectorRef.current = new BrowserMultiFormatReader()
       // El <video> se monta junto con el modal -- se espera un tick a que
-      // exista antes de conectarle el stream.
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          videoRef.current.play().catch(() => {})
+      // exista en el DOM antes de conectarle la cámara.
+      await new Promise((r) => setTimeout(r, 0))
+      const controles = await lectorRef.current.decodeFromConstraints(
+        { video: { facingMode: 'environment' } },
+        videoRef.current,
+        (resultado) => {
+          if (!resultado) return
+          const valor = resultado.getText()
+          if (destino === 'nuevo') setFormNuevo(f => ({ ...f, numero_guia: valor }))
+          else setFormEdit(f => ({ ...f, numero_guia: valor }))
+          detenerEscaneo()
         }
-      }, 0)
-
-      const detector = new window.BarcodeDetector({
-        formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'qr_code'],
-      })
-
-      const paso = async () => {
-        if (!streamRef.current || !videoRef.current) return
-        try {
-          const codigos = await detector.detect(videoRef.current)
-          if (codigos.length > 0) {
-            const valor = codigos[0].rawValue
-            if (destino === 'nuevo') setFormNuevo(f => ({ ...f, numero_guia: valor }))
-            else setFormEdit(f => ({ ...f, numero_guia: valor }))
-            detenerEscaneo()
-            return
-          }
-        } catch {
-          // Un frame fallido no es motivo para tirar el escaneo completo.
-        }
-        if (streamRef.current) requestAnimationFrame(paso)
-      }
-      requestAnimationFrame(paso)
+      )
+      controlesRef.current = controles
     } catch (err) {
       avisar('error', 'No se pudo abrir la cámara: ' + (err?.message || 'permiso denegado.'))
-      detenerEscaneo()
+      setEscaneando(null)
     }
   }
 
-  useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()) }, [])
+  useEffect(() => () => { controlesRef.current?.stop() }, [])
 
   useEffect(() => {
     cargar()

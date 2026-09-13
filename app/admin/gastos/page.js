@@ -27,6 +27,8 @@ const getFechaLocal = () => {
 export default function AdminGastos() {
   const [vista, setVista] = useState('pendientes')
   const [gastos, setGastos] = useState([])
+  const [devoluciones, setDevoluciones] = useState([])
+  const [cargandoDevoluciones, setCargandoDevoluciones] = useState(false)
   const [entregas, setEntregas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [edicion, setEdicion] = useState({}) // { [id]: { monto, categoria, descripcion, fecha_gasto, entrega_id } }
@@ -36,7 +38,18 @@ export default function AdminGastos() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState({ monto: '', categoria: 'Gasolina', descripcion: '', fecha_gasto: getFechaLocal(), entrega_id: '' })
 
-  useEffect(() => { cargar() }, [vista])
+  useEffect(() => {
+    if (vista === 'devoluciones') cargarDevoluciones()
+    else cargar()
+  }, [vista])
+
+  const cargarDevoluciones = async () => {
+    setCargandoDevoluciones(true)
+    const res = await fetch('/api/compras/devoluciones')
+    const data = await res.json()
+    if (data.ok) setDevoluciones(data.devoluciones)
+    setCargandoDevoluciones(false)
+  }
   useEffect(() => {
     fetch('/api/entregas').then(r => r.json()).then(d => {
       if (d.ok) setEntregas(d.entregas.sort((a, b) => new Date(b.fecha_entrega) - new Date(a.fecha_entrega)))
@@ -179,7 +192,7 @@ export default function AdminGastos() {
         )}
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          {[['pendientes', 'Por aprobar'], ['historial', 'Historial']].map(([v, label]) => (
+          {[['pendientes', 'Por aprobar'], ['historial', 'Historial'], ['devoluciones', 'Devoluciones (compras EUA)']].map(([v, label]) => (
             <button
               key={v}
               onClick={() => setVista(v)}
@@ -194,7 +207,36 @@ export default function AdminGastos() {
           ))}
         </div>
 
-        {cargando ? (
+        {vista === 'devoluciones' ? (
+          cargandoDevoluciones ? (
+            <div style={{ color: 'var(--w40)', fontSize: 13 }}>Cargando…</div>
+          ) : devoluciones.length === 0 ? (
+            <div style={{ color: 'var(--w40)', fontSize: 13 }}>Sin devoluciones registradas. Se marcan desde el pedido, en Encargos → Pedidos.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ ...tarjeta, padding: '10px 16px', color: 'var(--w40)', fontSize: 12.5 }}>
+                Reembolsos totales: {fmt(devoluciones.reduce((s, d) => s + (Number(d.reembolso_usd) || 0), 0))} USD — no se convierte a pesos ni se resta de Gastos automáticamente.
+              </div>
+              {devoluciones.map(d => (
+                <div key={d.id} style={{ ...tarjeta, padding: 16 }}>
+                  <div style={{ color: 'var(--tinta)', fontSize: 14, fontWeight: 700 }}>{d.descripcion || '(sin descripción)'}</div>
+                  <div style={{ color: 'var(--w40)', fontSize: 12, marginTop: 4 }}>
+                    {d.cliente?.nombre ? `Cliente: ${d.cliente.nombre} · ` : ''}{d.lugar_compra || ''}
+                    {d.entregas?.fecha_entrega && ` · Viaje ${formatearFecha(d.entregas.fecha_entrega)}`}
+                  </div>
+                  <div style={{ color: 'var(--w32)', fontSize: 11.5, marginTop: 6 }}>
+                    Devuelto {d.devuelto_en ? formatearFecha(d.devuelto_en.slice(0, 10)) : ''}{d.devuelto_por_nombre?.nombre ? ` por ${d.devuelto_por_nombre.nombre}` : ''}
+                    {d.devuelto_motivo && ` — ${d.devuelto_motivo}`}
+                  </div>
+                  <div style={{ color: 'var(--verde)', fontSize: 13, fontWeight: 700, marginTop: 6 }}>
+                    {d.reembolso_usd != null ? `Reembolso: $${Number(d.reembolso_usd).toFixed(2)} USD` : 'Sin monto de reembolso capturado'}
+                    {d.reembolso_en && ` · ${formatearFecha(d.reembolso_en.slice(0, 10))}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : cargando ? (
           <div style={{ color: 'var(--w40)', fontSize: 13 }}>Cargando…</div>
         ) : gastos.length === 0 ? (
           <div style={{ color: 'var(--w40)', fontSize: 13 }}>

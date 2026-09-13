@@ -268,6 +268,10 @@ export default function Pedidos() {
       categoria: p.categoria || '',
       apartado_fragil: p.apartado_fragil || false,
       imagen_url: p.imagen_url || '',
+      devuelto: p.devuelto || false,
+      devuelto_motivo: p.devuelto_motivo || '',
+      reembolso_usd: p.reembolso_usd ?? '',
+      reembolso_en: p.reembolso_en ? p.reembolso_en.slice(0, 10) : '',
     })
     setPedidoMsg('')
   }
@@ -929,6 +933,36 @@ export default function Pedidos() {
                             />
                             <span className="text-yellow-400 font-bold text-sm">⚠️ APARTADOS / FRÁGIL</span>
                           </label>
+                        </div>
+                        {/* Fase 7 — control de compras en EUA: devolución a la tienda y su
+                            reembolso. Solo aparece el detalle cuando se marca devuelto, para
+                            no ensuciar el panel en el caso normal (nada devuelto). */}
+                        <div className="mb-3 border border-orange-900/40 rounded-lg p-3 bg-orange-950/10">
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editFormPedido.devuelto || false}
+                              onChange={e => setEditFormPedido({ ...editFormPedido, devuelto: e.target.checked })}
+                              className="w-4 h-4 accent-orange-500"
+                            />
+                            <span className="text-orange-400 font-bold text-sm">↩️ Se devolvió a la tienda</span>
+                          </label>
+                          {editFormPedido.devuelto && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+                              <div className="md:col-span-1">
+                                <label style={lbS}>Motivo</label>
+                                <input type="text" value={editFormPedido.devuelto_motivo} onChange={ev => setEditFormPedido({ ...editFormPedido, devuelto_motivo: ev.target.value })} style={inS} placeholder="Ej. venía dañado" />
+                              </div>
+                              <div>
+                                <label style={lbS}>Reembolso USD</label>
+                                <input type="number" step="0.01" value={editFormPedido.reembolso_usd} onChange={ev => setEditFormPedido({ ...editFormPedido, reembolso_usd: ev.target.value })} style={inS} placeholder="Ej. 14.99" />
+                              </div>
+                              <div>
+                                <label style={lbS}>Fecha del reembolso</label>
+                                <input type="date" value={editFormPedido.reembolso_en} onChange={ev => setEditFormPedido({ ...editFormPedido, reembolso_en: ev.target.value })} style={inS} />
+                              </div>
+                            </div>
+                          )}
                         </div>
                         {pedidoMsg && <div className="text-red-400 text-xs mb-2">{pedidoMsg}</div>}
                         <div className="flex gap-2">

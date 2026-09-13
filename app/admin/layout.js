@@ -10,6 +10,7 @@ const grupos = [
     items: [
       { label: 'Punto de venta', icon: '🏪', href: '/admin/punto-venta' },
       { label: 'Domicilios',     icon: '🚚', href: '/admin/domicilios', badgeKey: 'domicilios' },
+      { label: 'Envíos foráneos', icon: '📦', href: '/admin/envios-foraneos' },
       { label: 'Caja',           icon: '💰', href: '/admin/caja' },
       { label: 'Catálogo',       icon: '🏷️', href: '/admin/catalogo' },
       { label: 'Inventario',     icon: '🗃️', href: '/admin/inventario' },
@@ -30,7 +31,6 @@ const grupos = [
       { label: 'Entregas',          icon: '📅', href: '/admin/entregas' },
       { label: 'Empacado',          icon: '📦', href: '/admin/empacado' },
       { label: 'Anticipos',         icon: '💳', href: '/admin/anticipos' },
-      { label: 'Envíos foráneos',   icon: '📦', href: '/admin/envios-foraneos' },
       { label: 'Estados de cuenta', icon: '📋', href: '/admin/estados-cuenta' },
       { label: 'Cotizador',         icon: '🧮', href: '/admin/cotizador' },
     ],

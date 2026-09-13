@@ -1,7 +1,16 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic']
+// "21 sept 2026" -- como lo pidió Lalo, en vez de la fecha ISO cruda.
+const fechaCorta = (f) => {
+  if (!f) return ''
+  const d = new Date(String(f).slice(0, 10) + 'T12:00:00')
+  if (isNaN(d.getTime())) return f
+  return `${d.getDate()} ${MESES_CORTOS[d.getMonth()]} ${d.getFullYear()}`
+}
 
 const ESTADO_LABEL = {
   borrador: { texto: 'Borrador', color: 'var(--w45)' },
@@ -33,6 +42,70 @@ export default function EnviosForaneos() {
   const [formEdit, setFormEdit] = useState(null)
   const [aprobandoId, setAprobandoId] = useState(null)
   const [reenviandoId, setReenviandoId] = useState(null)
+
+  // Escaneo con cámara del número de guía (código de barras o QR de la
+  // etiqueta). La pistola lectora USB del mostrador NO necesita nada de esto
+  // -- ya escribe directo en el campo enfocado, como ya se confirmó y se usa
+  // en Encargos (ver claude/codigo-recoleccion-qr.md). Este botón es para
+  // cuando se captura desde un celular/tablet con cámara.
+  // Detección perezosa: en el primer render del servidor no hay `window`,
+  // así que arranca en false ahí y se corrige solo en el navegador -- evita
+  // el parpadeo de un botón que aparece y desaparece.
+  const [soportaCamara, setSoportaCamara] = useState(() =>
+    typeof window !== 'undefined' && 'BarcodeDetector' in window && !!navigator.mediaDevices?.getUserMedia
+  )
+  const [escaneando, setEscaneando] = useState(null) // null | 'nuevo' | 'edit'
+  const videoRef = useRef(null)
+  const streamRef = useRef(null)
+
+  const detenerEscaneo = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    setEscaneando(null)
+  }
+
+  const iniciarEscaneo = async (destino) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      streamRef.current = stream
+      setEscaneando(destino)
+      // El <video> se monta junto con el modal -- se espera un tick a que
+      // exista antes de conectarle el stream.
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.play().catch(() => {})
+        }
+      }, 0)
+
+      const detector = new window.BarcodeDetector({
+        formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'qr_code'],
+      })
+
+      const paso = async () => {
+        if (!streamRef.current || !videoRef.current) return
+        try {
+          const codigos = await detector.detect(videoRef.current)
+          if (codigos.length > 0) {
+            const valor = codigos[0].rawValue
+            if (destino === 'nuevo') setFormNuevo(f => ({ ...f, numero_guia: valor }))
+            else setFormEdit(f => ({ ...f, numero_guia: valor }))
+            detenerEscaneo()
+            return
+          }
+        } catch {
+          // Un frame fallido no es motivo para tirar el escaneo completo.
+        }
+        if (streamRef.current) requestAnimationFrame(paso)
+      }
+      requestAnimationFrame(paso)
+    } catch (err) {
+      avisar('error', 'No se pudo abrir la cámara: ' + (err?.message || 'permiso denegado.'))
+      detenerEscaneo()
+    }
+  }
+
+  useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()) }, [])
 
   useEffect(() => {
     cargar()
@@ -186,7 +259,7 @@ export default function EnviosForaneos() {
               {entregas.map(en => (
                 <label key={en.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '4px 8px', borderRadius: 7, background: formNuevo.entrega_ids.includes(en.id) ? 'var(--marca)' : 'var(--w03)', color: formNuevo.entrega_ids.includes(en.id) ? '#fff' : 'var(--tinta)', cursor: 'pointer' }}>
                   <input type="checkbox" checked={formNuevo.entrega_ids.includes(en.id)} onChange={() => toggleEntregaNuevo(en.id)} style={{ margin: 0 }} />
-                  {en.fecha_entrega}
+                  {fechaCorta(en.fecha_entrega)}
                 </label>
               ))}
             </div>
@@ -203,7 +276,14 @@ export default function EnviosForaneos() {
             </div>
             <div style={{ flex: '1 1 160px' }}>
               <label style={{ fontSize: 11.5, color: 'var(--w45)', display: 'block', marginBottom: 4 }}>Número de guía</label>
-              <input style={input} value={formNuevo.numero_guia} onChange={e => setFormNuevo(f => ({ ...f, numero_guia: e.target.value }))} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                {/* La pistola lectora USB escribe aquí directo con solo tener
+                    el foco -- por eso el autoFocus, sin necesitar el botón. */}
+                <input style={input} autoFocus value={formNuevo.numero_guia} onChange={e => setFormNuevo(f => ({ ...f, numero_guia: e.target.value }))} />
+                {soportaCamara && (
+                  <button type="button" style={{ ...boton('var(--w10)', 'var(--tinta)'), padding: '9px 11px' }} onClick={() => iniciarEscaneo('nuevo')} title="Escanear con la cámara">📷</button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -258,14 +338,19 @@ export default function EnviosForaneos() {
                     {entregas.map(en => (
                       <label key={en.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '4px 8px', borderRadius: 7, background: formEdit.entrega_ids.includes(en.id) ? 'var(--marca)' : 'var(--w03)', color: formEdit.entrega_ids.includes(en.id) ? '#fff' : 'var(--tinta)', cursor: 'pointer' }}>
                         <input type="checkbox" checked={formEdit.entrega_ids.includes(en.id)} onChange={() => toggleEntregaEdit(en.id)} style={{ margin: 0 }} />
-                        {en.fecha_entrega}
+                        {fechaCorta(en.fecha_entrega)}
                       </label>
                     ))}
                   </div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <input style={{ ...input, flex: '1 1 140px' }} type="number" step="0.01" value={formEdit.costo_envio} onChange={ev => setFormEdit(f => ({ ...f, costo_envio: ev.target.value }))} placeholder="Costo de envío" />
                     <input style={{ ...input, flex: '1 1 140px' }} value={formEdit.paqueteria} onChange={ev => setFormEdit(f => ({ ...f, paqueteria: ev.target.value }))} placeholder="Paquetería" />
-                    <input style={{ ...input, flex: '1 1 140px' }} value={formEdit.numero_guia} onChange={ev => setFormEdit(f => ({ ...f, numero_guia: ev.target.value }))} placeholder="Número de guía" />
+                    <div style={{ display: 'flex', gap: 6, flex: '1 1 140px' }}>
+                      <input style={input} value={formEdit.numero_guia} onChange={ev => setFormEdit(f => ({ ...f, numero_guia: ev.target.value }))} placeholder="Número de guía" />
+                      {soportaCamara && (
+                        <button type="button" style={{ ...boton('var(--w10)', 'var(--tinta)'), padding: '9px 11px' }} onClick={() => iniciarEscaneo('edit')} title="Escanear con la cámara">📷</button>
+                      )}
+                    </div>
                   </div>
                   <input style={input} value={formEdit.notas} onChange={ev => setFormEdit(f => ({ ...f, notas: ev.target.value }))} placeholder="Notas" />
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -301,6 +386,14 @@ export default function EnviosForaneos() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {escaneando && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 20 }}>
+          <video ref={videoRef} muted playsInline style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 12 }} />
+          <p style={{ color: '#fff', fontSize: 13, textAlign: 'center' }}>Apunta a la etiqueta con el código de barras o QR de la guía...</p>
+          <button style={boton('var(--w10)', 'var(--tinta)')} onClick={detenerEscaneo}>Cancelar</button>
         </div>
       )}
     </div>

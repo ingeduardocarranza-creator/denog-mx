@@ -57,7 +57,6 @@ export default function EnviosForaneos() {
     typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
   )
   const [escaneando, setEscaneando] = useState(null) // null | 'nuevo' | 'edit'
-  const [buscandoSkydropx, setBuscandoSkydropx] = useState(null) // null | 'nuevo' | 'edit'
   const videoRef = useRef(null)
   const lectorRef = useRef(null)
   const controlesRef = useRef(null)
@@ -202,25 +201,6 @@ export default function EnviosForaneos() {
     cargar()
   }
 
-  // Autollenar paquetería y número de guía a partir del ID de envío ya
-  // generado en Skydropx (Fase 2 pedida por Lalo). Solo consulta -- no crea
-  // ni cambia nada allá.
-  const buscarEnSkydropx = async (destino) => {
-    const id = destino === 'nuevo' ? formNuevo.skydropx_shipment_id : formEdit.skydropx_shipment_id
-    if (!id) return avisar('error', 'Primero captura el ID de envío de Skydropx.')
-    setBuscandoSkydropx(destino)
-    const res = await fetch('/api/envios-foraneos/skydropx', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ skydropx_shipment_id: id }),
-    })
-    const data = await res.json()
-    setBuscandoSkydropx(null)
-    if (!data.ok) return avisar('error', data.mensaje || 'No se pudo consultar Skydropx.')
-    const setForm = destino === 'nuevo' ? setFormNuevo : setFormEdit
-    setForm(f => ({ ...f, numero_guia: data.numero_guia, paqueteria: data.paqueteria || f.paqueteria }))
-    avisar('ok', 'Guía y paquetería autollenadas desde Skydropx.')
-  }
-
   const reenviarAviso = async (id) => {
     setReenviandoId(id)
     const res = await fetch('/api/envios-foraneos/notificar', {
@@ -309,14 +289,9 @@ export default function EnviosForaneos() {
 
           <div>
             <label style={{ fontSize: 11.5, color: 'var(--w45)', display: 'block', marginBottom: 4 }}>
-              ID de envío en Skydropx (opcional, para autollenar guía/paquetería)
+              ID de envío en Skydropx (opcional, para más adelante autollenar guía/paquetería)
             </label>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input style={input} value={formNuevo.skydropx_shipment_id} onChange={e => setFormNuevo(f => ({ ...f, skydropx_shipment_id: e.target.value }))} />
-              <button type="button" style={boton('var(--w10)', 'var(--tinta)')} disabled={buscandoSkydropx === 'nuevo'} onClick={() => buscarEnSkydropx('nuevo')}>
-                {buscandoSkydropx === 'nuevo' ? 'Buscando...' : '🔎 Buscar en Skydropx'}
-              </button>
-            </div>
+            <input style={input} value={formNuevo.skydropx_shipment_id} onChange={e => setFormNuevo(f => ({ ...f, skydropx_shipment_id: e.target.value }))} />
           </div>
 
           <div>
@@ -376,12 +351,6 @@ export default function EnviosForaneos() {
                         <button type="button" style={{ ...boton('var(--w10)', 'var(--tinta)'), padding: '9px 11px' }} onClick={() => iniciarEscaneo('edit')} title="Escanear con la cámara">📷</button>
                       )}
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <input style={input} value={formEdit.skydropx_shipment_id} onChange={ev => setFormEdit(f => ({ ...f, skydropx_shipment_id: ev.target.value }))} placeholder="ID de envío en Skydropx (opcional)" />
-                    <button type="button" style={boton('var(--w10)', 'var(--tinta)')} disabled={buscandoSkydropx === 'edit'} onClick={() => buscarEnSkydropx('edit')}>
-                      {buscandoSkydropx === 'edit' ? 'Buscando...' : '🔎 Buscar en Skydropx'}
-                    </button>
                   </div>
                   <input style={input} value={formEdit.notas} onChange={ev => setFormEdit(f => ({ ...f, notas: ev.target.value }))} placeholder="Notas" />
                   <div style={{ display: 'flex', gap: 8 }}>

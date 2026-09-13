@@ -15,6 +15,7 @@ const grupos = [
       { label: 'Catálogo',       icon: '🏷️', href: '/admin/catalogo' },
       { label: 'Inventario',     icon: '🗃️', href: '/admin/inventario' },
       { label: 'Reportes',       icon: '📊', href: '/admin/reportes' },
+      { label: 'Gastos',         icon: '🧾', href: '/admin/gastos', badgeKey: 'gastos' },
     ],
   },
   {

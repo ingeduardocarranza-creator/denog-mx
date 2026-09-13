@@ -100,7 +100,19 @@ export default function MenuLateral({ grupos, children }) {
     return () => clearInterval(intervalo)
   }, [])
 
-  const badges = { domicilios: domiciliosPendientes, mercadito: mercaditoPendientes, pendientes: pendientesWhatsApp }
+  const [gastosPendientes, setGastosPendientes] = useState(0)
+  useEffect(() => {
+    const verificar = async () => {
+      const res  = await fetch('/api/gastos/count')
+      const data = await res.json()
+      if (data.ok) setGastosPendientes(data.count)
+    }
+    verificar()
+    const intervalo = setInterval(verificar, 60000)
+    return () => clearInterval(intervalo)
+  }, [])
+
+  const badges = { domicilios: domiciliosPendientes, mercadito: mercaditoPendientes, pendientes: pendientesWhatsApp, gastos: gastosPendientes }
 
   const salir = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })

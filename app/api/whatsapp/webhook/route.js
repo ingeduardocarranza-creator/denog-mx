@@ -6,6 +6,7 @@ import { a10Digitos } from '@/lib/whatsapp/telefono'
 import { descargarYGuardarMedia, urlFirmada } from '@/lib/whatsapp/media'
 import { esVendedorVentas } from '@/lib/whatsapp/ventasWhatsapp'
 import { encolarMensajeVenta, enriquecerFila } from '@/lib/whatsapp/ventasBandeja'
+import { NUMERO_GASTOS, esMensajeGasto, extraerGasto } from '@/lib/whatsapp/gastos'
 
 // Enriquecer un mensaje (bajar el adjunto de Meta, subirlo a Storage,
 // mirarlo con la IA) se lleva varios segundos. Con el tope default de 10 s la
@@ -303,6 +304,22 @@ async function procesarMensajeEntrante(msg, valor) {
     } catch (err) {
       console.error('[webhook whatsapp] no se pudo descargar el documento:', err?.message)
     }
+  }
+
+  // Gastos del negocio (Fase 7): solo el número de Eduardo, y solo si él
+  // mismo escribe la palabra "gasto" — ver lib/whatsapp/gastos.js. Nace
+  // pendiente; se aprueba a mano en /admin/gastos.
+  if (diezEmisor === NUMERO_GASTOS && esMensajeGasto(texto)) {
+    const datosGasto = await extraerGasto({ texto, imagenUrl: urlParaClasificar })
+    await supabase.from('gastos').insert({
+      monto: datosGasto.monto,
+      categoria: datosGasto.categoria,
+      descripcion: datosGasto.descripcion,
+      imagen_url: pathImagen || pathDocumento,
+      telefono_whatsapp: telefono,
+      mensaje_wa_id: msg.id,
+    })
+    return
   }
 
   if (!texto && !urlParaClasificar && !urlDocumentoParaClasificar) return // audio, sticker, ubicación, etc. — nada que clasificar por ahora

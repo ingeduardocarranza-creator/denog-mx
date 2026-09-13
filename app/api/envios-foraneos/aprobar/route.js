@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requerirStaff } from '@/lib/auth/session'
+import { requerirAdmin } from '@/lib/auth/session'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 import { atribuirAnticiposAEnvioForaneo } from '@/lib/enviosForaneos/atribuirAnticipos'
 import { enviarEnvioForaneoPorWhatsapp } from '@/lib/whatsapp/enviarEnvioForaneo'
@@ -26,8 +26,10 @@ function horaLocal() {
 //      Y la atribución del dinero YA quedaron hechas -- el aviso se puede
 //      reintentar aparte con /api/envios-foraneos/notificar.
 export async function POST(req) {
-  const sesion = requerirStaff(req)
-  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
+  // Aprobar mueve dinero (atribuye anticipos) y avisa al cliente -- solo un
+  // administrador puede hacerlo, no cualquier staff.
+  const sesion = requerirAdmin(req)
+  if (!sesion) return NextResponse.json({ ok: false, mensaje: 'Solo un administrador puede aprobar un envío foráneo.' }, { status: 403 })
   const supabase = supabaseConSesion(sesion)
   const { id } = await req.json()
   if (!id) return NextResponse.json({ ok: false, mensaje: 'Falta el id del envío' })

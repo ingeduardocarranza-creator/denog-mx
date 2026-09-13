@@ -171,6 +171,18 @@ export default function EnviosForaneos() {
     cargar()
   }
 
+  // Cancelar un envío ya aprobado revierte el dinero atribuido (vuelve a ser
+  // anticipo general del cliente) -- por eso el backend solo lo permite a un
+  // administrador.
+  const cancelarAprobado = async (id) => {
+    if (!confirm('¿Cancelar este envío ya aprobado? El costo deja de cobrarse y el dinero que se le había atribuido vuelve a ser anticipo general del cliente. Solo un administrador puede hacer esto.')) return
+    const res = await fetch(`/api/envios-foraneos/${id}`, { method: 'DELETE' })
+    const data = await res.json()
+    if (!data.ok) return avisar('error', data.mensaje || 'No se pudo cancelar.')
+    avisar('ok', 'Envío cancelado. El dinero vuelve a ser anticipo general del cliente.')
+    cargar()
+  }
+
   const aprobar = async (e) => {
     if (!e.paqueteria || !e.numero_guia) return avisar('error', 'Falta paquetería o número de guía.')
     if (!confirm(`¿Confirmas el envío de ${e.clientes?.nombre || 'este cliente'} por ${fmt(e.costo_envio)} con ${e.paqueteria}, guía ${e.numero_guia}? Se sumará a su cuenta y se le avisará por WhatsApp.`)) return
@@ -366,10 +378,11 @@ export default function EnviosForaneos() {
               )}
 
               {(e.estado === 'aprobado' || e.estado === 'notificado') && (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button style={boton('var(--w10)', 'var(--tinta)')} disabled={reenviandoId === e.id} onClick={() => reenviarAviso(e.id)}>
                     {reenviandoId === e.id ? 'Enviando...' : '↻ Reenviar aviso de WhatsApp'}
                   </button>
+                  <button style={boton('transparent', 'var(--rojo-t)')} onClick={() => cancelarAprobado(e.id)}>Cancelar envío</button>
                 </div>
               )}
             </div>

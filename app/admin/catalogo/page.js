@@ -197,7 +197,7 @@ export default function CatalogoTienda() {
     setEditandoId(p.id);
     setNombre(p.nombre);
     setCodigoBarras(p.codigo_barras || '');
-    setPrecioUsd('');
+    setPrecioUsd(p.costo_usd != null ? String(p.costo_usd) : '');
     setCosto(p.costo || '');
     setPrecioVenta(p.precio_venta || '');
     setStock(p.stock || '0');
@@ -376,7 +376,9 @@ export default function CatalogoTienda() {
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-slate-200 text-xs">{p.nombre}</p>
                     <p className="text-[10px] text-slate-500 mt-0.5">
-                      {p.categoria} · {p.codigo_barras}{p.creador?.nombre ? ` · agregado por ${p.creador.nombre}` : ''}
+                      {p.categoria} · {p.codigo_barras}
+                      {p.creador?.nombre ? ` · agregado por ${p.creador.nombre}` : ''}
+                      {p.costo_usd != null ? ' · desde WhatsApp (TIENDA)' : ''}
                     </p>
                   </div>
                   <button onClick={() => iniciarEdicion(p)} className="flex-none bg-amber-600 hover:bg-amber-500 sobre-color px-3 py-1.5 rounded-lg font-bold text-[11px]">

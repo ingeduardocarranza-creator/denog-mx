@@ -5,7 +5,7 @@ import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 const CAMPOS_PERMITIDOS = [
   'nombre', 'codigo_barras', 'costo', 'precio_venta', 'stock',
   'categoria', 'imagen_url', 'activo', 'mostrar_en_mercadito',
-  'descripcion', 'galeria', 'pendiente_aprobacion',
+  'descripcion', 'galeria', 'pendiente_aprobacion', 'costo_usd',
 ]
 
 // Returns all products (including inactive) with creator join

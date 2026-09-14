@@ -46,6 +46,17 @@ export default function AdminCaja() {
   const [confirmandoRetiroId, setConfirmandoRetiroId] = useState(null)
   const [revisandoCorteId, setRevisandoCorteId] = useState(null)
   const [mensajeCorte, setMensajeCorte] = useState('')
+  // Estado GLOBAL de turno (¿hay uno abierto ahora mismo?), sin filtro de
+  // fecha — mismo endpoint y misma razón que ya se usa en POS (ver
+  // app/api/caja/route.js, estado=turno): un turno que abre y cierra
+  // cruzando medianoche cae en dos días distintos, así que derivar
+  // "turno actual" de la lista filtrada por `fecha` puede mostrar a
+  // alguien con turno abierto cuando ya hizo el corte (reportado 14 sep:
+  // el corte había quedado del lado de "hoy" y la apertura del lado de
+  // "ayer", así que el día de hoy sólo veía la apertura de otro turno
+  // vencido... en realidad el día consultado no traía el corte porque
+  // cayó del otro lado de medianoche).
+  const [turnoGlobal, setTurnoGlobal] = useState(null)
 
   useEffect(() => {
     try {
@@ -60,12 +71,14 @@ export default function AdminCaja() {
 
   const cargar = async () => {
     setCargando(true)
-    const [cortesRes, retirosRes] = await Promise.all([
+    const [cortesRes, retirosRes, turnoRes] = await Promise.all([
       fetch(`/api/caja?fecha=${fecha}`).then(r => r.json()),
-      fetch(`/api/retiros?fecha=${fecha}`).then(r => r.json())
+      fetch(`/api/retiros?fecha=${fecha}`).then(r => r.json()),
+      fetch(`/api/caja?estado=turno`).then(r => r.json()),
     ])
     if (cortesRes.ok) setCortes(cortesRes.cortes || [])
     if (retirosRes.ok) setRetiros(retirosRes.retiros || [])
+    if (turnoRes.ok) setTurnoGlobal(turnoRes.ultimoMovimiento)
     setCargando(false)
   }
 
@@ -144,11 +157,12 @@ export default function AdminCaja() {
       .then(d => { if (d.ok) setMetricas({ efectivo: d.efectivo, transferencia: d.transferencia, terminal: d.terminal }) })
   }, [fecha])
 
-  // Turno activo: el registro más reciente del colaborador determina el estado
-  const turnoActivo = turnos.find(t => {
-    const todos = [...t.aperturas, ...t.cortes].sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en))
-    return todos[0]?.tipo === 'apertura'
-  })
+  // Turno activo — a partir del estado GLOBAL (turnoGlobal), no de `turnos`
+  // (que está recortado a la fecha seleccionada arriba y por eso puede
+  // "perder" la apertura o el corte cuando el turno cruza medianoche).
+  const turnoActivo = turnoGlobal?.tipo === 'apertura'
+    ? { nombre: turnoGlobal.clientes?.nombre || 'Colaborador', aperturas: [turnoGlobal], cortes: [] }
+    : null
 
   // Métricas del turno activo (solo desde su apertura)
   useEffect(() => {

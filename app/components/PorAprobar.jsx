@@ -91,7 +91,19 @@ export default function PorAprobar({ embebido = false }) {
     // con el texto que venía después. Antes esto se hacía al vuelo, en
     // paralelo, y por eso el cliente terminaba pegado a la foto de otra venta.
     try {
-      const a = await fetch('/api/whatsapp/ventas/armar', { method: 'POST' }).then(r => r.json())
+      let a = await fetch('/api/whatsapp/ventas/armar', { method: 'POST' }).then(r => r.json())
+      // Si otra pestaña/carga ya está armando (candado tomado), esta llamada
+      // vuelve de inmediato con ocupado:true y armados:0 — sin esperar a que
+      // la otra termine. Si seguimos de largo y pedimos la lista ya, solo
+      // vemos lo que esa otra pasada alcanzó a armar hasta este instante, y
+      // el resto queda invisible hasta la siguiente carga. Reintentamos hasta
+      // que el candado se libere (o hasta 30 s) para traer la lista completa.
+      let intentos = 0
+      while (a?.ocupado && intentos < 20) {
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        a = await fetch('/api/whatsapp/ventas/armar', { method: 'POST' }).then(r => r.json())
+        intentos++
+      }
       setEnEspera(a?.en_espera || 0)
       setOmitidos(a?.omitidos || 0)
     } catch { /* si falla el armado, igual se muestra lo que ya estaba */ }

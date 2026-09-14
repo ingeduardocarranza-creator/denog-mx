@@ -82,8 +82,7 @@ export default function CajaPage() {
       const masReciente = misCortes[0]
 
       if (!masReciente) {
-        await cargarUltimoCorteGlobal()
-        setPaso('apertura')
+        await revisarTurnoAbiertoDeAntes(colaborador_id)
       } else if (masReciente.tipo === 'corte') {
         setUltimoCorte(masReciente)
         setPaso('corte_hecho')
@@ -92,6 +91,26 @@ export default function CajaPage() {
         await cargarResumenTurno(masReciente)
         setPaso('turno')
       }
+    } else {
+      await revisarTurnoAbiertoDeAntes(colaborador_id)
+    }
+  }
+
+  // Bug real (reportado 14 sep): lo de arriba solo mira los cortes de HOY.
+  // Si el turno se abrió ayer y no se cerró antes de medianoche, hoy no
+  // aparece ningún corte propio — la pantalla concluía "sin turno" y
+  // ofrecía abrir uno nuevo, pero el POST de apertura valida contra el
+  // último movimiento GLOBAL (sin fecha) y lo rechazaba con "ya tienes un
+  // turno abierto". Antes de ofrecer "abrir turno" hay que descartar eso:
+  // /api/caja?estado=turno consulta esa misma fuente de verdad.
+  const revisarTurnoAbiertoDeAntes = async (colaborador_id) => {
+    const res = await fetch('/api/caja?estado=turno')
+    const data = await res.json()
+    const mov = data.ok ? data.ultimoMovimiento : null
+    if (mov && mov.tipo === 'apertura' && String(mov.colaborador_id) === String(colaborador_id)) {
+      setTurnoActual(mov)
+      await cargarResumenTurno(mov)
+      setPaso('turno')
     } else {
       await cargarUltimoCorteGlobal()
       setPaso('apertura')

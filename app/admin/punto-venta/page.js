@@ -96,32 +96,25 @@ export default function PuntoDeVenta() {
     }
   }, [])
 
+  // Ojo: esto NO debe filtrar por fecha. El turno abierto puede ser de un
+  // día anterior (se abrió y no se cerró antes de medianoche); si aquí se
+  // preguntara solo por "hoy" la pantalla diría "sin turno" mientras el
+  // POST de apertura (que sí valida contra el último movimiento global)
+  // rechazaría con "ya hay un turno abierto" — el bug que reportó Lalo.
+  // /api/caja?estado=turno regresa ese mismo último movimiento global, la
+  // misma fuente de verdad que usa el servidor para bloquear doble apertura.
   const verificarTurno = async (colaborador_id) => {
-    const ahora = new Date()
-    const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`
-    const res = await fetch(`/api/caja?fecha=${hoy}`)
+    const res = await fetch('/api/caja?estado=turno')
     const data = await res.json()
     if (data.ok) {
-      const porColaborador = (data.cortes || []).reduce((acc, c) => {
-        if (!acc[c.colaborador_id]) acc[c.colaborador_id] = { nombre: c.clientes?.nombre || 'Colaborador', registros: [] }
-        acc[c.colaborador_id].registros.push(c)
-        return acc
-      }, {})
-
-      const turnoActivoSistema = Object.entries(porColaborador)
-        .map(([id, info]) => {
-          const masReciente = info.registros.sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en))[0]
-          return { colaborador_id: id, nombre: info.nombre, masReciente }
-        })
-        .find(t => t.masReciente?.tipo === 'apertura')
-
-      if (!turnoActivoSistema) {
+      const mov = data.ultimoMovimiento
+      if (!mov || mov.tipo !== 'apertura') {
         setTurnoEstado('sin_turno')
-      } else if (turnoActivoSistema.colaborador_id === String(colaborador_id)) {
+      } else if (String(mov.colaborador_id) === String(colaborador_id)) {
         setTurnoEstado('activo')
       } else {
         setTurnoEstado('caja_ocupada')
-        setTurnoOcupado({ nombre: turnoActivoSistema.nombre, desde: turnoActivoSistema.masReciente.creado_en })
+        setTurnoOcupado({ nombre: mov.clientes?.nombre || 'Colaborador', desde: mov.creado_en })
       }
     } else {
       setTurnoEstado('sin_turno')

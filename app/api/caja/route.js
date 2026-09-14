@@ -10,6 +10,7 @@ export async function GET(req) {
   const fecha = searchParams.get('fecha')
   const tipo = searchParams.get('tipo')
   const resumen = searchParams.get('resumen')
+  const estado = searchParams.get('estado')
 
   if (resumen === 'true') {
     const desde = searchParams.get('desde')
@@ -46,6 +47,34 @@ export async function GET(req) {
     const totalRetiros = (retiros || []).reduce((s, r) => s + r.monto, 0)
 
     return NextResponse.json({ ok: true, efectivo, transferencia, terminal, totalRetiros })
+  }
+
+  // Estado del turno actual — sin filtro de fecha, a propósito.
+  //
+  // Bug real (reportado 14 sep): un turno se abre y no se cierra antes de
+  // medianoche (o simplemente queda abierto de un día anterior). Todo el
+  // resto de este GET consulta `cortes` filtrando por `fecha=hoy`, así que
+  // al día siguiente esa apertura antigua desaparece de la respuesta — la
+  // pantalla concluye "sin turno" y ofrece abrir uno nuevo. Pero el POST de
+  // abajo (tipo==='apertura') valida contra el ÚLTIMO MOVIMIENTO GLOBAL, sin
+  // fecha: encuentra esa misma apertura antigua y rechaza con 409 "ya hay un
+  // turno abierto". Resultado: la caja se ve cerrada pero el servidor dice
+  // que está abierta — exactamente lo que reportó Lalo en la app.
+  //
+  // La única fuente de verdad de "¿hay turno abierto?" tiene que ser la
+  // misma que usa el POST para bloquear una doble apertura: el último
+  // movimiento de `cortes_caja`, sin importar cuándo fue. Cualquier cliente
+  // (web o móvil) debe usar esto para pintar el estado del POS, no la lista
+  // filtrada por fecha de abajo.
+  if (estado === 'turno') {
+    const { data: ultimoMovimiento, error: errUltimo } = await supabase
+      .from('cortes_caja')
+      .select('*, clientes!colaborador_id(nombre)')
+      .order('creado_en', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (errUltimo) return NextResponse.json({ ok: false, mensaje: errUltimo.message })
+    return NextResponse.json({ ok: true, ultimoMovimiento: ultimoMovimiento || null })
   }
 
   // El embed automático de `clientes` quedó ambiguo desde que cortes_caja

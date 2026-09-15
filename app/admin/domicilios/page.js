@@ -51,6 +51,34 @@ export default function Domicilios() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketListoDomicilio])
 
+  const [domicilioAgendadoListo, setDomicilioAgendadoListo] = useState(null) // { domicilioId, nombre }
+  const [envioDomicilioAgendadoEstado, setEnvioDomicilioAgendadoEstado] = useState(null) // null | 'enviando' | 'ok' | 'error'
+
+  const enviarDomicilioAgendado = async (domicilioId) => {
+    if (!domicilioId) return
+    setEnvioDomicilioAgendadoEstado('enviando')
+    try {
+      const res = await fetch('/api/whatsapp/enviar-domicilio-agendado', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domicilio_id: domicilioId }),
+      })
+      const data = await res.json()
+      setEnvioDomicilioAgendadoEstado(data.ok ? 'ok' : 'error')
+      if (!data.ok) console.error('[whatsapp domicilio agendado]', data.mensaje)
+    } catch {
+      setEnvioDomicilioAgendadoEstado('error')
+    }
+  }
+
+  // Se manda solo en cuanto se confirma el costo de envío, sin copiar/pegar
+  // nada a mano.
+  useEffect(() => {
+    if (domicilioAgendadoListo?.domicilioId && envioDomicilioAgendadoEstado === null) {
+      enviarDomicilioAgendado(domicilioAgendadoListo.domicilioId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domicilioAgendadoListo])
+
   const HORARIOS_SEMANA = ['10:00am - 1:30pm', '3:00pm - 7:00pm']
   const HORARIOS_SABADO = ['10:00am - 1:00pm', '2:00pm - 5:00pm']
 
@@ -146,56 +174,21 @@ const horariosDelDia = (fecha) => {
     const subtotal = d.subtotal || 0
     const total = subtotal + costo_envio
 
-    await fetch('/api/domicilios/actualizar', {
+    const res = await fetch('/api/domicilios/actualizar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: d.id, estado: 'confirmado', costo_envio, total })
-    })
+    }).then(r => r.json())
 
-    const totalAnticipos = getTotalAnticipos({ ...d, total })
-    const totalAPagar = Math.max(0, total - totalAnticipos)
-
-    const entregasMsg = (d.entrega_ids || []).map(entrega_id => {
-      const productosEntrega = (d.productos_detalle || []).filter(p => p.entrega_id === entrega_id)
-      const anticiposEntrega = (d.anticipos_detalle || []).filter(a => a.entrega_id === entrega_id)
-      const totalProductos = productosEntrega.reduce((s, p) => s + (p.precio_venta || 0), 0)
-      const totalAnticiposEntrega = anticiposEntrega.reduce((s, a) => s + (a.monto || 0), 0)
-      const subtotalEntrega = totalProductos - totalAnticiposEntrega
-      const entregaInfo = entregas.find(e => e.id === entrega_id)
-      const fechaEntrega = entregaInfo ? formatearFecha(entregaInfo.fecha_entrega) : entrega_id
-
-      const lineas = [
-        `📦 ENTREGA ${fechaEntrega}`,
-        ...productosEntrega.map(p => `• ${p.descripcion} → $${p.precio_venta?.toLocaleString('es-MX')}`),
-      ]
-      if (anticiposEntrega.length > 0) {
-        anticiposEntrega.forEach(a => {
-          lineas.push(`✅ Anticipo ${formatearFechaCorta(a.creado_en)} → -$${a.monto?.toLocaleString('es-MX')}`)
-        })
-      }
-      lineas.push(`Subtotal entrega: $${subtotalEntrega.toLocaleString('es-MX')}`)
-      return lineas.join('\n')
-    })
-
-    const msg = [
-      `Hola ${d.clientes?.nombre} 👋`,
-      ``,
-      `Tu domicilio ha sido confirmado ✅`,
-      ``,
-      ...entregasMsg.map(e => e + '\n'),
-      `🚚 Envío → $${costo_envio}`,
-      ``,
-      `💰 Total a pagar: $${totalAPagar.toLocaleString('es-MX')}`,
-      ``,
-      `¡Gracias por tu Happy Shopping!`,
-      `— Denog USA Compras 📦`
-    ].join('\n')
-
-    try {
-      await navigator.clipboard.writeText(msg)
-      alert('✅ Mensaje copiado. Ve a WhatsApp y pégalo.')
-    } catch {
-      prompt('Copia este mensaje:', msg)
+    // Antes aquí se armaba el mensaje de confirmación (desglose + total) y
+    // se copiaba al portapapeles para pegarlo a mano en WhatsApp. Ahora se
+    // manda solo por WhatsApp con la plantilla "Domicilio agendado" (ver
+    // enviarDomicilioAgendado más abajo, disparado por el useEffect).
+    if (res.ok) {
+      setEnvioDomicilioAgendadoEstado(null)
+      setDomicilioAgendadoListo({ domicilioId: d.id, nombre: d.clientes?.nombre || d.nombre_externo || 'el cliente' })
+    } else {
+      alert('No se pudo confirmar el costo: ' + (res.mensaje || 'intenta de nuevo'))
     }
     cargar()
   }
@@ -602,6 +595,33 @@ const horariosDelDia = (fecha) => {
         {ticketListoDomicilio && envioTicketDomicilioEstado === 'ok' && (
           <div style={{ background: 'var(--verdeFondo, #e8f4ef)', border: '1px solid var(--verde, #0f8a63)', borderRadius: 14, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--tinta)' }}>
             ✅ Ticket de {ticketListoDomicilio.nombre} enviado por WhatsApp.
+          </div>
+        )}
+
+        {domicilioAgendadoListo && envioDomicilioAgendadoEstado !== 'ok' && (
+          <div style={{ background: 'var(--verdeFondo, #e8f4ef)', border: '1px solid var(--verde, #0f8a63)', borderRadius: 14, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: 'var(--tinta)' }}>
+              {envioDomicilioAgendadoEstado === 'error'
+                ? `⚠️ No se pudo avisar a ${domicilioAgendadoListo.nombre} solo. Puedes intentar de nuevo.`
+                : `Costo confirmado. Avisando a ${domicilioAgendadoListo.nombre} por WhatsApp que su domicilio quedó agendado…`}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {envioDomicilioAgendadoEstado === 'error' && (
+                <button onClick={() => enviarDomicilioAgendado(domicilioAgendadoListo.domicilioId)}
+                  style={{ background: 'var(--verde, #0f8a63)', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  💬 Reintentar
+                </button>
+              )}
+              <button onClick={() => { setDomicilioAgendadoListo(null); setEnvioDomicilioAgendadoEstado(null) }}
+                style={{ background: 'transparent', color: 'var(--w40)', border: 'none', fontSize: 12, cursor: 'pointer' }}>
+                Omitir
+              </button>
+            </div>
+          </div>
+        )}
+        {domicilioAgendadoListo && envioDomicilioAgendadoEstado === 'ok' && (
+          <div style={{ background: 'var(--verdeFondo, #e8f4ef)', border: '1px solid var(--verde, #0f8a63)', borderRadius: 14, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--tinta)' }}>
+            ✅ Aviso de domicilio agendado enviado a {domicilioAgendadoListo.nombre} por WhatsApp.
           </div>
         )}
 

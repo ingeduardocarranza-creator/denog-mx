@@ -125,15 +125,23 @@ export default function PorAprobar({ embebido = false }) {
     setPedidos(prev => prev.map(p => p.id === id ? { ...p, [campo]: valor } : p))
   }
 
+  // OJO CON LAS UNIDADES. En la base, precio_venta / precio_usd / costo_mxn son
+  // SIEMPRE el importe TOTAL del renglón (ya multiplicado por piezas): así lo
+  // guarda "Captura en lote" desde siempre y así lo lee el estado de cuenta.
+  // Aquí, en cambio, se captura POR PIEZA. La conversión ocurre en un solo
+  // lugar — al aprobar, en guardar() — y nunca mientras siga siendo borrador,
+  // para que no se multiplique dos veces.
   const calcular = p => {
-    const usd = parseFloat(p.precio_usd) || 0
+    const usdUnit = parseFloat(p.precio_usd) || 0
     const tc = parseFloat(config.tipo_cambio) || 0
     const imp = parseFloat(config.impuesto_pct) || 0
-    const cant = parseFloat(p.cantidad) || 1
-    const venta = parseFloat(p.precio_venta) || 0
-    const costo_mxn = usd > 0 && tc > 0 ? usd * (1 + imp / 100) * tc * cant : null
-    const utilidad = costo_mxn != null && venta > 0 ? (venta * cant) - costo_mxn : null
-    return { costo_mxn, utilidad }
+    const cant = parseInt(p.cantidad, 10) || 1
+    const ventaUnit = parseFloat(p.precio_venta) || 0
+    const venta = ventaUnit * cant
+    const usd = usdUnit * cant
+    const costo_mxn = usdUnit > 0 && tc > 0 ? usdUnit * (1 + imp / 100) * tc * cant : null
+    const utilidad = costo_mxn != null && venta > 0 ? venta - costo_mxn : null
+    return { cant, ventaUnit, venta, usd, costo_mxn, utilidad }
   }
 
   // Qué tan "lista" está una tarjeta para aprobarse — puramente visual,
@@ -156,20 +164,25 @@ export default function PorAprobar({ embebido = false }) {
       if (!config.entrega_id) { alert('Selecciona la entrega antes de aprobar.'); return }
     }
     setGuardandoId(p.id)
-    const { costo_mxn, utilidad } = calcular(p)
+    const { cant, venta, usd, costo_mxn, utilidad } = calcular(p)
+    // Aprobar es lo único que convierte el borrador en venta real, así que ahí
+    // — y solo ahí — los precios pasan de unitarios a totales. "Editar" y
+    // "Descartar" dejan el borrador tal cual, unitario, que es lo que muestra
+    // el campo de la tarjeta.
+    const aprobando = !pendiente_aprobacion
     const body = {
       id: p.id,
       cliente_id: p.cliente_id || null,
       entrega_id: config.entrega_id || null,
       descripcion: p.descripcion,
       lugar_compra: config.lugar_compra || null,
-      cantidad: parseFloat(p.cantidad) || 1,
+      cantidad: cant,
       fecha_compra: config.fecha_compra || new Date().toISOString().slice(0, 10),
-      precio_usd: p.precio_usd === '' ? null : parseFloat(p.precio_usd),
+      precio_usd: p.precio_usd === '' || p.precio_usd == null ? null : (aprobando ? usd : parseFloat(p.precio_usd)),
       tipo_cambio: config.tipo_cambio === '' ? null : parseFloat(config.tipo_cambio),
       impuesto_pct: config.impuesto_pct === '' ? null : parseFloat(config.impuesto_pct),
       costo_mxn,
-      precio_venta: p.precio_venta === '' ? null : parseFloat(p.precio_venta),
+      precio_venta: p.precio_venta === '' || p.precio_venta == null ? null : (aprobando ? venta : parseFloat(p.precio_venta)),
       utilidad,
       notas: p.notas || null,
       estado: estado || p.estado || 'comprado',
@@ -383,7 +396,7 @@ export default function PorAprobar({ embebido = false }) {
 
         <div style={{ display: 'grid', gap: 14 }}>
           {visibles.map(p => {
-            const { costo_mxn, utilidad } = calcular(p)
+            const { cant, venta, costo_mxn, utilidad } = calcular(p)
             const busq = busquedas[p.id] ?? (clientes.find(c => c.id === p.cliente_id)?.nombre || '')
             const sugerencias = !p.cliente_id && busq.trim()
               ? clientes.filter(c => c.nombre?.toLowerCase().includes(busq.trim().toLowerCase())).slice(0, 6)
@@ -532,15 +545,24 @@ export default function PorAprobar({ embebido = false }) {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                     <div>
-                      <label style={lbl}>Venta (MXN)</label>
+                      <label style={lbl}>Venta por pieza (MXN)</label>
                       <Campo type="number" value={p.precio_venta ?? ''} onChange={e => actualizarCampo(p.id, 'precio_venta', e.target.value)} />
                     </div>
                     <div>
-                      <label style={lbl}>Costo (USD)</label>
+                      <label style={lbl}>Costo por pieza (USD)</label>
                       <Campo type="number" value={p.precio_usd ?? ''} onChange={e => actualizarCampo(p.id, 'precio_usd', e.target.value)} />
                     </div>
                   </div>
 
+                  {/* El importe que de verdad se va a guardar. Con más de una pieza
+                      se enseña la multiplicación completa, para que nadie apruebe
+                      un renglón creyendo que $320 era el total cuando eran dos. */}
+                  {cant > 1 && venta > 0 && (
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--tinta)', marginBottom: 6 }}>
+                      Total de este renglón: ${fmt(venta)} MXN
+                      <span style={{ fontWeight: 500, color: 'var(--w45)' }}> ({cant} × ${fmt(parseFloat(p.precio_venta) || 0)})</span>
+                    </div>
+                  )}
                   <div style={{ fontSize: 12.5, color: 'var(--w55)', marginBottom: 12 }}>
                     Costo total: ${costo_mxn != null ? fmt(costo_mxn) : '—'} MXN
                     {utilidad != null && <> · Utilidad: <span style={{ color: utilidad >= 0 ? status.success.fg : status.danger.fg, fontWeight: 700 }}>${fmt(utilidad)} MXN</span></>}

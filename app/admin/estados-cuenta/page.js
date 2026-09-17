@@ -282,7 +282,7 @@ export default function EstadosCuenta() {
 
     if (grupos.length === 0) { setCargando(false); return }
 
-    setDatos([{ cliente: { id: clienteId, nombre: cl?.nombre || '', telefono: cl?.telefono || '' }, grupos }])
+    setDatos([{ cliente: { id: clienteId, nombre: cl?.nombre || '', telefono: cl?.telefono || '', codigoRecoleccion: cl?.codigo_recoleccion || '' }, grupos }])
     setIndice(0)
     setCargando(false)
   }

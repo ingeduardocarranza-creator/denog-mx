@@ -17,6 +17,12 @@ export default function Domicilios() {
   const [pedidosCliente, setPedidosCliente] = useState([])
   const [anticiposCliente, setAnticiposCliente] = useState([])
   const [entregasSeleccionadas, setEntregasSeleccionadas] = useState([])
+  // Direcciones guardadas del cliente elegido en "Nuevo domicilio" -- mismo
+  // origen (tabla direcciones_clientes) que ya usa /cliente/domicilio, para
+  // no repetir la dirección a mano cada vez. 'nueva' = capturando una
+  // dirección que todavía no está guardada.
+  const [direccionesCliente, setDireccionesCliente] = useState([])
+  const [direccionSeleccionadaId, setDireccionSeleccionadaId] = useState(null)
   const [formNuevo, setFormNuevo] = useState({
     cliente_id: '', direccion: '', colonia: '',
     referencias: '', celular_contacto: '', celular_contacto_adicional: '',
@@ -99,6 +105,34 @@ export default function Domicilios() {
     const data = await res.json()
     if (data.ok) setDomicilios(data.domicilios)
     setCargando(false)
+  }
+
+  const cargarDireccionesCliente = async (cliente_id) => {
+    if (!cliente_id) { setDireccionesCliente([]); return }
+    const res = await fetch(`/api/clientes/direcciones?cliente_id=${cliente_id}`).then(r => r.json())
+    const dirs = res.ok ? (res.direcciones || []) : []
+    setDireccionesCliente(dirs)
+    // La más reciente (ya viene ordenada así) se preselecciona -- lo normal
+    // es que sea la misma de la última vez. "Otra dirección" sigue ahí para
+    // cuando no lo sea.
+    if (dirs.length > 0) elegirDireccionGuardada(dirs[0])
+    else elegirDireccionNueva()
+  }
+
+  const elegirDireccionGuardada = (d) => {
+    setDireccionSeleccionadaId(d.id)
+    setFormNuevo(f => ({
+      ...f,
+      direccion: d.direccion || '',
+      colonia: d.colonia || '',
+      referencias: d.referencias || '',
+      celular_contacto: d.celular_contacto || f.celular_contacto,
+    }))
+  }
+
+  const elegirDireccionNueva = () => {
+    setDireccionSeleccionadaId('nueva')
+    setFormNuevo(f => ({ ...f, direccion: '', colonia: '', referencias: '' }))
   }
 
   const cargarPedidosCliente = async (cliente_id) => {
@@ -402,12 +436,34 @@ const horariosDelDia = (fecha) => {
       })
     })
     fetch('/api/clientes/actualizar-direccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cliente_id: formNuevo.cliente_id, direccion: formNuevo.direccion, colonia: formNuevo.colonia, referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto }) })
+    // Si es una dirección nueva (no una ya guardada) la guardamos en
+    // direcciones_clientes para la próxima vez -- así se van acumulando las
+    // 2-3 direcciones del cliente sin que nadie tenga que ir a capturarlas
+    // aparte. No duplica si ya existe una guardada igual.
+    const yaExiste = direccionesCliente.some(d =>
+      d.direccion.trim().toLowerCase() === formNuevo.direccion.trim().toLowerCase() &&
+      d.colonia.trim().toLowerCase() === formNuevo.colonia.trim().toLowerCase()
+    )
+    if (direccionSeleccionadaId === 'nueva' && !yaExiste) {
+      fetch('/api/clientes/direcciones', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: formNuevo.cliente_id,
+          direccion: formNuevo.direccion,
+          colonia: formNuevo.colonia,
+          referencias: formNuevo.referencias,
+          celular_contacto: formNuevo.celular_contacto,
+        })
+      })
+    }
     setGuardando(false)
     setMostrarNuevo(false)
     setEntregasSeleccionadas([])
     setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '' })
     setPedidosCliente([])
     setAnticiposCliente([])
+    setDireccionesCliente([])
+    setDireccionSeleccionadaId(null)
     cargar()
   }
 
@@ -631,7 +687,7 @@ const horariosDelDia = (fecha) => {
             <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
               style={{ background: 'transparent', border: 'none', color: 'var(--tinta)', fontSize: 13, outline: 'none', cursor: 'pointer' }} />
           </div>
-          <button onClick={() => { setMostrarNuevo(!mostrarNuevo); setEntregasSeleccionadas([]); setPedidosCliente([]); setAnticiposCliente([]) }}
+          <button onClick={() => { setMostrarNuevo(!mostrarNuevo); setEntregasSeleccionadas([]); setPedidosCliente([]); setAnticiposCliente([]); setDireccionesCliente([]); setDireccionSeleccionadaId(null) }}
             style={{ background: 'var(--marca)', border: 'none', borderRadius: 12, padding: '10px 18px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + Nuevo domicilio
           </button>
@@ -649,14 +705,14 @@ const horariosDelDia = (fecha) => {
                   setFormNuevo({
                     ...formNuevo,
                     cliente_id: e.target.value,
-                    direccion: c?.direccion || '',
-                    colonia: c?.colonia || '',
-                    referencias: c?.referencias || '',
+                    direccion: '', colonia: '', referencias: '',
                     celular_contacto: c?.celular_contacto || c?.telefono || '',
                     celular_contacto_adicional: '',
                   })
                   setEntregasSeleccionadas([])
+                  setDireccionSeleccionadaId(null)
                   cargarPedidosCliente(e.target.value)
+                  cargarDireccionesCliente(e.target.value)
                 }}
                 style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 12, outline: 'none' }}>
                 <option value="">-- Elige un cliente --</option>
@@ -739,6 +795,26 @@ const horariosDelDia = (fecha) => {
               <div>
                 <div style={{ height: 1, background: 'var(--w06)', marginBottom: 14 }} />
                 <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 10 }}>③ Datos de entrega</label>
+
+                {direccionesCliente.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>📍 Dirección guardada</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {direccionesCliente.map(d => (
+                        <div key={d.id} onClick={() => elegirDireccionGuardada(d)}
+                          style={{ cursor: 'pointer', border: `1.5px solid ${direccionSeleccionadaId === d.id ? 'var(--marca)' : 'var(--w10)'}`, background: direccionSeleccionadaId === d.id ? 'rgba(193,85,58,0.08)' : 'var(--w03)', borderRadius: 12, padding: '8px 12px', maxWidth: 260 }}>
+                          {d.alias && <div style={{ color: direccionSeleccionadaId === d.id ? 'var(--marca)' : 'var(--w60)', fontSize: 11, fontWeight: 700, marginBottom: 2 }}>{d.alias}</div>}
+                          <div style={{ color: 'var(--w60)', fontSize: 11, lineHeight: 1.4 }}>{d.direccion}, {d.colonia}</div>
+                        </div>
+                      ))}
+                      <div onClick={elegirDireccionNueva}
+                        style={{ cursor: 'pointer', border: `1.5px dashed ${direccionSeleccionadaId === 'nueva' ? 'var(--marca)' : 'var(--w10)'}`, background: direccionSeleccionadaId === 'nueva' ? 'rgba(193,85,58,0.08)' : 'transparent', borderRadius: 12, padding: '8px 12px', display: 'flex', alignItems: 'center', color: direccionSeleccionadaId === 'nueva' ? 'var(--marca)' : 'var(--w40)', fontSize: 11, fontWeight: 600 }}>
+                        + Otra dirección
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   {[
                     { label: 'Calle y número *', key: 'direccion', placeholder: 'Blvd. Morelos #432' },
@@ -783,7 +859,7 @@ const horariosDelDia = (fecha) => {
                     style={{ flex: 1, background: 'var(--marca)', border: 'none', borderRadius: 10, padding: '10px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: guardando ? 0.6 : 1 }}>
                     {guardando ? 'Guardando...' : '✓ Crear domicilio'}
                   </button>
-                  <button onClick={() => { setMostrarNuevo(false); setEntregasSeleccionadas([]); setPedidosCliente([]); setAnticiposCliente([]) }}
+                  <button onClick={() => { setMostrarNuevo(false); setEntregasSeleccionadas([]); setPedidosCliente([]); setAnticiposCliente([]); setDireccionesCliente([]); setDireccionSeleccionadaId(null) }}
                     style={{ background: 'var(--w05)', border: '1px solid var(--w08)', borderRadius: 10, padding: '10px 16px', color: 'var(--w40)', fontSize: 12, cursor: 'pointer' }}>
                     Cancelar
                   </button>

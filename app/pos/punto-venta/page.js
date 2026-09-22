@@ -39,6 +39,11 @@ export default function PuntoDeVenta() {
   const [domiciliosBadge, setDomiciliosBadge] = useState(0)
   const [mostrarFormDom, setMostrarFormDom] = useState(false)
   const [formNuevo, setFormNuevo] = useState({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '' })
+  // Direcciones guardadas del cliente elegido -- mismo criterio que
+  // app/admin/domicilios/page.js, para que las dos pantallas de agendar un
+  // domicilio se vean y se comporten igual ("no debe ser diferente").
+  const [direccionesClienteDom, setDireccionesClienteDom] = useState([])
+  const [direccionSeleccionadaIdDom, setDireccionSeleccionadaIdDom] = useState(null)
   const [entregasSeleccionadasDom, setEntregasSeleccionadasDom] = useState([])
   const [pedidosClienteDom, setPedidosClienteDom] = useState([])
   const [anticiposClienteDom, setAnticiposClienteDom] = useState([])
@@ -182,6 +187,29 @@ const horariosDelDia = (f) => {
     }
   }
 
+  const cargarDireccionesClienteDom = async (cliente_id) => {
+    if (!cliente_id) { setDireccionesClienteDom([]); return }
+    const res = await fetch(`/api/clientes/direcciones?cliente_id=${cliente_id}`).then(r => r.json())
+    const dirs = res.ok ? (res.direcciones || []) : []
+    setDireccionesClienteDom(dirs)
+    if (dirs.length > 0) elegirDireccionGuardadaDom(dirs[0])
+    else elegirDireccionNuevaDom()
+  }
+
+  const elegirDireccionGuardadaDom = (d) => {
+    setDireccionSeleccionadaIdDom(d.id)
+    setFormNuevo(f => ({
+      ...f,
+      direccion: d.direccion || '', colonia: d.colonia || '', referencias: d.referencias || '',
+      celular_contacto: d.celular_contacto || f.celular_contacto,
+    }))
+  }
+
+  const elegirDireccionNuevaDom = () => {
+    setDireccionSeleccionadaIdDom('nueva')
+    setFormNuevo(f => ({ ...f, direccion: '', colonia: '', referencias: '' }))
+  }
+
   const crearDomicilio = async () => {
     if (!formNuevo.cliente_id || entregasSeleccionadasDom.length === 0 || !formNuevo.direccion || !formNuevo.colonia || !formNuevo.fecha_preferida || !formNuevo.horario) {
       alert('Llena todos los campos obligatorios'); return
@@ -200,12 +228,27 @@ const horariosDelDia = (f) => {
       })
     })
     fetch('/api/clientes/actualizar-direccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cliente_id: formNuevo.cliente_id, direccion: formNuevo.direccion, colonia: formNuevo.colonia, referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto }) })
+    const yaExisteDom = direccionesClienteDom.some(d =>
+      d.direccion.trim().toLowerCase() === formNuevo.direccion.trim().toLowerCase() &&
+      d.colonia.trim().toLowerCase() === formNuevo.colonia.trim().toLowerCase()
+    )
+    if (direccionSeleccionadaIdDom === 'nueva' && !yaExisteDom) {
+      fetch('/api/clientes/direcciones', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: formNuevo.cliente_id, direccion: formNuevo.direccion, colonia: formNuevo.colonia,
+          referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto,
+        })
+      })
+    }
     setGuardandoDom(false)
     setMostrarFormDom(false)
     setEntregasSeleccionadasDom([])
     setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '' })
     setPedidosClienteDom([])
     setAnticiposClienteDom([])
+    setDireccionesClienteDom([])
+    setDireccionSeleccionadaIdDom(null)
     console.log('[Domicilios] Domicilio creado — recargando lista...')
     cargarDomicilios()
   }
@@ -1347,7 +1390,7 @@ const horariosDelDia = (f) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <div style={{ color: 'var(--tinta)', fontSize: 14, fontWeight: 700 }}>🚚 Domicilios del día</div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => { setMostrarFormDom(f => !f); setEntregasSeleccionadasDom([]); setPedidosClienteDom([]); setAnticiposClienteDom([]) }}
+                    <button onClick={() => { setMostrarFormDom(f => !f); setEntregasSeleccionadasDom([]); setPedidosClienteDom([]); setAnticiposClienteDom([]); setDireccionesClienteDom([]); setDireccionSeleccionadaIdDom(null) }}
                       style={{ padding: '5px 14px', borderRadius: 8, background: mostrarFormDom ? 'var(--w06)' : 'rgba(193,85,58,0.2)', border: `1px solid ${mostrarFormDom ? 'var(--w10)' : 'rgba(193,85,58,0.35)'}`, color: mostrarFormDom ? 'var(--w40)' : 'var(--marca)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                       {mostrarFormDom ? 'Cancelar' : '+ Nuevo'}
                     </button>
@@ -1389,9 +1432,11 @@ const horariosDelDia = (f) => {
                         <select value={formNuevo.cliente_id}
                           onChange={e => {
                             const c = todosClientes.find(cl => String(cl.id) === e.target.value)
-                            setFormNuevo({ ...formNuevo, cliente_id: e.target.value, direccion: c?.direccion || '', colonia: c?.colonia || '', referencias: c?.referencias || '', celular_contacto: c?.celular_contacto || c?.telefono || '', celular_contacto_adicional: '' })
+                            setFormNuevo({ ...formNuevo, cliente_id: e.target.value, direccion: '', colonia: '', referencias: '', celular_contacto: c?.celular_contacto || c?.telefono || '', celular_contacto_adicional: '' })
                             setEntregasSeleccionadasDom([])
+                            setDireccionSeleccionadaIdDom(null)
                             cargarPedidosClienteDom(e.target.value)
+                            cargarDireccionesClienteDom(e.target.value)
                           }}
                           style={iStyle}>
                           <option value="">-- Elige un cliente --</option>
@@ -1468,6 +1513,26 @@ const horariosDelDia = (f) => {
                         <div>
                           <div style={{ height:1, background: 'var(--w06)', marginBottom:12 }} />
                           <label style={lStyle}>③ Datos de entrega</label>
+
+                          {direccionesClienteDom.length > 0 && (
+                            <div style={{ marginBottom:12 }}>
+                              <label style={lStyle}>📍 Dirección guardada</label>
+                              <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                                {direccionesClienteDom.map(d => (
+                                  <div key={d.id} onClick={() => elegirDireccionGuardadaDom(d)}
+                                    style={{ cursor:'pointer', border: `1.5px solid ${direccionSeleccionadaIdDom === d.id ? 'var(--marca)' : 'var(--w10)'}`, background: direccionSeleccionadaIdDom === d.id ? 'rgba(193,85,58,0.08)' : 'var(--w03)', borderRadius:12, padding:'8px 12px', maxWidth:260 }}>
+                                    {d.alias && <div style={{ color: direccionSeleccionadaIdDom === d.id ? 'var(--marca)' : 'var(--w60)', fontSize:11, fontWeight:700, marginBottom:2 }}>{d.alias}</div>}
+                                    <div style={{ color: 'var(--w60)', fontSize:11, lineHeight:1.4 }}>{d.direccion}, {d.colonia}</div>
+                                  </div>
+                                ))}
+                                <div onClick={elegirDireccionNuevaDom}
+                                  style={{ cursor:'pointer', border: `1.5px dashed ${direccionSeleccionadaIdDom === 'nueva' ? 'var(--marca)' : 'var(--w10)'}`, background: direccionSeleccionadaIdDom === 'nueva' ? 'rgba(193,85,58,0.08)' : 'transparent', borderRadius:12, padding:'8px 12px', display:'flex', alignItems:'center', color: direccionSeleccionadaIdDom === 'nueva' ? 'var(--marca)' : 'var(--w40)', fontSize:11, fontWeight:600 }}>
+                                  + Otra dirección
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
                             {[
                               { label:'Calle y número *', key:'direccion', placeholder:'Blvd. Morelos #432' },
@@ -1511,7 +1576,7 @@ const horariosDelDia = (f) => {
                               style={{ flex:1, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', borderRadius:10, padding:'10px', color: 'var(--marca)', fontSize:13, fontWeight:600, cursor:'pointer', opacity: guardandoDom ? 0.6 : 1 }}>
                               {guardandoDom ? 'Guardando...' : '✓ Crear domicilio'}
                             </button>
-                            <button onClick={() => { setMostrarFormDom(false); setEntregasSeleccionadasDom([]); setPedidosClienteDom([]); setAnticiposClienteDom([]) }}
+                            <button onClick={() => { setMostrarFormDom(false); setEntregasSeleccionadasDom([]); setPedidosClienteDom([]); setAnticiposClienteDom([]); setDireccionesClienteDom([]); setDireccionSeleccionadaIdDom(null) }}
                               style={{ background: 'var(--w04)', border: '1px solid var(--w08)', borderRadius:10, padding:'10px 14px', color: 'var(--w40)', fontSize:12, cursor:'pointer' }}>
                               Cancelar
                             </button>

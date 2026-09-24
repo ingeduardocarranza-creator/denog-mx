@@ -1412,6 +1412,49 @@ export default function Reportes() {
                   )
                 })()}
 
+                {/* Desglose por día de compra y por tienda — para ver en qué
+                    días se compró y en qué tiendas, cada uno con su venta y
+                    utilidad. */}
+                {rawPedidos.length > 0 && (() => {
+                  const porDia = rawPedidos.reduce((acc, p) => {
+                    const dia = p.fecha_compra || 'Sin fecha'
+                    if (!acc[dia]) acc[dia] = { venta: 0, utilidad: 0, count: 0 }
+                    acc[dia].venta += p.precio_venta || 0
+                    acc[dia].utilidad += p.utilidad || 0
+                    acc[dia].count++
+                    return acc
+                  }, {})
+                  const porTienda = rawPedidos.reduce((acc, p) => {
+                    const tienda = p.lugar_compra || 'Sin tienda'
+                    if (!acc[tienda]) acc[tienda] = { venta: 0, utilidad: 0, count: 0 }
+                    acc[tienda].venta += p.precio_venta || 0
+                    acc[tienda].utilidad += p.utilidad || 0
+                    acc[tienda].count++
+                    return acc
+                  }, {})
+                  const filasDia = Object.entries(porDia).sort((a, b) => a[0].localeCompare(b[0]))
+                  const filasTienda = Object.entries(porTienda).sort((a, b) => b[1].venta - a[1].venta)
+                  const Tabla = ({ titulo, filas }) => (
+                    <div style={{ background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14, overflow: 'hidden' }}>
+                      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--w06)', color: 'var(--tinta)', fontSize: 13, fontWeight: 600 }}>{titulo}</div>
+                      {filas.map(([clave, d], i) => (
+                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '9px 16px', borderTop: '1px solid var(--w04)' }}>
+                          <span style={{ color: 'var(--tinta)', fontSize: 13 }}>{clave}</span>
+                          <span style={{ color: 'var(--tinta)', fontSize: 13, textAlign: 'right' }}>{fmt(d.venta)}</span>
+                          <span style={{ color: 'var(--verde)', fontSize: 13, textAlign: 'right' }}>{fmt(d.utilidad)}</span>
+                          <span style={{ color: 'var(--w50)', fontSize: 13, textAlign: 'right' }}>{d.count} ped.</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                      <Tabla titulo="Por día de compra" filas={filasDia} />
+                      <Tabla titulo="Por tienda" filas={filasTienda} />
+                    </div>
+                  )
+                })()}
+
                 {porClienteEC.length > 0 && (
                   <div style={{ background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14, overflow: 'hidden' }}>
                     <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--w06)', color: 'var(--tinta)', fontSize: 13, fontWeight: 600 }}>Por cliente</div>

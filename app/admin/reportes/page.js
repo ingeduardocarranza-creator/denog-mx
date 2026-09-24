@@ -18,6 +18,12 @@ export default function Reportes() {
   // Un mes trae ~285 visitas. Se dibujan por tandas: la pantalla abre rápido y
   // quien busca algo viejo pide más.
   const [visitasVisibles, setVisitasVisibles] = useState(50)
+  // Segmentar "Transacciones del periodo" -- una visita puede tener varios
+  // conceptos a la vez (p.ej. recogió su encargo Y compró en tienda), así
+  // que el filtro es "trae algo de esto", no "es exactamente esto". Pedido
+  // por Lalo el 23 sep 2026 para poder ver aparte lo de tienda, lo que la
+  // gente recogió de su encargo, y los anticipos.
+  const [filtroVisitas, setFiltroVisitas] = useState('todas')
   const [entregas, setEntregas] = useState([])
   const [entregaSeleccionada, setEntregaSeleccionada] = useState('')
   const [cargando, setCargando] = useState(false)
@@ -83,6 +89,7 @@ export default function Reportes() {
     setCargandoGeneral(true)
     setVisitasVisibles(50)
     setVisitaAbierta(null)
+    setFiltroVisitas('todas')
     fetch(`/api/reportes/general?desde=${d}&hasta=${h}`)
       .then(r => r.json())
       .then(r => {
@@ -98,6 +105,24 @@ export default function Reportes() {
 
   const rotulo = { color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }
   const cifra = { color: 'var(--tinta)', fontSize: 19, fontWeight: 800, marginTop: 5, letterSpacing: -0.5 }
+
+  // Segmentos de "Transacciones del periodo". Una visita puede caer en más
+  // de uno a la vez (recogió su encargo Y compró en tienda) -- el filtro es
+  // "trae algo de esto", no "es solo esto", por eso los conteos de las
+  // pestañas no tienen que sumar el total de visitas.
+  const SEGMENTOS_VISITAS = [
+    { key: 'todas', label: 'Todas' },
+    { key: 'tienda', label: '🏪 Tienda' },
+    { key: 'recogieron', label: '📦 Recogieron su encargo' },
+    { key: 'anticipos', label: '💳 Anticipos' },
+  ]
+  const enSegmentoVisita = (v, seg) => {
+    if (seg === 'tienda') return v.tienda > 0
+    if (seg === 'recogieron') return v.entregas > 0 || v.sinCobro || (v.recogio && v.recogio.length > 0)
+    if (seg === 'anticipos') return v.anticipos > 0
+    return true
+  }
+  const visitasFiltradas = (general?.visitas || []).filter(v => enSegmentoVisita(v, filtroVisitas))
   const th = { color: 'var(--w40)', textAlign: 'left', padding: '11px 14px', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700 }
   const td = { padding: '11px 14px' }
   const campoR = { background: 'var(--w03)', border: '1px solid var(--w10)', borderRadius: 9, padding: '7px 10px', color: 'var(--tinta)', fontSize: 12, outline: 'none' }
@@ -701,13 +726,34 @@ export default function Reportes() {
                 {general.visitas?.length > 0 && (
                   <div>
                     <h3 style={{ ...rotulo, marginBottom: 4 }}>Transacciones del periodo</h3>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 10 }}>
+                      {SEGMENTOS_VISITAS.map(seg => {
+                        const enEsteSegmento = seg.key === 'todas' ? general.visitas : general.visitas.filter(v => enSegmentoVisita(v, seg.key))
+                        const activo = filtroVisitas === seg.key
+                        return (
+                          <div key={seg.key}
+                            onClick={() => { setFiltroVisitas(seg.key); setVisitasVisibles(50); setVisitaAbierta(null) }}
+                            style={{ cursor: 'pointer', border: `1px solid ${activo ? 'var(--marca)' : 'var(--w10)'}`, background: activo ? 'rgba(193,85,58,0.1)' : 'var(--w03)', color: activo ? 'var(--marca-t)' : 'var(--w45)', borderRadius: 20, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {seg.label}
+                            <span style={{ color: activo ? 'var(--marca-t)' : 'var(--w30)', fontWeight: 800 }}>{enEsteSegmento.length}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
                     <p style={{ color: 'var(--w40)', fontSize: 12, marginBottom: 12 }}>
-                      {general.visitas.length} {general.visitas.length === 1 ? 'visita' : 'visitas'}
-                      {general.visitas.length > visitasVisibles && ` · mostrando las ${visitasVisibles} más recientes`}
+                      {visitasFiltradas.length} {visitasFiltradas.length === 1 ? 'visita' : 'visitas'}
+                      {visitasFiltradas.length > visitasVisibles && ` · mostrando las ${visitasVisibles} más recientes`}
                       {' · toca una para ver el detalle'}
                     </p>
                     <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }}>
-                      {general.visitas.slice(0, visitasVisibles).map((v, i) => {
+                      {visitasFiltradas.length === 0 && (
+                        <div style={{ padding: 24, textAlign: 'center', color: 'var(--w30)', fontSize: 12 }}>
+                          Nada en este segmento durante el periodo
+                        </div>
+                      )}
+                      {visitasFiltradas.slice(0, visitasVisibles).map((v, i) => {
                         const abierta = visitaAbierta === i
                         const mixta = v.tienda > 0 && (v.entregas > 0 || v.anticipos > 0)
                         return (
@@ -785,14 +831,14 @@ export default function Reportes() {
                       })}
                     </div>
 
-                    {general.visitas.length > visitasVisibles && (
+                    {visitasFiltradas.length > visitasVisibles && (
                       <button onClick={() => setVisitasVisibles(n => n + 50)}
                         style={{
                           width: '100%', marginTop: 10, padding: '11px', borderRadius: 11, cursor: 'pointer',
                           border: '1px solid var(--w10)', background: 'transparent',
                           color: 'var(--marca-t)', fontSize: 12.5, fontWeight: 700,
                         }}>
-                        Ver 50 más · quedan {general.visitas.length - visitasVisibles}
+                        Ver 50 más · quedan {visitasFiltradas.length - visitasVisibles}
                       </button>
                     )}
                   </div>

@@ -1,10 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
 
-const ROL_LABEL = { vendedor: 'Vendedor', admin: 'Admin' }
+const ROL_LABEL = { vendedor: 'Vendedor', admin: 'Admin', bodega: 'Bodega Nogales' }
 const ROL_COLOR = {
   vendedor: { bg: 'rgba(99,102,241,0.15)', border: 'rgba(99,102,241,0.3)', text: '#818cf8' },
   admin:    { bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)', text: 'var(--ambar)' },
+  bodega:   { bg: 'rgba(70,109,155,0.15)', border: 'rgba(70,109,155,0.3)', text: '#466D9B' },
 }
 
 const inputStyle = {
@@ -195,6 +196,7 @@ export default function ColaboradoresAdmin() {
                   onChange={e => setNuevo({ ...nuevo, rol: e.target.value })}>
                   <option value="vendedor">Vendedor</option>
                   <option value="admin">Administrador</option>
+                  <option value="bodega">Bodega Nogales (solo escaneo)</option>
                 </select>
               </div>
             </div>
@@ -271,6 +273,7 @@ export default function ColaboradoresAdmin() {
                             onChange={e => setEdit({ ...edit, rol: e.target.value })}>
                             <option value="vendedor">Vendedor</option>
                             <option value="admin">Administrador</option>
+                  <option value="bodega">Bodega Nogales (solo escaneo)</option>
                           </select>
                         </div>
                         <div>

@@ -60,6 +60,7 @@ export default function Portada() {
   const rutaSegunRol = (rol) =>
     rol === 'admin' ? '/admin/reportes'
     : (rol === 'vendedor' || rol === 'colaborador') ? '/admin/inicio'
+    : rol === 'bodega' ? '/bodega'
     : '/cliente'
 
   const irAlFormulario = () => {

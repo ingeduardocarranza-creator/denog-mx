@@ -30,6 +30,7 @@ const grupos = [
     items: [
       { label: 'Pedidos',           icon: '📝', href: '/admin/pedidos', badgeKey: 'pendientes' },
       { label: 'Entregas',          icon: '📅', href: '/admin/entregas' },
+      { label: 'Paquetes Nogales',  icon: '📥', href: '/admin/paquetes-nogales' },
       { label: 'Empacado',          icon: '📦', href: '/admin/empacado' },
       { label: 'Anticipos',         icon: '💳', href: '/admin/anticipos' },
       { label: 'Estados de cuenta', icon: '📋', href: '/admin/estados-cuenta' },

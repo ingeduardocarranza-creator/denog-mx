@@ -14,7 +14,7 @@ export async function GET(req) {
   const { data, error } = await supabase
     .from('clientes')
     .select('id, nombre, usuario, rol, activo, creado_en')
-    .in('rol', ['vendedor', 'admin'])
+    .in('rol', ['vendedor', 'admin', 'bodega'])
     .order('nombre')
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true, colaboradores: data })

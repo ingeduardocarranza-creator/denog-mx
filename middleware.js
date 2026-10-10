@@ -29,6 +29,18 @@ export function middleware(req) {
   const { pathname } = req.nextUrl
   const sesion = leerSesionEdge(req)
 
+  // El usuario de bodega (Nogales) solo tiene /bodega: cualquier otra
+  // sección lo regresa a su pantalla de escaneo.
+  if (sesion?.rol === 'bodega' && !pathname.startsWith('/bodega')) {
+    return NextResponse.redirect(new URL('/bodega', req.url))
+  }
+
+  if (pathname.startsWith('/bodega')) {
+    if (!sesion || !['bodega', 'admin'].includes(sesion.rol)) {
+      return aLaPortada(req)
+    }
+  }
+
   if (pathname.startsWith('/admin') || pathname.startsWith('/pos')) {
     if (!sesion || !ROLES_STAFF.includes(sesion.rol)) {
       return aLaPortada(req)
@@ -45,5 +57,5 @@ export function middleware(req) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/pos/:path*', '/cliente/:path*'],
+  matcher: ['/admin/:path*', '/pos/:path*', '/cliente/:path*', '/bodega/:path*'],
 }

@@ -1,4 +1,5 @@
--- Bodega Nogales: registro de paquetes recibidos (guía + hasta 3 fotos).
+-- Bodega Nogales: registro de paquetes recibidos. Normal: solo la guía.
+-- Si llegó dañado: danado = true y de 1 a 3 fotos de evidencia.
 -- El usuario con rol 'bodega' solo ve /bodega; el admin lo revisa en
 -- /admin/paquetes-nogales. Solo registra: no se liga a pedidos.
 
@@ -6,6 +7,7 @@ create table if not exists public.paquetes_recibidos (
   id                  uuid primary key default gen_random_uuid(),
   numero_guia         text not null,
   paqueteria          text,
+  danado              boolean not null default false,
   fotos               text[] not null default '{}',
   notas               text,
   recibido_por        uuid references public.clientes(id),

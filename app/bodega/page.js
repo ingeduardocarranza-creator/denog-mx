@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { analizarCodigo, detectarPaqueteria } from '../../lib/bodega/guias'
+import { crearEscaner } from '../../lib/bodega/escaner'
 
 // Pantalla única del usuario de bodega (Nogales, AZ). Pensada para usarse de
 // pie, con una mano y rápido: lo importante va abajo, al alcance del pulgar.
@@ -161,6 +162,7 @@ const TRAZOS = {
   calendario: 'M8 3v3M16 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',
   etiqueta: 'M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9zM7.5 7.5h.01',
   mas: 'M12 5v14M5 12h14',
+  linterna: 'M9 2h6l1 5-2 3v10a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V10L8 7l1-5zM12 13v2',
 }
 
 function Icono({ nombre, tam = 22, color = 'currentColor', grosor = 2.2 }) {
@@ -320,6 +322,8 @@ export default function Bodega() {
   const [aviso, setAviso] = useState(null)
   const [rechazo, setRechazo] = useState('')
   const [errorCamara, setErrorCamara] = useState('')
+  const [hayLinterna, setHayLinterna] = useState(false)
+  const [linterna, setLinterna] = useState(false)
   const [ultimoGuardado, setUltimoGuardado] = useState(null) // { danado, singuia }
 
   const [leyendoEtiqueta, setLeyendoEtiqueta] = useState(false)
@@ -337,8 +341,8 @@ export default function Bodega() {
   const [, setReloj] = useState(0) // refresca "Deshacer" cuando pasan los minutos
 
   const videoRef = useRef(null)
-  const lectorRef = useRef(null)
-  const controlesRef = useRef(null)
+  const escanerRef = useRef(null)
+  const vueltaCamaraRef = useRef(0) // invalida aperturas de cámara que ya no sirven
   const leidoRef = useRef(false)
   const inputFotoRef = useRef(null)
   const inputEtiquetaRef = useRef(null)
@@ -368,8 +372,10 @@ export default function Bodega() {
 
   // ── Cámara ──
   const detenerCamara = () => {
-    controlesRef.current?.stop()
-    controlesRef.current = null
+    vueltaCamaraRef.current++
+    escanerRef.current?.detener()
+    escanerRef.current = null
+    setLinterna(false)
   }
 
   const rechazarLectura = (texto, motivo) => {
@@ -409,50 +415,73 @@ export default function Bodega() {
     setPaso('revisar')
   }
 
-  const alLeerCodigo = (texto, formato) => {
-    const r = analizarCodigo(texto, formato)
-    if (!r.ok) return rechazarLectura(texto, r.motivo)
-    elegirGuia(r.guia, false)
+  // La cámara puede ver varios códigos a la vez (el lector nativo de Android
+  // los regresa todos): se toma el primero que sí es guía. Si ninguno lo es,
+  // se avisa con el motivo del que está en el visor.
+  const alLeerCodigos = (codigos) => {
+    let primerRechazo = null
+    for (const c of codigos) {
+      const r = analizarCodigo(c.texto, c.formato)
+      if (r.ok) { leidoRef.current = true; return elegirGuia(r.guia, false) }
+      if (!primerRechazo) primerRechazo = { texto: c.texto, motivo: r.motivo }
+    }
+    if (primerRechazo) rechazarLectura(primerRechazo.texto, primerRechazo.motivo)
   }
 
-  // El callback del lector se crea una sola vez; con este ref siempre usa la
-  // versión más nueva de alLeerCodigo (con la lista de hoy actualizada).
-  const alLeerCodigoRef = useRef(alLeerCodigo)
-  useEffect(() => { alLeerCodigoRef.current = alLeerCodigo })
+  // El escáner se crea una sola vez por apertura; con este ref siempre usa
+  // la versión más nueva de alLeerCodigos (con la lista de hoy actualizada).
+  const alLeerCodigosRef = useRef(alLeerCodigos)
+  useEffect(() => { alLeerCodigosRef.current = alLeerCodigos })
 
   const iniciarCamara = useCallback(async () => {
     leidoRef.current = false
+    const vuelta = ++vueltaCamaraRef.current
     try {
-      const { BrowserMultiFormatReader } = await import('@zxing/browser')
-      const { BarcodeFormat, DecodeHintType } = await import('@zxing/library')
-      if (!lectorRef.current) {
-        // Solo formatos de etiquetas de envío (+ UPC/EAN para poder avisar
-        // "ese es el código del producto").
-        const hints = new Map()
-        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-          BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.CODE_93, BarcodeFormat.ITF,
-          BarcodeFormat.PDF_417, BarcodeFormat.DATA_MATRIX, BarcodeFormat.QR_CODE,
-          BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
-        ])
-        lectorRef.current = new BrowserMultiFormatReader(hints)
-        lectorRef.current.nombreFormato = (f) => BarcodeFormat[f] || ''
-      }
       await new Promise(r => setTimeout(r, 0))
       if (!videoRef.current) return
       setErrorCamara('')
-      controlesRef.current = await lectorRef.current.decodeFromConstraints(
-        { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } },
-        videoRef.current,
-        (resultado) => {
-          if (!resultado || leidoRef.current) return
-          leidoRef.current = true
-          alLeerCodigoRef.current(resultado.getText(), lectorRef.current.nombreFormato(resultado.getBarcodeFormat()))
-        }
-      )
+      const escaner = await crearEscaner({
+        video: videoRef.current,
+        onCodigos: (codigos) => { if (!leidoRef.current) alLeerCodigosRef.current(codigos) },
+      })
+      // Si mientras abría la cámara ya se cambió de pantalla, se suelta.
+      if (vuelta !== vueltaCamaraRef.current) { escaner.detener(); return }
+      escanerRef.current = escaner
+      setHayLinterna(escaner.tieneLinterna)
     } catch {
-      setErrorCamara('No se pudo abrir la cámara. Revisa que el navegador tenga permiso, o usa "Foto de etiqueta".')
+      if (vuelta === vueltaCamaraRef.current) {
+        setErrorCamara('No se pudo abrir la cámara. Revisa que el navegador tenga permiso, o usa "Foto de etiqueta".')
+      }
     }
   }, [])
+
+  const alternarLinterna = async () => {
+    const nuevo = await escanerRef.current?.linterna(!linterna)
+    setLinterna(!!nuevo)
+  }
+
+  // Pistola lectora (Bluetooth/USB): escribe el código como teclado muy
+  // rápido y termina con Enter. Se atrapa aquí sin necesidad de un campo.
+  useEffect(() => {
+    if (pestana !== 'escanear' || paso !== 'escanear') return
+    let buffer = ''
+    let ultimo = 0
+    const alTeclear = (e) => {
+      const t = e.target
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return
+      const ahora = Date.now()
+      if (ahora - ultimo > 80) buffer = '' // tecleo humano: se ignora
+      ultimo = ahora
+      if (e.key === 'Enter') {
+        if (buffer.length >= 6 && !leidoRef.current) alLeerCodigosRef.current([{ texto: buffer, formato: '' }])
+        buffer = ''
+      } else if (e.key.length === 1) {
+        buffer += e.key
+      }
+    }
+    window.addEventListener('keydown', alTeclear)
+    return () => window.removeEventListener('keydown', alTeclear)
+  }, [pestana, paso])
 
   useEffect(() => {
     try {
@@ -739,6 +768,12 @@ export default function Bodega() {
                 })}
                 {!rechazo && <div style={{ position: 'absolute', left: 8, right: 8, height: 3, borderRadius: 3, background: AZUL_CLARO, boxShadow: `0 0 12px ${AZUL_CLARO}`, animation: 'barrido 2.4s ease-in-out infinite' }} />}
               </div>
+              {hayLinterna && !rechazo && (
+                <button onClick={alternarLinterna} aria-label={linterna ? 'Apagar linterna' : 'Prender linterna'} className="toque"
+                  style={{ position: 'absolute', right: 12, bottom: 12, height: 46, padding: '0 14px', borderRadius: 23, border: 'none', background: linterna ? '#fde68a' : 'rgba(255,255,255,0.92)', color: linterna ? '#7c4a03' : AZUL_OSCURO, fontFamily: TEXTO, fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Icono nombre="linterna" tam={20} /> {linterna ? 'Apagar' : 'Luz'}
+                </button>
+              )}
               {!rechazo && (
                 <div style={{ position: 'absolute', top: 12, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
                   <div style={{ background: 'rgba(255,255,255,0.92)', color: AZUL_OSCURO, borderRadius: 999, padding: '7px 14px', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -34,7 +34,7 @@ const RESTO = [
 ];
 
 // Solo se muestra en las pantallas de cara al cliente (Portada, Cliente,
-// Mercadito) — en Admin/POS el equipo ya trabaja dentro del sistema y esta
+// Mercadito) — en Admin/POS/Bodega el equipo ya trabaja dentro del sistema y esta
 // barra solo estorbaría sobre menús y modales.
 export default function FloatingSocialBar() {
   const pathname = usePathname();
@@ -59,7 +59,8 @@ export default function FloatingSocialBar() {
     setTimeout(() => setMostrarPerrito(false), 400);
   };
 
-  if (pathname?.startsWith('/admin') || pathname?.startsWith('/pos')) return null;
+  // Bodega (Nogales) es una herramienta de trabajo: la barra tapaba botones.
+  if (pathname?.startsWith('/admin') || pathname?.startsWith('/pos') || pathname?.startsWith('/bodega')) return null;
 
   // El catálogo del Mercadito (/mercadito) tiene su propia barra fija de
   // carrito pegada abajo cuando hay artículos — subimos la barra social ahí

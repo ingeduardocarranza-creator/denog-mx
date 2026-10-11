@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { requerirBodega, requerirAdmin } from '@/lib/auth/session'
+import { requerirBodega } from '@/lib/auth/session'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 import { limpiarGuia, analizarCodigo } from '@/lib/bodega/guias'
 
@@ -37,7 +37,7 @@ export async function GET(req) {
 
   let q = supabase
     .from('paquetes_recibidos')
-    .select('id, numero_guia, paqueteria, danado, fotos, notas, recibido_por_nombre, recibido_en')
+    .select('id, tipo, tienda, numero_guia, paqueteria, danado, fotos, notas, recibido_por, recibido_por_nombre, recibido_en')
     .order('recibido_en', { ascending: false })
     .limit(esAdmin ? 1000 : 100)
 
@@ -61,49 +61,60 @@ export async function GET(req) {
   return NextResponse.json({ ok: true, paquetes })
 }
 
-// POST: registrar un paquete { numero_guia, danado, fotos: [paths], notas }.
-// Si llegó bien se guarda solo la guía; si llegó dañado, de 1 a 3 fotos.
+const TIENDAS = ['Walmart', "Sam's", 'Costco', 'Target', 'Five Below', 'Otra']
+
+// POST: registrar un paquete.
+//  · Con guía:  { tipo: 'guia', numero_guia, forzar?, danado, fotos, notas }
+//      Si llegó bien se guarda solo la guía; si llegó dañado, de 1 a 3 fotos.
+//  · Sin guía:  { tipo: 'delivery' | 'pickup', tienda, danado, fotos, notas }
+//      Bolsa de Walmart, pickup en tienda, etc.: tienda + 1 a 3 fotos siempre.
 export async function POST(req) {
   const sesion = requerirBodega(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
-  // La guía se vuelve a validar aquí. Solo una guía escrita a mano y
-  // confirmada por el de bodega ("Sí, es la guía") pasa sin forma conocida.
-  const analisis = analizarCodigo(body.numero_guia)
-  const forzada = !analisis.ok && body.forzar === true
-  const numero_guia = analisis.ok ? analisis.guia : limpiarGuia(body.numero_guia)
-  if (!analisis.ok && !forzada) return NextResponse.json({ ok: false, mensaje: analisis.motivo })
+  const tipo = ['delivery', 'pickup'].includes(body.tipo) ? body.tipo : 'guia'
   const danado = body.danado === true
-  const fotos = danado && Array.isArray(body.fotos) ? body.fotos.filter(f => PATH_VALIDO.test(f)) : []
   const notas = String(body.notas || '').trim().slice(0, 300) || null
+  const todasFotos = Array.isArray(body.fotos) ? body.fotos.filter(f => PATH_VALIDO.test(f)) : []
+  if (todasFotos.length > 3) return NextResponse.json({ ok: false, mensaje: 'Máximo 3 fotos por paquete.' })
 
-  if (numero_guia.length < 8) return NextResponse.json({ ok: false, mensaje: 'El número de guía no es válido.' })
-  if (danado && fotos.length < 1) return NextResponse.json({ ok: false, mensaje: 'Toma al menos una foto del daño.' })
-  if (fotos.length > 3) return NextResponse.json({ ok: false, mensaje: 'Máximo 3 fotos por paquete.' })
+  let registro
+  if (tipo === 'guia') {
+    // La guía se vuelve a validar aquí. Solo pasa sin forma conocida si viene
+    // de la foto de la etiqueta o de una confirmación ("Sí, es la guía").
+    const analisis = analizarCodigo(body.numero_guia)
+    const forzada = !analisis.ok && body.forzar === true
+    const numero_guia = analisis.ok ? analisis.guia : limpiarGuia(body.numero_guia)
+    if (!analisis.ok && !forzada) return NextResponse.json({ ok: false, mensaje: analisis.motivo })
+    if (numero_guia.length < 8) return NextResponse.json({ ok: false, mensaje: 'El número de guía no es válido.' })
+    const fotos = danado ? todasFotos : []
+    if (danado && fotos.length < 1) return NextResponse.json({ ok: false, mensaje: 'Toma al menos una foto del daño.' })
 
-  const { data: existente } = await supabase
-    .from('paquetes_recibidos')
-    .select('recibido_en, recibido_por_nombre')
-    .eq('numero_guia', numero_guia)
-    .maybeSingle()
-  if (existente) {
-    return NextResponse.json({ ok: false, duplicado: true, existente, mensaje: 'Esta guía ya estaba registrada.' }, { status: 409 })
+    const { data: existente } = await supabase
+      .from('paquetes_recibidos')
+      .select('recibido_en, recibido_por_nombre')
+      .eq('numero_guia', numero_guia)
+      .maybeSingle()
+    if (existente) {
+      return NextResponse.json({ ok: false, duplicado: true, existente, mensaje: 'Esta guía ya estaba registrada.' }, { status: 409 })
+    }
+    registro = {
+      tipo, numero_guia, paqueteria: analisis.ok ? analisis.paqueteria : (String(body.paqueteria || '').slice(0, 30) || 'Otra'),
+      danado, fotos, notas,
+    }
+  } else {
+    const tienda = TIENDAS.includes(body.tienda) ? body.tienda : null
+    if (!tienda) return NextResponse.json({ ok: false, mensaje: 'Elige la tienda.' })
+    if (todasFotos.length < 1) return NextResponse.json({ ok: false, mensaje: 'Toma al menos una foto del paquete.' })
+    registro = { tipo, tienda, numero_guia: null, paqueteria: null, danado, fotos: todasFotos, notas }
   }
 
   const db = supabaseConSesion(sesion)
   const { data, error } = await db
     .from('paquetes_recibidos')
-    .insert({
-      numero_guia,
-      paqueteria: analisis.ok ? analisis.paqueteria : 'Otra',
-      danado,
-      fotos,
-      notas,
-      recibido_por: sesion.id,
-      recibido_por_nombre: sesion.nombre,
-    })
-    .select('id, numero_guia, paqueteria, danado, fotos, notas, recibido_por_nombre, recibido_en')
+    .insert({ ...registro, recibido_por: sesion.id, recibido_por_nombre: sesion.nombre })
+    .select('id, tipo, tienda, numero_guia, paqueteria, danado, fotos, notas, recibido_por, recibido_por_nombre, recibido_en')
     .single()
 
   if (error) {
@@ -115,12 +126,23 @@ export async function POST(req) {
   return NextResponse.json({ ok: true, paquete: data })
 }
 
-// DELETE ?id= : solo admin, para corregir un registro equivocado.
+// DELETE ?id= :
+//  · admin  → cualquier registro (corregir errores).
+//  · bodega → solo los suyos y dentro de los 10 minutos (botón "Deshacer").
+const MINUTOS_DESHACER = 10
 export async function DELETE(req) {
-  const sesion = requerirAdmin(req)
+  const sesion = requerirBodega(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return NextResponse.json({ ok: false, mensaje: 'Falta id' })
+
+  if (sesion.rol !== 'admin') {
+    const { data: p } = await supabase.from('paquetes_recibidos').select('recibido_por, recibido_en').eq('id', id).maybeSingle()
+    const reciente = p && Date.now() - new Date(p.recibido_en).getTime() < MINUTOS_DESHACER * 60000
+    if (!p || String(p.recibido_por) !== String(sesion.id) || !reciente) {
+      return NextResponse.json({ ok: false, mensaje: 'Ya no se puede deshacer. Pídele al administrador que lo corrija.' })
+    }
+  }
 
   const db = supabaseConSesion(sesion)
   const { data, error } = await db.from('paquetes_recibidos').delete().eq('id', id).select('fotos').single()

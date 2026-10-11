@@ -52,7 +52,8 @@ export default function PaquetesNogales() {
   const rangoActivo = (dias) => !guia && hasta === (dias === 1 ? fechaLocal(1) : fechaLocal()) && desde === fechaLocal(dias)
 
   const borrar = async (p) => {
-    if (!confirm(`¿Borrar el registro de la guía ${p.numero_guia}? También se borran sus fotos.`)) return
+    const nombre = p.numero_guia ? `de la guía ${p.numero_guia}` : `sin guía (${p.tienda || ''})`
+    if (!confirm(`¿Borrar el registro ${nombre}? También se borran sus fotos.`)) return
     const r = await fetch(`/api/bodega/paquetes?id=${p.id}`, { method: 'DELETE' })
     const d = await r.json()
     if (d.ok) setPaquetes(ps => ps.filter(x => x.id !== p.id))
@@ -61,7 +62,9 @@ export default function PaquetesNogales() {
 
   const danados = paquetes.filter(p => p.danado).length
   const visibles = soloDanados ? paquetes.filter(p => p.danado) : paquetes
-  const porPaqueteria = paquetes.reduce((acc, p) => { acc[p.paqueteria || 'Otra'] = (acc[p.paqueteria || 'Otra'] || 0) + 1; return acc }, {})
+  // Sin guía (delivery en bolsa / pickup) se agrupan como "Sin guía".
+  const grupo = (p) => p.numero_guia ? (p.paqueteria || 'Otra') : 'Sin guía'
+  const porPaqueteria = paquetes.reduce((acc, p) => { acc[grupo(p)] = (acc[grupo(p)] || 0) + 1; return acc }, {})
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--fondo)', padding: '22px 24px 60px' }}>
@@ -121,10 +124,18 @@ export default function PaquetesNogales() {
                   ))}
                 </div>
                 <div style={{ flex: 1, minWidth: 200 }}>
-                  <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 14, fontWeight: 700, color: 'var(--tinta)', wordBreak: 'break-all' }}>{p.numero_guia}</div>
+                  {p.numero_guia ? (
+                    <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 14, fontWeight: 700, color: 'var(--tinta)', wordBreak: 'break-all' }}>{p.numero_guia}</div>
+                  ) : (
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--tinta)' }}>
+                      {p.tienda} · {p.tipo === 'pickup' ? 'Pickup en tienda' : 'Delivery (sin guía)'}
+                    </div>
+                  )}
                   <div style={{ fontSize: 12, color: 'var(--w50)', marginTop: 2 }}>
                     {p.danado && <span style={{ background: 'rgba(185,28,28,0.10)', color: 'var(--rojo)', fontWeight: 800, fontSize: 10.5, borderRadius: 5, padding: '1px 6px', marginRight: 6 }}>DAÑADO</span>}
-                    <span style={{ color: '#466D9B', fontWeight: 700 }}>{p.paqueteria}</span>
+                    {p.numero_guia
+                      ? <span style={{ color: '#466D9B', fontWeight: 700 }}>{p.paqueteria}</span>
+                      : <span style={{ background: 'rgba(161,98,7,0.12)', color: 'var(--ambar)', fontWeight: 800, fontSize: 10.5, borderRadius: 5, padding: '1px 6px' }}>SIN GUÍA</span>}
                     {' · '}{fechaHora(p.recibido_en)}{p.recibido_por_nombre ? ` · ${p.recibido_por_nombre}` : ''}
                   </div>
                   {p.notas && <div style={{ fontSize: 12, color: 'var(--ambar)', marginTop: 4 }}>Nota: {p.notas}</div>}

@@ -323,6 +323,8 @@ export default function Bodega() {
   const [rechazo, setRechazo] = useState('')
   const [errorCamara, setErrorCamara] = useState('')
   const [hayLinterna, setHayLinterna] = useState(false)
+  const [exito, setExito] = useState(null) // aviso verde sobre la cámara tras "Llegó bien"
+
   const [linterna, setLinterna] = useState(false)
   const [ultimoGuardado, setUltimoGuardado] = useState(null) // { danado, singuia }
 
@@ -343,6 +345,11 @@ export default function Bodega() {
   const videoRef = useRef(null)
   const escanerRef = useRef(null)
   const vueltaCamaraRef = useRef(0) // invalida aperturas de cámara que ya no sirven
+  const pasoRef = useRef('escanear')
+  // La guía recién guardada: si la cámara la vuelve a ver (sigue enfrente),
+  // se ignora en silencio unos segundos en vez de avisar "ya registrada".
+  const recienGuardadaRef = useRef({ guia: '', hasta: 0 })
+  const timerExitoRef = useRef(null)
   const leidoRef = useRef(false)
   const inputFotoRef = useRef(null)
   const inputEtiquetaRef = useRef(null)
@@ -350,6 +357,7 @@ export default function Bodega() {
   const timerRechazoRef = useRef(null)
   const sonidosRef = useRef(null)
   const sonar = (tipo) => sonidosRef.current?.[tipo]?.()
+  useEffect(() => { pasoRef.current = paso }, [paso])
 
   const avisar = (tipo, texto, ms = 5000) => {
     setAviso({ tipo, texto })
@@ -403,10 +411,11 @@ export default function Bodega() {
       setTimeout(() => { leidoRef.current = false }, 2500)
       return
     }
-    detenerCamara()
+    escanerRef.current?.pausar() // la cámara sigue prendida para el siguiente
     sonar('ok')
     vibrar(80)
     setRechazo('')
+    setExito(null)
     setGuia(g)
     setGuiaForzada(forzada)
     setDeFoto(origenFoto)
@@ -422,7 +431,12 @@ export default function Bodega() {
     let primerRechazo = null
     for (const c of codigos) {
       const r = analizarCodigo(c.texto, c.formato)
-      if (r.ok) { leidoRef.current = true; return elegirGuia(r.guia, false) }
+      if (r.ok) {
+        const reciente = recienGuardadaRef.current
+        if (r.guia === reciente.guia && Date.now() < reciente.hasta) return // es la que acaba de guardar
+        leidoRef.current = true
+        return elegirGuia(r.guia, false)
+      }
       if (!primerRechazo) primerRechazo = { texto: c.texto, motivo: r.motivo }
     }
     if (primerRechazo) rechazarLectura(primerRechazo.texto, primerRechazo.motivo)
@@ -442,6 +456,7 @@ export default function Bodega() {
       setErrorCamara('')
       const escaner = await crearEscaner({
         video: videoRef.current,
+        pausado: pasoRef.current !== 'escanear',
         onCodigos: (codigos) => { if (!leidoRef.current) alLeerCodigosRef.current(codigos) },
       })
       // Si mientras abría la cámara ya se cambió de pantalla, se suelta.
@@ -497,9 +512,19 @@ export default function Bodega() {
     return () => { detenerCamara(); window.removeEventListener('pointerdown', activar); clearInterval(reloj) }
   }, [cargarHoy])
 
+  // La cámara se queda PRENDIDA mientras se escanea, se revisa y se guarda
+  // ("¿Cómo llegó?" → "Llegó bien" → siguiente): solo se pausa la lectura.
+  // Se apaga cuando hay que tomar fotos (el teléfono necesita su cámara) o
+  // al ir al historial.
   useEffect(() => {
-    if (pestana === 'escanear' && paso === 'escanear') iniciarCamara() // eslint-disable-line react-hooks/set-state-in-effect
-    else detenerCamara()
+    const mantener = pestana === 'escanear' && ['escanear', 'revisar', 'listo'].includes(paso)
+    if (!mantener) { detenerCamara(); return } // eslint-disable-line react-hooks/set-state-in-effect
+    const esc = escanerRef.current
+    if (!esc || !esc.vivo()) {
+      if (esc) detenerCamara()
+      iniciarCamara()
+    } else if (paso === 'escanear') { leidoRef.current = false; esc.reanudar() }
+    else esc.pausar()
   }, [pestana, paso, iniciarCamara])
 
   useEffect(() => {
@@ -663,8 +688,18 @@ export default function Bodega() {
       setDeFoto(null)
       setTienda('')
       setSinGuiaDanado(false)
-      setPaso('listo')
-      setTimeout(() => setPaso(p => (p === 'listo' ? 'escanear' : p)), conFotos ? 1300 : 900)
+      if (nuevo.numero_guia) recienGuardadaRef.current = { guia: nuevo.numero_guia, hasta: Date.now() + 8000 }
+      if (modo === 'bien') {
+        // Camino rápido: de regreso a la cámara (que nunca se apagó) con un
+        // aviso verde encima, sin pantalla intermedia.
+        setExito({ texto: `Llegó bien · ${titulo(nuevo)}` })
+        clearTimeout(timerExitoRef.current)
+        timerExitoRef.current = setTimeout(() => setExito(null), 1800)
+        setPaso('escanear')
+      } else {
+        setPaso('listo')
+        setTimeout(() => setPaso(p => (p === 'listo' ? 'escanear' : p)), 1200)
+      }
     } catch {
       avisar('error', 'Sin conexión. Revisa tu internet e intenta de nuevo.')
     } finally {
@@ -756,8 +791,10 @@ export default function Bodega() {
         )}
 
         {/* ── ESCANEAR ── */}
-        {pestana === 'escanear' && paso === 'escanear' && (
-          <>
+        {/* La cámara se queda montada (oculta) mientras se revisa/guarda,
+            para no tener que volver a abrirla en cada paquete. */}
+        {pestana === 'escanear' && ['escanear', 'revisar', 'listo'].includes(paso) && (
+          <div style={{ display: paso === 'escanear' ? 'block' : 'none' }}>
             <div style={{ position: 'relative', borderRadius: 28, overflow: 'hidden', background: '#16202c', aspectRatio: '4 / 4.3', border: '5px solid #fff', boxShadow: '0 12px 30px rgba(47,77,112,0.25)' }}>
               <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               {/* Visor con esquinas y línea de barrido */}
@@ -781,6 +818,12 @@ export default function Bodega() {
                   </div>
                 </div>
               )}
+              {exito && !rechazo && (
+                <div className="entra" style={{ position: 'absolute', left: 10, right: 10, bottom: 10, background: VERDE, color: '#fff', borderRadius: 20, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <Burbuja nombre="check" color={VERDE} fondo="#fff" tam={34} />
+                  <div style={{ fontFamily: TITULOS, fontSize: 19, fontWeight: 700, lineHeight: 1.2 }}>{exito.texto}</div>
+                </div>
+              )}
               {rechazo && (
                 <div className="entra" style={{ position: 'absolute', left: 10, right: 10, bottom: 10, background: ROJO, color: '#fff', borderRadius: 20, padding: '12px 14px', display: 'flex', gap: 10 }}>
                   <Burbuja nombre="x" color={ROJO} fondo="#fff" tam={34} />
@@ -791,6 +834,11 @@ export default function Bodega() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {pestana === 'escanear' && paso === 'escanear' && (
+          <>
             {errorCamara && <p style={{ color: ROJO_OSCURO, fontSize: 14, marginTop: 10 }}>{errorCamara}</p>}
 
             {ultimo ? (

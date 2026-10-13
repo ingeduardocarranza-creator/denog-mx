@@ -33,6 +33,7 @@ const grupos = [
       { label: 'Paquetes Nogales',  icon: '📥', href: '/admin/paquetes-nogales' },
       { label: 'Empacado',          icon: '📦', href: '/admin/empacado' },
       { label: 'Anticipos',         icon: '💳', href: '/admin/anticipos' },
+      { label: 'Cobranza',          icon: '📞', href: '/admin/cobranza' },
       { label: 'Estados de cuenta', icon: '📋', href: '/admin/estados-cuenta' },
       { label: 'Cotizador',         icon: '🧮', href: '/admin/cotizador' },
     ],

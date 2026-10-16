@@ -9,6 +9,7 @@ import { IconHouse, IconCart } from '../../../components/mercadito/HeaderIcons';
 import MenuUsuario from '../../../components/mercadito/MenuUsuario';
 import { leerCarrito, guardarCarrito, agregarAlCarrito, calcularTotales, CARRITO_EVENTO } from '../../../../lib/mercadito/carritoUtils';
 import { irAInicio, volverSeguro } from '../../../../lib/mercadito/navegacion';
+import { tituloDe } from '../../../../lib/mercadito/variantes';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -27,7 +28,9 @@ export default function FichaProducto() {
   const { id } = useParams();
   const router = useRouter();
 
-  const [producto, setProducto] = useState(null);
+  const [producto, setProducto] = useState(null);   // el artículo principal del grupo (o el único)
+  const [variantes, setVariantes] = useState([]);   // todas las variantes publicadas (incluye al principal)
+  const [selId, setSelId] = useState(null);         // variante elegida
   const [cargando, setCargando] = useState(true);
   const [fotoActiva, setFotoActiva] = useState(null);
   const [cantidad, setCantidad] = useState(1);
@@ -49,21 +52,41 @@ export default function FichaProducto() {
 
     (async () => {
       const { data } = await supabase.from('productos_tienda').select('*').eq('id', id).eq('mostrar_en_mercadito', true).single();
-      setProducto(data || null);
-      setFotoActiva(data?.imagen_url || null);
+      if (!data) { setProducto(null); setCargando(false); return; }
+
+      // ¿Es parte de un grupo de variantes? Se cargan todas las hermanas publicadas.
+      const grupo = data.grupo_id ?? data.id;
+      const { data: hermanas } = await supabase
+        .from('productos_tienda').select('*')
+        .or(`id.eq.${grupo},grupo_id.eq.${grupo}`)
+        .eq('activo', true).eq('mostrar_en_mercadito', true)
+        .order('id', { ascending: true });
+      const lista = (hermanas && hermanas.length ? hermanas : [data]);
+      const cabeza = lista.find((m) => m.grupo_id == null) || data;
+      const hayStock = (m) => (Number(m.stock) || 0) > 0;
+      // Si llegó a una variante concreta con existencia, esa; si no, la primera que haya.
+      const elegida = (lista.find((m) => String(m.id) === String(id) && hayStock(m)) || lista.find(hayStock) || lista.find((m) => String(m.id) === String(id)) || lista[0]);
+      setVariantes(lista);
+      setProducto(cabeza);
+      setSelId(elegida.id);
+      setFotoActiva(elegida.imagen_url || cabeza.imagen_url || null);
       setCargando(false);
 
       const { data: r } = await supabase
         .from('mercadito_resenas')
         .select('*, clientes(nombre)')
-        .eq('producto_id', id)
+        .in('producto_id', lista.map((m) => m.id))
         .order('creado_en', { ascending: false });
       setResenas(r || []);
     })();
+  }, [id]);
+
+  useEffect(() => {
+    if (selId == null) return;
 
     const actualizarEnCarrito = () => {
       const cart = leerCarrito();
-      const linea = cart.find((l) => String(l.productoId) === String(id));
+      const linea = cart.find((l) => String(l.productoId) === String(selId));
       setEnCarrito(linea?.cantidad || 0);
       setTotalArticulos(calcularTotales(cart).totalArticulos);
     };
@@ -74,7 +97,7 @@ export default function FichaProducto() {
       window.removeEventListener(CARRITO_EVENTO, actualizarEnCarrito);
       window.removeEventListener('storage', actualizarEnCarrito);
     };
-  }, [id]);
+  }, [selId]);
 
   if (cargando) {
     return <div style={{ minHeight: '100vh', background: '#fbf8f3' }} />;
@@ -87,20 +110,28 @@ export default function FichaProducto() {
     );
   }
 
-  const stock = Number(producto.stock) || 0;
+  const sel = variantes.find((m) => m.id === selId) || producto;
+  const conVariantes = variantes.length > 1;
+  const titulo = tituloDe(producto);
+  const stock = Number(sel.stock) || 0;
   const disponibleParaAgregar = Math.max(0, stock - enCarrito);
   const stockLabel = stock <= 0 ? '❌ Agotado' : stock <= 3 ? `⚠️ Últimas piezas (${stock})` : '✅ En stock';
-  const miniaturas = [producto.imagen_url, ...(producto.galeria || [])].filter(Boolean);
+  const miniaturas = [...new Set([sel.imagen_url || producto.imagen_url, ...(producto.galeria || [])].filter(Boolean))];
+  const elegirVariante = (m) => {
+    setSelId(m.id);
+    setCantidad(1);
+    setFotoActiva(m.imagen_url || producto.imagen_url || null);
+  };
   const avgStars = resenas.length ? resenas.reduce((a, r) => a + r.estrellas, 0) / resenas.length : 0;
 
   const agregarAlCarritoYVolver = () => {
-    const cart = agregarAlCarrito(leerCarrito(), producto, cantidad);
+    const cart = agregarAlCarrito(leerCarrito(), sel, cantidad);
     guardarCarrito(cart);
     setAgregado(true);
     setTimeout(() => setAgregado(false), 1600);
   };
 
-  const shareText = encodeURIComponent(`Mira este producto en el Mercadito de Denog: ${producto.nombre} — $${money(producto.precio_venta)} MXN\n${typeof window !== 'undefined' ? window.location.href : ''}`);
+  const shareText = encodeURIComponent(`Mira este producto en el Mercadito de Denog: ${sel.nombre} — $${money(sel.precio_venta)} MXN\n${typeof window !== 'undefined' ? window.location.href : ''}`);
 
   const enviarResena = async () => {
     if (!misEstrellas) { setErrorResena('Selecciona una calificación en estrellas.'); return; }
@@ -110,7 +141,7 @@ export default function FichaProducto() {
       const res = await fetch('/api/mercadito/resenas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ producto_id: id, cliente_id: cliente.id, estrellas: misEstrellas, comentario: miComentario.trim() }),
+        body: JSON.stringify({ producto_id: sel.id, cliente_id: cliente.id, estrellas: misEstrellas, comentario: miComentario.trim() }),
       });
       const datos = await res.json();
       if (!datos.ok) throw new Error(datos.mensaje || 'No se pudo enviar tu opinión.');
@@ -180,8 +211,39 @@ export default function FichaProducto() {
           </div>
         )}
 
-        <div style={{ color: '#2a2118', fontSize: 20, fontWeight: 700, marginTop: 20, lineHeight: 1.35, fontFamily: 'var(--font-baloo2)' }}>{producto.nombre}</div>
-        <div style={{ color: '#c1553a', fontSize: 26, fontWeight: 800, marginTop: 8, fontFamily: 'var(--font-baloo2)' }}>${money(producto.precio_venta)}</div>
+        <div style={{ color: '#2a2118', fontSize: 20, fontWeight: 700, marginTop: 20, lineHeight: 1.35, fontFamily: 'var(--font-baloo2)' }}>{titulo}</div>
+        <div style={{ color: '#c1553a', fontSize: 26, fontWeight: 800, marginTop: 8, fontFamily: 'var(--font-baloo2)' }}>${money(sel.precio_venta)}</div>
+
+        {conVariantes && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ color: 'rgba(42,33,24,0.65)', fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>
+              Opción: <span style={{ color: '#2a2118' }}>{sel.variante}</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {variantes.map((m) => {
+                const activa = m.id === selId;
+                const agot = (Number(m.stock) || 0) <= 0;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => elegirVariante(m)}
+                    aria-pressed={activa}
+                    style={{
+                      cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, borderRadius: 10, padding: '8px 13px',
+                      background: activa ? '#c1553a' : '#fff',
+                      color: activa ? '#fff' : agot ? 'rgba(42,33,24,0.35)' : '#2a2118',
+                      border: activa ? '1.5px solid #c1553a' : '1.5px solid rgba(0,0,0,0.12)',
+                      textDecoration: agot && !activa ? 'line-through' : 'none',
+                    }}
+                  >
+                    {m.variante || m.nombre}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {resenas.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>

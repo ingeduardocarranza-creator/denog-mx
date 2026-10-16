@@ -10,7 +10,8 @@ const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionD
 export default function ProductoCard({ producto, onAdd, enCarrito = 0 }) {
   const stock = Number(producto.stock) || 0;
   const agotado = stock <= 0;
-  const enTope = !agotado && enCarrito >= stock;
+  const conVariantes = Array.isArray(producto.variantes) && producto.variantes.length > 1;
+  const enTope = !conVariantes && !agotado && enCarrito >= stock;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -41,7 +42,18 @@ export default function ProductoCard({ producto, onAdd, enCarrito = 0 }) {
         </div>
       </Link>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-        <div style={{ color: '#c1553a', fontSize: 15, fontWeight: 800, fontFamily: 'var(--font-baloo2)' }}>${money(producto.precio_venta)}</div>
+        <div style={{ color: '#c1553a', fontSize: 15, fontWeight: 800, fontFamily: 'var(--font-baloo2)' }}>
+          {conVariantes && producto.precioVaria && <span style={{ fontSize: 10.5, fontWeight: 600, color: 'rgba(42,33,24,0.5)', marginRight: 4 }}>Desde</span>}
+          ${money(producto.precio_venta)}
+        </div>
+        {conVariantes ? (
+          <Link
+            href={`/mercadito/producto/${producto.id}`}
+            style={{ fontSize: 10.5, fontWeight: 700, color: agotado ? 'rgba(42,33,24,0.4)' : '#a3432b', background: 'rgba(193,85,58,0.1)', borderRadius: 8, padding: '5px 9px', textDecoration: 'none', whiteSpace: 'nowrap' }}
+          >
+            {producto.variantes.length} opciones ›
+          </Link>
+        ) : (
         <button
           type="button"
           disabled={agotado || enTope}
@@ -57,6 +69,7 @@ export default function ProductoCard({ producto, onAdd, enCarrito = 0 }) {
         >
           +
         </button>
+        )}
       </div>
       {enTope && !agotado && (
         <div style={{ color: 'rgba(42,33,24,0.4)', fontSize: 10, marginTop: 4 }}>Ya tienes todo el stock ({stock}) en tu carrito</div>

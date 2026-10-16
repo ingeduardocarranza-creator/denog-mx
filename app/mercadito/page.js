@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
 import ProductoCard from '../components/mercadito/ProductoCard';
+import { agruparPublicaciones } from '../../lib/mercadito/variantes';
 import TarjetaCliente from '../components/cliente/TarjetaCliente';
 import { IconHouse, IconCart } from '../components/mercadito/HeaderIcons';
 import MenuUsuario from '../components/mercadito/MenuUsuario';
@@ -62,17 +63,23 @@ export default function MercaditoCatalogo() {
   }, []);
 
   const cantidadEnCarrito = (productoId) => cart.find((l) => l.productoId === productoId)?.cantidad || 0;
+  // Publicación con variantes: lo que hay en el carrito de todas sus variantes.
+  const enCarritoDe = (p) => (p.variantes ? p.variantes.reduce((n, v) => n + cantidadEnCarrito(v.id), 0) : cantidadEnCarrito(p.id));
 
   const categorias = useMemo(() => {
     const unicas = [...new Set(productos.map((p) => p.categoria).filter(Boolean))];
     return ['Todos', ...unicas];
   }, [productos]);
 
+  // Las variantes de un mismo artículo (Talla S, M, L…) se ven como UNA tarjeta.
+  const publicaciones = useMemo(() => agruparPublicaciones(productos), [productos]);
+
   const productosFiltrados = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const visibles = productos.filter((p) =>
+    const visibles = publicaciones.filter((p) =>
       (categoriaActiva === 'Todos' || p.categoria === categoriaActiva) &&
-      (q === '' || p.nombre.toLowerCase().includes(q))
+      (q === '' || p.nombre.toLowerCase().includes(q) ||
+        (p.variantes || []).some((v) => (v.nombre || '').toLowerCase().includes(q)))
     );
     // Los agotados se siguen mostrando —sirve que el cliente vea qué manejamos—
     // pero al final. Antes iban revueltos: de 303 productos publicados 81 están
@@ -81,7 +88,7 @@ export default function MercaditoCatalogo() {
     // vacía aunque esté llena.
     const hayStock = (p) => (Number(p.stock) || 0) > 0;
     return [...visibles.filter(hayStock), ...visibles.filter((p) => !hayStock(p))];
-  }, [productos, categoriaActiva, query]);
+  }, [publicaciones, categoriaActiva, query]);
 
   const disponibles = useMemo(
     () => productosFiltrados.filter((p) => (Number(p.stock) || 0) > 0).length,
@@ -179,7 +186,7 @@ export default function MercaditoCatalogo() {
                         <div style={{ flex: 1, height: 1, background: 'rgba(42,33,24,0.10)' }} />
                       </div>
                     )}
-                    <ProductoCard producto={p} onAdd={agregar} enCarrito={cantidadEnCarrito(p.id)} />
+                    <ProductoCard producto={p} onAdd={agregar} enCarrito={enCarritoDe(p)} />
                   </React.Fragment>
                 ))}
               </>

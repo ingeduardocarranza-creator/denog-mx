@@ -131,7 +131,7 @@ export default function Portada() {
 
   useEffect(() => {
     supabase.from('productos_tienda').select('id, nombre, precio_venta, imagen_url')
-      .eq('activo', true).eq('mostrar_en_mercadito', true).order('id', { ascending: false }).limit(6)
+      .eq('activo', true).eq('mostrar_en_mercadito', true).gt('stock', 0).order('id', { ascending: false }).limit(6)
       .then(({ data }) => setProductosMercadito(data || []))
   }, [])
 

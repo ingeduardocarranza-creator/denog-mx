@@ -45,6 +45,7 @@ export default function MercaditoCatalogo() {
         .select('*')
         .eq('activo', true)
         .eq('mostrar_en_mercadito', true)
+        .gt('stock', 0) // sin stock no se muestra; al reponer vuelve solo
         .order('id', { ascending: false });
       setProductos(data || []);
       setCargando(false);

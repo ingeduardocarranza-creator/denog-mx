@@ -54,18 +54,25 @@ export default function FichaProducto() {
       const { data } = await supabase.from('productos_tienda').select('*').eq('id', id).eq('mostrar_en_mercadito', true).single();
       if (!data) { setProducto(null); setCargando(false); return; }
 
-      // ¿Es parte de un grupo de variantes? Se cargan todas las hermanas publicadas.
+      // ¿Es parte de un grupo de variantes? Se cargan las hermanas publicadas y con stock:
+      // lo agotado no se muestra (y vuelve solo cuando se repone).
       const grupo = data.grupo_id ?? data.id;
       const { data: hermanas } = await supabase
         .from('productos_tienda').select('*')
         .or(`id.eq.${grupo},grupo_id.eq.${grupo}`)
-        .eq('activo', true).eq('mostrar_en_mercadito', true)
+        .eq('activo', true).eq('mostrar_en_mercadito', true).gt('stock', 0)
         .order('id', { ascending: true });
-      const lista = (hermanas && hermanas.length ? hermanas : [data]);
-      const cabeza = lista.find((m) => m.grupo_id == null) || data;
-      const hayStock = (m) => (Number(m.stock) || 0) > 0;
-      // Si llegó a una variante concreta con existencia, esa; si no, la primera que haya.
-      const elegida = (lista.find((m) => String(m.id) === String(id) && hayStock(m)) || lista.find(hayStock) || lista.find((m) => String(m.id) === String(id)) || lista[0]);
+      const lista = hermanas || [];
+      if (lista.length === 0) { setProducto(null); setCargando(false); return; }
+      // El artículo principal da el título, la descripción y las fotos extra,
+      // aunque él mismo esté agotado.
+      let cabeza = lista.find((m) => m.grupo_id == null);
+      if (!cabeza) {
+        const { data: h } = await supabase.from('productos_tienda').select('*').eq('id', grupo).single();
+        cabeza = h || lista[0];
+      }
+      // Si llegó a una variante concreta, esa; si no, la primera.
+      const elegida = lista.find((m) => String(m.id) === String(id)) || lista[0];
       setVariantes(lista);
       setProducto(cabeza);
       setSelId(elegida.id);
@@ -75,7 +82,7 @@ export default function FichaProducto() {
       const { data: r } = await supabase
         .from('mercadito_resenas')
         .select('*, clientes(nombre)')
-        .in('producto_id', lista.map((m) => m.id))
+        .in('producto_id', [...new Set([...lista.map((m) => m.id), cabeza.id])])
         .order('creado_en', { ascending: false });
       setResenas(r || []);
     })();
@@ -105,7 +112,7 @@ export default function FichaProducto() {
   if (!producto) {
     return (
       <div style={{ minHeight: '100vh', background: '#fbf8f3', color: 'rgba(42,33,24,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-poppins)' }}>
-        Producto no encontrado.
+        Este producto ya no está disponible.
       </div>
     );
   }

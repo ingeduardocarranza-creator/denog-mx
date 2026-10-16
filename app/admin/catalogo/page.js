@@ -102,7 +102,7 @@ export default function CatalogoTienda() {
 
   // Mercadito: mismos productos, con datos extra opcionales para publicarlos
   // en la tienda pública en línea.
-  const [mostrarEnMercadito, setMostrarEnMercadito] = useState(false);
+  const [mostrarEnMercadito, setMostrarEnMercadito] = useState(true); // los nuevos salen en el Mercadito
   const [descripcion, setDescripcion] = useState('');
   const [galeria, setGaleria] = useState([]);
   const [subiendoGaleriaSlot, setSubiendoGaleriaSlot] = useState(null);
@@ -652,7 +652,7 @@ export default function CatalogoTienda() {
     setStock('');
     setCategoria(listaCategorias[0] || 'Ropa');
     setImagenUrl('');
-    setMostrarEnMercadito(false);
+    setMostrarEnMercadito(true);
     setDescripcion('');
     setGaleria([]);
   };
@@ -763,7 +763,7 @@ export default function CatalogoTienda() {
               <div>
                 <p className="font-bold text-slate-200 flex items-center gap-1.5">
                   {esVariante ? <span><span style={{ color: 'var(--w30)' }}>↳</span> {p.variante || p.nombre}</span> : p.nombre}
-                  {p.mostrar_en_mercadito && <span title="Visible en Mercadito" className="text-[9px] bg-[#4a1b0c]/50 text-[#dd8a6c] border border-[#6d2a19]/60 rounded px-1.5 py-0.5">🛍️ Mercadito</span>}
+                  {p.mostrar_en_mercadito && <span title={p.stock > 0 ? "Visible en Mercadito" : "Sin stock: oculto en el Mercadito hasta que se reponga"} className="text-[9px] bg-[#4a1b0c]/50 text-[#dd8a6c] border border-[#6d2a19]/60 rounded px-1.5 py-0.5">{p.stock > 0 ? "🛍️ Mercadito" : "🛍️ Oculto: sin stock"}</span>}
                 </p>
                 <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--w40)' }}>{p.codigo_barras}</p>
               </div>

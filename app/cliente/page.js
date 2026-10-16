@@ -60,7 +60,7 @@ export default function ClienteInicio() {
     // que la tira de la portada) — no depende de que el cliente ya haya
     // comprado algo, así siempre hay algo que mostrar.
     supabase.from('productos_tienda').select('id, nombre, precio_venta, imagen_url')
-      .eq('activo', true).eq('mostrar_en_mercadito', true).order('id', { ascending: false }).limit(8)
+      .eq('activo', true).eq('mostrar_en_mercadito', true).gt('stock', 0).order('id', { ascending: false }).limit(8)
       .then(({ data }) => setProductosDestacados(data || []))
   }, [])
 

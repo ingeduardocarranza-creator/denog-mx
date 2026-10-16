@@ -234,6 +234,9 @@ export default function CatalogoTienda() {
       variante: etiqueta || null,
       codigo_barras: codigoFinal,
       costo: costoMxn,
+      costo_usd: precioUsd ? Number(precioUsd) : null,
+      costo_tipo_cambio: precioUsd ? Number(tipoCambio) : null,
+      costo_impuesto_pct: precioUsd ? Math.round(taxPct * 10000) / 100 : null,
       precio_venta: Number(precioVenta) || 0,
       stock: Number(stock) || 0,
       categoria: categoria,
@@ -287,6 +290,22 @@ export default function CatalogoTienda() {
   };
 
   // 4. PREPARAR EDICIÓN
+  // Deja el cotizador como estaba cuando se calculó el costo de `p`.
+  const cargarCotizador = (p) => {
+    if (p.costo_usd != null) {
+    // Impuesto y tipo de cambio con los que se calculó el costo.
+    const pct = p.costo_impuesto_pct != null ? Number(p.costo_impuesto_pct) : 8.6;
+    if (Math.abs(pct - 8.6) < 0.001) setTipoTax('arizona');
+    else if (Math.abs(pct - 7.75) < 0.001) setTipoTax('california');
+    else { setTipoTax('denog'); setTaxDenogPct(String(pct)); }
+    if (p.costo_tipo_cambio != null) setTipoCambio(String(p.costo_tipo_cambio));
+    else if (Number(p.costo) > 0 && Number(p.costo_usd) > 0) {
+      // Artículos viejos sin tipo de cambio guardado: se deduce del costo que ya tienen.
+      setTipoCambio((Number(p.costo) / (Number(p.costo_usd) * (1 + pct / 100))).toFixed(2));
+    }
+  }
+  };
+
   const iniciarEdicion = (p) => {
     setMostrarForm(true);
     setEditandoId(p.id);
@@ -297,6 +316,7 @@ export default function CatalogoTienda() {
     setEtiquetaCabeza('');
     setCodigoBarras(p.codigo_barras || '');
     setPrecioUsd(p.costo_usd != null ? String(p.costo_usd) : '');
+    cargarCotizador(p);
     setCosto(p.costo || '');
     setPrecioVenta(p.precio_venta || '');
     setStock(p.stock || '0');
@@ -421,6 +441,8 @@ export default function CatalogoTienda() {
       descripcion: p.descripcion || null,
       galeria: p.galeria || [],
       costo_usd: p.costo_usd ?? null,
+      costo_tipo_cambio: p.costo_tipo_cambio ?? null,
+      costo_impuesto_pct: p.costo_impuesto_pct ?? null,
       pendiente_aprobacion: false,
     };
     try {
@@ -572,6 +594,7 @@ export default function CatalogoTienda() {
     setEtiquetaCabeza('');
     setCodigoBarras('');
     setPrecioUsd(base.costo_usd != null ? String(base.costo_usd) : '');
+    cargarCotizador(base);
     setCosto(base.costo || '');
     setPrecioVenta(base.precio_venta || '');
     setStock('');
@@ -750,10 +773,10 @@ export default function CatalogoTienda() {
             <span className="px-2 py-0.5 rounded text-[10px] whitespace-nowrap" style={{ background: 'var(--w04)', border: '1px solid var(--w10)', color: 'var(--w60)' }}>{p.categoria}</span>
           </td>
           <td className="p-3 text-right" style={{ color: 'var(--w50)' }}>
-            <CeldaNum valor={p.costo} etiqueta={`Costo de ${p.nombre}`} onGuardar={v => patchProducto(p.id, { costo: v })} />
+            {p.costo ? `$${Number(p.costo).toFixed(2)}` : '—'}
           </td>
           <td className="p-3 text-right font-bold" style={{ color: 'var(--marca-t)' }}>
-            <CeldaNum valor={p.precio_venta} etiqueta={`Precio de ${p.nombre}`} onGuardar={v => patchProducto(p.id, { precio_venta: v })} />
+            {`$${(Number(p.precio_venta) || 0).toFixed(2)}`}
           </td>
           <td className="p-3 text-right font-bold" style={{
             color: !p.costo || !p.precio_venta ? 'var(--w30)'

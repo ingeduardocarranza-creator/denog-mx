@@ -115,3 +115,6 @@ as $$
 $$;
 revoke execute on function public.tendencias_resultados(timestamptz) from public, anon, authenticated;
 grant execute on function public.tendencias_resultados(timestamptz) to service_role;
+
+-- Link directo a la tienda (producto exacto o búsqueda en esa tienda).
+alter table public.ofertas add column if not exists url_tienda text, add column if not exists enlace_tipo text;

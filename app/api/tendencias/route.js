@@ -17,7 +17,7 @@ export async function GET(req) {
     // Ofertas de los últimos 3 días, con el puntaje calculado con el historial de hoy.
     const desde = new Date(Date.now() - 3 * 86400000).toISOString()
     const { data: ofertas, error } = await supabase.from('ofertas')
-      .select('id, fuente, tienda, nombre, precio_usd, precio_antes_usd, url, imagen_url, tipo, familia, temporadas, gancho, tallas, colores, publicado, creado_en')
+      .select('id, fuente, tienda, nombre, precio_usd, precio_antes_usd, url, url_tienda, enlace_tipo, imagen_url, tipo, familia, temporadas, gancho, tallas, colores, publicado, creado_en')
       .eq('util', true).eq('descartado', false).gte('creado_en', desde)
       .order('creado_en', { ascending: false }).limit(1500)
     if (error) throw new Error(error.message)

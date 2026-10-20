@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import { precioSugerido, utilidadEstimada, fechaCorta } from '@/lib/tendencias/comun'
+import { urlBusqueda } from '@/lib/tendencias/enlaces'
 
 // ---------------------------------------------------------------------------
 // Tendencias — ¿qué publico en esta venta?
@@ -488,9 +489,12 @@ export default function Tendencias() {
               {ofertasVisibles.slice(0, cuantas).map(o => {
                 const tono = o.puntaje >= 70 ? 'verde' : o.puntaje >= 55 ? 'ambar' : 'gris'
                 const foto = o.imagen_url ? `/api/tendencias/foto?oferta=${o.id}` : null
+                // Siempre a la tienda: el producto exacto si se encontró, si no la búsqueda en esa tienda.
+                const enTienda = o.url_tienda || urlBusqueda(o.tienda, o.nombre)
+                const esBusqueda = !o.url_tienda || o.enlace_tipo === 'busqueda'
                 return (
                   <article key={o.id} style={{ ...card, overflow: 'hidden', display: 'flex', flexDirection: 'column', opacity: o.publicado ? 0.7 : 1 }}>
-                    <a className="foto foto-chica" href={o.url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${o.nombre}`}>
+                    <a className="foto foto-chica" href={enTienda} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${o.nombre} en ${o.tienda}`}>
                       {foto
                         ? <img src={foto} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} />
                         : <span style={{ color: tenue, fontSize: 12.5, fontWeight: 600 }}>Clic para ver la oferta</span>}
@@ -504,6 +508,12 @@ export default function Tendencias() {
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--w60)' }}>{o.tienda}</span>
                       </div>
                       <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.3 }}>{o.nombre}</div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap', fontSize: 12.5 }}>
+                        <a href={enTienda} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--azul-t)', fontWeight: 700 }}>
+                          {esBusqueda ? `Buscar en ${o.tienda} ↗` : `Comprar en ${o.tienda} ↗`}
+                        </a>
+                        {o.url && <a href={o.url} target="_blank" rel="noopener noreferrer" style={{ color: tenue, fontSize: 11.5 }}>ver nota</a>}
+                      </div>
                       <div className="num" style={{ display: 'flex', gap: 10, fontSize: 13, flexWrap: 'wrap', alignItems: 'baseline' }}>
                         <span><b>{usd(o.precio_usd)}</b>{o.precio_antes_usd > o.precio_usd && <span style={{ color: tenue, textDecoration: 'line-through', marginLeft: 4 }}>{usd(o.precio_antes_usd)}</span>}</span>
                         <span style={{ color: 'var(--marca-t)', fontWeight: 800 }}>→ {fmt(o.precio)}</span>

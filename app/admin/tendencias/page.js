@@ -63,6 +63,10 @@ export default function Tendencias() {
   const [textos, setTextos] = useState({})              // ediciones del texto de WhatsApp
   const [precios, setPrecios] = useState(null)          // { factor, tipoCambio, impuesto }
   const [verPrecios, setVerPrecios] = useState(false)
+  const [tab, setTab] = useState('ofertas')             // ofertas | lista | historial
+  const [actualizando, setActualizando] = useState(false)
+  const [fOf, setFOf] = useState({ tienda: 'todas', familia: 'todas', minimo: 0, sinPublicar: true, q: '' })
+  const [cuantas, setCuantas] = useState(60)
 
   const notificar = (tipo, texto) => { setAviso({ tipo, texto }); setTimeout(() => setAviso(null), 7000) }
 
@@ -112,6 +116,48 @@ export default function Tendencias() {
     setGenerando(false)
   }
 
+  // ── Ofertas del día ──
+  const actualizarOfertas = async () => {
+    setActualizando(true)
+    try {
+      const r = await fetch('/api/tendencias/ofertas/actualizar', { method: 'POST' }).then(r => r.json())
+      if (!r.ok) throw new Error(r.mensaje)
+      await cargar()
+      notificar('ok', r.nuevas === 0
+        ? 'No hay ofertas nuevas desde la última vez. Intenta más tarde.'
+        : `${r.nuevas} ofertas nuevas revisadas, ${r.utiles} sirven para Denog.${r.errores.length ? ` (${r.errores.length} fuente${r.errores.length > 1 ? 's' : ''} no respondió)` : ''}`)
+    } catch (e) { notificar('error', `No se pudieron traer ofertas: ${e.message}`) }
+    setActualizando(false)
+  }
+
+  const cambiarOferta = async (o, cambios) => {
+    setDatos(d => ({ ...d, ofertas: cambios.descartado ? d.ofertas.filter(x => x.id !== o.id) : d.ofertas.map(x => x.id === o.id ? { ...x, ...cambios } : x) }))
+    try {
+      const r = await fetch('/api/tendencias/ofertas', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, ...cambios }),
+      }).then(r => r.json())
+      if (!r.ok) throw new Error(r.mensaje)
+    } catch (e) { notificar('error', e.message); cargar() }
+  }
+
+  // Compartir foto + texto directo a WhatsApp (celular y Mac). Si el equipo
+  // no deja compartir archivos, copia el texto y abre la foto.
+  const compartir = async (clave, texto, fotoUrl) => {
+    try {
+      if (fotoUrl && navigator.canShare) {
+        const blob = await fetch(fotoUrl).then(r => { if (!r.ok) throw new Error('sin foto'); return r.blob() })
+        const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+        const archivo = new File([blob], `denog-${clave}.${ext}`, { type: blob.type })
+        if (navigator.canShare({ files: [archivo] })) {
+          await navigator.share({ files: [archivo], text: texto })
+          return
+        }
+      }
+    } catch (e) { if (e?.name === 'AbortError') return }
+    await copiar(clave, texto)
+    if (fotoUrl) window.open(fotoUrl, '_blank', 'noopener')
+  }
+
   const lista = datos?.lista
   const publicados = useMemo(() => new Set(lista?.publicados || []), [lista])
 
@@ -139,6 +185,29 @@ export default function Tendencias() {
 
   const visibles = productos.filter(p => filtro === 'todos' ? true : filtro === 'pendientes' ? !p.publicado : p.tipo === filtro)
 
+  const ofertas = useMemo(() => {
+    if (!datos?.ofertas || !precios) return []
+    return datos.ofertas.map(o => {
+      const precio = precioSugerido(o.precio_usd, Number(precios.factor))
+      const gana = utilidadEstimada(o.precio_usd, precio, Number(precios.tipoCambio), Number(precios.impuesto))
+      const base = [`*${o.nombre}*`, o.gancho, precio ? `💲${precio.toLocaleString('es-MX')}` : '💲[precio]', 'Aparta con tu anticipo · llega en la próxima entrega'].filter(Boolean).join('\n')
+      return { ...o, precio, gana, texto: textos['o' + o.id] ?? base }
+    })
+  }, [datos, precios, textos])
+  const tiendasOf = useMemo(() => {
+    const m = new Map(); for (const o of ofertas) m.set(o.tienda, (m.get(o.tienda) || 0) + 1)
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t).filter(Boolean)
+  }, [ofertas])
+  const familiasOf = useMemo(() => [...new Set(ofertas.map(o => o.familia).filter(Boolean))].sort(), [ofertas])
+  const ofertasVisibles = ofertas.filter(o => {
+    if (fOf.tienda !== 'todas' && o.tienda !== fOf.tienda) return false
+    if (fOf.familia !== 'todas' && o.familia !== fOf.familia) return false
+    if (o.puntaje < fOf.minimo) return false
+    if (fOf.sinPublicar && o.publicado) return false
+    if (fOf.q && !`${o.nombre} ${o.tipo} ${o.tienda}`.toLowerCase().includes(fOf.q.toLowerCase())) return false
+    return true
+  })
+
   const copiar = async (clave, texto) => {
     try { await navigator.clipboard.writeText(texto); setCopiado(clave); setTimeout(() => setCopiado(c => c === clave ? null : c), 2500) }
     catch { notificar('error', 'No se pudo copiar. Selecciona el texto y cópialo a mano.') }
@@ -163,6 +232,8 @@ export default function Tendencias() {
         .tendencias .rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
         .tendencias .rejilla-cal { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px; }
         .tendencias .foto { height: 180px; background: var(--sup-2); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--w06); text-decoration: none; overflow: hidden; }
+        .tendencias .rejilla-of { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+        .tendencias .foto-chica { height: 150px; }
         .tendencias .foto img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
         .tendencias .fila-tipo { display: grid; grid-template-columns: minmax(0, 2.4fr) repeat(3, minmax(0, 1fr)) minmax(0, 1.3fr); gap: 10px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--w05); font-size: 13px; }
         @media (max-width: 760px) {
@@ -253,6 +324,108 @@ export default function Tendencias() {
               ))}
             </div>
 
+            {/* ── Pestañas ── */}
+            <div role="tablist" aria-label="Secciones" style={{ display: 'flex', gap: 4, marginTop: 28, padding: 4, background: 'var(--w04)', borderRadius: 12, width: 'fit-content', maxWidth: '100%', overflowX: 'auto' }}>
+              {[['ofertas', `Ofertas del día${datos.ofertas?.length ? ` · ${datos.ofertas.length}` : ''}`], ['lista', 'Tendencias (búsqueda IA)'], ['historial', 'Lo que te funciona']].map(([v, t]) => (
+                <button key={v} role="tab" aria-selected={tab === v} onClick={() => setTab(v)}
+                  style={{ minHeight: 40, padding: '0 16px', borderRadius: 9, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 13, fontWeight: tab === v ? 800 : 600,
+                    background: tab === v ? 'var(--sup)' : 'transparent', color: tab === v ? 'var(--tinta)' : 'var(--w50)', boxShadow: tab === v ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}>{t}</button>
+              ))}
+            </div>
+
+            {tab === 'ofertas' && (<>
+            <Titulo
+              sub="Rebajas de hoy en Amazon, Walmart, Target, Costco, Sam's y más, filtradas a lo que se puede revender y ordenadas por lo que a ti te vende. Actualizar cuesta centavos: solo se revisa lo nuevo."
+              derecha={<div style={{ display: 'flex', gap: 8 }}>
+                {precios && <button className="btn btn-neutro" onClick={() => setVerPrecios(v => !v)} aria-expanded={verPrecios}>Ajustar precios</button>}
+                <button className="btn btn-marca" onClick={actualizarOfertas} disabled={actualizando}>
+                  {actualizando ? <><span className="girando" aria-hidden="true" /> Trayendo…</> : 'Traer ofertas nuevas'}
+                </button>
+              </div>}>
+              Ofertas del día
+            </Titulo>
+            {verPrecios && precios && <PanelPrecios precios={precios} setPrecios={setPrecios} promedios={datos.precios} />}
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
+              <input value={fOf.q} onChange={e => { setFOf(f => ({ ...f, q: e.target.value })); setCuantas(60) }} placeholder="Buscar…" aria-label="Buscar oferta" style={{ flex: '1 1 180px', minWidth: 0, minHeight: 40 }} />
+              <select value={fOf.tienda} onChange={e => { setFOf(f => ({ ...f, tienda: e.target.value })); setCuantas(60) }} aria-label="Tienda" style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--w12)', background: 'var(--w05)', color: 'var(--tinta)', padding: '0 10px', fontSize: 13 }}>
+                <option value="todas">Todas las tiendas</option>
+                {tiendasOf.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <select value={fOf.familia} onChange={e => { setFOf(f => ({ ...f, familia: e.target.value })); setCuantas(60) }} aria-label="Familia" style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--w12)', background: 'var(--w05)', color: 'var(--tinta)', padding: '0 10px', fontSize: 13 }}>
+                <option value="todas">Todo tipo de producto</option>
+                {familiasOf.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <select value={fOf.minimo} onChange={e => { setFOf(f => ({ ...f, minimo: Number(e.target.value) })); setCuantas(60) }} aria-label="Puntaje mínimo" style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--w12)', background: 'var(--w05)', color: 'var(--tinta)', padding: '0 10px', fontSize: 13 }}>
+                <option value={0}>Cualquier puntaje</option>
+                <option value={55}>55+ (buenas)</option>
+                <option value={70}>70+ (muy para ti)</option>
+              </select>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--w60)', minHeight: 40 }}>
+                <input type="checkbox" checked={fOf.sinPublicar} onChange={e => setFOf(f => ({ ...f, sinPublicar: e.target.checked }))} /> Solo sin publicar
+              </label>
+            </div>
+
+            {ofertas.length === 0 && (
+              <div style={{ ...card, padding: 34, textAlign: 'center', color: 'var(--w45)', fontSize: 13, lineHeight: 1.6 }}>
+                Todavía no hay ofertas. Dale a <b>&quot;Traer ofertas nuevas&quot;</b>: tarda como 1 minuto.
+              </div>
+            )}
+            {ofertas.length > 0 && <div style={{ fontSize: 12.5, color: tenue, marginBottom: 10 }}>{ofertasVisibles.length} ofertas en este filtro · {ofertas.filter(o => o.publicado).length} publicadas</div>}
+
+            <div className="rejilla-of">
+              {ofertasVisibles.slice(0, cuantas).map(o => {
+                const tono = o.puntaje >= 70 ? 'verde' : o.puntaje >= 55 ? 'ambar' : 'gris'
+                const foto = o.imagen_url ? `/api/tendencias/foto?oferta=${o.id}` : null
+                return (
+                  <article key={o.id} style={{ ...card, overflow: 'hidden', display: 'flex', flexDirection: 'column', opacity: o.publicado ? 0.7 : 1 }}>
+                    <a className="foto foto-chica" href={o.url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${o.nombre}`}>
+                      {o.imagen_url
+                        ? <img src={o.imagen_url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e => { e.currentTarget.style.display = 'none' }} />
+                        : <span style={{ color: tenue, fontSize: 12.5, fontWeight: 600 }}>Clic para ver la oferta</span>}
+                    </a>
+                    <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Pastilla tono={tono}>{o.puntaje} pts</Pastilla>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--w60)' }}>{o.tienda}</span>
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.3 }}>{o.nombre}</div>
+                      <div className="num" style={{ display: 'flex', gap: 10, fontSize: 13, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                        <span><b>{usd(o.precio_usd)}</b>{o.precio_antes_usd > o.precio_usd && <span style={{ color: tenue, textDecoration: 'line-through', marginLeft: 4 }}>{usd(o.precio_antes_usd)}</span>}</span>
+                        <span style={{ color: 'var(--marca-t)', fontWeight: 800 }}>→ {fmt(o.precio)}</span>
+                        <span style={{ color: 'var(--verde-t)', fontWeight: 700 }}>gana {fmt(o.gana)}</span>
+                      </div>
+                      {o.razones?.length > 0 && <div style={{ fontSize: 12, color: 'var(--w55)', lineHeight: 1.4 }}>{o.razones.join(' · ')}</div>}
+                      <details>
+                        <summary style={{ fontSize: 12, color: 'var(--azul-t)', cursor: 'pointer', fontWeight: 600 }}>Ver / editar texto</summary>
+                        <textarea value={o.texto} rows={4} aria-label={`Texto para WhatsApp de ${o.nombre}`}
+                          onChange={e => setTextos(t => ({ ...t, ['o' + o.id]: e.target.value }))}
+                          style={{ width: '100%', marginTop: 6, resize: 'vertical', lineHeight: 1.45, background: 'var(--sup-2)', borderStyle: 'dashed' }} />
+                      </details>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 'auto', paddingTop: 2 }}>
+                        <button className="btn btn-wa" style={{ flex: 1, padding: '0 10px' }} onClick={async () => { await compartir('o' + o.id, o.texto, foto); if (!o.publicado) cambiarOferta(o, { publicado: true }) }}>
+                          {copiado === 'o' + o.id ? '✓ Copiado' : 'Compartir'}
+                        </button>
+                        <button className="btn btn-neutro" style={{ padding: '0 10px', ...(o.publicado ? { color: 'var(--verde-t)', borderColor: 'var(--verde-borde)', background: 'var(--verde-suave)' } : {}) }}
+                          onClick={() => cambiarOferta(o, { publicado: !o.publicado })} aria-pressed={o.publicado} title="Marcar como publicado">
+                          {o.publicado ? '✓' : 'Publicado'}
+                        </button>
+                        <button className="btn btn-neutro" style={{ padding: '0 12px' }} onClick={() => cambiarOferta(o, { descartado: true })} aria-label={`Descartar ${o.nombre}`} title="No me sirve">✕</button>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+            {ofertasVisibles.length > cuantas && (
+              <div style={{ textAlign: 'center', marginTop: 14 }}>
+                <button className="btn btn-neutro" onClick={() => setCuantas(c => c + 60)}>Ver {Math.min(60, ofertasVisibles.length - cuantas)} más</button>
+              </div>
+            )}
+            {ofertas.length > 0 && <div style={{ fontSize: 12, color: tenue, marginTop: 10, lineHeight: 1.5 }}>Las ofertas vienen de Hip2Save, DealNews y Costco Insider. Duran poco y el precio puede cambiar: confírmalo en la tienda antes de comprar.</div>}
+            </>)}
+
+            {tab === 'lista' && (<>
             {/* ── Lista para publicar ── */}
             <Titulo
               sub={lista ? `Generada el ${new Date(lista.creado_en).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/Hermosillo' })}${lista.enfoque ? ` · enfoque: ${lista.enfoque}` : ''} · ${publicados.size} de ${productos.length} publicados` : 'Todavía no hay lista. Dale a "Generar lista nueva".'}
@@ -260,19 +433,7 @@ export default function Tendencias() {
               Lista para publicar
             </Titulo>
 
-            {verPrecios && precios && (
-              <div style={{ ...card, padding: 14, marginBottom: 12, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                {[['factor', 'Pesos por cada dólar', 'Así le pones precio: US$4 × 31 = $125'], ['tipoCambio', 'Tipo de cambio', 'Para calcular cuánto ganas'], ['impuesto', 'Impuesto %', 'Tax de la tienda']].map(([k, label, ayuda]) => (
-                  <label key={k} style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: 'var(--w55)', fontWeight: 600, flex: '1 1 160px' }}>
-                    {label}
-                    <input type="number" step="0.1" inputMode="decimal" value={precios[k]} className="num"
-                      onChange={e => setPrecios(p => ({ ...p, [k]: e.target.value }))} />
-                    <span style={{ fontWeight: 400, color: tenue }}>{ayuda}</span>
-                  </label>
-                ))}
-                <button className="btn btn-neutro" onClick={() => setPrecios(datos.precios)}>Usar mis promedios</button>
-              </div>
-            )}
+            {verPrecios && precios && <PanelPrecios precios={precios} setPrecios={setPrecios} promedios={datos.precios} />}
 
             {lista && (
               <div role="group" aria-label="Filtrar productos" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -321,8 +482,8 @@ export default function Tendencias() {
                         onChange={e => setTextos(t => ({ ...t, [p.clave]: e.target.value }))}
                         style={{ resize: 'vertical', lineHeight: 1.45, background: 'var(--sup-2)', borderStyle: 'dashed' }} />
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 'auto' }}>
-                        <button className="btn btn-wa" style={{ flex: '1 1 130px' }} onClick={() => copiar(p.clave, p.texto)}>
-                          {copiado === p.clave ? '✓ Copiado' : 'Copiar texto'}
+                        <button className="btn btn-wa" style={{ flex: '1 1 130px' }} onClick={() => compartir(p.clave, p.texto, p.imagen_url ? `/api/tendencias/foto?lista=${lista.id}&clave=${p.clave}` : null)}>
+                          {copiado === p.clave ? '✓ Copiado' : 'Compartir'}
                         </button>
                         <button className="btn btn-neutro" style={{ flex: '1 1 120px', ...(p.publicado ? { color: 'var(--verde-t)', borderColor: 'var(--verde-borde)', background: 'var(--verde-suave)' } : {}) }}
                           onClick={() => marcarPublicado(p)} aria-pressed={p.publicado}>
@@ -336,6 +497,9 @@ export default function Tendencias() {
             </div>
             {lista && <div style={{ fontSize: 12, color: tenue, marginTop: 10, lineHeight: 1.5 }}>Los precios en dólares vienen de la búsqueda y pueden cambiar: confírmalos en la tienda antes de comprar.</div>}
 
+            </>)}
+
+            {tab === 'historial' && (<>
             {/* ── Lo que te funciona ── */}
             <Titulo sub={`De ${datos.totales.pedidos.toLocaleString('es-MX')} pedidos desde ${fechaCorta(datos.totales.desde)}${datos.totales.desde ? ` ${datos.totales.desde.slice(0, 4)}` : ''} · sin devueltos`}>Lo que te funciona</Titulo>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -415,9 +579,26 @@ export default function Tendencias() {
                 </div>
               </>
             )}
+            </>)}
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+function PanelPrecios({ precios, setPrecios, promedios }) {
+  return (
+    <div style={{ ...card, padding: 14, marginBottom: 12, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      {[['factor', 'Pesos por cada dólar', 'Así le pones precio: US$4 × 31 = $125'], ['tipoCambio', 'Tipo de cambio', 'Para calcular cuánto ganas'], ['impuesto', 'Impuesto %', 'Tax de la tienda']].map(([k, label, ayuda]) => (
+        <label key={k} style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: 'var(--w55)', fontWeight: 600, flex: '1 1 160px' }}>
+          {label}
+          <input type="number" step="0.1" inputMode="decimal" value={precios[k]} className="num"
+            onChange={e => setPrecios(p => ({ ...p, [k]: e.target.value }))} />
+          <span style={{ fontWeight: 400, color: tenue }}>{ayuda}</span>
+        </label>
+      ))}
+      <button className="btn btn-neutro" onClick={() => setPrecios(promedios)}>Usar mis promedios</button>
     </div>
   )
 }

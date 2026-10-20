@@ -74,6 +74,25 @@ async function aPng(blob) {
   } finally { URL.revokeObjectURL(url) }
 }
 
+// Mensaje de WhatsApp para quienes compran en tienda: qué buscar hoy en cada una.
+function textoGuia(datos) {
+  const lineas = [`*GUÍA DE COMPRAS · ${fechaCorta(datos.hoy).toUpperCase()}*`, 'Lo que más se vende y más deja. Prioricen esto en las fotos:']
+  const temporadas = (datos.calendario || []).filter(e => e.activo && e.tuyos?.length)
+  if (temporadas.length) {
+    lineas.push('', '*Temporada*')
+    for (const e of temporadas.slice(0, 3)) lineas.push(`• ${e.nombre}: ${e.tuyos.slice(0, 4).map(t => t.tipo.toLowerCase()).join(', ')}`)
+  }
+  for (const g of datos.guiaPorTienda.slice(0, 7)) {
+    lineas.push('', `*${g.tienda}*`)
+    for (const t of g.tipos.slice(0, 5)) lineas.push(`• ${t.tipo}${t.usd ? ` (hasta ~US$${Math.ceil(t.usd * 1.3)})` : ''}`)
+  }
+  if (datos.margenBajo?.length) {
+    lineas.push('', '*Solo si está muy barato* (deja poco)')
+    lineas.push(`• ${datos.margenBajo.slice(0, 5).map(t => t.tipo.toLowerCase()).join(', ')}`)
+  }
+  return lineas.join('\n')
+}
+
 function leerLocal(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d } catch { return d } }
 function guardarLocal(k, v) { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} }
 
@@ -644,6 +663,40 @@ export default function Tendencias() {
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* ── Guía para el equipo (se manda por WhatsApp) ── */}
+            {datos.guiaPorTienda?.length > 0 && (
+              <>
+                <Titulo sub="Lo que más te ha dejado en cada tienda en los últimos 90 días. Copia la guía y mándala al grupo de quienes compran y toman fotos."
+                  derecha={<button className="btn btn-wa" onClick={() => copiar('guia', textoGuia(datos))}>{copiado === 'guia' ? '✓ Guía copiada' : 'Copiar guía para el equipo'}</button>}>
+                  Guía para el equipo en tienda
+                </Titulo>
+                <div className="rejilla">
+                  {datos.guiaPorTienda.map(g => (
+                    <div key={g.tienda} style={{ ...card, padding: 14 }}>
+                      <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>{g.tienda}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                        {g.tipos.map(t => (
+                          <div key={t.tipo} style={{ fontSize: 12.5, lineHeight: 1.4 }}>
+                            <b>{t.tipo}</b> <span className="num" style={{ color: 'var(--w55)' }}>· {usd(t.usd)} → {fmt(t.venta)} · {t.piezas90} vendidos</span>
+                            <div style={{ color: tenue, fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.ejemplo}>Ej.: {t.ejemplo}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {datos.margenBajo?.length > 0 && (
+                    <div style={{ ...card, padding: 14, background: 'rgba(var(--rojo-rgb),0.05)', borderColor: 'rgba(var(--rojo-rgb),0.2)' }}>
+                      <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: 'var(--rojo-t)' }}>Deja poco por pieza</div>
+                      <div style={{ fontSize: 12, color: 'var(--w55)', marginBottom: 8 }}>Se vende, pero ganas menos de $40 por pieza. Solo si es muy barato.</div>
+                      {datos.margenBajo.map(t => (
+                        <div key={t.tipo} className="num" style={{ fontSize: 12.5, padding: '3px 0' }}><b>{t.tipo}</b> <span style={{ color: 'var(--w55)' }}>· ganas {fmt(t.utilidadPieza)}</span></div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             {/* ── Tienda física ── */}

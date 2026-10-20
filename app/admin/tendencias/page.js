@@ -60,14 +60,16 @@ function textoWhatsApp(p, precio) {
 }
 
 // Cualquier imagen (jpg, webp…) → PNG, el único formato que el portapapeles acepta en todos los navegadores.
+// Las fotos grandes se bajan a 1600 px: WhatsApp las comprime igual y así se copian rápido.
 async function aPng(blob) {
-  if (blob.type === 'image/png') return blob
   const url = URL.createObjectURL(blob)
   try {
     const img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url })
+    const escala = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight))
+    if (blob.type === 'image/png' && escala === 1) return blob
     const c = document.createElement('canvas')
-    c.width = img.naturalWidth; c.height = img.naturalHeight
-    c.getContext('2d').drawImage(img, 0, 0)
+    c.width = Math.round(img.naturalWidth * escala); c.height = Math.round(img.naturalHeight * escala)
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
     return await new Promise((ok, mal) => c.toBlob(b => b ? ok(b) : mal(new Error('png')), 'image/png'))
   } finally { URL.revokeObjectURL(url) }
 }
@@ -396,12 +398,6 @@ export default function Tendencias() {
             <Titulo
               sub="Rebajas de hoy en Amazon, Walmart, Target, Costco, Sam's y más, filtradas a lo que se puede revender y ordenadas por lo que a ti te vende. Actualizar cuesta centavos: solo se revisa lo nuevo."
               derecha={<div style={{ display: 'flex', gap: 8 }}>
-                {datos.muestra && (
-                  <div title={`Prueba con "${datos.muestra.nombre}" de tu catálogo para ver cómo llega a WhatsApp`} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: tenue, fontWeight: 600 }}>Prueba:</span>
-                    {botonesCompartir('muestra', [`*${datos.muestra.nombre}*`, datos.muestra.variante, `💲${Number(datos.muestra.precio_venta).toLocaleString('es-MX')}`].filter(Boolean).join('\n'), `/api/tendencias/foto?producto=${datos.muestra.id}`)}
-                  </div>
-                )}
                 {precios && <button className="btn btn-neutro" onClick={() => setVerPrecios(v => !v)} aria-expanded={verPrecios}>Ajustar precios</button>}
                 <button className="btn btn-marca" onClick={actualizarOfertas} disabled={actualizando}>
                   {actualizando ? <><span className="girando" aria-hidden="true" /> Trayendo…</> : 'Traer ofertas nuevas'}
@@ -410,6 +406,20 @@ export default function Tendencias() {
               Ofertas del día
             </Titulo>
             {verPrecios && precios && <PanelPrecios precios={precios} setPrecios={setPrecios} promedios={datos.precios} />}
+
+            {datos.muestra && (
+              <div style={{ ...card, padding: '14px 16px', marginBottom: 14, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', background: 'var(--verde-suave)', borderColor: 'var(--verde-borde)' }}>
+                <div style={{ flex: '1 1 320px', minWidth: 0, fontSize: 13, lineHeight: 1.55, color: 'var(--tinta)' }}>
+                  <b>Prueba cómo llega a WhatsApp</b> con <i>{datos.muestra.nombre}</i> de tu catálogo.<br />
+                  {celular
+                    ? 'Dale a Compartir y elige WhatsApp: la foto se va con el texto como pie de foto.'
+                    : '1) Copiar foto → pégala en el chat con ⌘V.  2) Copiar texto → pégalo en el pie de foto con ⌘V y envía.'}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flex: '0 1 300px' }}>
+                  {botonesCompartir('muestra', [`*${datos.muestra.nombre}*`, datos.muestra.variante, `💲${Number(datos.muestra.precio_venta).toLocaleString('es-MX')}`].filter(Boolean).join('\n'), `/api/tendencias/foto?producto=${datos.muestra.id}`)}
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
               <input value={fOf.q} onChange={e => { setFOf(f => ({ ...f, q: e.target.value })); setCuantas(60) }} placeholder="Buscar…" aria-label="Buscar oferta" style={{ flex: '1 1 180px', minWidth: 0, minHeight: 40 }} />

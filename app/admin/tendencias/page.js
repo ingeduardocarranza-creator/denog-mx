@@ -55,7 +55,8 @@ function textoWhatsApp(p, precio) {
     `*${p.nombre}*`,
     p.colores ? `Color: ${p.colores}` : null,
     p.tallas ? `Tallas: ${p.tallas}` : null,
-    precio ? `💲${precio.toLocaleString('es-MX')}` : '💲[precio]',
+    // "$" y sin comas: así lo lee el registro de ventas por WhatsApp (extraerPrecioDeCaption).
+    precio ? `💵 Precio: $${Math.round(precio)}` : '💵 Precio: $[precio]',
   ].filter(Boolean).join('\n')
 }
 
@@ -451,7 +452,7 @@ export default function Tendencias() {
                     : 'Clic 1: copia la foto → pégala en el chat con ⌘V. Clic 2: copia el texto → pégalo en el pie de foto con ⌘V y envía.'}
                 </div>
                 <div style={{ display: 'flex', gap: 6, flex: '0 1 240px' }}>
-                  {botonesCompartir('muestra', [`*${datos.muestra.nombre}*`, datos.muestra.variante, `💲${Number(datos.muestra.precio_venta).toLocaleString('es-MX')}`].filter(Boolean).join('\n'), `/api/tendencias/foto?producto=${datos.muestra.id}`)}
+                  {botonesCompartir('muestra', [`*${datos.muestra.nombre}*`, datos.muestra.variante, `💵 Precio: $${Math.round(Number(datos.muestra.precio_venta))}`].filter(Boolean).join('\n'), `/api/tendencias/foto?producto=${datos.muestra.id}`)}
                 </div>
               </div>
             )}

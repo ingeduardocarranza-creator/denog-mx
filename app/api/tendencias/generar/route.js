@@ -97,7 +97,7 @@ Al terminar, responde ÚNICAMENTE con un bloque así (sin texto antes ni despué
 <json>
 [
   {
-    "nombre": "nombre corto en español como lo pondrías en el grupo (marca + producto + presentación)",
+    "nombre": "título del producto EN INGLÉS, corto y limpio, como aparece en la tienda (marca + producto + presentación)",
     "tienda": "Walmart",
     "url": "https://...",
     "precio_usd": 4.98,

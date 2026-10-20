@@ -36,6 +36,7 @@ const grupos = [
       { label: 'Cobranza',          icon: '📞', href: '/admin/cobranza' },
       { label: 'Estados de cuenta', icon: '📋', href: '/admin/estados-cuenta' },
       { label: 'Cotizador',         icon: '🧮', href: '/admin/cotizador' },
+      { label: 'Tendencias',        icon: '📈', href: '/admin/tendencias' },
     ],
   },
   {

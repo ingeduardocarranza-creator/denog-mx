@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { precioSugerido, utilidadEstimada, fechaCorta } from '@/lib/tendencias/comun'
 import { urlBusqueda } from '@/lib/tendencias/enlaces'
+import { NOMBRE_FUENTE } from '@/lib/tendencias/fuentes'
 
 // ---------------------------------------------------------------------------
 // Tendencias — ¿qué publico en esta venta?
@@ -508,11 +509,15 @@ export default function Tendencias() {
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--w60)' }}>{o.tienda}</span>
                       </div>
                       <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.3 }}>{o.nombre}</div>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap', fontSize: 12.5 }}>
-                        <a href={enTienda} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--azul-t)', fontWeight: 700 }}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <a href={enTienda} target="_blank" rel="noopener noreferrer" className="btn btn-neutro" style={{ minHeight: 34, padding: '0 10px', fontSize: 12, color: 'var(--azul-t)', borderColor: 'var(--azul-borde)', textDecoration: 'none' }}>
                           {esBusqueda ? `Buscar en ${o.tienda} ↗` : `Comprar en ${o.tienda} ↗`}
                         </a>
-                        {o.url && <a href={o.url} target="_blank" rel="noopener noreferrer" style={{ color: tenue, fontSize: 11.5 }}>ver nota</a>}
+                        {o.url && (
+                          <a href={o.url} target="_blank" rel="noopener noreferrer" className="btn btn-neutro" style={{ minHeight: 34, padding: '0 10px', fontSize: 12, textDecoration: 'none' }}>
+                            Ver en {NOMBRE_FUENTE[o.fuente] || 'la fuente'} ↗
+                          </a>
+                        )}
                       </div>
                       <div className="num" style={{ display: 'flex', gap: 10, fontSize: 13, flexWrap: 'wrap', alignItems: 'baseline' }}>
                         <span><b>{usd(o.precio_usd)}</b>{o.precio_antes_usd > o.precio_usd && <span style={{ color: tenue, textDecoration: 'line-through', marginLeft: 4 }}>{usd(o.precio_antes_usd)}</span>}</span>
@@ -544,7 +549,7 @@ export default function Tendencias() {
                 <button className="btn btn-neutro" onClick={() => setCuantas(c => c + 60)}>Ver {Math.min(60, ofertasVisibles.length - cuantas)} más</button>
               </div>
             )}
-            {ofertas.length > 0 && <div style={{ fontSize: 12, color: tenue, marginTop: 10, lineHeight: 1.5 }}>Las ofertas vienen de Hip2Save, DealNews y Costco Insider. Duran poco y el precio puede cambiar: confírmalo en la tienda antes de comprar.</div>}
+            {ofertas.length > 0 && <div style={{ fontSize: 12, color: tenue, marginTop: 10, lineHeight: 1.5 }}>Las ofertas vienen de Hip2Save, DealNews, Living Rich With Coupons, Passion For Savings y Costco Insider. Duran poco y el precio puede cambiar: confírmalo en la tienda antes de comprar.</div>}
             </>)}
 
             {tab === 'lista' && (<>

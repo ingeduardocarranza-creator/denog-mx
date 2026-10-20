@@ -97,13 +97,8 @@ export default function Tendencias() {
   // En computadora: WhatsApp casi nunca sale en ese menú, así que se copia la
   // foto (⌘V en el chat) y luego el texto (⌘V en el pie de foto).
   const [celular, setCelular] = useState(false)
-  const [menuCompartir, setMenuCompartir] = useState(false)   // ¿el navegador tiene menú de compartir?
   useEffect(() => {
-    try {
-      const puede = typeof navigator.share === 'function'
-      setMenuCompartir(puede)
-      setCelular(puede && window.matchMedia('(pointer: coarse)').matches)
-    } catch {}
+    try { setCelular(typeof navigator.share === 'function' && window.matchMedia('(pointer: coarse)').matches) } catch {}
   }, [])
 
   const notificar = (tipo, texto) => { setAviso({ tipo, texto }); setTimeout(() => setAviso(null), 7000) }
@@ -203,36 +198,44 @@ export default function Tendencias() {
       const png = fetch(fotoUrl).then(r => { if (!r.ok) throw new Error('sin foto'); return r.blob() }).then(aPng)
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
       setCopiado(clave + ':foto'); setTimeout(() => setCopiado(c => c === clave + ':foto' ? null : c), 4000)
-      notificar('ok', 'Foto copiada. Pégala en el chat de WhatsApp con ⌘V y luego dale a "Copiar texto" para el pie de foto.')
+      notificar('ok', 'Foto copiada: pégala en el chat con ⌘V. Luego dale otra vez al botón para copiar el texto.')
+      return true
     } catch {
       notificar('error', 'No se pudo copiar la foto. Te la abro en otra pestaña: arrástrala al chat de WhatsApp.')
       window.open(fotoUrl, '_blank', 'noopener')
+      return false
     }
   }
 
-  // Botones según el equipo: "Compartir" en celular; "Copiar foto" + "Copiar texto" en computadora.
-  const botonesCompartir = (clave, texto, fotoUrl, alHacer, estilo = {}) => celular || !fotoUrl ? (
-    <button className="btn btn-wa" style={{ flex: 1, padding: '0 10px', ...estilo }} onClick={async () => { await compartir(clave, texto, fotoUrl); alHacer?.() }}>
-      {copiado === clave ? '✓ Copiado' : 'Compartir'}
-    </button>
-  ) : (
-    <>
-      <button className="btn btn-wa" style={{ flex: 1, padding: '0 10px', ...estilo }} onClick={() => copiarFoto(clave, fotoUrl)}>
-        {copiado === clave + ':foto' ? '✓ Foto copiada' : 'Copiar foto'}
+  // Botones según el equipo:
+  //  · Celular: "Compartir" → WhatsApp con foto + texto en un paso.
+  //  · Computadora: un solo botón en dos pasos. 1er clic copia la foto (⌘V en
+  //    el chat), 2º clic copia el texto (⌘V en el pie de foto). La app de
+  //    WhatsApp para Mac no aparece en el menú de compartir, por eso así.
+  const [paso, setPaso] = useState({})   // clave → 'texto' cuando ya se copió la foto
+  const botonesCompartir = (clave, texto, fotoUrl, alHacer, estilo = {}) => {
+    if (celular || !fotoUrl) return (
+      <button className="btn btn-wa" style={{ flex: 1, padding: '0 10px', ...estilo }} onClick={async () => { await compartir(clave, texto, fotoUrl); alHacer?.() }}>
+        {copiado === clave ? '✓ Copiado' : 'Compartir'}
       </button>
-      <button className="btn btn-neutro" style={{ flex: 1, padding: '0 10px', ...estilo }} onClick={async () => { await copiar(clave, texto); alHacer?.() }}>
-        {copiado === clave ? '✓ Texto' : 'Copiar texto'}
+    )
+    const tocaTexto = paso[clave] === 'texto'
+    return (
+      <button className={`btn ${tocaTexto ? 'btn-marca' : 'btn-wa'}`} style={{ flex: 1, padding: '0 10px', ...estilo }}
+        onClick={async () => {
+          if (!tocaTexto) {
+            const ok = await copiarFoto(clave, fotoUrl)
+            if (ok) setPaso(p => ({ ...p, [clave]: 'texto' }))
+          } else {
+            await copiar(clave, texto)
+            setPaso(p => { const n = { ...p }; delete n[clave]; return n })
+            alHacer?.()
+          }
+        }}>
+        {tocaTexto ? '2 · Copiar texto' : copiado === clave ? '✓ Listo' : '1 · Copiar foto'}
       </button>
-      {/* Menú de compartir de la Mac: sirve si ahí se activa la extensión de WhatsApp. */}
-      {menuCompartir && (
-        <button className="btn btn-neutro" style={{ padding: '0 12px', ...estilo, flex: '0 0 auto' }} onClick={async () => { await compartir(clave, texto, fotoUrl); alHacer?.() }}
-          title="Abrir el menú de compartir de la Mac" aria-label="Abrir el menú de compartir">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>
-          {clave === 'muestra' && 'Compartir'}
-        </button>
-      )}
-    </>
-  )
+    )
+  }
 
   const lista = datos?.lista
   const publicados = useMemo(() => new Set(lista?.publicados || []), [lista])
@@ -426,9 +429,9 @@ export default function Tendencias() {
                   <b>Prueba cómo llega a WhatsApp</b> con <i>{datos.muestra.nombre}</i> de tu catálogo.<br />
                   {celular
                     ? 'Dale a Compartir y elige WhatsApp: la foto se va con el texto como pie de foto.'
-                    : '1) Copiar foto → pégala en el chat con ⌘V.  2) Copiar texto → pégalo en el pie de foto con ⌘V y envía.'}
+                    : 'Clic 1: copia la foto → pégala en el chat con ⌘V. Clic 2: copia el texto → pégalo en el pie de foto con ⌘V y envía.'}
                 </div>
-                <div style={{ display: 'flex', gap: 6, flex: '0 1 420px' }}>
+                <div style={{ display: 'flex', gap: 6, flex: '0 1 240px' }}>
                   {botonesCompartir('muestra', [`*${datos.muestra.nombre}*`, datos.muestra.variante, `💲${Number(datos.muestra.precio_venta).toLocaleString('es-MX')}`].filter(Boolean).join('\n'), `/api/tendencias/foto?producto=${datos.muestra.id}`)}
                 </div>
               </div>

@@ -12,7 +12,7 @@ export async function PATCH(req) {
   const { id, publicado, descartado } = await req.json()
   if (!id) return NextResponse.json({ ok: false, mensaje: 'Falta id' })
   const cambios = {}
-  if (typeof publicado === 'boolean') cambios.publicado = publicado
+  if (typeof publicado === 'boolean') { cambios.publicado = publicado; cambios.publicado_en = publicado ? new Date().toISOString() : null }
   if (typeof descartado === 'boolean') cambios.descartado = descartado
   if (!Object.keys(cambios).length) return NextResponse.json({ ok: false, mensaje: 'Nada que cambiar' })
   const { error } = await supabaseConSesion(sesion).from('ofertas').update(cambios).eq('id', id)

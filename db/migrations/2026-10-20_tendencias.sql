@@ -93,3 +93,25 @@ create index if not exists ofertas_recientes on public.ofertas (creado_en desc) 
 
 -- Tallas y colores para el texto de WhatsApp (título, color, tallas, precio).
 alter table public.ofertas add column if not exists tallas text, add column if not exists colores text;
+
+-- Medir qué se vende: cuándo se publicó cada oferta, y qué pedidos por
+-- WhatsApp traen su título en el texto de la foto (pedidos.notas).
+alter table public.ofertas add column if not exists publicado_en timestamptz;
+
+create or replace function public.tendencias_resultados(p_desde timestamptz)
+returns table(oferta_id uuid, pedidos int, piezas int, utilidad numeric)
+language sql stable
+set search_path = public
+as $$
+  select o.id, count(p.id)::int, coalesce(sum(coalesce(p.cantidad, 1)), 0)::int, coalesce(sum(p.utilidad), 0)
+  from ofertas o
+  join pedidos p
+    on p.creado_via = 'whatsapp'
+   and p.notas is not null
+   and p.creado_en >= (o.creado_en - interval '1 day')::timestamp
+   and position(lower(o.nombre) in lower(p.notas)) > 0
+  where o.publicado and o.creado_en >= p_desde and length(o.nombre) >= 12
+  group by o.id
+$$;
+revoke execute on function public.tendencias_resultados(timestamptz) from public, anon, authenticated;
+grant execute on function public.tendencias_resultados(timestamptz) to service_role;

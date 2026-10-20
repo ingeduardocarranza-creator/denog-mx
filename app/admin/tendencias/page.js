@@ -497,7 +497,10 @@ export default function Tendencias() {
                     </a>
                     <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Pastilla tono={tono}>{o.puntaje} pts</Pastilla>
+                        <span style={{ display: 'flex', gap: 5 }}>
+                          <Pastilla tono={tono}>{o.puntaje} pts</Pastilla>
+                          {o.ventas > 0 && <Pastilla tono="azul">{o.ventas} {o.ventas === 1 ? 'venta' : 'ventas'}</Pastilla>}
+                        </span>
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--w60)' }}>{o.tienda}</span>
                       </div>
                       <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.3 }}>{o.nombre}</div>
@@ -607,6 +610,55 @@ export default function Tendencias() {
             </>)}
 
             {tab === 'historial' && (<>
+            {/* ── Resultados de lo publicado ── */}
+            {datos.resultados && (
+              <>
+                <Titulo sub="Ofertas que marcaste como publicadas y los pedidos que entraron por WhatsApp con su texto (últimos 30 días). Lo que se reenvía sin el texto no se puede contar.">Resultados de lo publicado</Titulo>
+                {datos.resultados.publicadas === 0 ? (
+                  <div style={{ ...card, padding: 24, textAlign: 'center', color: 'var(--w45)', fontSize: 13, lineHeight: 1.6 }}>
+                    Todavía no hay publicaciones medidas. Cuando compartas ofertas desde aquí, en esta parte vas a ver cuáles se vendieron y cuáles no.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+                      {[['Publicadas', datos.resultados.publicadas.toLocaleString('es-MX')], ['Con al menos 1 venta', `${datos.resultados.conVenta} (${Math.round(datos.resultados.tasa * 100)}%)`], ['Pedidos que generaron', datos.resultados.pedidos], ['Utilidad', fmt(datos.resultados.utilidad)]].map(([k, v]) => (
+                        <div key={k} style={{ ...card, padding: 16, flex: '1 1 180px' }}>
+                          <div style={{ fontSize: 11.5, fontWeight: 700, color: tenue, textTransform: 'uppercase', letterSpacing: 0.3 }}>{k}</div>
+                          <div className="num" style={{ fontSize: 22, fontWeight: 800, marginTop: 4 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rejilla">
+                      {datos.resultados.venden.length > 0 && (
+                        <div style={{ ...card, padding: 14 }}>
+                          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>Lo que más se vende al publicarlo</div>
+                          {datos.resultados.venden.map(t => (
+                            <div key={t.tipo} className="num" style={{ fontSize: 12.5, padding: '3px 0' }}><b>{t.tipo}</b> <span style={{ color: 'var(--w55)' }}>· {t.conVenta} de {t.publicadas} se vendieron ({Math.round(t.tasa * 100)}%)</span></div>
+                          ))}
+                        </div>
+                      )}
+                      {datos.resultados.noVenden.length > 0 && (
+                        <div style={{ ...card, padding: 14, background: 'rgba(var(--rojo-rgb),0.05)', borderColor: 'rgba(var(--rojo-rgb),0.2)' }}>
+                          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: 'var(--rojo-t)' }}>Publicas y no se vende</div>
+                          {datos.resultados.noVenden.map(t => (
+                            <div key={t.tipo} className="num" style={{ fontSize: 12.5, padding: '3px 0' }}><b>{t.tipo}</b> <span style={{ color: 'var(--w55)' }}>· 0 de {t.publicadas}</span></div>
+                          ))}
+                        </div>
+                      )}
+                      {datos.resultados.mejores.length > 0 && (
+                        <div style={{ ...card, padding: 14 }}>
+                          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>Las ofertas que más vendieron</div>
+                          {datos.resultados.mejores.map(o => (
+                            <div key={o.id} style={{ fontSize: 12.5, padding: '3px 0', lineHeight: 1.4 }}><b>{o.nombre}</b> <span className="num" style={{ color: 'var(--w55)' }}>· {o.tienda} · {o.pedidos} {o.pedidos === 1 ? 'pedido' : 'pedidos'}</span></div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
             {/* ── Lo que te funciona ── */}
             <Titulo sub={`De ${datos.totales.pedidos.toLocaleString('es-MX')} pedidos desde ${fechaCorta(datos.totales.desde)}${datos.totales.desde ? ` ${datos.totales.desde.slice(0, 4)}` : ''} · sin devueltos`}>Lo que te funciona</Titulo>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>

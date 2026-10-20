@@ -97,8 +97,13 @@ export default function Tendencias() {
   // En computadora: WhatsApp casi nunca sale en ese menú, así que se copia la
   // foto (⌘V en el chat) y luego el texto (⌘V en el pie de foto).
   const [celular, setCelular] = useState(false)
+  const [menuCompartir, setMenuCompartir] = useState(false)   // ¿el navegador tiene menú de compartir?
   useEffect(() => {
-    try { setCelular(window.matchMedia('(pointer: coarse)').matches && typeof navigator.share === 'function') } catch {}
+    try {
+      const puede = typeof navigator.share === 'function'
+      setMenuCompartir(puede)
+      setCelular(puede && window.matchMedia('(pointer: coarse)').matches)
+    } catch {}
   }, [])
 
   const notificar = (tipo, texto) => { setAviso({ tipo, texto }); setTimeout(() => setAviso(null), 7000) }
@@ -218,6 +223,14 @@ export default function Tendencias() {
       <button className="btn btn-neutro" style={{ flex: 1, padding: '0 10px', ...estilo }} onClick={async () => { await copiar(clave, texto); alHacer?.() }}>
         {copiado === clave ? '✓ Texto' : 'Copiar texto'}
       </button>
+      {/* Menú de compartir de la Mac: sirve si ahí se activa la extensión de WhatsApp. */}
+      {menuCompartir && (
+        <button className="btn btn-neutro" style={{ padding: '0 12px', ...estilo, flex: '0 0 auto' }} onClick={async () => { await compartir(clave, texto, fotoUrl); alHacer?.() }}
+          title="Abrir el menú de compartir de la Mac" aria-label="Abrir el menú de compartir">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>
+          {clave === 'muestra' && 'Compartir'}
+        </button>
+      )}
     </>
   )
 
@@ -415,7 +428,7 @@ export default function Tendencias() {
                     ? 'Dale a Compartir y elige WhatsApp: la foto se va con el texto como pie de foto.'
                     : '1) Copiar foto → pégala en el chat con ⌘V.  2) Copiar texto → pégalo en el pie de foto con ⌘V y envía.'}
                 </div>
-                <div style={{ display: 'flex', gap: 6, flex: '0 1 300px' }}>
+                <div style={{ display: 'flex', gap: 6, flex: '0 1 420px' }}>
                   {botonesCompartir('muestra', [`*${datos.muestra.nombre}*`, datos.muestra.variante, `💲${Number(datos.muestra.precio_venta).toLocaleString('es-MX')}`].filter(Boolean).join('\n'), `/api/tendencias/foto?producto=${datos.muestra.id}`)}
                 </div>
               </div>

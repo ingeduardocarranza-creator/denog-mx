@@ -4,7 +4,7 @@ import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// GET /api/tendencias/foto?oferta=<id>  ó  ?lista=<id>&clave=<p3>
+// GET /api/tendencias/foto?oferta=<id>  ó  ?lista=<id>&clave=<p3>  ó  ?producto=<id> (catálogo)
 // Trae la foto de una oferta desde nuestro propio dominio, para poder
 // compartirla a WhatsApp junto con el texto (el celular no deja compartir
 // una imagen de otro sitio). Solo sirve fotos de ofertas/listas guardadas:
@@ -17,6 +17,9 @@ export async function GET(req) {
   let url = null
   if (searchParams.get('oferta')) {
     const { data } = await supabase.from('ofertas').select('imagen_url').eq('id', searchParams.get('oferta')).single()
+    url = data?.imagen_url
+  } else if (searchParams.get('producto')) {
+    const { data } = await supabase.from('productos_tienda').select('imagen_url').eq('id', searchParams.get('producto')).single()
     url = data?.imagen_url
   } else if (searchParams.get('lista')) {
     const { data } = await supabase.from('tendencias_listas').select('productos').eq('id', searchParams.get('lista')).single()

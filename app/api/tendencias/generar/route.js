@@ -104,6 +104,8 @@ Al terminar, responde ÚNICAMENTE con un bloque así (sin texto antes ni despué
     "tipo": "temporada" | "tendencia" | "funciona",
     "etiqueta": "Temporada · Navidad" | "Tendencia · TikTok" | "Te funciona" (corto),
     "porque": "una frase en español con la evidencia: por qué este y por qué ahora",
+    "tallas": "tallas disponibles si es ropa o calzado (ej. \"S a XXL\"), si no null",
+    "colores": "colores, sabores o aromas disponibles si aplica (ej. \"Negro, gris y rosa\"), si no null",
     "gancho": "una línea corta y antojable para el grupo de WhatsApp, español de Sonora, sin precio, máximo 1 emoji",
     "imagen_url": "url de la foto si la viste en los resultados, si no null"
   }
@@ -169,6 +171,8 @@ function extraerProductos(texto, fuentes) {
       etiqueta: String(p.etiqueta || '').slice(0, 40),
       porque: String(p.porque || '').slice(0, 300),
       gancho: String(p.gancho || '').slice(0, 200),
+      tallas: p.tallas ? String(p.tallas).slice(0, 80) : null,
+      colores: p.colores ? String(p.colores).slice(0, 120) : null,
       imagen_url: typeof p.imagen_url === 'string' && /^https:\/\//.test(p.imagen_url) ? p.imagen_url : null,
     }
   }).filter(p => {

@@ -90,3 +90,6 @@ create table if not exists public.ofertas (
 alter table public.ofertas enable row level security;
 grant all on public.ofertas to service_role;
 create index if not exists ofertas_recientes on public.ofertas (creado_en desc) where util and not descartado;
+
+-- Tallas y colores para el texto de WhatsApp (título, color, tallas, precio).
+alter table public.ofertas add column if not exists tallas text, add column if not exists colores text;

@@ -17,14 +17,18 @@ export async function GET(req) {
     // Ofertas de los últimos 3 días, con el puntaje calculado con el historial de hoy.
     const desde = new Date(Date.now() - 3 * 86400000).toISOString()
     const { data: ofertas, error } = await supabase.from('ofertas')
-      .select('id, fuente, tienda, nombre, precio_usd, precio_antes_usd, url, imagen_url, tipo, familia, temporadas, gancho, publicado, creado_en')
+      .select('id, fuente, tienda, nombre, precio_usd, precio_antes_usd, url, imagen_url, tipo, familia, temporadas, gancho, tallas, colores, publicado, creado_en')
       .eq('util', true).eq('descartado', false).gte('creado_en', desde)
       .order('creado_en', { ascending: false }).limit(1500)
     if (error) throw new Error(error.message)
     const puntuadas = puntuarOfertas(ofertas || [], resumen).sort((a, b) => b.puntaje - a.puntaje)
+    // Un artículo real de tu catálogo, para el botón "Probar compartir".
+    const { data: muestra } = await supabase.from('productos_tienda')
+      .select('id, nombre, variante, precio_venta').not('imagen_url', 'is', null).gt('precio_venta', 0)
+      .order('id', { ascending: false }).limit(1)
     const { todosTipos, ...resto } = resumen
     void todosTipos
-    return NextResponse.json({ ok: true, ...resto, ofertas: puntuadas })
+    return NextResponse.json({ ok: true, ...resto, ofertas: puntuadas, muestra: muestra?.[0] || null })
   } catch (e) {
     console.error('[tendencias] error:', e.message)
     return NextResponse.json({ ok: false, mensaje: e.message }, { status: 500 })

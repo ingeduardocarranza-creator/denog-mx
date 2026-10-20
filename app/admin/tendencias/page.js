@@ -48,6 +48,17 @@ function Titulo({ children, sub, derecha }) {
   )
 }
 
+// El texto que va pegado a la foto en el grupo: título, color, tallas y precio.
+// Nunca lleva link ni la tienda: el cliente compra la foto con el texto.
+function textoWhatsApp(p, precio) {
+  return [
+    `*${p.nombre}*`,
+    p.colores ? `Color: ${p.colores}` : null,
+    p.tallas ? `Tallas: ${p.tallas}` : null,
+    precio ? `💲${precio.toLocaleString('es-MX')}` : '💲[precio]',
+  ].filter(Boolean).join('\n')
+}
+
 function leerLocal(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d } catch { return d } }
 function guardarLocal(k, v) { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} }
 
@@ -178,8 +189,7 @@ export default function Tendencias() {
     return (lista.productos || []).map(p => {
       const precio = precioSugerido(p.precio_usd, Number(precios.factor))
       const gana = utilidadEstimada(p.precio_usd, precio, Number(precios.tipoCambio), Number(precios.impuesto))
-      const base = [`*${p.nombre}*`, p.gancho, precio ? `💲${precio.toLocaleString('es-MX')}` : '💲[precio]', 'Aparta con tu anticipo · llega en la próxima entrega'].filter(Boolean).join('\n')
-      return { ...p, precio, gana, texto: textos[p.clave] ?? base, publicado: publicados.has(p.clave) }
+      return { ...p, precio, gana, texto: textos[p.clave] ?? textoWhatsApp(p, precio), publicado: publicados.has(p.clave) }
     })
   }, [lista, precios, textos, publicados])
 
@@ -190,8 +200,7 @@ export default function Tendencias() {
     return datos.ofertas.map(o => {
       const precio = precioSugerido(o.precio_usd, Number(precios.factor))
       const gana = utilidadEstimada(o.precio_usd, precio, Number(precios.tipoCambio), Number(precios.impuesto))
-      const base = [`*${o.nombre}*`, o.gancho, precio ? `💲${precio.toLocaleString('es-MX')}` : '💲[precio]', 'Aparta con tu anticipo · llega en la próxima entrega'].filter(Boolean).join('\n')
-      return { ...o, precio, gana, texto: textos['o' + o.id] ?? base }
+      return { ...o, precio, gana, texto: textos['o' + o.id] ?? textoWhatsApp(o, precio) }
     })
   }, [datos, precios, textos])
   const tiendasOf = useMemo(() => {
@@ -337,6 +346,12 @@ export default function Tendencias() {
             <Titulo
               sub="Rebajas de hoy en Amazon, Walmart, Target, Costco, Sam's y más, filtradas a lo que se puede revender y ordenadas por lo que a ti te vende. Actualizar cuesta centavos: solo se revisa lo nuevo."
               derecha={<div style={{ display: 'flex', gap: 8 }}>
+                {datos.muestra && (
+                  <button className="btn btn-neutro" title={`Comparte "${datos.muestra.nombre}" de tu catálogo para ver cómo llega a WhatsApp`}
+                    onClick={() => compartir('muestra', [`*${datos.muestra.nombre}*`, datos.muestra.variante, `💲${Number(datos.muestra.precio_venta).toLocaleString('es-MX')}`].filter(Boolean).join('\n'), `/api/tendencias/foto?producto=${datos.muestra.id}`)}>
+                    {copiado === 'muestra' ? '✓ Texto copiado' : 'Probar compartir'}
+                  </button>
+                )}
                 {precios && <button className="btn btn-neutro" onClick={() => setVerPrecios(v => !v)} aria-expanded={verPrecios}>Ajustar precios</button>}
                 <button className="btn btn-marca" onClick={actualizarOfertas} disabled={actualizando}>
                   {actualizando ? <><span className="girando" aria-hidden="true" /> Trayendo…</> : 'Traer ofertas nuevas'}

@@ -59,6 +59,19 @@ function textoWhatsApp(p, precio) {
   ].filter(Boolean).join('\n')
 }
 
+// Cualquier imagen (jpg, webp…) → PNG, el único formato que el portapapeles acepta en todos los navegadores.
+async function aPng(blob) {
+  if (blob.type === 'image/png') return blob
+  const url = URL.createObjectURL(blob)
+  try {
+    const img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url })
+    const c = document.createElement('canvas')
+    c.width = img.naturalWidth; c.height = img.naturalHeight
+    c.getContext('2d').drawImage(img, 0, 0)
+    return await new Promise((ok, mal) => c.toBlob(b => b ? ok(b) : mal(new Error('png')), 'image/png'))
+  } finally { URL.revokeObjectURL(url) }
+}
+
 function leerLocal(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d } catch { return d } }
 function guardarLocal(k, v) { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} }
 
@@ -78,6 +91,13 @@ export default function Tendencias() {
   const [actualizando, setActualizando] = useState(false)
   const [fOf, setFOf] = useState({ tienda: 'todas', familia: 'todas', minimo: 0, sinPublicar: true, q: '' })
   const [cuantas, setCuantas] = useState(60)
+  // En celular: el menú de compartir manda foto + texto juntos a WhatsApp.
+  // En computadora: WhatsApp casi nunca sale en ese menú, así que se copia la
+  // foto (⌘V en el chat) y luego el texto (⌘V en el pie de foto).
+  const [celular, setCelular] = useState(false)
+  useEffect(() => {
+    try { setCelular(window.matchMedia('(pointer: coarse)').matches && typeof navigator.share === 'function') } catch {}
+  }, [])
 
   const notificar = (tipo, texto) => { setAviso({ tipo, texto }); setTimeout(() => setAviso(null), 7000) }
 
@@ -168,6 +188,36 @@ export default function Tendencias() {
     await copiar(clave, texto)
     if (fotoUrl) window.open(fotoUrl, '_blank', 'noopener')
   }
+
+  // Copia la foto al portapapeles como PNG (lo que acepta WhatsApp al pegar).
+  // El ClipboardItem se arma dentro del clic con una promesa: Safari lo exige.
+  const copiarFoto = async (clave, fotoUrl) => {
+    try {
+      const png = fetch(fotoUrl).then(r => { if (!r.ok) throw new Error('sin foto'); return r.blob() }).then(aPng)
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setCopiado(clave + ':foto'); setTimeout(() => setCopiado(c => c === clave + ':foto' ? null : c), 4000)
+      notificar('ok', 'Foto copiada. Pégala en el chat de WhatsApp con ⌘V y luego dale a "Copiar texto" para el pie de foto.')
+    } catch {
+      notificar('error', 'No se pudo copiar la foto. Te la abro en otra pestaña: arrástrala al chat de WhatsApp.')
+      window.open(fotoUrl, '_blank', 'noopener')
+    }
+  }
+
+  // Botones según el equipo: "Compartir" en celular; "Copiar foto" + "Copiar texto" en computadora.
+  const botonesCompartir = (clave, texto, fotoUrl, alHacer, estilo = {}) => celular || !fotoUrl ? (
+    <button className="btn btn-wa" style={{ flex: 1, padding: '0 10px', ...estilo }} onClick={async () => { await compartir(clave, texto, fotoUrl); alHacer?.() }}>
+      {copiado === clave ? '✓ Copiado' : 'Compartir'}
+    </button>
+  ) : (
+    <>
+      <button className="btn btn-wa" style={{ flex: 1, padding: '0 10px', ...estilo }} onClick={() => copiarFoto(clave, fotoUrl)}>
+        {copiado === clave + ':foto' ? '✓ Foto copiada' : 'Copiar foto'}
+      </button>
+      <button className="btn btn-neutro" style={{ flex: 1, padding: '0 10px', ...estilo }} onClick={async () => { await copiar(clave, texto); alHacer?.() }}>
+        {copiado === clave ? '✓ Texto' : 'Copiar texto'}
+      </button>
+    </>
+  )
 
   const lista = datos?.lista
   const publicados = useMemo(() => new Set(lista?.publicados || []), [lista])
@@ -347,10 +397,10 @@ export default function Tendencias() {
               sub="Rebajas de hoy en Amazon, Walmart, Target, Costco, Sam's y más, filtradas a lo que se puede revender y ordenadas por lo que a ti te vende. Actualizar cuesta centavos: solo se revisa lo nuevo."
               derecha={<div style={{ display: 'flex', gap: 8 }}>
                 {datos.muestra && (
-                  <button className="btn btn-neutro" title={`Comparte "${datos.muestra.nombre}" de tu catálogo para ver cómo llega a WhatsApp`}
-                    onClick={() => compartir('muestra', [`*${datos.muestra.nombre}*`, datos.muestra.variante, `💲${Number(datos.muestra.precio_venta).toLocaleString('es-MX')}`].filter(Boolean).join('\n'), `/api/tendencias/foto?producto=${datos.muestra.id}`)}>
-                    {copiado === 'muestra' ? '✓ Texto copiado' : 'Probar compartir'}
-                  </button>
+                  <div title={`Prueba con "${datos.muestra.nombre}" de tu catálogo para ver cómo llega a WhatsApp`} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: tenue, fontWeight: 600 }}>Prueba:</span>
+                    {botonesCompartir('muestra', [`*${datos.muestra.nombre}*`, datos.muestra.variante, `💲${Number(datos.muestra.precio_venta).toLocaleString('es-MX')}`].filter(Boolean).join('\n'), `/api/tendencias/foto?producto=${datos.muestra.id}`)}
+                  </div>
                 )}
                 {precios && <button className="btn btn-neutro" onClick={() => setVerPrecios(v => !v)} aria-expanded={verPrecios}>Ajustar precios</button>}
                 <button className="btn btn-marca" onClick={actualizarOfertas} disabled={actualizando}>
@@ -417,10 +467,8 @@ export default function Tendencias() {
                           onChange={e => setTextos(t => ({ ...t, ['o' + o.id]: e.target.value }))}
                           style={{ width: '100%', marginTop: 6, resize: 'vertical', lineHeight: 1.45, background: 'var(--sup-2)', borderStyle: 'dashed' }} />
                       </details>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 'auto', paddingTop: 2 }}>
-                        <button className="btn btn-wa" style={{ flex: 1, padding: '0 10px' }} onClick={async () => { await compartir('o' + o.id, o.texto, foto); if (!o.publicado) cambiarOferta(o, { publicado: true }) }}>
-                          {copiado === 'o' + o.id ? '✓ Copiado' : 'Compartir'}
-                        </button>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 'auto', paddingTop: 2, flexWrap: 'wrap' }}>
+                        {botonesCompartir('o' + o.id, o.texto, foto, () => { if (!o.publicado) cambiarOferta(o, { publicado: true }) })}
                         <button className="btn btn-neutro" style={{ padding: '0 10px', ...(o.publicado ? { color: 'var(--verde-t)', borderColor: 'var(--verde-borde)', background: 'var(--verde-suave)' } : {}) }}
                           onClick={() => cambiarOferta(o, { publicado: !o.publicado })} aria-pressed={o.publicado} title="Marcar como publicado">
                           {o.publicado ? '✓' : 'Publicado'}
@@ -497,9 +545,7 @@ export default function Tendencias() {
                         onChange={e => setTextos(t => ({ ...t, [p.clave]: e.target.value }))}
                         style={{ resize: 'vertical', lineHeight: 1.45, background: 'var(--sup-2)', borderStyle: 'dashed' }} />
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 'auto' }}>
-                        <button className="btn btn-wa" style={{ flex: '1 1 130px' }} onClick={() => compartir(p.clave, p.texto, p.imagen_url ? `/api/tendencias/foto?lista=${lista.id}&clave=${p.clave}` : null)}>
-                          {copiado === p.clave ? '✓ Copiado' : 'Compartir'}
-                        </button>
+                        {botonesCompartir(p.clave, p.texto, p.imagen_url ? `/api/tendencias/foto?lista=${lista.id}&clave=${p.clave}` : null, null, { flex: '1 1 110px' })}
                         <button className="btn btn-neutro" style={{ flex: '1 1 120px', ...(p.publicado ? { color: 'var(--verde-t)', borderColor: 'var(--verde-borde)', background: 'var(--verde-suave)' } : {}) }}
                           onClick={() => marcarPublicado(p)} aria-pressed={p.publicado}>
                           {p.publicado ? '✓ Publicado' : 'Ya lo publiqué'}

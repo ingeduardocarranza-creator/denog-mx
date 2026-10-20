@@ -40,3 +40,22 @@ create table if not exists public.tendencias_listas (
 alter table public.tendencias_listas enable row level security;
 grant all on public.tendencias_listas to service_role;
 create index if not exists tendencias_listas_creado on public.tendencias_listas (creado_en desc);
+
+-- Funciones SECURITY DEFINER que cualquiera con el anon key podía ejecutar
+-- por /rest/v1/rpc (aplicar_conteo_inventario podía cambiar el inventario).
+-- Solo el servidor las usa: se les quita a anon/authenticated.
+revoke execute on function public.aplicar_conteo_inventario(uuid, bigint, integer, text, uuid) from public, anon, authenticated;
+revoke execute on function public.siguiente_folio(text, text) from public, anon, authenticated;
+revoke execute on function public.asignar_folio() from public, anon, authenticated;
+revoke execute on function public.impedir_borrar_pago() from public, anon, authenticated;
+revoke execute on function public.registrar_en_bitacora() from public, anon, authenticated;
+grant execute on function public.aplicar_conteo_inventario(uuid, bigint, integer, text, uuid) to service_role;
+grant execute on function public.siguiente_folio(text, text) to service_role;
+grant execute on function public.asignar_folio() to service_role;
+grant execute on function public.impedir_borrar_pago() to service_role;
+grant execute on function public.registrar_en_bitacora() to service_role;
+
+alter function public.generar_codigo_recoleccion() set search_path = public;
+alter function public.trg_asignar_codigo_recoleccion() set search_path = public;
+alter function public.impedir_comprobante_resuelto_sin_pago() set search_path = public;
+alter function public.publicar_en_mercadito_si_hay_stock() set search_path = public;

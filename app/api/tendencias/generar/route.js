@@ -105,7 +105,7 @@ Al terminar, responde ÚNICAMENTE con un bloque así (sin texto antes ni despué
     "etiqueta": "Temporada · Navidad" | "Tendencia · TikTok" | "Te funciona" (corto),
     "porque": "una frase en español con la evidencia: por qué este y por qué ahora",
     "tallas": "tallas disponibles si es ropa o calzado (ej. \"S a XXL\"), si no null",
-    "colores": "colores, sabores o aromas disponibles si aplica (ej. \"Negro, gris y rosa\"), si no null",
+    "colores": "colores, sabores o aromas disponibles si aplica, EN ESPAÑOL (ej. \"Negro, gris y rosa\"), si no null",
     "gancho": "una línea corta y antojable para el grupo de WhatsApp, español de Sonora, sin precio, máximo 1 emoji",
     "imagen_url": "url de la foto si la viste en los resultados, si no null"
   }

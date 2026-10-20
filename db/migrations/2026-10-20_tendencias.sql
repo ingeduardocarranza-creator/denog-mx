@@ -59,3 +59,34 @@ alter function public.generar_codigo_recoleccion() set search_path = public;
 alter function public.trg_asignar_codigo_recoleccion() set search_path = public;
 alter function public.impedir_comprobante_resuelto_sin_pago() set search_path = public;
 alter function public.publicar_en_mercadito_si_hay_stock() set search_path = public;
+
+-- Ofertas del día: lo que se lee de los sitios de ofertas (Hip2Save, DealNews,
+-- Costco Insider) ya clasificado por la IA. Una fila por oferta vista; las
+-- que no sirven quedan con util=false para no volver a pagarlas.
+create table if not exists public.ofertas (
+  id            uuid primary key default gen_random_uuid(),
+  fuente        text not null,
+  guid          text not null,
+  titulo_original text,
+  url_fuente    text,
+  url           text,
+  imagen_url    text,
+  publicado_fuente timestamptz,
+  procesada     boolean not null default false,
+  util          boolean,
+  tienda        text,
+  nombre        text,
+  precio_usd    numeric,
+  precio_antes_usd numeric,
+  tipo          text,
+  familia       text,
+  temporadas    text[] not null default '{}',
+  gancho        text,
+  publicado     boolean not null default false,
+  descartado    boolean not null default false,
+  creado_en     timestamptz not null default now(),
+  unique (fuente, guid)
+);
+alter table public.ofertas enable row level security;
+grant all on public.ofertas to service_role;
+create index if not exists ofertas_recientes on public.ofertas (creado_en desc) where util and not descartado;

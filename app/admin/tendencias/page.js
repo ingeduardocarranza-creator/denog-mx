@@ -314,7 +314,7 @@ export default function Tendencias() {
   const sinEtiquetas = datos && datos.etiquetas.hechas === 0
 
   return (
-    <div className="tendencias" style={{ minHeight: '100vh', background: 'var(--fondo)', padding: '22px 20px 60px' }}>
+    <div className="tendencias" style={{ minHeight: '100vh', background: 'var(--fondo)', color: 'var(--tinta)', padding: '22px 20px 60px' }}>
       <style>{`
         .tendencias .num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
         .tendencias .btn { border-radius: 10px; padding: 0 16px; min-height: 42px; font-size: 13px; font-weight: 700; cursor: pointer; border: 1px solid transparent; white-space: nowrap; transition: filter .15s, background .15s; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
@@ -491,8 +491,8 @@ export default function Tendencias() {
                 return (
                   <article key={o.id} style={{ ...card, overflow: 'hidden', display: 'flex', flexDirection: 'column', opacity: o.publicado ? 0.7 : 1 }}>
                     <a className="foto foto-chica" href={o.url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${o.nombre}`}>
-                      {o.imagen_url
-                        ? <img src={o.imagen_url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e => { e.currentTarget.style.display = 'none' }} />
+                      {foto
+                        ? <img src={foto} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} />
                         : <span style={{ color: tenue, fontSize: 12.5, fontWeight: 600 }}>Clic para ver la oferta</span>}
                     </a>
                     <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
@@ -516,11 +516,11 @@ export default function Tendencias() {
                           onChange={e => setTextos(t => ({ ...t, ['o' + o.id]: e.target.value }))}
                           style={{ width: '100%', marginTop: 6, resize: 'vertical', lineHeight: 1.45, background: 'var(--sup-2)', borderStyle: 'dashed' }} />
                       </details>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 'auto', paddingTop: 2, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 'auto', paddingTop: 2 }}>
                         {botonesCompartir('o' + o.id, o.texto, foto, () => { if (!o.publicado) cambiarOferta(o, { publicado: true }) })}
-                        <button className="btn btn-neutro" style={{ padding: '0 10px', ...(o.publicado ? { color: 'var(--verde-t)', borderColor: 'var(--verde-borde)', background: 'var(--verde-suave)' } : {}) }}
-                          onClick={() => cambiarOferta(o, { publicado: !o.publicado })} aria-pressed={o.publicado} title="Marcar como publicado">
-                          {o.publicado ? '✓' : 'Publicado'}
+                        <button className="btn btn-neutro" style={{ padding: '0 11px', ...(o.publicado ? { color: 'var(--verde-t)', borderColor: 'var(--verde-borde)', background: 'var(--verde-suave)' } : {}) }}
+                          onClick={() => cambiarOferta(o, { publicado: !o.publicado })} aria-pressed={o.publicado} title={o.publicado ? 'Publicado (clic para desmarcar)' : 'Marcar como publicado'} aria-label="Marcar como publicado">
+                          ✓
                         </button>
                         <button className="btn btn-neutro" style={{ padding: '0 12px' }} onClick={() => cambiarOferta(o, { descartado: true })} aria-label={`Descartar ${o.nombre}`} title="No me sirve">✕</button>
                       </div>
@@ -570,7 +570,7 @@ export default function Tendencias() {
                   <article key={p.clave} style={{ ...card, overflow: 'hidden', display: 'flex', flexDirection: 'column', opacity: p.publicado ? 0.72 : 1 }}>
                     <Foto className="foto" {...(p.url ? { href: p.url, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `Abrir ${p.nombre} en ${p.tienda}` } : {})}>
                       {p.imagen_url
-                        ? <img src={p.imagen_url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e => { e.currentTarget.style.display = 'none' }} />
+                        ? <img src={`/api/tendencias/foto?lista=${lista.id}&clave=${p.clave}`} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} />
                         : <span style={{ color: tenue, fontSize: 12.5, fontWeight: 600 }}>{p.url ? `Clic para ver en ${p.tienda}` : 'Sin foto'}</span>}
                     </Foto>
                     <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>

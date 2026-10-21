@@ -158,6 +158,7 @@ export default function PaquetesNogales() {
               </div>
             )}
             {avisoCorreo && <div style={{ fontSize: 13, color: 'var(--w60)', marginBottom: 12 }}>{avisoCorreo}</div>}
+            <div style={{ fontSize: 12, color: 'var(--w40)', marginBottom: 12 }}>El correo se lee solo a las 6 am, 12 pm y 6 pm. El botón es por si quieres ver lo más reciente ya.</div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
               {[['todos', 'Todos', (pedidos || []).length], ['camino', 'En camino', (pedidos || []).filter(p => ['confirmado', 'enviado', 'en_reparto', 'listo_pickup'].includes(p.estado) && !p.recibido).length],

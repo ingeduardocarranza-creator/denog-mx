@@ -434,7 +434,7 @@ export default function Tendencias() {
 
             {tab === 'ofertas' && (<>
             <Titulo
-              sub="Rebajas de hoy en Amazon, Walmart, Target, Costco, Sam's y más, filtradas a lo que se puede revender y ordenadas por lo que a ti te vende. Actualizar cuesta centavos: solo se revisa lo nuevo."
+              sub={`Rebajas de Amazon, Walmart, Target, Costco, Sam's y más (sitios de ofertas y los correos de las tiendas), ordenadas por lo que a ti te vende. Se actualiza solo a las 6 am, 12 pm y 6 pm${datos.ultimaOferta ? ` · última oferta nueva: ${new Date(datos.ultimaOferta).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/Hermosillo' })}` : ''}.`}
               derecha={<div style={{ display: 'flex', gap: 8 }}>
                 {precios && <button className="btn btn-neutro" onClick={() => setVerPrecios(v => !v)} aria-expanded={verPrecios}>Ajustar precios</button>}
                 <button className="btn btn-marca" onClick={actualizarOfertas} disabled={actualizando}>

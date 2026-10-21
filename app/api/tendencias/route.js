@@ -32,7 +32,7 @@ export async function GET(req) {
       .order('id', { ascending: false }).limit(1)
     const { todosTipos, ...resto } = resumen
     void todosTipos
-    return NextResponse.json({ ok: true, ...resto, ofertas: puntuadas, muestra: muestra?.[0] || null, resultados: resultados.resumen })
+    return NextResponse.json({ ok: true, ...resto, ofertas: puntuadas, ultimaOferta: ofertas?.[0]?.creado_en || null, muestra: muestra?.[0] || null, resultados: resultados.resumen })
   } catch (e) {
     console.error('[tendencias] error:', e.message)
     return NextResponse.json({ ok: false, mensaje: e.message }, { status: 500 })

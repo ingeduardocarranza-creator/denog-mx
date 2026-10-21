@@ -178,9 +178,9 @@ export default function Tendencias() {
       const r = await fetch('/api/tendencias/ofertas/actualizar', { method: 'POST' }).then(r => r.json())
       if (!r.ok) throw new Error(r.mensaje)
       await cargar()
-      notificar('ok', r.nuevas === 0
+      notificar('ok', r.nuevas === 0 && !r.correos
         ? 'No hay ofertas nuevas desde la última vez. Intenta más tarde.'
-        : `${r.nuevas} ofertas nuevas revisadas, ${r.utiles} sirven para Denog.${r.errores.length ? ` (${r.errores.length} fuente${r.errores.length > 1 ? 's' : ''} no respondió)` : ''}`)
+        : `${r.nuevas} ofertas nuevas revisadas, ${r.utiles} sirven para Denog.${r.correoConfigurado ? ` Correos de tiendas leídos: ${r.correos}.` : ''}${r.errores.length ? ` (${r.errores.length} aviso${r.errores.length > 1 ? 's' : ''}: ${r.errores[0]})` : ''}`)
     } catch (e) { notificar('error', `No se pudieron traer ofertas: ${e.message}`) }
     setActualizando(false)
   }

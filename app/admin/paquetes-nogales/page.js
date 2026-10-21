@@ -59,16 +59,20 @@ export default function PaquetesNogales() {
   }, [])
   useEffect(() => { cargarPedidos() }, []) // eslint-disable-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
 
+  // Lee en vueltas de hasta 120 correos hasta que no queden pendientes.
   const leerCorreos = async () => {
     setLeyendo(true); setAvisoCorreo('')
+    const total = { correos: 0, avisos: 0, ofertas: 0 }
     try {
-      const d = await fetch('/api/bodega/pedidos-en-linea/leer', { method: 'POST' }).then(r => r.json())
-      if (!d.ok) setAvisoCorreo(d.mensaje || 'No se pudo leer el correo.')
-      else {
-        setAvisoCorreo(d.correos === 0 && d.errores?.length ? `No se pudo leer el correo: ${d.errores[0]}`
-          : d.correos === 0 ? 'No hay correos nuevos de los últimos 5 días.'
-          : `${d.correos} correos leídos: ${d.avisos} avisos de pedido, ${d.ofertas} ofertas para Tendencias.${d.pendientes ? ` Faltan ${d.pendientes}: vuelve a darle.` : ''}${d.errores?.length ? ` (${d.errores[0]})` : ''}`)
+      for (let vuelta = 0; vuelta < 10; vuelta++) {
+        const d = await fetch('/api/bodega/pedidos-en-linea/leer', { method: 'POST' }).then(r => r.json())
+        if (!d.ok) { setAvisoCorreo(d.mensaje || 'No se pudo leer el correo.'); break }
+        if (d.correos === 0 && d.errores?.length) { setAvisoCorreo(`No se pudo leer el correo: ${d.errores[0]}`); break }
+        total.correos += d.correos; total.avisos += d.avisos; total.ofertas += d.ofertas
+        setAvisoCorreo(total.correos === 0 ? 'No hay correos nuevos de los últimos 5 días.'
+          : `${total.correos} correos leídos: ${total.avisos} avisos de pedido, ${total.ofertas} ofertas para Tendencias.${d.pendientes ? ` Faltan ${d.pendientes}, sigo leyendo…` : ' Listo.'}`)
         await cargarPedidos()
+        if (!d.pendientes) break
       }
     } catch { setAvisoCorreo('Sin conexión.') }
     setLeyendo(false)

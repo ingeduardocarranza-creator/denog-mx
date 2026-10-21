@@ -19,7 +19,7 @@ export async function GET(req) {
   if (!secreto || req.headers.get('authorization') !== `Bearer ${secreto}`) {
     return NextResponse.json({ ok: false }, { status: 401 })
   }
-  const supabase = supabaseConSesion({ id: '', nombre: 'Automático (tendencias)' })
+  const supabase = supabaseConSesion({ id: '', nombre: 'Automatico (tendencias)' })
   const inicio = Date.now()
   const res = {}
   try { res.etiquetas = await etiquetarBloque(supabase) } catch (e) { res.etiquetas = { error: e.message } }

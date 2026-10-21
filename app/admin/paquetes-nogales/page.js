@@ -64,12 +64,12 @@ export default function PaquetesNogales() {
     setLeyendo(true); setAvisoCorreo('')
     const total = { correos: 0, avisos: 0, ofertas: 0 }
     try {
-      for (let vuelta = 0; vuelta < 10; vuelta++) {
+      for (let vuelta = 0; vuelta < 25; vuelta++) {
         const d = await fetch('/api/bodega/pedidos-en-linea/leer', { method: 'POST' }).then(r => r.json())
         if (!d.ok) { setAvisoCorreo(d.mensaje || 'No se pudo leer el correo.'); break }
         if (d.correos === 0 && d.errores?.length) { setAvisoCorreo(`No se pudo leer el correo: ${d.errores[0]}`); break }
         total.correos += d.correos; total.avisos += d.avisos; total.ofertas += d.ofertas
-        setAvisoCorreo(total.correos === 0 ? 'No hay correos nuevos de los últimos 5 días.'
+        setAvisoCorreo(total.correos === 0 ? 'No hay correos nuevos desde que empezó la venta.'
           : `${total.correos} correos leídos: ${total.avisos} avisos de pedido, ${total.ofertas} ofertas para Tendencias.${d.pendientes ? ` Faltan ${d.pendientes}, sigo leyendo…` : ' Listo.'}`)
         await cargarPedidos()
         if (!d.pendientes) break

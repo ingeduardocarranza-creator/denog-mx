@@ -549,7 +549,7 @@ export default function Tendencias() {
                 <button className="btn btn-neutro" onClick={() => setCuantas(c => c + 60)}>Ver {Math.min(60, ofertasVisibles.length - cuantas)} más</button>
               </div>
             )}
-            {ofertas.length > 0 && <div style={{ fontSize: 12, color: tenue, marginTop: 10, lineHeight: 1.5 }}>Las ofertas vienen de Hip2Save, DealNews, Living Rich With Coupons, Passion For Savings y Costco Insider. Duran poco y el precio puede cambiar: confírmalo en la tienda antes de comprar.</div>}
+            {ofertas.length > 0 && <div style={{ fontSize: 12, color: tenue, marginTop: 10, lineHeight: 1.5 }}>Las ofertas vienen de sitios de ofertas de EE.UU. (Hip2Save, DealNews, The Freebie Guy, Bargain Babe y otros). Duran poco y el precio puede cambiar: confírmalo en la tienda antes de comprar.</div>}
             </>)}
 
             {tab === 'lista' && (<>

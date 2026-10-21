@@ -3,8 +3,21 @@ import { useState, useEffect, useCallback } from 'react'
 
 // Paquetes que la bodega de Nogales registró. Los que llegaron dañados
 // traen de 1 a 3 fotos de evidencia y una nota opcional.
-// Solo consulta: no se ligan a pedidos. El admin puede borrar un registro
-// equivocado (se borran también sus fotos).
+// El admin puede borrar un registro equivocado (se borran también sus fotos).
+//
+// Pestaña "Pedidos en línea": lo que las tiendas avisan por correo (pedido
+// confirmado, enviado con guía, entregado), cruzado por guía con lo que la
+// bodega escaneó. Solo lo ve el admin; la pantalla de Diego no cambia.
+
+const ESTADOS = {
+  confirmado:   { t: 'Confirmado',   c: 'var(--w55)',  bg: 'var(--w05)' },
+  listo_pickup: { t: 'Listo para pickup', c: '#a16207', bg: 'rgba(161,98,7,0.10)' },
+  enviado:      { t: 'En camino',    c: '#466D9B',     bg: 'rgba(70,109,155,0.12)' },
+  en_reparto:   { t: 'Llega hoy',    c: '#466D9B',     bg: 'rgba(70,109,155,0.18)' },
+  entregado:    { t: 'Entregado (según la tienda)', c: '#a16207', bg: 'rgba(161,98,7,0.10)' },
+  cancelado:    { t: 'Cancelado',    c: 'var(--rojo)', bg: 'rgba(185,28,28,0.08)' },
+}
+const fechaCorta = (iso) => iso ? new Date(String(iso).length === 10 ? iso + 'T12:00:00' : iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', timeZone: 'America/Hermosillo' }) : ''
 
 const fechaLocal = (dias = 0) => {
   const d = new Date(Date.now() - 7 * 3600 * 1000 - dias * 86400000)
@@ -30,6 +43,35 @@ export default function PaquetesNogales() {
   const [error, setError] = useState('')
   const [fotoGrande, setFotoGrande] = useState(null)
   const [soloDanados, setSoloDanados] = useState(false)
+  const [pestana, setPestana] = useState('escaneados')        // escaneados | pedidos
+  const [pedidos, setPedidos] = useState(null)                // pedidos en línea (correos de las tiendas)
+  const [correoListo, setCorreoListo] = useState(true)
+  const [leyendo, setLeyendo] = useState(false)
+  const [avisoCorreo, setAvisoCorreo] = useState('')
+  const [filtroPed, setFiltroPed] = useState('todos')
+  const [buscarPed, setBuscarPed] = useState('')
+
+  const cargarPedidos = useCallback(async () => {
+    try {
+      const d = await fetch('/api/bodega/pedidos-en-linea', { cache: 'no-store' }).then(r => r.json())
+      if (d.ok) { setPedidos(d.pedidos); setCorreoListo(d.correoConfigurado) }
+    } catch {}
+  }, [])
+  useEffect(() => { cargarPedidos() }, []) // eslint-disable-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+
+  const leerCorreos = async () => {
+    setLeyendo(true); setAvisoCorreo('')
+    try {
+      const d = await fetch('/api/bodega/pedidos-en-linea/leer', { method: 'POST' }).then(r => r.json())
+      if (!d.ok) setAvisoCorreo(d.mensaje || 'No se pudo leer el correo.')
+      else {
+        setAvisoCorreo(d.correos === 0 ? 'No hay correos nuevos.'
+          : `${d.correos} correos leídos: ${d.avisos} avisos de pedido, ${d.ofertas} ofertas para Tendencias.${d.pendientes ? ` Faltan ${d.pendientes}: vuelve a darle.` : ''}${d.errores?.length ? ` (${d.errores[0]})` : ''}`)
+        await cargarPedidos()
+      }
+    } catch { setAvisoCorreo('Sin conexión.') }
+    setLeyendo(false)
+  }
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -60,6 +102,20 @@ export default function PaquetesNogales() {
     else alert(d.mensaje || 'No se pudo borrar.')
   }
 
+  const pedidoPorGuia = new Map((pedidos || []).filter(p => p.guia).map(p => [p.guia, p]))
+  const sinEscanear = (pedidos || []).filter(p => p.estado === 'entregado' && !p.recibido)
+  const pedVisibles = (pedidos || []).filter(p => {
+    if (buscarPed.trim()) {
+      const q = buscarPed.trim().toLowerCase()
+      if (!`${p.tienda} ${p.numero_pedido} ${p.guia} ${(p.productos || []).map(x => x.nombre).join(' ')}`.toLowerCase().includes(q)) return false
+    }
+    if (filtroPed === 'camino') return ['confirmado', 'enviado', 'en_reparto', 'listo_pickup'].includes(p.estado) && !p.recibido
+    if (filtroPed === 'sin_escanear') return p.estado === 'entregado' && !p.recibido
+    if (filtroPed === 'recibidos') return !!p.recibido
+    if (filtroPed === 'sin_guia') return !p.guia && p.estado !== 'cancelado'
+    return true
+  })
+
   const danados = paquetes.filter(p => p.danado).length
   const visibles = soloDanados ? paquetes.filter(p => p.danado) : paquetes
   // Sin guía (delivery en bolsa / pickup) se agrupan como "Sin guía".
@@ -73,6 +129,73 @@ export default function PaquetesNogales() {
           <div style={{ color: 'var(--tinta)', fontSize: 25, fontWeight: 800, letterSpacing: -0.6 }}>Paquetes Nogales</div>
           <div style={{ color: 'var(--w40)', fontSize: 13, marginTop: 4 }}>Lo que la bodega escaneó al recibir; los dañados traen foto de evidencia</div>
         </div>
+
+        <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--w04)', borderRadius: 12, width: 'fit-content', marginBottom: 16 }}>
+          {[['escaneados', 'Escaneados en bodega'], ['pedidos', `Pedidos en línea${pedidos ? ` · ${pedidos.length}` : ''}`]].map(([v, t]) => (
+            <button key={v} onClick={() => setPestana(v)} aria-pressed={pestana === v}
+              style={{ minHeight: 38, padding: '0 14px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: pestana === v ? 800 : 600,
+                background: pestana === v ? 'var(--sup)' : 'transparent', color: pestana === v ? 'var(--tinta)' : 'var(--w50)', boxShadow: pestana === v ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}>{t}</button>
+          ))}
+        </div>
+
+        {pestana === 'pedidos' && (
+          <div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+              <button onClick={leerCorreos} disabled={leyendo || !correoListo}
+                style={{ minHeight: 38, padding: '0 16px', borderRadius: 9, border: 'none', background: '#466D9B', color: '#fff', fontWeight: 700, fontSize: 13, cursor: leyendo ? 'wait' : 'pointer', opacity: leyendo || !correoListo ? 0.6 : 1 }}>
+                {leyendo ? 'Leyendo correos…' : 'Leer correos de las tiendas'}
+              </button>
+              <input style={{ ...inputEstilo, flex: 1, minWidth: 180 }} placeholder="Buscar pedido, guía o producto" value={buscarPed} onChange={e => setBuscarPed(e.target.value)} />
+            </div>
+            {!correoListo && (
+              <div style={{ background: 'rgba(161,98,7,0.08)', border: '1px solid rgba(161,98,7,0.3)', color: 'var(--ambar)', borderRadius: 10, padding: '10px 14px', fontSize: 13, marginBottom: 12 }}>
+                Falta conectar el Gmail de las tiendas: agrega CORREO_TIENDAS y CORREO_TIENDAS_CLAVE en .env.local (y en Vercel).
+              </div>
+            )}
+            {avisoCorreo && <div style={{ fontSize: 13, color: 'var(--w60)', marginBottom: 12 }}>{avisoCorreo}</div>}
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              {[['todos', 'Todos', (pedidos || []).length], ['camino', 'En camino', (pedidos || []).filter(p => ['confirmado', 'enviado', 'en_reparto', 'listo_pickup'].includes(p.estado) && !p.recibido).length],
+                ['sin_escanear', 'Entregado y no escaneado', sinEscanear.length], ['recibidos', 'Recibidos en bodega', (pedidos || []).filter(p => p.recibido).length],
+                ['sin_guia', 'Sin guía', (pedidos || []).filter(p => !p.guia && p.estado !== 'cancelado').length]].map(([v, t, n]) => (
+                <button key={v} style={chip(filtroPed === v)} onClick={() => setFiltroPed(v)}>{t} · {n}</button>
+              ))}
+            </div>
+
+            {pedidos === null ? <div style={{ color: 'var(--w40)', fontSize: 13 }}>Cargando…</div>
+              : pedVisibles.length === 0 ? <div style={{ color: 'var(--w40)', fontSize: 13 }}>{pedidos.length === 0 ? 'Todavía no hay pedidos leídos del correo.' : 'Nada en este filtro.'}</div>
+              : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {pedVisibles.map(p => {
+                    const est = p.recibido ? { t: '✓ Recibido en bodega', c: 'var(--verde)', bg: 'rgba(15,138,99,0.10)' } : (ESTADOS[p.estado] || ESTADOS.confirmado)
+                    const prods = p.productos || []
+                    return (
+                      <div key={p.id} style={{ background: 'var(--sup)', border: `1px solid ${!p.recibido && p.estado === 'entregado' ? 'rgba(161,98,7,0.35)' : 'var(--w08)'}`, borderRadius: 12, padding: 12 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--tinta)' }}>{p.tienda} · <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700 }}>#{p.numero_pedido}</span></div>
+                          <span style={{ fontSize: 11.5, fontWeight: 800, borderRadius: 6, padding: '3px 8px', color: est.c, background: est.bg }}>{est.t}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--w50)', marginTop: 4 }}>
+                          {p.guia ? <><span style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--tinta)' }}>{p.guia}</span>{p.paqueteria ? ` · ${p.paqueteria}` : ''}</> : <span style={{ color: 'var(--ambar)', fontWeight: 700 }}>Sin guía todavía</span>}
+                          {p.recibido ? ` · llegó ${fechaHora(p.recibido.recibido_en)}${p.recibido.danado ? ' · DAÑADO' : ''}`
+                            : p.entregado_en ? ` · la tienda dice entregado el ${fechaCorta(p.entregado_en)}`
+                            : p.fecha_estimada ? ` · llega aprox. ${fechaCorta(p.fecha_estimada)}` : ''}
+                          {` · último aviso ${fechaCorta(p.ultimo_correo)}`}
+                        </div>
+                        {prods.length > 0 && (
+                          <div style={{ fontSize: 12.5, color: 'var(--w60)', marginTop: 6, lineHeight: 1.45 }}>
+                            {prods.slice(0, 3).map(x => `${x.cantidad > 1 ? `${x.cantidad}× ` : ''}${x.nombre}`).join(' · ')}{prods.length > 3 ? ` · +${prods.length - 3} más` : ''}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+          </div>
+        )}
+
+        {pestana === 'escaneados' && (<>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 14 }}>
           <button style={chip(rangoActivo(0))} onClick={() => rango(0)}>Hoy</button>
@@ -139,6 +262,10 @@ export default function PaquetesNogales() {
                     {' · '}{fechaHora(p.recibido_en)}{p.recibido_por_nombre ? ` · ${p.recibido_por_nombre}` : ''}
                   </div>
                   {p.notas && <div style={{ fontSize: 12, color: 'var(--ambar)', marginTop: 4 }}>Nota: {p.notas}</div>}
+                  {p.numero_guia && pedidoPorGuia.get(p.numero_guia) && (() => {
+                    const ped = pedidoPorGuia.get(p.numero_guia)
+                    return <div style={{ fontSize: 12, color: '#466D9B', marginTop: 4, fontWeight: 600 }}>{ped.tienda} · pedido #{ped.numero_pedido}{ped.productos?.length ? ` · ${ped.productos.length} artículo${ped.productos.length > 1 ? 's' : ''}` : ''}</div>
+                  })()}
                 </div>
                 <button onClick={() => borrar(p)} style={{ background: 'none', border: '1px solid var(--w10)', color: 'var(--w45)', borderRadius: 8, padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}>
                   Borrar
@@ -147,6 +274,7 @@ export default function PaquetesNogales() {
             ))}
           </div>
         )}
+        </>)}
       </div>
 
       {fotoGrande && (

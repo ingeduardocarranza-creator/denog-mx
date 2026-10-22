@@ -4,6 +4,7 @@ import { requerirAdmin } from '@/lib/auth/session'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 import { cargarResumen } from '@/lib/tendencias/resumen'
 import { fechaCorta } from '@/lib/tendencias/comun'
+import { esDeTienda, urlBusqueda } from '@/lib/tendencias/enlaces'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -104,8 +105,8 @@ Al terminar, responde ÚNICAMENTE con un bloque así (sin texto antes ni despué
     "tipo": "temporada" | "tendencia" | "funciona",
     "etiqueta": "Temporada · Navidad" | "Tendencia · TikTok" | "Te funciona" (corto),
     "porque": "una frase en español con la evidencia: por qué este y por qué ahora",
-    "tallas": "tallas disponibles si es ropa o calzado (ej. \"S a XXL\"), si no null",
-    "colores": "colores, sabores o aromas disponibles si aplica, EN ESPAÑOL (ej. \"Negro, gris y rosa\"), si no null",
+    "tallas": "SOLO el rango de tallas si es ropa o calzado (ej. \"S a XXL\", \"Niña 4 a 12\"); si no lo viste, null",
+    "colores": "SOLO los nombres de colores, sabores o aromas, EN ESPAÑOL, separados por coma (ej. \"Negro, gris y rosa\"); sin precios ni cantidades ni explicaciones; si no los viste, null",
     "gancho": "una línea corta y antojable para el grupo de WhatsApp, español de Sonora, sin precio, máximo 1 emoji",
     "imagen_url": "url de la foto si la viste en los resultados, si no null"
   }
@@ -159,6 +160,8 @@ function extraerProductos(texto, fuentes) {
   const vistos = new Set()
   return arr.filter(p => p && p.nombre).map((p, i) => {
     let url = typeof p.url === 'string' && /^https?:\/\//.test(p.url) ? p.url : null
+    // Si la IA dio un artículo o blog en vez de la tienda, se usa la búsqueda en la tienda.
+    if (!url || !esDeTienda(url)) url = urlBusqueda(p.tienda, p.nombre)
     const precio = Number(p.precio_usd)
     return {
       clave: `p${i}`,

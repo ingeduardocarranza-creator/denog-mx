@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import { precioSugerido, utilidadEstimada, fechaCorta } from '@/lib/tendencias/comun'
-import { urlBusqueda } from '@/lib/tendencias/enlaces'
+import { urlBusqueda, esDeTienda } from '@/lib/tendencias/enlaces'
 import { NOMBRE_FUENTE } from '@/lib/tendencias/fuentes'
 
 // ---------------------------------------------------------------------------
@@ -279,7 +279,9 @@ export default function Tendencias() {
     return (lista.productos || []).map(p => {
       const precio = precioSugerido(p.precio_usd, Number(precios.factor))
       const gana = utilidadEstimada(p.precio_usd, precio, Number(precios.tipoCambio), Number(precios.impuesto))
-      return { ...p, precio, gana, texto: textos[p.clave] ?? textoWhatsApp(p, precio), publicado: publicados.has(p.clave) }
+      // Listas viejas pueden traer un link que no es de la tienda: se cambia por la búsqueda.
+      const url = p.url && esDeTienda(p.url) ? p.url : urlBusqueda(p.tienda, p.nombre)
+      return { ...p, url, precio, gana, texto: textos[p.clave] ?? textoWhatsApp(p, precio), publicado: publicados.has(p.clave) }
     })
   }, [lista, precios, textos, publicados])
 

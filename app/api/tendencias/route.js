@@ -3,6 +3,8 @@ import { requerirAdmin } from '@/lib/auth/session'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 import { cargarResumen } from '@/lib/tendencias/resumen'
 import { puntuarOfertas } from '@/lib/tendencias/ofertas'
+import { aprendizajeDe } from '@/lib/tendencias/aprendizaje'
+import { cargarSolicitudes } from '@/lib/tendencias/solicitudes'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,14 +18,26 @@ export async function GET(req) {
     const resumen = await cargarResumen(supabase)
     // Ofertas de los últimos 3 días, con el puntaje calculado con el historial de hoy.
     const desde = new Date(Date.now() - 3 * 86400000).toISOString()
-    const { data: ofertas, error } = await supabase.from('ofertas')
-      .select('id, fuente, tienda, nombre, precio_usd, precio_antes_usd, url, url_tienda, enlace_tipo, imagen_url, tipo, familia, temporadas, gancho, tallas, colores, publicado, creado_en')
-      .eq('util', true).eq('descartado', false).gte('creado_en', desde)
-      .order('creado_en', { ascending: false }).limit(1500)
+    const COLS = 'id, fuente, tienda, nombre, precio_usd, precio_antes_usd, url, url_tienda, enlace_tipo, imagen_url, tipo, familia, temporadas, gancho, tallas, colores, publicado, creado_en, me_gusta, hashtag, precio_aprox'
+    // Virales de Instagram: pestaña aparte y duran más (14 días).
+    const desdeV = new Date(Date.now() - 14 * 86400000).toISOString()
+    const [{ data: ofertas, error }, { data: viralesRaw, error: errorV }] = await Promise.all([
+      supabase.from('ofertas').select(COLS)
+        .eq('util', true).eq('descartado', false).neq('fuente', 'instagram').gte('creado_en', desde)
+        .order('creado_en', { ascending: false }).limit(1500),
+      supabase.from('ofertas').select(COLS)
+        .eq('util', true).eq('descartado', false).eq('fuente', 'instagram').gte('creado_en', desdeV)
+        .order('creado_en', { ascending: false }).limit(800),
+    ])
     if (error) throw new Error(error.message)
-    const resultados = await cargarResultados(supabase)
+    if (errorV) throw new Error(errorV.message)
+    const [resultados, solicitudes] = await Promise.all([cargarResultados(supabase), cargarSolicitudes(supabase)])
     const ventasPorOferta = new Map(resultados.filas.map(r => [r.oferta_id, r]))
-    const puntuadas = puntuarOfertas(ofertas || [], resumen)
+    const aprendizaje = aprendizajeDe(resultados.publicadas, ventasPorOferta, solicitudes.porTipo)
+    const puntuadas = puntuarOfertas(ofertas || [], resumen, aprendizaje)
+      .map(o => ({ ...o, ventas: ventasPorOferta.get(o.id)?.pedidos || 0 }))
+      .sort((a, b) => b.puntaje - a.puntaje)
+    const virales = puntuarOfertas(viralesRaw || [], resumen, aprendizaje)
       .map(o => ({ ...o, ventas: ventasPorOferta.get(o.id)?.pedidos || 0 }))
       .sort((a, b) => b.puntaje - a.puntaje)
     // Un artículo real de tu catálogo, para el botón "Probar compartir".
@@ -32,7 +46,7 @@ export async function GET(req) {
       .order('id', { ascending: false }).limit(1)
     const { todosTipos, ...resto } = resumen
     void todosTipos
-    return NextResponse.json({ ok: true, ...resto, ofertas: puntuadas, ultimaOferta: ofertas?.[0]?.creado_en || null, muestra: muestra?.[0] || null, resultados: resultados.resumen })
+    return NextResponse.json({ ok: true, ...resto, ofertas: puntuadas, virales, ultimaOferta: ofertas?.[0]?.creado_en || null, muestra: muestra?.[0] || null, resultados: resultados.resumen, solicitudes: solicitudes.resumen })
   } catch (e) {
     console.error('[tendencias] error:', e.message)
     return NextResponse.json({ ok: false, mensaje: e.message }, { status: 500 })
@@ -44,10 +58,11 @@ export async function GET(req) {
 // cuyo texto de la foto trae su título (ver función tendencias_resultados).
 // Solo cuenta lo que llega con el texto; lo que se reenvía sin texto no se ve.
 async function cargarResultados(supabase) {
-  const desde = new Date(Date.now() - 30 * 86400000).toISOString()
+  // 60 días: suficiente para aprender sin arrastrar temporadas viejas.
+  const desde = new Date(Date.now() - 60 * 86400000).toISOString()
   const [{ data: filas, error }, { data: publicadas, error: e2 }] = await Promise.all([
     supabase.rpc('tendencias_resultados', { p_desde: desde }),
-    supabase.from('ofertas').select('id, nombre, tipo, tienda, precio_usd').eq('publicado', true).gte('creado_en', desde).limit(5000),
+    supabase.from('ofertas').select('id, nombre, tipo, familia, tienda, fuente, precio_usd, publicado_en, creado_en').eq('publicado', true).gte('creado_en', desde).limit(5000),
   ])
   if (error) throw new Error(error.message)
   if (e2) throw new Error(e2.message)
@@ -68,7 +83,7 @@ async function cargarResultados(supabase) {
   const total = publicadas?.length || 0
   const conVenta = tipos.reduce((s, t) => s + t.conVenta, 0)
   return {
-    filas: filas || [],
+    filas: filas || [], publicadas: publicadas || [],
     resumen: {
       publicadas: total, conVenta, tasa: total ? conVenta / total : 0,
       pedidos: tipos.reduce((s, t) => s + t.pedidos, 0), utilidad: tipos.reduce((s, t) => s + t.utilidad, 0),

@@ -114,6 +114,9 @@ export default function Tendencias() {
   const [tab, setTab] = useState('ofertas')             // ofertas | lista | historial
   const [actualizando, setActualizando] = useState(false)
   const [fOf, setFOf] = useState({ tienda: 'todas', familia: 'todas', minimo: 0, sinPublicar: true, q: '' })
+  const [fV, setFV] = useState({ tienda: 'todas', orden: 'puntaje', sinPublicar: true, q: '' })
+  const [cuantasV, setCuantasV] = useState(60)
+  const [actualizandoV, setActualizandoV] = useState(false)
   const [cuantas, setCuantas] = useState(60)
   // En celular: el menú de compartir manda foto + texto juntos a WhatsApp.
   // En computadora: WhatsApp casi nunca sale en ese menú, así que se copia la
@@ -123,7 +126,8 @@ export default function Tendencias() {
     try { setCelular(typeof navigator.share === 'function' && window.matchMedia('(pointer: coarse)').matches) } catch {}
   }, [])
 
-  const notificar = (tipo, texto) => { setAviso({ tipo, texto }); setTimeout(() => setAviso(null), 7000) }
+  // Los errores se quedan en pantalla (hasta el siguiente aviso) para poder leerlos.
+  const notificar = (tipo, texto) => { setAviso({ tipo, texto }); if (tipo !== 'error') setTimeout(() => setAviso(a => a?.texto === texto ? null : a), 9000) }
 
   const cargar = async () => {
     try {
@@ -178,15 +182,31 @@ export default function Tendencias() {
       const r = await fetch('/api/tendencias/ofertas/actualizar', { method: 'POST' }).then(r => r.json())
       if (!r.ok) throw new Error(r.mensaje)
       await cargar()
-      notificar('ok', r.nuevas === 0 && !r.correos
-        ? 'No hay ofertas nuevas desde la última vez. Intenta más tarde.'
-        : `${r.nuevas} ofertas nuevas revisadas, ${r.utiles} sirven para Denog.${r.correoConfigurado ? ` Correos de tiendas leídos: ${r.correos}.` : ''}${r.errores.length ? ` (${r.errores.length} aviso${r.errores.length > 1 ? 's' : ''}: ${r.errores[0]})` : ''}`)
+      const ig = r.instagram?.configurado ? ` Instagram: ${r.instagram.nuevas} virales nuevos, ${r.instagram.utiles} sirven.` : ''
+      const aviso = r.errores.find(e => e.startsWith('Instagram')) || r.errores[0]
+      notificar('ok', r.nuevas === 0 && !r.correos && !r.instagram?.nuevas
+        ? `No hay ofertas nuevas desde la última vez. Intenta más tarde.${aviso ? ` (aviso: ${aviso})` : ''}`
+        : `${r.nuevas} ofertas nuevas revisadas, ${r.utiles} sirven para Denog.${r.correoConfigurado ? ` Correos de tiendas leídos: ${r.correos}.` : ''}${ig}${r.errores.length ? ` (${r.errores.length} aviso${r.errores.length > 1 ? 's' : ''}: ${aviso})` : ''}`)
     } catch (e) { notificar('error', `No se pudieron traer ofertas: ${e.message}`) }
     setActualizando(false)
   }
 
+  const actualizarVirales = async () => {
+    setActualizandoV(true)
+    try {
+      const r = await fetch('/api/tendencias/virales/actualizar', { method: 'POST' }).then(r => r.json())
+      if (!r.ok) throw new Error(r.mensaje)
+      await cargar()
+      notificar(r.errores?.length && (!r.leidas || !r.utiles) ? 'error' : 'ok', r.nuevas === 0
+        ? `No hay virales nuevos desde la última vez (${r.leidas} revisados).${r.errores?.length ? ` Aviso: ${r.errores[0]}` : ''}`
+        : `${r.nuevas} publicaciones nuevas revisadas: salieron ${r.utiles} productos concretos.${r.faltan ? ` Faltan ${r.faltan}: dale otra vez para seguir.` : ''}${r.errores?.length ? ` (aviso: ${r.errores[0]})` : ''}`)
+    } catch (e) { notificar('error', `No se pudieron traer virales: ${e.message}`) }
+    setActualizandoV(false)
+  }
+
   const cambiarOferta = async (o, cambios) => {
-    setDatos(d => ({ ...d, ofertas: cambios.descartado ? d.ofertas.filter(x => x.id !== o.id) : d.ofertas.map(x => x.id === o.id ? { ...x, ...cambios } : x) }))
+    const aplicar = (lista) => (lista || []).flatMap(x => x.id !== o.id ? [x] : cambios.descartado ? [] : [{ ...x, ...cambios }])
+    setDatos(d => ({ ...d, ofertas: aplicar(d.ofertas), virales: aplicar(d.virales) }))
     try {
       const r = await fetch('/api/tendencias/ofertas', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, ...cambios }),
@@ -295,6 +315,24 @@ export default function Tendencias() {
       return { ...o, precio, gana, texto: textos['o' + o.id] ?? textoWhatsApp(o, precio) }
     })
   }, [datos, precios, textos])
+  const virales = useMemo(() => {
+    if (!datos?.virales || !precios) return []
+    return datos.virales.map(o => {
+      const precio = precioSugerido(o.precio_usd, Number(precios.factor))
+      const gana = utilidadEstimada(o.precio_usd, precio, Number(precios.tipoCambio), Number(precios.impuesto))
+      return { ...o, precio, gana, texto: textos['o' + o.id] ?? textoWhatsApp(o, precio) }
+    })
+  }, [datos, precios, textos])
+  const tiendasV = useMemo(() => {
+    const m = new Map(); for (const o of virales) m.set(o.tienda, (m.get(o.tienda) || 0) + 1)
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t).filter(Boolean)
+  }, [virales])
+  const viralesVisibles = virales.filter(o => {
+    if (fV.tienda !== 'todas' && o.tienda !== fV.tienda) return false
+    if (fV.sinPublicar && o.publicado) return false
+    if (fV.q && !`${o.nombre} ${o.tipo} ${o.tienda}`.toLowerCase().includes(fV.q.toLowerCase())) return false
+    return true
+  }).sort((a, b) => fV.orden === 'likes' ? (b.me_gusta || 0) - (a.me_gusta || 0) : b.puntaje - a.puntaje)
   const tiendasOf = useMemo(() => {
     const m = new Map(); for (const o of ofertas) m.set(o.tienda, (m.get(o.tienda) || 0) + 1)
     return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t).filter(Boolean)
@@ -312,6 +350,68 @@ export default function Tendencias() {
   const copiar = async (clave, texto) => {
     try { await navigator.clipboard.writeText(texto); setCopiado(clave); setTimeout(() => setCopiado(c => c === clave ? null : c), 2500) }
     catch { notificar('error', 'No se pudo copiar. Selecciona el texto y cópialo a mano.') }
+  }
+
+  // Tarjeta de una oferta o de un viral (misma forma en las dos pestañas).
+  const tarjetaOferta = (o) => {
+    const tono = o.puntaje >= 70 ? 'verde' : o.puntaje >= 55 ? 'ambar' : 'gris'
+    const foto = o.imagen_url ? `/api/tendencias/foto?oferta=${o.id}` : null
+    // Siempre a la tienda: el producto exacto si se encontró, si no la búsqueda en esa tienda.
+    const enTienda = o.url_tienda || urlBusqueda(o.tienda, o.nombre)
+    const esBusqueda = !o.url_tienda || o.enlace_tipo === 'busqueda'
+    const viral = o.fuente === 'instagram'
+    // Video de Instagram sin foto: la foto se saca de la publicación.
+    const ligaFoto = !foto && viral && o.url ? o.url : enTienda
+    return (
+      <article key={o.id} style={{ ...card, overflow: 'hidden', display: 'flex', flexDirection: 'column', opacity: o.publicado ? 0.7 : 1 }}>
+        <a className="foto foto-chica" href={ligaFoto} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${o.nombre} en ${ligaFoto === enTienda ? o.tienda : 'Instagram'}`}>
+          {foto
+            ? <img src={foto} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} />
+            : <span style={{ color: tenue, fontSize: 12.5, fontWeight: 600, textAlign: 'center', padding: '0 12px' }}>{viral ? 'Es video: ábrelo en Instagram para ver el producto' : 'Clic para ver la oferta'}</span>}
+        </a>
+        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ display: 'flex', gap: 5 }}>
+              <Pastilla tono={tono}>{o.puntaje} pts</Pastilla>
+              {viral && <Pastilla tono="ambar">🔥 {o.me_gusta ? `${o.me_gusta.toLocaleString('es-MX')} likes` : 'Viral'}</Pastilla>}
+              {o.ventas > 0 && <Pastilla tono="azul">{o.ventas} {o.ventas === 1 ? 'venta' : 'ventas'}</Pastilla>}
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--w60)' }}>{o.tienda}</span>
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.3 }}>{o.nombre}</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <a href={enTienda} target="_blank" rel="noopener noreferrer" className="btn btn-neutro" style={{ minHeight: 34, padding: '0 10px', fontSize: 12, color: 'var(--azul-t)', borderColor: 'var(--azul-borde)', textDecoration: 'none' }}>
+              {esBusqueda ? `Buscar en ${o.tienda} ↗` : `Comprar en ${o.tienda} ↗`}
+            </a>
+            {o.url && (
+              <a href={o.url} target="_blank" rel="noopener noreferrer" className="btn btn-neutro" style={{ minHeight: 34, padding: '0 10px', fontSize: 12, textDecoration: 'none' }}>
+                Ver en {NOMBRE_FUENTE[o.fuente] || 'la fuente'} ↗
+              </a>
+            )}
+          </div>
+          <div className="num" style={{ display: 'flex', gap: 10, fontSize: 13, flexWrap: 'wrap', alignItems: 'baseline' }}>
+            <span><b>{o.precio_aprox ? '~' : ''}{usd(o.precio_usd)}</b>{o.precio_aprox && <span style={{ color: tenue, marginLeft: 4, fontSize: 11.5 }} title="La IA lo estimó: no se veía en la publicación. Confírmalo en la tienda.">aprox.</span>}{o.precio_antes_usd > o.precio_usd && <span style={{ color: tenue, textDecoration: 'line-through', marginLeft: 4 }}>{usd(o.precio_antes_usd)}</span>}</span>
+            <span style={{ color: 'var(--marca-t)', fontWeight: 800 }}>→ {fmt(o.precio)}</span>
+            <span style={{ color: 'var(--verde-t)', fontWeight: 700 }}>gana {fmt(o.gana)}</span>
+          </div>
+          {o.razones?.length > 0 && <div style={{ fontSize: 12, color: 'var(--w55)', lineHeight: 1.4 }}>{o.razones.join(' · ')}</div>}
+          <details>
+            <summary style={{ fontSize: 12, color: 'var(--azul-t)', cursor: 'pointer', fontWeight: 600 }}>Ver / editar texto</summary>
+            <textarea value={o.texto} rows={4} aria-label={`Texto para WhatsApp de ${o.nombre}`}
+              onChange={e => setTextos(t => ({ ...t, ['o' + o.id]: e.target.value }))}
+              style={{ width: '100%', marginTop: 6, resize: 'vertical', lineHeight: 1.45, background: 'var(--sup-2)', borderStyle: 'dashed' }} />
+          </details>
+          <div style={{ display: 'flex', gap: 6, marginTop: 'auto', paddingTop: 2 }}>
+            {botonesCompartir('o' + o.id, o.texto, foto, () => { if (!o.publicado) cambiarOferta(o, { publicado: true }) })}
+            <button className="btn btn-neutro" style={{ padding: '0 11px', ...(o.publicado ? { color: 'var(--verde-t)', borderColor: 'var(--verde-borde)', background: 'var(--verde-suave)' } : {}) }}
+              onClick={() => cambiarOferta(o, { publicado: !o.publicado })} aria-pressed={o.publicado} title={o.publicado ? 'Publicado (clic para desmarcar)' : 'Marcar como publicado'} aria-label="Marcar como publicado">
+              ✓
+            </button>
+            <button className="btn btn-neutro" style={{ padding: '0 12px' }} onClick={() => cambiarOferta(o, { descartado: true })} aria-label={`Descartar ${o.nombre}`} title="No me sirve">✕</button>
+          </div>
+        </div>
+      </article>
+    )
   }
 
   const proximas = (datos?.calendario || []).filter(e => e.tono !== 'gris' || e.faltan <= 90).slice(0, 6)
@@ -373,11 +473,14 @@ export default function Tendencias() {
         )}
 
         {aviso && (
+          // Pegado arriba: se ve aunque estés abajo en la página.
           <div role="status" style={{ ...card, padding: '11px 15px', marginTop: 14, fontSize: 13, lineHeight: 1.5,
+            position: 'sticky', top: 10, zIndex: 30, display: 'flex', gap: 10, alignItems: 'flex-start',
             color: aviso.tipo === 'error' ? 'var(--rojo-t)' : 'var(--verde-t)',
-            background: aviso.tipo === 'error' ? 'rgba(var(--rojo-rgb),0.08)' : 'var(--verde-suave)',
-            borderColor: aviso.tipo === 'error' ? 'rgba(var(--rojo-rgb),0.3)' : 'var(--verde-borde)' }}>
-            {aviso.texto}
+            background: aviso.tipo === 'error' ? 'var(--sup)' : 'var(--verde-suave)',
+            borderColor: aviso.tipo === 'error' ? 'rgba(var(--rojo-rgb),0.4)' : 'var(--verde-borde)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)' }}>
+            <span style={{ flex: 1 }}>{aviso.texto}</span>
+            <button onClick={() => setAviso(null)} aria-label="Cerrar aviso" style={{ border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 2 }}>✕</button>
           </div>
         )}
 
@@ -427,7 +530,7 @@ export default function Tendencias() {
 
             {/* ── Pestañas ── */}
             <div role="tablist" aria-label="Secciones" style={{ display: 'flex', gap: 4, marginTop: 28, padding: 4, background: 'var(--w04)', borderRadius: 12, width: 'fit-content', maxWidth: '100%', overflowX: 'auto' }}>
-              {[['ofertas', `Ofertas del día${datos.ofertas?.length ? ` · ${datos.ofertas.length}` : ''}`], ['lista', 'Tendencias (búsqueda IA)'], ['historial', 'Lo que te funciona']].map(([v, t]) => (
+              {[['ofertas', `Ofertas del día${datos.ofertas?.length ? ` · ${datos.ofertas.length}` : ''}`], ['redes', `Redes sociales${datos.virales?.length ? ` · ${datos.virales.length}` : ''}`], ['lista', 'Tendencias (búsqueda IA)'], ['historial', 'Lo que te funciona']].map(([v, t]) => (
                 <button key={v} role="tab" aria-selected={tab === v} onClick={() => setTab(v)}
                   style={{ minHeight: 40, padding: '0 16px', borderRadius: 9, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 13, fontWeight: tab === v ? 800 : 600,
                     background: tab === v ? 'var(--sup)' : 'transparent', color: tab === v ? 'var(--tinta)' : 'var(--w50)', boxShadow: tab === v ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}>{t}</button>
@@ -489,62 +592,7 @@ export default function Tendencias() {
             {ofertas.length > 0 && <div style={{ fontSize: 12.5, color: tenue, marginBottom: 10 }}>{ofertasVisibles.length} ofertas en este filtro · {ofertas.filter(o => o.publicado).length} publicadas</div>}
 
             <div className="rejilla-of">
-              {ofertasVisibles.slice(0, cuantas).map(o => {
-                const tono = o.puntaje >= 70 ? 'verde' : o.puntaje >= 55 ? 'ambar' : 'gris'
-                const foto = o.imagen_url ? `/api/tendencias/foto?oferta=${o.id}` : null
-                // Siempre a la tienda: el producto exacto si se encontró, si no la búsqueda en esa tienda.
-                const enTienda = o.url_tienda || urlBusqueda(o.tienda, o.nombre)
-                const esBusqueda = !o.url_tienda || o.enlace_tipo === 'busqueda'
-                return (
-                  <article key={o.id} style={{ ...card, overflow: 'hidden', display: 'flex', flexDirection: 'column', opacity: o.publicado ? 0.7 : 1 }}>
-                    <a className="foto foto-chica" href={enTienda} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${o.nombre} en ${o.tienda}`}>
-                      {foto
-                        ? <img src={foto} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} />
-                        : <span style={{ color: tenue, fontSize: 12.5, fontWeight: 600 }}>Clic para ver la oferta</span>}
-                    </a>
-                    <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ display: 'flex', gap: 5 }}>
-                          <Pastilla tono={tono}>{o.puntaje} pts</Pastilla>
-                          {o.ventas > 0 && <Pastilla tono="azul">{o.ventas} {o.ventas === 1 ? 'venta' : 'ventas'}</Pastilla>}
-                        </span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--w60)' }}>{o.tienda}</span>
-                      </div>
-                      <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.3 }}>{o.nombre}</div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <a href={enTienda} target="_blank" rel="noopener noreferrer" className="btn btn-neutro" style={{ minHeight: 34, padding: '0 10px', fontSize: 12, color: 'var(--azul-t)', borderColor: 'var(--azul-borde)', textDecoration: 'none' }}>
-                          {esBusqueda ? `Buscar en ${o.tienda} ↗` : `Comprar en ${o.tienda} ↗`}
-                        </a>
-                        {o.url && (
-                          <a href={o.url} target="_blank" rel="noopener noreferrer" className="btn btn-neutro" style={{ minHeight: 34, padding: '0 10px', fontSize: 12, textDecoration: 'none' }}>
-                            Ver en {NOMBRE_FUENTE[o.fuente] || 'la fuente'} ↗
-                          </a>
-                        )}
-                      </div>
-                      <div className="num" style={{ display: 'flex', gap: 10, fontSize: 13, flexWrap: 'wrap', alignItems: 'baseline' }}>
-                        <span><b>{usd(o.precio_usd)}</b>{o.precio_antes_usd > o.precio_usd && <span style={{ color: tenue, textDecoration: 'line-through', marginLeft: 4 }}>{usd(o.precio_antes_usd)}</span>}</span>
-                        <span style={{ color: 'var(--marca-t)', fontWeight: 800 }}>→ {fmt(o.precio)}</span>
-                        <span style={{ color: 'var(--verde-t)', fontWeight: 700 }}>gana {fmt(o.gana)}</span>
-                      </div>
-                      {o.razones?.length > 0 && <div style={{ fontSize: 12, color: 'var(--w55)', lineHeight: 1.4 }}>{o.razones.join(' · ')}</div>}
-                      <details>
-                        <summary style={{ fontSize: 12, color: 'var(--azul-t)', cursor: 'pointer', fontWeight: 600 }}>Ver / editar texto</summary>
-                        <textarea value={o.texto} rows={4} aria-label={`Texto para WhatsApp de ${o.nombre}`}
-                          onChange={e => setTextos(t => ({ ...t, ['o' + o.id]: e.target.value }))}
-                          style={{ width: '100%', marginTop: 6, resize: 'vertical', lineHeight: 1.45, background: 'var(--sup-2)', borderStyle: 'dashed' }} />
-                      </details>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 'auto', paddingTop: 2 }}>
-                        {botonesCompartir('o' + o.id, o.texto, foto, () => { if (!o.publicado) cambiarOferta(o, { publicado: true }) })}
-                        <button className="btn btn-neutro" style={{ padding: '0 11px', ...(o.publicado ? { color: 'var(--verde-t)', borderColor: 'var(--verde-borde)', background: 'var(--verde-suave)' } : {}) }}
-                          onClick={() => cambiarOferta(o, { publicado: !o.publicado })} aria-pressed={o.publicado} title={o.publicado ? 'Publicado (clic para desmarcar)' : 'Marcar como publicado'} aria-label="Marcar como publicado">
-                          ✓
-                        </button>
-                        <button className="btn btn-neutro" style={{ padding: '0 12px' }} onClick={() => cambiarOferta(o, { descartado: true })} aria-label={`Descartar ${o.nombre}`} title="No me sirve">✕</button>
-                      </div>
-                    </div>
-                  </article>
-                )
-              })}
+              {ofertasVisibles.slice(0, cuantas).map(tarjetaOferta)}
             </div>
             {ofertasVisibles.length > cuantas && (
               <div style={{ textAlign: 'center', marginTop: 14 }}>
@@ -552,6 +600,51 @@ export default function Tendencias() {
               </div>
             )}
             {ofertas.length > 0 && <div style={{ fontSize: 12, color: tenue, marginTop: 10, lineHeight: 1.5 }}>Las ofertas vienen de sitios de ofertas de EE.UU. (Hip2Save, DealNews, The Freebie Guy, Bargain Babe y otros). Duran poco y el precio puede cambiar: confírmalo en la tienda antes de comprar.</div>}
+            </>)}
+
+            {tab === 'redes' && (<>
+            <Titulo
+              sub="Lo más popular en Instagram de compradores de EE.UU. (#costcofinds, #walmartfinds, #amazonfinds, #targetfinds, #samsclubfinds, #fivebelowfinds y más). La IA mira las fotos y saca cada producto concreto (marca, nombre, precio si se ve y número de artículo), y lo ordena por lo que a ti te vende y por likes. Se actualiza solo con las ofertas (6 am, 12 pm y 6 pm)."
+              derecha={<div style={{ display: 'flex', gap: 8 }}>
+                {precios && <button className="btn btn-neutro" onClick={() => setVerPrecios(v => !v)} aria-expanded={verPrecios}>Ajustar precios</button>}
+                <button className="btn btn-marca" onClick={actualizarVirales} disabled={actualizandoV}>
+                  {actualizandoV ? <><span className="girando" aria-hidden="true" /> Trayendo…</> : 'Traer virales nuevos'}
+                </button>
+              </div>}>
+              Virales en redes sociales
+            </Titulo>
+            {verPrecios && precios && <PanelPrecios precios={precios} setPrecios={setPrecios} promedios={datos.precios} />}
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
+              <input value={fV.q} onChange={e => { setFV(f => ({ ...f, q: e.target.value })); setCuantasV(60) }} placeholder="Buscar…" aria-label="Buscar viral" style={{ flex: '1 1 180px', minWidth: 0, minHeight: 40 }} />
+              <select value={fV.tienda} onChange={e => { setFV(f => ({ ...f, tienda: e.target.value })); setCuantasV(60) }} aria-label="Tienda" style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--w12)', background: 'var(--w05)', color: 'var(--tinta)', padding: '0 10px', fontSize: 13 }}>
+                <option value="todas">Todas las tiendas</option>
+                {tiendasV.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <select value={fV.orden} onChange={e => setFV(f => ({ ...f, orden: e.target.value }))} aria-label="Ordenar" style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--w12)', background: 'var(--w05)', color: 'var(--tinta)', padding: '0 10px', fontSize: 13 }}>
+                <option value="puntaje">Lo que más te conviene</option>
+                <option value="likes">Más likes primero</option>
+              </select>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--w60)', minHeight: 40 }}>
+                <input type="checkbox" checked={fV.sinPublicar} onChange={e => setFV(f => ({ ...f, sinPublicar: e.target.checked }))} /> Solo sin publicar
+              </label>
+            </div>
+
+            {virales.length === 0 && (
+              <div style={{ ...card, padding: 34, textAlign: 'center', color: 'var(--w45)', fontSize: 13, lineHeight: 1.6 }}>
+                Todavía no hay virales. Dale a <b>&quot;Traer virales nuevos&quot;</b>: tarda 1 o 2 minutos.
+              </div>
+            )}
+            {virales.length > 0 && <div style={{ fontSize: 12.5, color: tenue, marginBottom: 10 }}>{viralesVisibles.length} virales en este filtro · {virales.filter(o => o.publicado).length} publicados</div>}
+            <div className="rejilla-of">
+              {viralesVisibles.slice(0, cuantasV).map(tarjetaOferta)}
+            </div>
+            {viralesVisibles.length > cuantasV && (
+              <div style={{ textAlign: 'center', marginTop: 14 }}>
+                <button className="btn btn-neutro" onClick={() => setCuantasV(c => c + 60)}>Ver {Math.min(60, viralesVisibles.length - cuantasV)} más</button>
+              </div>
+            )}
+            {virales.length > 0 && <div style={{ fontSize: 12, color: tenue, marginTop: 10, lineHeight: 1.5 }}>Cuando la publicación no enseña el precio, la IA lo estima y sale como <b>~US$ aprox.</b>: confírmalo en la tienda antes de publicar.</div>}
             </>)}
 
             {tab === 'lista' && (<>
@@ -627,13 +720,64 @@ export default function Tendencias() {
             </>)}
 
             {tab === 'historial' && (<>
+            {/* ── Lo que te piden por WhatsApp ── */}
+            {datos.solicitudes && (
+              <>
+                <Titulo sub="Cada foto de producto que un cliente manda por WhatsApp, y cómo se le contestó: sticker del perrito = disponible; &quot;ya no hay&quot; = agotado. Últimos 7 días. Esto también le enseña al puntaje qué tipos te piden más.">Lo que te piden por WhatsApp</Titulo>
+                {datos.solicitudes.total30 === 0 ? (
+                  <div style={{ ...card, padding: 24, textAlign: 'center', color: 'var(--w45)', fontSize: 13, lineHeight: 1.6 }}>
+                    Empieza a contar desde que se active en el sitio: cada vez que un cliente mande la foto de un producto con su precio, aparece aquí.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+                      {[['Fotos de producto', datos.solicitudes.total7.toLocaleString('es-MX')], ['Disponible (sticker)', datos.solicitudes.disponibles7], ['Agotado', datos.solicitudes.agotadas7], ['Sin contestar o sin marcar', datos.solicitudes.total7 - datos.solicitudes.disponibles7 - datos.solicitudes.agotadas7]].map(([k, v]) => (
+                        <div key={k} style={{ ...card, padding: 16, flex: '1 1 160px' }}>
+                          <div style={{ fontSize: 11.5, fontWeight: 700, color: tenue, textTransform: 'uppercase', letterSpacing: 0.3 }}>{k}</div>
+                          <div className="num" style={{ fontSize: 22, fontWeight: 800, marginTop: 4 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rejilla">
+                      <div style={{ ...card, padding: 14 }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>Lo más pedido esta semana</div>
+                        {datos.solicitudes.top.map(p => (
+                          <div key={p.titulo} className="num" style={{ fontSize: 12.5, padding: '4px 0', borderBottom: '1px solid var(--w06)' }}>
+                            <b>{p.titulo}</b>{p.precio ? <span style={{ color: tenue }}> · ${p.precio}</span> : null}
+                            <div style={{ color: 'var(--w55)' }}>{p.veces} {p.veces === 1 ? 'vez' : 'veces'} · {p.clientes} {p.clientes === 1 ? 'cliente' : 'clientes'}{p.agotadas ? ` · ${p.agotadas} agotado` : ''}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {datos.solicitudes.agotados.length > 0 && (
+                        <div style={{ ...card, padding: 14, background: 'var(--ambar-suave)', borderColor: 'var(--ambar-borde)' }}>
+                          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Te lo pidieron y no había</div>
+                          <div style={{ fontSize: 12, color: 'var(--w55)', marginBottom: 8 }}>Para comprar más en el siguiente viaje.</div>
+                          {datos.solicitudes.agotados.map(p => (
+                            <div key={p.titulo} className="num" style={{ fontSize: 12.5, padding: '3px 0' }}><b>{p.titulo}</b> <span style={{ color: 'var(--w55)' }}>· {p.agotadas} {p.agotadas === 1 ? 'vez' : 'veces'}</span></div>
+                          ))}
+                        </div>
+                      )}
+                      {datos.solicitudes.tipos.length > 0 && (
+                        <div style={{ ...card, padding: 14 }}>
+                          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>Tipos más pedidos (30 días)</div>
+                          {datos.solicitudes.tipos.map(t => (
+                            <div key={t.tipo} className="num" style={{ fontSize: 12.5, padding: '3px 0' }}><b>{t.tipo}</b> <span style={{ color: 'var(--w55)' }}>· {t.pedidas} pedidos{t.agotadas ? ` · ${t.agotadas} agotados` : ''}</span></div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
             {/* ── Resultados de lo publicado ── */}
             {datos.resultados && (
               <>
-                <Titulo sub="Ofertas que marcaste como publicadas y los pedidos que entraron por WhatsApp con su texto (últimos 30 días). Lo que se reenvía sin el texto no se puede contar.">Resultados de lo publicado</Titulo>
+                <Titulo sub="Ofertas y virales que publicaste desde aquí y los pedidos que entraron por WhatsApp contestando a esa foto (últimos 60 días). Con esto el puntaje aprende solo: sube lo que se vende al publicarlo y baja lo que no.">Resultados de lo publicado</Titulo>
                 {datos.resultados.publicadas === 0 ? (
                   <div style={{ ...card, padding: 24, textAlign: 'center', color: 'var(--w45)', fontSize: 13, lineHeight: 1.6 }}>
-                    Todavía no hay publicaciones medidas. Cuando compartas ofertas desde aquí, en esta parte vas a ver cuáles se vendieron y cuáles no.
+                    Todavía no hay publicaciones medidas. Para que el puntaje aprenda, publica desde esta página: al copiar o compartir una oferta queda marcada como publicada (o dale ✓). Cuando un cliente pida contestando a esa foto, aquí vas a ver qué se vendió y qué no, y el puntaje se va ajustando solo.
                   </div>
                 ) : (
                   <>

@@ -7,6 +7,7 @@ import { descargarYGuardarMedia, urlFirmada } from '@/lib/whatsapp/media'
 import { esVendedorVentas } from '@/lib/whatsapp/ventasWhatsapp'
 import { encolarMensajeVenta, enriquecerFila } from '@/lib/whatsapp/ventasBandeja'
 import { NUMERO_GASTOS, esMensajeGasto, extraerGasto } from '@/lib/whatsapp/gastos'
+import { esSolicitudProducto, registrarSolicitud, registrarRespuestaEco } from '@/lib/whatsapp/solicitudes'
 
 // Enriquecer un mensaje (bajar el adjunto de Meta, subirlo a Storage,
 // mirarlo con la IA) se lleva varios segundos. Con el tope default de 10 s la
@@ -194,7 +195,13 @@ export async function POST(req) {
             // timestamp, type, image/text, context), así que se le puede pasar
             // tal cual al encolado.
             const destinoEco = a10Digitos(eco.to)
-            if (!(await esVendedorVentasCacheado(destinoEco, 'eco'))) continue
+            if (!(await esVendedorVentasCacheado(destinoEco, 'eco'))) {
+              // El equipo contestándole a un cliente: si es el sticker de
+              // "Disponible" o un "ya no hay", se anota en su solicitud
+              // (lib/whatsapp/solicitudes.js). No cambia nada más.
+              after(() => registrarRespuestaEco(supabase, eco, destinoEco))
+              continue
+            }
             const fila = await encolarMensajeVenta(supabase, eco, destinoEco)
             if (fila) after(() => enriquecerFila(supabase, fila))
           }
@@ -304,6 +311,13 @@ async function procesarMensajeEntrante(msg, valor) {
     } catch (err) {
       console.error('[webhook whatsapp] no se pudo descargar el documento:', err?.message)
     }
+  }
+
+  // "Lo que te piden": la foto de un producto publicado (con su texto y
+  // precio) se anota aparte para Tendencias. No interrumpe nada: el mensaje
+  // sigue su camino normal (comprobantes, etc.).
+  if (diezEmisor !== NUMERO_GASTOS && esSolicitudProducto(msg)) {
+    after(() => registrarSolicitud(supabase, { msg, telefono10: diezEmisor, nombre, imagenPath: pathImagen }))
   }
 
   // Gastos del negocio (Fase 7): solo el número de Eduardo, y solo si él

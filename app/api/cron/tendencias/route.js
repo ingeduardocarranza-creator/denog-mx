@@ -13,6 +13,7 @@ export const maxDuration = 300
 //  2. Trae ofertas de los sitios de ofertas.
 //  3. Lee el Gmail de las tiendas: boletines → ofertas; avisos de pedido →
 //     Paquetes Nogales.
+//  4. Virales de Instagram (#costcofinds, #walmartfinds…) si hay INSTAGRAM_TOKEN.
 // Vercel manda "Authorization: Bearer <CRON_SECRET>"; sin eso no corre.
 export async function GET(req) {
   const secreto = process.env.CRON_SECRET
@@ -25,7 +26,7 @@ export async function GET(req) {
   try { res.etiquetas = await etiquetarBloque(supabase) } catch (e) { res.etiquetas = { error: e.message } }
   try {
     const r = await actualizarOfertas(supabase, { maxCorreos: 100 })
-    res.ofertas = { nuevas: r.nuevas, utiles: r.utiles, correos: r.correos, avisos: r.errores.slice(0, 5) }
+    res.ofertas = { nuevas: r.nuevas, utiles: r.utiles, correos: r.correos, instagram: r.instagram, avisos: r.errores.slice(0, 5) }
   } catch (e) { res.ofertas = { error: e.message } }
   res.segundos = Math.round((Date.now() - inicio) / 1000)
   console.log('[cron tendencias]', JSON.stringify(res))

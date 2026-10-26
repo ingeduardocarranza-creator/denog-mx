@@ -60,7 +60,7 @@ export default function FloatingSocialBar() {
   };
 
   // Bodega (Nogales) es una herramienta de trabajo: la barra tapaba botones.
-  if (pathname?.startsWith('/admin') || pathname?.startsWith('/pos') || pathname?.startsWith('/bodega')) return null;
+  if (pathname?.startsWith('/admin') || pathname?.startsWith('/pos') || pathname?.startsWith('/bodega') || pathname?.startsWith('/pantalla')) return null;
 
   // El catálogo del Mercadito (/mercadito) tiene su propia barra fija de
   // carrito pegada abajo cuando hay artículos — subimos la barra social ahí

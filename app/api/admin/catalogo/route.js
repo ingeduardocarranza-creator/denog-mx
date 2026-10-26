@@ -7,6 +7,7 @@ const CAMPOS_PERMITIDOS = [
   'categoria', 'imagen_url', 'activo', 'mostrar_en_mercadito',
   'descripcion', 'galeria', 'pendiente_aprobacion', 'costo_usd',
   'grupo_id', 'variante', 'costo_tipo_cambio', 'costo_impuesto_pct',
+  'video_url',
 ]
 
 // Lo único que se permite cambiar a varios artículos a la vez.

@@ -98,6 +98,8 @@ export default function CatalogoTienda() {
   const [categoria, setCategoria] = useState('Ropa');
   const [imagenUrl, setImagenUrl] = useState('');
   const [subiendoImagen, setSubiendoImagen] = useState(false);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [subiendoVideo, setSubiendoVideo] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
 
   // Mercadito: mismos productos, con datos extra opcionales para publicarlos
@@ -142,6 +144,42 @@ export default function CatalogoTienda() {
       setMensaje({ tipo: 'error', texto: 'Error al subir la foto: ' + err.message });
     } finally {
       setSubiendoImagen(false);
+    }
+  };
+
+  // SUBIR VIDEO CORTO (para la pantalla de la tienda). Misma ruta que las fotos:
+  // el archivo va directo del navegador a Supabase Storage.
+  const subirVideo = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!['video/mp4', 'video/webm'].includes(file.type)) {
+      setMensaje({ tipo: 'error', texto: 'El video debe ser MP4 o WEBM. Si es de iPhone, expórtalo como MP4 (CapCut o Fotos lo hacen).' });
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setMensaje({ tipo: 'error', texto: 'El video pesa más de 50MB. Usa uno más corto o más ligero (10 a 20 segundos).' });
+      return;
+    }
+    setSubiendoVideo(true);
+    setMensaje({ tipo: '', texto: '' });
+    try {
+      const res = await fetch('/api/catalogo/subir-imagen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: file.type, carpeta: 'videos' }),
+      });
+      const datos = await res.json();
+      if (!datos.ok) throw new Error(datos.mensaje || 'No se pudo preparar la subida.');
+      const formData = new FormData();
+      formData.append('', file, file.name);
+      const subeRes = await fetch(datos.signedUrl, { method: 'PUT', body: formData });
+      if (!subeRes.ok) throw new Error('Error al subir el video al servidor.');
+      setVideoUrl(datos.publicUrl);
+    } catch (err) {
+      setMensaje({ tipo: 'error', texto: 'Error al subir el video: ' + err.message });
+    } finally {
+      setSubiendoVideo(false);
     }
   };
 
@@ -241,6 +279,7 @@ export default function CatalogoTienda() {
       stock: Number(stock) || 0,
       categoria: categoria,
       imagen_url: imagenUrl.trim() || null,
+      video_url: videoUrl.trim() || null,
       activo: true,
       mostrar_en_mercadito: mostrarEnMercadito,
       // La descripción y las fotos extra son del grupo, no de cada variante.
@@ -322,6 +361,7 @@ export default function CatalogoTienda() {
     setStock(p.stock || '0');
     setCategoria(p.categoria || 'Ropa');
     setImagenUrl(p.imagen_url || '');
+    setVideoUrl(p.video_url || '');
     setMostrarEnMercadito(!!p.mostrar_en_mercadito);
     setDescripcion(p.descripcion || '');
     setGaleria(p.galeria || []);
@@ -600,6 +640,7 @@ export default function CatalogoTienda() {
     setStock('');
     setCategoria(cabeza.categoria || 'Ropa');
     setImagenUrl(base.imagen_url || cabeza.imagen_url || '');
+    setVideoUrl(base.video_url || cabeza.video_url || '');
     setMostrarEnMercadito(!!cabeza.mostrar_en_mercadito);
     setDescripcion('');
     setGaleria([]);
@@ -652,6 +693,7 @@ export default function CatalogoTienda() {
     setStock('');
     setCategoria(listaCategorias[0] || 'Ropa');
     setImagenUrl('');
+    setVideoUrl('');
     setMostrarEnMercadito(true);
     setDescripcion('');
     setGaleria([]);
@@ -1362,6 +1404,29 @@ export default function CatalogoTienda() {
                     {imagenUrl && (
                       <button type="button" onClick={() => setImagenUrl('')} className="w-full text-center text-[11px] text-red-400 hover:underline">
                         Quitar foto
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* VIDEO PARA LA PANTALLA DE LA TIENDA */}
+              <div className="space-y-1">
+                <label className="text-slate-400 font-bold">Video <span className="text-[10px] text-slate-500">(opcional, para la pantalla de la tienda)</span></label>
+                <div className="flex items-center gap-3">
+                  {videoUrl ? (
+                    <video src={videoUrl} muted playsInline className="w-16 h-16 rounded-lg object-cover border border-slate-700 flex-none bg-black" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-xl">🎬</div>
+                  )}
+                  <div className="flex-1 space-y-1.5">
+                    <label className="block w-full text-center bg-[#c1553a] hover:bg-[#9b3f28] sobre-color font-bold py-2.5 rounded-xl cursor-pointer transition-all">
+                      {subiendoVideo ? 'Subiendo video…' : videoUrl ? '🎬 Cambiar video' : '🎬 Subir video corto'}
+                      <input type="file" accept="video/mp4,video/webm" onChange={subirVideo} disabled={subiendoVideo} className="hidden" />
+                    </label>
+                    {videoUrl && (
+                      <button type="button" onClick={() => setVideoUrl('')} className="w-full text-center text-[11px] text-red-400 hover:underline">
+                        Quitar video
                       </button>
                     )}
                   </div>

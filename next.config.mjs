@@ -40,6 +40,8 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https://*.supabase.co",
+              // Videos cortos de los productos (pantalla de la tienda y catálogo).
+              "media-src 'self' blob: https://*.supabase.co",
               "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://graph.facebook.com https://*.facebook.com",
               "frame-src https://www.facebook.com https://web.facebook.com https://staticxx.facebook.com",
               "font-src 'self'",

@@ -16,6 +16,8 @@ const EXT_POR_TIPO = {
   'image/heic': 'heic',
   'image/heif': 'heif',
   'image/avif': 'avif',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
 }
 
 // Devuelve una URL firmada de subida: el archivo se sube DIRECTO del
@@ -26,7 +28,7 @@ export async function POST(req) {
   const { tipo, carpeta } = await req.json()
   const ext = EXT_POR_TIPO[tipo]
   if (!ext) {
-    return NextResponse.json({ ok: false, mensaje: 'Formato no soportado. Usa JPG, PNG, WEBP, GIF, HEIC o AVIF.' })
+    return NextResponse.json({ ok: false, mensaje: 'Formato no soportado. Fotos: JPG, PNG, WEBP, GIF, HEIC o AVIF. Videos: MP4 o WEBM.' })
   }
 
   // Solo letras/números/guiones para evitar traversal de rutas en el bucket.

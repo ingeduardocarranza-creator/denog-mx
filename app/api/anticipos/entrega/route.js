@@ -159,11 +159,22 @@ export async function GET(req) {
 
   // --- 2. Bandeja de comprobantes -----------------------------------------
   const comprobantes = compRes.data || []
-  const idsComp = comprobantes.map(c => c.id)
+  // Qué comprobantes ya tienen su pago. Antes se mandaban TODOS los ids en
+  // la URL con .in(); al pasar de ~600 comprobantes la URL se hizo demasiado
+  // larga, la consulta falló en silencio y la bandeja se llenó con los 617 ya
+  // aplicados (28 oct 2026). Ahora se traen los pagos que tienen comprobante,
+  // paginado, y si algo falla se avisa en vez de mostrar todo como pendiente.
   let aplicados = new Set()
-  if (idsComp.length) {
-    const { data } = await supabase.from('pagos').select('pendiente_id').in('pendiente_id', idsComp)
-    aplicados = new Set((data || []).map(p => p.pendiente_id))
+  if (comprobantes.length) {
+    try {
+      const conComprobante = await traerTodo((a, b) => supabase.from('pagos')
+        .select('pendiente_id')
+        .not('pendiente_id', 'is', null)
+        .range(a, b))
+      aplicados = new Set(conComprobante.map(p => p.pendiente_id))
+    } catch (e) {
+      return NextResponse.json({ ok: false, mensaje: 'No se pudo revisar qué comprobantes ya están aplicados: ' + e.message })
+    }
   }
 
   // Un comprobante ya aplicado no vuelve a la bandeja. Uno "resuelto" sin

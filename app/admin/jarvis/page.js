@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { PanelConfirmar, VistaEnTienda } from './EnTienda'
 import { VistaResumen } from './Resumen'
+import { TarjetaCoach, CierresEquipo } from './Coach'
 
 // Jarvis: el tablero de actividades del día. Una sola pantalla para el
 // colaborador (su turno) y para el admin (sus misiones + cómo va el equipo).
@@ -192,7 +193,10 @@ export default function JarvisPage() {
       )}
 
       {vista === 'equipo' && esAdmin ? (
-        <VistaEquipo equipo={equipo} tarjeta={tarjeta} />
+        <>
+          <VistaEquipo equipo={equipo} tarjeta={tarjeta} />
+          <CierresEquipo tarjeta={tarjeta} />
+        </>
       ) : vista === 'resumen' && esAdmin ? (
         <VistaResumen tarjeta={tarjeta} irA={setVista} />
       ) : vista === 'entienda' && esAdmin ? (
@@ -203,6 +207,7 @@ export default function JarvisPage() {
         <VistaComisiones datos={comisiones} recargar={cargarComisiones} tarjeta={tarjeta} />
       ) : (
         <>
+          <TarjetaCoach esAdmin={esAdmin} />
           {tareas.length === 0 ? (
             <div style={{ ...tarjeta, textAlign: 'center', padding: 28 }}>
               <div style={{ fontSize: 44 }}>🌴</div>

@@ -100,10 +100,15 @@ export default function JarvisPage() {
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
-  // Se refresca solo cada minuto: así las actividades "tocan" sin recargar.
+  // Se refresca solo cada 15 segundos y al volver a la pestaña: así Jarvis detecta
+  // lo que ya hiciste y te muestra lo siguiente sin que tengas que picar nada.
   useEffect(() => {
-    const t = setInterval(() => { cargar(); if (vista === 'equipo') cargarEquipo(); if (vista === 'comisiones') cargarComisiones() }, 60000)
-    return () => clearInterval(t)
+    const refrescar = () => { cargar(); if (vista === 'equipo') cargarEquipo(); if (vista === 'comisiones') cargarComisiones() }
+    const t = setInterval(refrescar, 15000)
+    const alVolver = () => { if (document.visibilityState === 'visible') refrescar() }
+    document.addEventListener('visibilitychange', alVolver)
+    window.addEventListener('focus', alVolver)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', alVolver); window.removeEventListener('focus', alVolver) }
   }, [cargar, cargarEquipo, cargarComisiones, vista])
   useEffect(() => { if (vista === 'equipo') cargarEquipo() }, [vista, cargarEquipo])
   useEffect(() => { if (vista === 'comisiones') cargarComisiones() }, [vista, cargarComisiones])

@@ -54,6 +54,8 @@ async function obtener(supabase, uid, tipo, fecha, construir) {
   const { data: ex } = await supabase.from('jarvis_mensajes').select('*').eq('usuario_id', uid).eq('tipo', tipo).eq('fecha', fecha).maybeSingle()
   if (ex) return ex
   const contenido = await generarMensaje(tipo, await construir())
+  // Si la IA falló no se guarda: se vuelve a intentar en la siguiente visita.
+  if (contenido.ia === false) return { usuario_id: uid, tipo, fecha, contenido }
   await supabase.from('jarvis_mensajes').upsert({ usuario_id: uid, tipo, fecha, contenido }, { onConflict: 'usuario_id,tipo,fecha', ignoreDuplicates: true })
   const { data } = await supabase.from('jarvis_mensajes').select('*').eq('usuario_id', uid).eq('tipo', tipo).eq('fecha', fecha).maybeSingle()
   return data || { usuario_id: uid, tipo, fecha, contenido }

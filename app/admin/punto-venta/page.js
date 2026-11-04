@@ -37,6 +37,7 @@ export default function PuntoDeVenta() {
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
   const [ticketListo, setTicketListo] = useState(null);
+  const [envioTicketEstado, setEnvioTicketEstado] = useState(null); // null | 'enviando' | 'ok' | 'error'
 
   const [todosClientes, setTodosClientes] = useState([]);
   const [todosProductos, setTodosProductos] = useState([]);
@@ -289,6 +290,10 @@ export default function PuntoDeVenta() {
     }
 
     const infoTicket = {
+      // Para el ticket de entrega: cuando el anticipo lo cubre todo no hay
+      // cobro ni transacción, pero el cliente igual necesita su evidencia.
+      clienteId: clienteSeleccionado?.id ?? null,
+      modo,
       telefono: clienteSeleccionado?.telefono || '',
       mensajeWhatsapp: `¡Hola! Tu entrega de *Denog USA Compras* ha sido registrada con éxito. ✅\n\n*Artículos entregados:*\n${textoArticulos}\n*Total cobrado:* $${totalGeneral.toLocaleString('es-MX')} MXN\n\n¡Muchas gracias por tu preferencia! 📦✨`
     };
@@ -343,7 +348,18 @@ export default function PuntoDeVenta() {
       if (!resultado.ok) throw new Error(resultado.mensaje || 'Error al cobrar');
 
       setMensaje({ tipo: 'exito', texto: totalGeneral === 0 ? '¡Pedido entregado! Cubierto con anticipos' : '¡Cobro registrado con éxito en caja!' });
-      setTicketListo(infoTicket);
+      // ¿Se entregó mercancía de encargos en este cobro? Solo entonces aplica
+      // el ticket de entrega (el que no depende de una transacción).
+      const entregoPedidos = modo === 'modo1' && bloquesOrdenados.some(b => b.pedidoIds.length > 0);
+      setTicketListo({
+        ...infoTicket,
+        transaccionId: resultado.transaccion_id || null,
+        // Sin transacción (todo cubierto con anticipos) pero con pedidos
+        // entregados: se manda el ticket de entrega. Con transacción, el
+        // ticket normal ya es la evidencia.
+        ticketDeEntrega: !resultado.transaccion_id && entregoPedidos && !!infoTicket.clienteId,
+      });
+      setEnvioTicketEstado(null);
 
       const prRes = await fetch('/api/productos?stock=true').then(r => r.json());
       setTodosProductos(prRes.productos || []);
@@ -376,8 +392,50 @@ export default function PuntoDeVenta() {
     }
   };
 
+  // El ticket real (folio + imagen con lo que se llevó y lo que pagó) se manda
+  // solo, sin que nadie tenga que darle click a nada: igual que en el punto de
+  // venta de los colaboradores. Manda la imagen como mensaje libre si el
+  // cliente escribió hoy, o con la plantilla aprobada si no.
+  const enviarTicketReal = async (ticket) => {
+    setEnvioTicketEstado('enviando');
+    try {
+      // Con transacción: el ticket normal. Sin transacción pero con pedidos
+      // entregados (los cubrió el anticipo): el ticket de entrega, para que el
+      // cliente siempre tenga evidencia de que se le entregó.
+      const res = ticket.transaccionId
+        ? await fetch('/api/whatsapp/enviar-ticket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transaccion_id: ticket.transaccionId }),
+          })
+        : await fetch('/api/whatsapp/enviar-ticket-entrega', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cliente_id: ticket.clienteId }),
+          });
+      const data = await res.json();
+      setEnvioTicketEstado(data.ok ? 'ok' : 'error');
+      if (!data.ok) console.error('[ticket whatsapp]', data.mensaje);
+    } catch (err) {
+      setEnvioTicketEstado('error');
+    }
+  };
+
+  useEffect(() => {
+    if ((ticketListo?.transaccionId || ticketListo?.ticketDeEntrega) && envioTicketEstado === null) {
+      enviarTicketReal(ticketListo);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketListo]);
+
+  // Solo se usa si por algo no hay ticket automático (p. ej. una venta sin
+  // cliente) o para reintentar a mano si el envío automático falló.
   const enviarWhatsApp = () => {
     if (!ticketListo) return;
+    if (ticketListo.transaccionId || ticketListo.ticketDeEntrega) {
+      enviarTicketReal(ticketListo);
+      return;
+    }
     const normalizarTelefono = (tel) => {
       const n = tel.replace(/\D/g, '')
       if (n.length === 12 && n.startsWith('52')) return n
@@ -705,10 +763,18 @@ export default function PuntoDeVenta() {
 
       {ticketListo && (
         <div className="max-w-4xl mx-auto p-4 bg-[#4a1b0c]/40 border border-[#6d2a19] rounded-2xl mb-6 flex flex-col sm:flex-row justify-between items-center gap-3">
-          <span className="text-xs text-[#dd8a6c] font-medium">El cobro cerró de forma exitosa. ¿Quieres enviarle el comprobante digital al cliente?</span>
-          <button onClick={enviarWhatsApp} className="bg-green-700 hover:bg-green-800 sobre-color px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all">
-            💬 Enviar Ticket por WhatsApp
-          </button>
+          <span className="text-xs text-[#dd8a6c] font-medium">
+            {envioTicketEstado === 'ok' ? '✅ Ticket enviado por WhatsApp automáticamente.'
+              : envioTicketEstado === 'error' ? '⚠️ No se pudo enviar el ticket solo. Puedes intentar de nuevo.'
+              : envioTicketEstado === 'enviando' ? 'Enviando el ticket por WhatsApp…'
+              : (ticketListo.transaccionId || ticketListo.ticketDeEntrega) ? 'El cobro cerró de forma exitosa.'
+              : 'El cobro cerró de forma exitosa. ¿Quieres enviarle el comprobante digital al cliente?'}
+          </span>
+          {envioTicketEstado !== 'ok' && (envioTicketEstado === 'error' || (!ticketListo.transaccionId && !ticketListo.ticketDeEntrega)) && (
+            <button onClick={enviarWhatsApp} disabled={envioTicketEstado === 'enviando'} className="bg-green-700 hover:bg-green-800 sobre-color px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all disabled:opacity-60">
+              {envioTicketEstado === 'enviando' ? 'Enviando…' : envioTicketEstado === 'error' ? '💬 Reintentar' : '💬 Enviar Ticket por WhatsApp'}
+            </button>
+          )}
         </div>
       )}
 

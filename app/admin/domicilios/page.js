@@ -29,17 +29,25 @@ export default function Domicilios() {
     fecha_preferida: '', horario: '', notas: ''
   })
   const [guardando, setGuardando] = useState(false)
-  const [ticketListoDomicilio, setTicketListoDomicilio] = useState(null) // { transaccionId, nombre }
+  const [ticketListoDomicilio, setTicketListoDomicilio] = useState(null) // { transaccionId, clienteId, nombre }
   const [envioTicketDomicilioEstado, setEnvioTicketDomicilioEstado] = useState(null) // null | 'enviando' | 'ok' | 'error'
 
-  const enviarTicketDomicilio = async (transaccionId) => {
-    if (!transaccionId) return
+  // Con cobro: el ticket normal (por transacción). Sin cobro porque ya estaba
+  // pagado: el ticket de entrega (por cliente), para que siempre le llegue su
+  // evidencia de que se le entregó.
+  const enviarTicketDomicilio = async (ticket) => {
+    if (!ticket?.transaccionId && !ticket?.clienteId) return
     setEnvioTicketDomicilioEstado('enviando')
     try {
-      const res = await fetch('/api/whatsapp/enviar-ticket', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transaccion_id: transaccionId }),
-      })
+      const res = ticket.transaccionId
+        ? await fetch('/api/whatsapp/enviar-ticket', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transaccion_id: ticket.transaccionId }),
+          })
+        : await fetch('/api/whatsapp/enviar-ticket-entrega', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cliente_id: ticket.clienteId }),
+          })
       const data = await res.json()
       setEnvioTicketDomicilioEstado(data.ok ? 'ok' : 'error')
       if (!data.ok) console.error('[ticket whatsapp domicilio]', data.mensaje)
@@ -51,8 +59,8 @@ export default function Domicilios() {
   // Se manda solo en cuanto se cierra la entrega, sin que nadie tenga que
   // darle click a nada.
   useEffect(() => {
-    if (ticketListoDomicilio?.transaccionId && envioTicketDomicilioEstado === null) {
-      enviarTicketDomicilio(ticketListoDomicilio.transaccionId)
+    if ((ticketListoDomicilio?.transaccionId || ticketListoDomicilio?.clienteId) && envioTicketDomicilioEstado === null) {
+      enviarTicketDomicilio(ticketListoDomicilio)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketListoDomicilio])
@@ -295,6 +303,12 @@ const horariosDelDia = (fecha) => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: d.id, estado: 'entregado' })
       })
+      // Ya estaba pagado: sin cobro no hay transacción, pero el cliente
+      // necesita su evidencia de entrega.
+      if (d.cliente_id) {
+        setEnvioTicketDomicilioEstado(null)
+        setTicketListoDomicilio({ transaccionId: null, clienteId: d.cliente_id, nombre: getNombreCliente(d) })
+      }
       setCobrando(null)
       setModalMonto1(''); setModalDosMetodos(false); setModalMetodo1('Efectivo'); setModalRecibido(''); setModalMetodo2('Transferencia')
       cargar()
@@ -636,7 +650,7 @@ const horariosDelDia = (fecha) => {
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
               {envioTicketDomicilioEstado === 'error' && (
-                <button onClick={() => enviarTicketDomicilio(ticketListoDomicilio.transaccionId)}
+                <button onClick={() => enviarTicketDomicilio(ticketListoDomicilio)}
                   style={{ background: 'var(--verde, #0f8a63)', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                   💬 Reintentar
                 </button>

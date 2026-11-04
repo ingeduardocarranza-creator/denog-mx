@@ -326,6 +326,12 @@ const horariosDelDia = (f) => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: d.id, estado: 'entregado' })
       })
+      // Ya estaba pagado: no hay cobro ni transacción, pero el cliente
+      // necesita su evidencia de entrega. Se manda el ticket de entrega solo.
+      if (d.cliente_id) {
+        setEnvioTicketEstado(null)
+        setTicketListo({ clienteId: d.cliente_id, modo: 'modo1', telefono: '', mensajeWhatsapp: '', transaccionId: null, ticketDeEntrega: true })
+      }
       setCobrandoDomicilio(null)
       setPagoDomicilio({ metodo1: 'Efectivo', monto1: '', recibido1: '', metodo2: 'Transferencia', mostrar2: false, recibido2: '' })
       cargarDomicilios()
@@ -588,6 +594,10 @@ const horariosDelDia = (f) => {
     }
 
     const infoTicket = {
+      // Para el ticket de entrega: cuando el anticipo lo cubre todo no hay
+      // cobro ni transacción, pero el cliente igual necesita su evidencia.
+      clienteId: clienteSeleccionado?.id ?? null,
+      modo,
       telefono: clienteSeleccionado?.telefono || '',
       mensajeWhatsapp: `¡Hola! Tu entrega de *Denog USA Compras* ha sido registrada con éxito. ✅\n\n*Artículos entregados:*\n${textoArticulos}\n*Total cobrado:* $${totalGeneral.toLocaleString('es-MX')} MXN\n\n¡Muchas gracias por tu preferencia! 📦✨`
     };
@@ -643,7 +653,17 @@ const horariosDelDia = (f) => {
       if (!resultado.ok) throw new Error(resultado.mensaje || 'Error al cobrar');
 
       setMensaje({ tipo: 'exito', texto: totalGeneral === 0 ? '¡Pedido entregado! Cubierto con anticipos' : '¡Cobro registrado con éxito en caja!' });
-      setTicketListo({ ...infoTicket, transaccionId: resultado.transaccion_id || null });
+      // ¿Se entregó mercancía de encargos en este cobro? Solo entonces aplica
+      // el ticket de entrega (el que no depende de una transacción).
+      const entregoPedidos = modo === 'modo1' && bloquesOrdenados.some(b => b.pedidoIds.length > 0);
+      setTicketListo({
+        ...infoTicket,
+        transaccionId: resultado.transaccion_id || null,
+        // Sin transacción (todo cubierto con anticipos) pero con pedidos
+        // entregados: se manda el ticket de entrega. Con transacción, el
+        // ticket normal ya es la evidencia.
+        ticketDeEntrega: !resultado.transaccion_id && entregoPedidos && !!infoTicket.clienteId,
+      });
       setEnvioTicketEstado(null);
 
       const prRes = await fetch('/api/productos?stock=true').then(r => r.json());
@@ -680,14 +700,23 @@ const horariosDelDia = (f) => {
   // solo, sin que el cajero tenga que darle click a nada: sube el PNG y lo
   // manda como mensaje libre si el cliente escribió hoy, o con la plantilla
   // aprobada si no. El efecto de abajo lo dispara en cuanto el cobro cierra.
-  const enviarTicketReal = async (transaccionId) => {
+  const enviarTicketReal = async (ticket) => {
     setEnvioTicketEstado('enviando');
     try {
-      const res = await fetch('/api/whatsapp/enviar-ticket', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transaccion_id: transaccionId }),
-      });
+      // Con transacción: el ticket normal. Sin transacción pero con pedidos
+      // entregados (los cubrió el anticipo): el ticket de entrega, para que el
+      // cliente siempre tenga evidencia de que se le entregó.
+      const res = ticket.transaccionId
+        ? await fetch('/api/whatsapp/enviar-ticket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transaccion_id: ticket.transaccionId }),
+          })
+        : await fetch('/api/whatsapp/enviar-ticket-entrega', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cliente_id: ticket.clienteId }),
+          });
       const data = await res.json();
       setEnvioTicketEstado(data.ok ? 'ok' : 'error');
       if (!data.ok) console.error('[ticket whatsapp]', data.mensaje);
@@ -697,19 +726,18 @@ const horariosDelDia = (f) => {
   };
 
   useEffect(() => {
-    if (ticketListo?.transaccionId && envioTicketEstado === null) {
-      enviarTicketReal(ticketListo.transaccionId);
+    if ((ticketListo?.transaccionId || ticketListo?.ticketDeEntrega) && envioTicketEstado === null) {
+      enviarTicketReal(ticketListo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketListo]);
 
-  // Solo se usa si por algo no hay transacción (p. ej. un pedido que se cubrió
-  // entero con anticipo y no generó folio) o para reintentar a mano si el
-  // envío automático falló.
+  // Solo se usa si por algo no hay ticket automático (p. ej. una venta sin
+  // cliente) o para reintentar a mano si el envío automático falló.
   const enviarWhatsApp = async () => {
     if (!ticketListo) return;
 
-    if (!ticketListo.transaccionId) {
+    if (!ticketListo.transaccionId && !ticketListo.ticketDeEntrega) {
       const normalizarTelefono = (tel) => {
         const n = tel.replace(/\D/g, '')
         if (n.length === 12 && n.startsWith('52')) return n
@@ -725,7 +753,7 @@ const horariosDelDia = (f) => {
       return;
     }
 
-    await enviarTicketReal(ticketListo.transaccionId);
+    await enviarTicketReal(ticketListo);
   };
 
   const clientesFiltrados = busquedaCliente ? todosClientes.filter(c => {
@@ -1282,10 +1310,10 @@ const horariosDelDia = (f) => {
                 {envioTicketEstado === 'ok' ? '✅ Ticket enviado por WhatsApp automáticamente.'
                   : envioTicketEstado === 'error' ? '⚠️ No se pudo enviar el ticket solo. Puedes intentar de nuevo.'
                   : envioTicketEstado === 'enviando' ? 'Enviando el ticket por WhatsApp…'
-                  : ticketListo.transaccionId ? 'El cobro cerró de forma exitosa.'
+                  : (ticketListo.transaccionId || ticketListo.ticketDeEntrega) ? 'El cobro cerró de forma exitosa.'
                   : 'El cobro cerró de forma exitosa. ¿Quieres enviarle el comprobante al cliente?'}
               </span>
-              {envioTicketEstado !== 'ok' && (envioTicketEstado === 'error' || !ticketListo.transaccionId) && (
+              {envioTicketEstado !== 'ok' && (envioTicketEstado === 'error' || (!ticketListo.transaccionId && !ticketListo.ticketDeEntrega)) && (
                 <button
                   onClick={enviarWhatsApp}
                   disabled={envioTicketEstado === 'enviando'}

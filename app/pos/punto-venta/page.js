@@ -346,19 +346,27 @@ const horariosDelDia = (f) => {
     let restante = totalPago
     const prop = totalPago > 0 ? monto1 / totalPago : 1
 
+    // Todos los renglones que genere este cobro, para amarrarlos a su
+    // transacción al final y darle un folio. Sin transacción no hay ticket.
+    const pagosCreados = []
+    const anotar = async (res) => {
+      const dat = await res.json().catch(() => null)
+      for (const id of (dat?.pagos_ids || [])) pagosCreados.push(id)
+    }
+
     // Un solo lugar para partir el cobro entre los dos métodos de pago.
     const cobrar = async (monto, extra) => {
       if (monto <= 0) return
       const m1 = Math.round(monto * prop)
       const m2 = monto - m1
-      if (m1 > 0) await fetch('/api/punto-venta/pagar', {
+      if (m1 > 0) await anotar(await fetch('/api/punto-venta/pagar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...extra, vendedor_id: colaborador?.id, pagos: [{ monto: m1, metodo: pagoDomicilio.metodo1 }] })
-      })
-      if (pagoDomicilio.mostrar2 && m2 > 0) await fetch('/api/punto-venta/pagar', {
+      }))
+      if (pagoDomicilio.mostrar2 && m2 > 0) await anotar(await fetch('/api/punto-venta/pagar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...extra, vendedor_id: colaborador?.id, pagos: [{ monto: m2, metodo: pagoDomicilio.metodo2 }] })
-      })
+      }))
     }
 
     // El envío va en su PROPIO renglón, con tipo 'Envío' y ligado al
@@ -398,6 +406,35 @@ const horariosDelDia = (f) => {
         body: JSON.stringify({ cliente_id: d.cliente_id, entrega_id, estado: 'Entregado' })
       })
     }
+
+    // El folio se pide hasta aquí: cuando el cobro ya quedó. Si algo tronó a
+    // medias, no se gasta un número y la numeración no queda con huecos. Es lo
+    // que hace que el cliente reciba su ticket por WhatsApp (igual que en el
+    // panel de Domicilios).
+    if (pagosCreados.length > 0) {
+      const montoEfectivo = pagoDomicilio.mostrar2 ? monto1 : totalPago
+      const recibido = pagoDomicilio.metodo1 === 'Efectivo' ? (parseFloat(pagoDomicilio.recibido1) || null) : null
+      const resTx = await fetch('/api/transacciones', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          canal: 'domicilio',
+          cliente_id: d.cliente_id,
+          entrega_id: (d.entrega_ids || [])[0] || null,
+          domicilio_id: d.id,
+          vendedor_id: colaborador?.id,
+          total: totalPago,
+          efectivo_recibido: recibido,
+          cambio: recibido && recibido > montoEfectivo ? Math.round((recibido - montoEfectivo) * 100) / 100 : null,
+          pagos_ids: pagosCreados,
+        }),
+      })
+      const datosTx = await resTx.json().catch(() => null)
+      if (datosTx?.ok && datosTx.id) {
+        setEnvioTicketEstado(null)
+        setTicketListo({ clienteId: d.cliente_id, modo: 'modo1', telefono: '', mensajeWhatsapp: '', transaccionId: datosTx.id })
+      }
+    }
+
     await fetch('/api/domicilios/actualizar', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: d.id, estado: 'entregado' })

@@ -23,7 +23,7 @@ const fechaLarga = (f) => {
 const dinero = (n) => '$' + Math.round(n || 0).toLocaleString('es-MX')
 const nom = (n) => String(n || '').split(' ').slice(0, 2).join(' ')
 
-async function subirFoto(file) {
+export async function subirFoto(file) {
   const res = await fetch('/api/catalogo/subir-imagen', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tipo: file.type, carpeta: 'confirmaciones' }),

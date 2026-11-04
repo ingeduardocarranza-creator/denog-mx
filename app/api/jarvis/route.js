@@ -109,6 +109,12 @@ export async function GET(req) {
           retros: (retros || []).filter(r => r.usuario_id === uid).slice(0, 5),
         }
       })
+      const { data: fotosHoy } = await supabase.from('jarvis_hechas').select('usuario_id, plantilla_id, foto_url, hecha_en').eq('fecha', fecha).not('foto_url', 'is', null)
+      for (const e of equipo) {
+        e.fotos = (fotosHoy || []).filter(f => f.usuario_id === e.usuario_id).map(f => ({
+          titulo: (plantillas || []).find(p => p.id === f.plantilla_id)?.titulo || 'Actividad', foto_url: f.foto_url, hecha_en: f.hecha_en,
+        }))
+      }
       return NextResponse.json({ ok: true, fecha, ahora: hhmm, equipo })
     }
 
@@ -131,7 +137,7 @@ export async function GET(req) {
       progreso = pr || {}
       const nuevas = []
       for (const t of tareasHoy) {
-        if (!t.verif) continue
+        if (!t.verif || t.verif === 'foto' || t.verif === 'visita') continue
         const actual = Number(progreso[t.verif] || 0)
         const yaHecha = hechas.some(h => h.fecha === fecha && h.plantilla_id === t.id && h.estado === 'hecha')
         if (actual >= t.meta && !yaHecha) {
@@ -157,7 +163,8 @@ export async function GET(req) {
         id: t.id, titulo: t.titulo, detalle: t.detalle, emoji: t.emoji,
         hora: hm(t.hora), xp: t.xp, enlace: t.enlace, estado,
         toca: hm(t.hora) <= hhmm,
-        auto: !!t.verif,
+        modo: t.verif === 'foto' ? 'foto' : t.verif === 'visita' ? 'visita' : t.verif ? 'auto' : 'manual',
+        auto: !!t.verif && t.verif !== 'foto' && t.verif !== 'visita',
         verif: t.verif || null,
         meta: t.meta,
         actual: t.verif ? Math.min(Number(progreso[t.verif] || 0), t.meta) : null,
@@ -240,6 +247,26 @@ export async function POST(req) {
       return NextResponse.json({ ok: true })
     }
 
+    // Con foto: la actividad física se comprueba con una foto de cómo quedó.
+    if (tarea.verif === 'foto' && body.accion === 'hecha') {
+      const foto = String(body.foto_url || '')
+      if (!/^https:\/\//.test(foto)) return NextResponse.json({ ok: false, mensaje: 'Sube la foto para marcarla' }, { status: 400 })
+      const { error: ef } = await supabase.from('jarvis_hechas').upsert({
+        fecha, plantilla_id: tarea.id, usuario_id: sesion.id, estado: 'hecha', xp: tarea.xp,
+        hecha_en: new Date().toISOString(), foto_url: foto,
+      }, { onConflict: 'fecha,plantilla_id,usuario_id' })
+      if (ef) throw new Error(ef.message)
+      return NextResponse.json({ ok: true, xp: tarea.xp })
+    }
+    // De revisión: se registra cuando abres la pantalla.
+    if (tarea.verif === 'visita' && body.accion === 'visita') {
+      const { error: ev } = await supabase.from('jarvis_hechas').upsert({
+        fecha, plantilla_id: tarea.id, usuario_id: sesion.id, estado: 'hecha', xp: tarea.xp,
+        hecha_en: new Date().toISOString(), auto: true,
+      }, { onConflict: 'fecha,plantilla_id,usuario_id' })
+      if (ev) throw new Error(ev.message)
+      return NextResponse.json({ ok: true, xp: tarea.xp })
+    }
     if (body.accion === 'hecha' && tarea.verif) {
       return NextResponse.json({ ok: false, mensaje: 'Esta actividad se marca sola cuando la hagas de verdad.' }, { status: 400 })
     }

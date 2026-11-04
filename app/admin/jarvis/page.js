@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { PanelConfirmar, VistaEnTienda } from './EnTienda'
+import { PanelConfirmar, VistaEnTienda, subirFoto } from './EnTienda'
 import { VistaResumen } from './Resumen'
 import { TarjetaCoach, CierresEquipo } from './Coach'
 
@@ -125,12 +125,12 @@ export default function JarvisPage() {
     document.title = atrasadas.length ? `(${atrasadas.length}) Jarvis` : 'Jarvis'
   }, [datos, atrasadas.length])
 
-  const marcar = async (plantilla_id, accion) => {
+  const marcar = async (plantilla_id, accion, extra = {}) => {
     setGuardando(true)
     try {
       const res = await fetch('/api/jarvis', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plantilla_id, accion }),
+        body: JSON.stringify({ plantilla_id, accion, ...extra }),
       }).then(r => r.json())
       if (!res.ok) setError(res.mensaje || 'No se pudo guardar')
       else if (accion === 'hecha') {
@@ -139,6 +139,16 @@ export default function JarvisPage() {
       }
       await cargar()
     } finally { setGuardando(false) }
+  }
+
+  const subirPrueba = async (plantilla_id, file) => {
+    if (!file) return
+    setGuardando(true); setError('')
+    try {
+      const url = await subirFoto(file)
+      await marcar(plantilla_id, 'hecha', { foto_url: url })
+    } catch (e) { setError(e.message || 'No se pudo subir la foto') }
+    finally { setGuardando(false) }
   }
 
   const enviarRetro = async () => {
@@ -298,7 +308,8 @@ export default function JarvisPage() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {siguiente.enlace && (
-                      <Link href={siguiente.enlace} style={{ textDecoration: 'none' }}>
+                      <Link href={siguiente.enlace} style={{ textDecoration: 'none' }}
+                        onClick={() => { if (siguiente.modo === 'visita') fetch('/api/jarvis', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plantilla_id: siguiente.id, accion: 'visita' }), keepalive: true }).catch(() => {}) }}>
                         <Boton color={AZUL} sombra="#1899d6" type="button">Ir a hacerlo</Boton>
                       </Link>
                     )}
@@ -312,6 +323,18 @@ export default function JarvisPage() {
                           <div style={{ width: `${Math.round((siguiente.actual / siguiente.meta) * 100)}%`, height: 10, background: AZUL, transition: 'width .5s' }} />
                         </div>
                         <div style={{ fontSize: 12, fontWeight: 700, opacity: .65 }}>Se marca sola (+{siguiente.xp} XP) cuando lo hagas de verdad.</div>
+                      </div>
+                    ) : siguiente.modo === 'foto' ? (
+                      <label style={{ display: 'block' }}>
+                        <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} disabled={guardando}
+                          onChange={e => { subirPrueba(siguiente.id, e.target.files?.[0]); e.target.value = '' }} />
+                        <div style={{ height: 52, borderRadius: 14, background: VERDE, boxShadow: `0 4px 0 ${VERDE_SOMBRA}`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 16, cursor: 'pointer', opacity: guardando ? .6 : 1 }}>
+                          {guardando ? 'Subiendo…' : `📸 Tomar foto y listo (+${siguiente.xp} XP)`}
+                        </div>
+                      </label>
+                    ) : siguiente.modo === 'visita' ? (
+                      <div style={{ background: 'rgba(28,176,246,0.10)', border: '2px solid rgba(28,176,246,0.3)', borderRadius: 14, padding: '10px 14px', fontSize: 13, fontWeight: 800 }}>
+                        👀 Se marca sola cuando abras la pantalla (+{siguiente.xp} XP)
                       </div>
                     ) : (
                       <Boton disabled={guardando} onClick={() => marcar(siguiente.id, 'hecha')}>¡Listo! +{siguiente.xp} XP</Boton>
@@ -343,15 +366,15 @@ export default function JarvisPage() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 800, textDecoration: hecha ? 'line-through' : 'none' }}>{t.titulo}</div>
                         <div style={{ fontSize: 12, fontWeight: 700, opacity: .55 }}>
-                          {t.hora} · {t.xp} XP{saltada ? ' · saltada' : ''}{t.auto && !hecha ? ` · 🤖 ${t.actual}/${t.meta}` : ''}{t.auto && hecha ? ' · 🤖 comprobada' : ''}
+                          {t.hora} · {t.xp} XP{saltada ? ' · saltada' : ''}{t.auto && !hecha ? ` · 🤖 ${t.actual}/${t.meta}` : ''}{t.auto && hecha ? ' · 🤖 comprobada' : ''}{t.modo === 'foto' && hecha ? ' · 📸 con foto' : ''}{t.modo === 'visita' && hecha ? ' · 👀 revisada' : ''}
                           {t.estado === 'pendiente' && t.toca && t !== siguiente ? ' · ⏰ pendiente' : ''}
                         </div>
                       </div>
-                      {(hecha || saltada) && !(t.auto && hecha) && (
+                      {(saltada || (hecha && t.modo === 'manual')) && (
                         <button disabled={guardando} onClick={() => marcar(t.id, 'deshacer')}
                           style={{ border: 0, background: 'transparent', color: AZUL, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Deshacer</button>
                       )}
-                      {t.estado === 'pendiente' && t !== siguiente && !t.auto && (
+                      {t.estado === 'pendiente' && t !== siguiente && t.modo === 'manual' && (
                         <button disabled={guardando} onClick={() => marcar(t.id, 'hecha')}
                           style={{ border: `2px solid ${VERDE}`, background: 'transparent', color: VERDE, borderRadius: 10, padding: '6px 10px', fontWeight: 900, fontSize: 12, cursor: 'pointer' }}>Listo</button>
                       )}
@@ -444,6 +467,20 @@ function VistaEquipo({ equipo, tarjeta }) {
                 )
               })}
             </div>
+            {p.fotos?.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 900, opacity: .55, letterSpacing: 1, marginBottom: 6 }}>📸 FOTOS DE HOY</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {p.fotos.map((f, i) => (
+                    <a key={i} href={f.foto_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit', width: 84 }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.foto_url} alt={f.titulo} style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 10, display: 'block' }} />
+                      <div style={{ fontSize: 10, fontWeight: 800, opacity: .65, marginTop: 2, lineHeight: 1.2 }}>{f.titulo}</div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
             {p.retros.length > 0 && (
               <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.45 }}>
                 <div style={{ fontWeight: 900, opacity: .55, letterSpacing: 1, marginBottom: 4 }}>LO QUE DICE DE SU TURNO</div>

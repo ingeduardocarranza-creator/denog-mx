@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { PanelConfirmar, VistaEnTienda } from './EnTienda'
+import { VistaResumen } from './Resumen'
 
 // Jarvis: el tablero de actividades del día. Una sola pantalla para el
 // colaborador (su turno) y para el admin (sus misiones + cómo va el equipo).
@@ -179,10 +180,10 @@ export default function JarvisPage() {
       </div>
 
       {esAdmin && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-          {[['dia', '🎯 Mi día'], ['equipo', '👥 Equipo'], ['comisiones', '💰 Comisiones'], ['avisos', `📣 Avisos${avisosAdmin?.pendientes?.length ? ` (${avisosAdmin.pendientes.length})` : ''}`], ['entienda', '📦 En tienda']].map(([k, t]) => (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+          {[['dia', '🎯 Mi día'], ['resumen', '📈 Resumen'], ['equipo', '👥 Equipo'], ['comisiones', '💰 Comisiones'], ['avisos', `📣 Avisos${avisosAdmin?.pendientes?.length ? ` (${avisosAdmin.pendientes.length})` : ''}`], ['entienda', '📦 En tienda']].map(([k, t]) => (
             <button key={k} onClick={() => setVista(k)} style={{
-              flex: 1, height: 42, borderRadius: 12, fontWeight: 900, fontSize: 14, cursor: 'pointer',
+              flex: '1 1 30%', minHeight: 42, borderRadius: 12, fontWeight: 900, fontSize: 14, cursor: 'pointer',
               border: `2px solid ${vista === k ? AZUL : 'rgba(42,33,24,0.12)'}`,
               background: vista === k ? 'rgba(28,176,246,0.12)' : 'var(--sup, #fff)', color: 'inherit',
             }}>{t}</button>
@@ -192,6 +193,8 @@ export default function JarvisPage() {
 
       {vista === 'equipo' && esAdmin ? (
         <VistaEquipo equipo={equipo} tarjeta={tarjeta} />
+      ) : vista === 'resumen' && esAdmin ? (
+        <VistaResumen tarjeta={tarjeta} irA={setVista} />
       ) : vista === 'entienda' && esAdmin ? (
         <VistaEnTienda tarjeta={tarjeta} />
       ) : vista === 'avisos' && esAdmin ? (

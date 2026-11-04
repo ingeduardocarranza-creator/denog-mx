@@ -7,7 +7,21 @@ const CAMPOS_PERMITIDOS = [
   'categoria', 'imagen_url', 'activo', 'mostrar_en_mercadito',
   'descripcion', 'galeria', 'pendiente_aprobacion', 'costo_usd',
   'grupo_id', 'variante', 'costo_tipo_cambio', 'costo_impuesto_pct',
-  'video_url',
+  'video_url', 'comision_pct',
+]
+
+// Candado para quien NO es admin (colaboradores): solo pueden tocar la ficha
+// del producto — nunca costo, precio, stock, ni si está activo o en Mercadito.
+// Esto se valida AQUÍ, en el servidor; esconder los campos en la pantalla no
+// protege nada porque cualquiera puede llamar a la API directamente.
+const CAMPOS_COLABORADOR = [
+  'nombre', 'codigo_barras', 'categoria', 'imagen_url',
+  'descripcion', 'galeria', 'video_url',
+]
+// Datos que un colaborador no debe ver nunca.
+const CAMPOS_OCULTOS_COLABORADOR = [
+  'costo', 'costo_usd', 'costo_tipo_cambio', 'costo_impuesto_pct',
+  'precio_venta', 'stock', 'comision_pct',
 ]
 
 // Lo único que se permite cambiar a varios artículos a la vez.
@@ -22,6 +36,8 @@ export async function GET(req) {
   // Historial de un artículo: lo que registra la bitácora (quién, cuándo, qué cambió).
   const hid = new URL(req.url).searchParams.get('historial')
   if (hid) {
+    // La bitácora trae valores de costo/precio/stock: solo admin.
+    if (sesion.rol !== 'admin') return NextResponse.json({ ok: false, mensaje: 'Solo el admin puede ver el historial' }, { status: 403 })
     const { data, error } = await supabase
       .from('bitacora')
       .select('id, operacion, cambios, antes, despues, ocurrio_en, actor_nombre')
@@ -38,6 +54,14 @@ export async function GET(req) {
     .select('*, creador:clientes(nombre)')
     .order('id', { ascending: false })
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
+  if (sesion.rol !== 'admin') {
+    const limpios = (data || []).map(p => {
+      const c = { ...p }
+      for (const k of CAMPOS_OCULTOS_COLABORADOR) delete c[k]
+      return c
+    })
+    return NextResponse.json({ ok: true, productos: limpios })
+  }
   return NextResponse.json({ ok: true, productos: data })
 }
 
@@ -47,8 +71,16 @@ export async function POST(req) {
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const supabase = supabaseConSesion(sesion)
   const body = await req.json()
-  const datos = Object.fromEntries(CAMPOS_PERMITIDOS.filter(k => k in body).map(k => [k, body[k]]))
+  const esAdmin = sesion.rol === 'admin'
+  const datos = Object.fromEntries((esAdmin ? CAMPOS_PERMITIDOS : CAMPOS_COLABORADOR).filter(k => k in body).map(k => [k, body[k]]))
   datos.creado_por = sesion.id
+  if (!esAdmin) {
+    // Un colaborador solo propone: queda inactivo, sin precio ni stock, por aprobar.
+    Object.assign(datos, {
+      costo: 0, precio_venta: 0, stock: 0,
+      activo: false, mostrar_en_mercadito: false, pendiente_aprobacion: true,
+    })
+  }
   const { data, error } = await supabase.from('productos_tienda').insert([datos]).select('id').single()
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true, id: data.id })
@@ -67,6 +99,10 @@ export async function PATCH(req) {
   const supabase = supabaseConSesion(sesion)
   const body = await req.json()
   const { id, ids, ...rest } = body
+  const esAdmin = sesion.rol === 'admin'
+  if (!esAdmin && (rest.accion === 'agrupar' || Array.isArray(ids))) {
+    return NextResponse.json({ ok: false, mensaje: 'Solo el admin puede hacer cambios en lote o agrupar' }, { status: 403 })
+  }
 
   // Agrupar artículos que ya existen como variantes de uno solo. El primero de
   // la lista es la "cabeza" del grupo. Cada uno conserva su costo, precio,
@@ -122,7 +158,8 @@ export async function PATCH(req) {
   }
 
   if (!id) return NextResponse.json({ ok: false, mensaje: 'id requerido' })
-  const datos = Object.fromEntries(CAMPOS_PERMITIDOS.filter(k => k in rest).map(k => [k, rest[k]]))
+  const datos = Object.fromEntries((esAdmin ? CAMPOS_PERMITIDOS : CAMPOS_COLABORADOR).filter(k => k in rest).map(k => [k, rest[k]]))
+  if (Object.keys(datos).length === 0) return NextResponse.json({ ok: false, mensaje: 'Nada que cambiar' })
   const { error } = await supabase.from('productos_tienda').update(datos).eq('id', id)
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true })

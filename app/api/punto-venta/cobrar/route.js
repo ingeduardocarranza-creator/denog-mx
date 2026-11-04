@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
 import { construirVentaItems, evaluarDescuento } from '@/lib/pos/tiendaUtils'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
+import { registrarComisionVenta } from '@/lib/jarvis/comisiones'
 
 // Hora de Hermosillo en el formato que guarda la base (timestamp sin zona).
 // `new Date().toISOString()` guardaria UTC y los cobros de la tarde saldrian
@@ -46,6 +47,8 @@ export async function POST(req) {
       // grande (Fase 5: segregación de funciones). No bloquea la venta si
       // no se manda y el descuento es chico.
       autorizadoDescuentoPor,
+      // El colaborador marcó que esta venta es de un cliente suyo (comisión).
+      ventaPropia,
     } = await req.json()
 
     const colaboradorId = sesion.id
@@ -358,6 +361,24 @@ export async function POST(req) {
         }
         if (ventasCreadas.length) {
           await supabase.from('ventas_tienda').update({ transaccion_id: transaccion.id }).in('id', ventasCreadas)
+        }
+        // Venta propia: solo se deja la solicitud de comisión; el admin la aprueba.
+        // Una falla aquí nunca debe tumbar el cobro.
+        // La comisión es de quien se eligió como vendedor de la venta (por ej. Miguel
+        // cobra en el mostrador un cliente de Carlos → se elige a Carlos). Solo puede
+        // ser un colaborador (rol vendedor); si no, se queda con quien cobra.
+        if (ventaPropia === true && modo === 'modo2' && (sesion.rol === 'vendedor' || sesion.rol === 'admin')) {
+          try {
+            let beneficiarioId = sesion.rol === 'vendedor' ? sesion.id : null
+            if (vendedorTiendaId && vendedorTiendaId !== sesion.id) {
+              const { data: u } = await supabase.from('clientes').select('id, rol').eq('id', vendedorTiendaId).maybeSingle()
+              if (u?.rol === 'vendedor') beneficiarioId = u.id
+            }
+            if (beneficiarioId) await registrarComisionVenta(supabase, {
+              colaboradorId: beneficiarioId, transaccionId: transaccion.id,
+              ventasIds: ventasCreadas, totalCobrado: cobradoAhora,
+            })
+          } catch (e) { console.error('[comision] no se pudo registrar:', e?.message) }
         }
       }
     }

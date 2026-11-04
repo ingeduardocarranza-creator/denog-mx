@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff, requerirDuenoOStaff } from '@/lib/auth/session'
+import { registrarComisionDomicilio } from '@/lib/jarvis/comisiones'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -28,6 +29,8 @@ export async function POST(req) {
       // External customer fields
       es_externo, nombre_externo, telefono_externo,
       items_tienda, forma_pago_ext, pago_anticipado_ext, metodo_pago_ext,
+      // El colaborador marcó que este domicilio es de un cliente suyo (comisión).
+      venta_propia, comision_para,
     } = body
 
     // For external orders, deduct stock immediately
@@ -64,6 +67,21 @@ export async function POST(req) {
       .single()
 
     if (error) return NextResponse.json({ ok: false, mensaje: error.message })
+    if (es_externo && venta_propia === true) {
+      const quien = requerirStaff(req)
+      if (quien?.rol === 'vendedor' || quien?.rol === 'admin') {
+        try {
+          let beneficiarioId = quien.rol === 'vendedor' ? quien.id : null
+          if (comision_para && comision_para !== quien.id) {
+            const { data: u } = await supabase.from('clientes').select('id, rol').eq('id', comision_para).maybeSingle()
+            if (u?.rol === 'vendedor') beneficiarioId = u.id
+          }
+          if (beneficiarioId) await registrarComisionDomicilio(supabase, {
+            colaboradorId: beneficiarioId, domicilioId: data.id, items: items_tienda, subtotal,
+          })
+        } catch (e) { console.error('[comision] no se pudo registrar:', e?.message) }
+      }
+    }
     return NextResponse.json({ ok: true, domicilio: data })
   } catch (err) {
     return NextResponse.json({ ok: false, mensaje: 'Error del servidor' })

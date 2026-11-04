@@ -1,10 +1,17 @@
 'use client'
 import { useState, useEffect } from 'react'
 import MenuLateral from '../components/MenuLateral'
+import JarvisBurbuja from '../components/JarvisBurbuja'
 import { GRUPOS_COLABORADOR } from '../../lib/menuColaborador'
 import { useTema } from '../../lib/tema'
 
 const grupos = [
+  {
+    label: 'JARVIS',
+    items: [
+      { label: 'Jarvis · Mis misiones', icon: '🎯', href: '/admin/jarvis' },
+    ],
+  },
   {
     label: 'OPERACIONES',
     items: [
@@ -73,6 +80,7 @@ export default function AdminLayout({ children }) {
   return (
     <div className={clase} style={{ minHeight: '100vh' }}>
       <MenuLateral grupos={gruposVisibles}>{children}</MenuLateral>
+      <JarvisBurbuja />
     </div>
   )
 }

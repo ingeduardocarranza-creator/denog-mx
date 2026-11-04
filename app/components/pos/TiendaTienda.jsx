@@ -12,6 +12,62 @@ import DescuentoForm from './DescuentoForm';
 
 const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Bloque "¿Es venta con comisión?": 3 opciones simples. Quien recibe la comisión
+// se guarda como vendedor de la venta (vendedorTienda).
+function BloqueComision({ esAdmin, quien, setQuien, ventaPropia, setVentaPropia, colaborador, vendedor, setVendedor, vendedores }) {
+  const otros = (vendedores || []).filter((v) => v.rol === 'vendedor' && v.id !== colaborador?.id);
+  const elegir = (q) => {
+    setQuien(q);
+    if (q === 'normal') { setVentaPropia(false); setVendedor(colaborador); }
+    if (q === 'mio') { setVentaPropia(true); setVendedor(colaborador); }
+    if (q === 'otro') { setVentaPropia(true); setVendedor(null); }
+  };
+  const opcion = (q, icono, titulo, sub) => {
+    const act = quien === q;
+    return (
+      <button key={q} type="button" onClick={() => elegir(q)}
+        style={{ flex: 1, minWidth: 0, textAlign: 'center', cursor: 'pointer', borderRadius: 12, padding: '10px 6px',
+          background: act ? 'var(--verde-suave)' : 'var(--w03)', border: `2px solid ${act ? 'var(--verde)' : 'var(--w08)'}` }}>
+        <div style={{ fontSize: 22 }}>{icono}</div>
+        <div style={{ fontWeight: 800, fontSize: 12, marginTop: 2 }}>{titulo}</div>
+        <div style={{ fontSize: 10, opacity: .6, marginTop: 1 }}>{sub}</div>
+      </button>
+    );
+  };
+  return (
+    <div style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 16, padding: 14 }}>
+      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 2 }}>🤝 ¿De quién es el cliente?</div>
+      <div style={{ fontSize: 11, opacity: .6, marginBottom: 10 }}>Si fue venta con comisión, se aprueba después en Jarvis → Comisiones.</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {opcion('normal', '🏬', 'De la tienda', 'Sin comisión')}
+        {!esAdmin && opcion('mio', '🙋', 'Es mío', 'Comisión para mí')}
+        {opcion('otro', '👥', 'De otro colaborador', 'Elijo a quién')}
+      </div>
+      {quien === 'otro' && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6 }}>¿De cuál colaborador?</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {otros.map((v) => {
+              const act = vendedor?.id === v.id;
+              return (
+                <button key={v.id} type="button" onClick={() => setVendedor(v)}
+                  style={{ padding: '8px 12px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                    background: act ? 'var(--verde-suave)' : 'var(--w03)', border: `2px solid ${act ? 'var(--verde)' : 'var(--w08)'}` }}>
+                  {v.nombre.split(' ')[0]}
+                </button>
+              );
+            })}
+            {otros.length === 0 && <div style={{ fontSize: 12, opacity: .6 }}>No hay otros colaboradores.</div>}
+          </div>
+          {!vendedor && <div style={{ fontSize: 11, color: 'var(--marca)', marginTop: 6, fontWeight: 700 }}>⚠️ Elige al colaborador para poder cobrar.</div>}
+        </div>
+      )}
+      {quien === 'mio' && <div style={{ fontSize: 11, marginTop: 8, color: 'var(--verde)', fontWeight: 700 }}>✓ La comisión será tuya.</div>}
+      {quien === 'otro' && vendedor && <div style={{ fontSize: 11, marginTop: 8, color: 'var(--verde)', fontWeight: 700 }}>✓ La comisión será de {vendedor.nombre.split(' ')[0]}.</div>}
+    </div>
+  );
+}
+
 export default function TiendaTienda({
   productos,
   cart,
@@ -21,6 +77,9 @@ export default function TiendaTienda({
   vendedorTienda,
   setVendedorTienda,
   vendedores,
+  // Comisión por venta propia (solo la usa la pantalla del colaborador).
+  ventaPropia = false,
+  setVentaPropia = null,
   colaborador,
   todosClientes,
   clienteTienda,
@@ -28,6 +87,11 @@ export default function TiendaTienda({
   onCobrar,
   loading,
 }) {
+  const [quienSel, setQuien] = useState('normal'); // normal | mio | otro
+  const quien = ventaPropia ? quienSel : 'normal';
+  const esVendedor = !!setVentaPropia && (colaborador?.rol === 'vendedor' || colaborador?.rol === 'admin');
+  const esAdminPos = colaborador?.rol === 'admin';
+  const faltaColaborador = esVendedor && quien === 'otro' && !vendedorTienda;
   const [subtab, setSubtab] = useState('productos');
   // Captura el monto como si fuera una caja registradora: se escriben puros
   // dígitos y los 2 últimos siempre son los centavos, sin necesidad de
@@ -109,12 +173,15 @@ export default function TiendaTienda({
         forma_pago_ext: domForm.forma_pago,
         pago_anticipado_ext: pagoAnt,
         metodo_pago_ext: domForm.forma_pago === 'anticipado' ? domForm.metodo_pago_ant : null,
+        venta_propia: !!setVentaPropia && ventaPropia === true,
+        comision_para: (!!setVentaPropia && ventaPropia === true) ? (vendedorTienda?.id ?? null) : null,
       })
     }).then(r => r.json())
 
     setAgendando(false)
     if (res.ok) {
       setCart([])
+      if (setVentaPropia) { setVentaPropia(false); setVendedorTienda(colaborador) }
       setModalDom(false)
       setDomForm(domFormVacio)
       alert('✅ Domicilio agendado. El stock fue descontado automáticamente.')
@@ -361,7 +428,7 @@ export default function TiendaTienda({
           </div>
         )}
 
-        {vendedores && vendedores.length > 1 && (
+        {vendedores && vendedores.length > 1 && !esVendedor && (
           <div style={{ margin: '0 22px 20px', background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 12, padding: 12 }}>
             <div style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>👤 ¿Quién realizó esta venta?</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -388,8 +455,13 @@ export default function TiendaTienda({
         )}
       </div>
 
-      {/* DERECHA: carrito */}
-      <div style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 16, overflow: 'hidden', position: 'sticky', top: 14 }}>
+      {/* DERECHA: comisión + carrito */}
+      <div style={{ position: 'sticky', top: 14, display: 'flex', flexDirection: 'column', gap: 12, alignSelf: 'start' }}>
+      {esVendedor && (
+        <BloqueComision esAdmin={esAdminPos} quien={quien} setQuien={setQuien} ventaPropia={ventaPropia} setVentaPropia={setVentaPropia}
+          colaborador={colaborador} vendedor={vendedorTienda} setVendedor={setVendedorTienda} vendedores={vendedores} />
+      )}
+      <div style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 16, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', borderBottom: '1px solid var(--w08)' }}>
           <div style={{ fontSize: 18, fontWeight: 800 }}>🛒 Carrito</div>
           <button type="button" onClick={() => setCart([])} style={{ background: 'transparent', border: 'none', color: 'var(--w45)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -495,7 +567,7 @@ export default function TiendaTienda({
           <button
             type="button"
             onClick={onCobrar}
-            disabled={loading || carritoVacio}
+            disabled={loading || carritoVacio || faltaColaborador}
             style={{ width: '100%', border: 'none', borderRadius: 12, padding: 16, fontSize: 17, fontWeight: 800, cursor: loading || carritoVacio ? 'not-allowed' : 'pointer', background: !loading && !carritoVacio ? 'var(--marca)' : 'rgba(193,85,58,0.25)', color: !loading && !carritoVacio ? 'var(--tinta)' : 'var(--w50)', boxShadow: !loading && !carritoVacio ? '0 6px 20px rgba(193,85,58,0.4)' : 'none' }}
           >
             {loading ? 'Procesando…' : `Cobrar $ ${money(total)}`}
@@ -510,6 +582,7 @@ export default function TiendaTienda({
             </button>
           )}
         </div>
+      </div>
       </div>
 
       {/* MODAL: Editar precio */}
@@ -728,6 +801,13 @@ export default function TiendaTienda({
                 )}</span>
               </div>
             </div>
+
+            {esVendedor && (
+              <div style={{ marginBottom: 14 }}>
+                <BloqueComision esAdmin={esAdminPos} quien={quien} setQuien={setQuien} ventaPropia={ventaPropia} setVentaPropia={setVentaPropia}
+                  colaborador={colaborador} vendedor={vendedorTienda} setVendedor={setVendedorTienda} vendedores={vendedores} />
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setModalDom(false)}

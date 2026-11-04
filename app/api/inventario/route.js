@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requerirStaff } from '@/lib/auth/session'
+import { requerirStaff, requerirAdmin } from '@/lib/auth/session'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
 
 // Fase 6 del control interno: conteo físico de inventario contra el stock del
@@ -24,6 +24,39 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url)
   const resumen = searchParams.get('resumen')
   const id = searchParams.get('id')
+
+  // Diferencias de conteo que dejó pendientes un colaborador. Solo admin.
+  if (searchParams.get('pendientes')) {
+    if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'Solo un admin puede revisar las diferencias' }, { status: 403 })
+    const { data: filas, error: errPend } = await supabase
+      .from('conteos_inventario_detalle')
+      .select('id, conteo_id, producto_id, stock_sistema, cantidad_contada, diferencia, justificacion, contado_en, contador:clientes(nombre)')
+      .eq('estado_revision', 'pendiente')
+      .order('contado_en', { ascending: true })
+    if (errPend) return NextResponse.json({ ok: false, mensaje: errPend.message })
+
+    const productoIds = [...new Set((filas || []).map(f => f.producto_id))]
+    const conteoIds = [...new Set((filas || []).map(f => f.conteo_id))]
+    const [resProd, resConteos] = await Promise.all([
+      productoIds.length
+        ? supabase.from('productos_tienda').select('id, nombre, codigo_barras, stock').in('id', productoIds)
+        : { data: [] },
+      conteoIds.length
+        ? supabase.from('conteos_inventario').select('id, categoria').in('id', conteoIds)
+        : { data: [] },
+    ])
+    if (resProd.error) return NextResponse.json({ ok: false, mensaje: resProd.error.message })
+    if (resConteos.error) return NextResponse.json({ ok: false, mensaje: resConteos.error.message })
+
+    const productoPorId = Object.fromEntries((resProd.data || []).map(p => [p.id, p]))
+    const categoriaPorConteo = Object.fromEntries((resConteos.data || []).map(c => [c.id, c.categoria]))
+    const pendientes = (filas || []).map(f => ({
+      ...f,
+      producto: productoPorId[f.producto_id] || null,
+      categoria: categoriaPorConteo[f.conteo_id] || null,
+    }))
+    return NextResponse.json({ ok: true, pendientes })
+  }
 
   if (resumen === 'categorias') {
     const [{ data: productos, error: errProd }, { data: abiertas, error: errAbiertas }] = await Promise.all([
@@ -147,7 +180,24 @@ export async function PATCH(req) {
   const sesion = requerirStaff(req)
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const supabase = supabaseConSesion(sesion)
-  const { conteo_id, producto_id, cantidad_contada, justificacion } = await req.json()
+  const { accion, detalle_id, aprobar, nota, conteo_id, producto_id, cantidad_contada, justificacion } = await req.json()
+
+  // El admin aprueba o rechaza una diferencia que dejó pendiente un colaborador.
+  if (accion === 'resolver') {
+    if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'Solo un admin puede revisar las diferencias' }, { status: 403 })
+    if (!detalle_id || typeof aprobar !== 'boolean') {
+      return NextResponse.json({ ok: false, mensaje: 'Faltan datos de la revisión' })
+    }
+    const { data: resuelto, error: errResolver } = await supabase.rpc('resolver_diferencia_inventario', {
+      p_detalle_id: detalle_id,
+      p_aprobar: aprobar,
+      p_revisado_por: sesion.id,
+      p_nota: nota || null,
+    })
+    if (errResolver) return NextResponse.json({ ok: false, mensaje: errResolver.message })
+    const r = resuelto?.[0]
+    return NextResponse.json({ ok: true, estado_revision: r?.out_estado_revision, stock_nuevo: r?.out_stock_nuevo })
+  }
 
   if (!conteo_id || !producto_id || cantidad_contada === undefined || cantidad_contada === null) {
     return NextResponse.json({ ok: false, mensaje: 'Faltan datos del conteo' })
@@ -169,6 +219,8 @@ export async function PATCH(req) {
     p_cantidad_contada: cantidad_contada,
     p_justificacion: justificacion || null,
     p_contado_por: sesion.id,
+    // Un colaborador no ajusta el stock: si hay diferencia, queda pendiente del admin.
+    p_requiere_revision: sesion.rol !== 'admin',
   })
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
 
@@ -180,6 +232,7 @@ export async function PATCH(req) {
       stock_sistema: fila.out_stock_sistema,
       cantidad_contada: fila.out_cantidad_contada,
       diferencia: fila.out_diferencia,
+      estado_revision: fila.out_estado_revision,
     } : null,
   })
 }

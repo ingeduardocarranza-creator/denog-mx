@@ -23,6 +23,7 @@ export default function Inventario() {
   const [categorias, setCategorias] = useState([])
   const [sesiones, setSesiones] = useState([])
   const [cargandoLista, setCargandoLista] = useState(true)
+  const [pendientes, setPendientes] = useState([])
 
   const [sesionActiva, setSesionActiva] = useState(null)
   const [items, setItems] = useState([])
@@ -39,12 +40,16 @@ export default function Inventario() {
 
   const cargarLista = useCallback(async () => {
     setCargandoLista(true)
-    const [resCat, resSes] = await Promise.all([
+    let esAdmin = false
+    try { esAdmin = JSON.parse(localStorage.getItem('cliente') || '{}')?.rol === 'admin' } catch {}
+    const [resCat, resSes, resPend] = await Promise.all([
       fetch('/api/inventario?resumen=categorias').then(r => r.json()),
       fetch('/api/inventario').then(r => r.json()),
+      esAdmin ? fetch('/api/inventario?pendientes=1').then(r => r.json()) : Promise.resolve(null),
     ])
     if (resCat.ok) setCategorias(resCat.categorias)
     if (resSes.ok) setSesiones(resSes.sesiones)
+    setPendientes(resPend?.ok ? resPend.pendientes : [])
     setCargandoLista(false)
     setVista('lista')
   }, [])
@@ -95,6 +100,17 @@ export default function Inventario() {
     await cargarLista()
   }
 
+  const resolverDiferencia = async (detalle_id, aprobar) => {
+    const res = await fetch('/api/inventario', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'resolver', detalle_id, aprobar }),
+    }).then(r => r.json())
+    if (!res.ok) return { ok: false, mensaje: res.mensaje }
+    await cargarLista()
+    return { ok: true }
+  }
+
   const itemsFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
     if (!q) return items
@@ -127,6 +143,8 @@ export default function Inventario() {
             error={error}
             onIniciar={iniciarConteo}
             onAbrir={cargarSesion}
+            pendientes={pendientes}
+            onResolver={resolverDiferencia}
           />
         )}
 
@@ -153,7 +171,7 @@ export default function Inventario() {
 }
 
 // ── Lista: categorías para iniciar + historial ──────────────────────────
-function VistaLista({ categorias, sesiones, cargando, error, onIniciar, onAbrir }) {
+function VistaLista({ categorias, sesiones, cargando, error, onIniciar, onAbrir, pendientes, onResolver }) {
   const abiertas = sesiones.filter(s => s.estado === 'abierto')
   const cerradas = sesiones.filter(s => s.estado === 'cerrado')
 
@@ -163,12 +181,26 @@ function VistaLista({ categorias, sesiones, cargando, error, onIniciar, onAbrir 
         <div style={{ fontSize: 25, fontWeight: 800, letterSpacing: -0.6 }}>Inventario</div>
         <div style={{ color: 'var(--w40)', fontSize: 13, marginTop: 4, maxWidth: '62ch' }}>
           Conteo físico contra el stock del sistema, por categoría. Cuenta lo que hay en el
-          anaquel, y si no coincide con lo que dice el catálogo, el sistema pide el motivo y
-          ajusta el stock al momento — igual que el corte de caja.
+          anaquel, y si no coincide con lo que dice el catálogo, el sistema pide el motivo.
+          Si cuenta un admin, el stock se ajusta al momento; si cuenta un colaborador, la
+          diferencia queda pendiente hasta que un admin la apruebe.
         </div>
       </div>
 
       {error && <div style={{ color: 'var(--rojo-t)', fontSize: 12.5, marginBottom: 14 }}>{error}</div>}
+
+      {pendientes && pendientes.length > 0 && (
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ ...rotulo, marginBottom: 8, color: 'var(--ambar-t)' }}>
+            Diferencias por revisar ({pendientes.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {pendientes.map(p => (
+              <RenglonRevision key={p.id} p={p} onResolver={onResolver} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {abiertas.length > 0 && (
         <div style={{ marginBottom: 22 }}>
@@ -333,15 +365,18 @@ function RenglonProducto({ item, onGuardar }) {
   // es lo que pesa en pantalla; lo terminado se resume.
   if (yaContado && !editando) {
     const dif = item.conteo.diferencia
+    const est = item.conteo.estado_revision
     return (
       <div style={{ ...tarjeta, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <span style={{ fontSize: 15 }}>{dif === 0 ? '✅' : dif > 0 ? '🟡' : '🔴'}</span>
+          <span style={{ fontSize: 15 }}>{est === 'pendiente' ? '⏳' : est === 'rechazado' ? '⛔' : dif === 0 ? '✅' : dif > 0 ? '🟡' : '🔴'}</span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</div>
             <div style={{ fontSize: 11.5, color: 'var(--w40)' }}>
               Contado: {item.conteo.cantidad_contada}
               {dif !== 0 && ` · ${dif > 0 ? '+' : ''}${dif} vs sistema · ${item.conteo.contador?.nombre || 'alguien'}`}
+              {est === 'pendiente' && ' · en revisión del admin'}
+              {est === 'rechazado' && ' · el admin no aceptó el ajuste'}
             </div>
           </div>
         </div>
@@ -386,6 +421,63 @@ function RenglonProducto({ item, onGuardar }) {
         <button onClick={guardar} disabled={guardando}
           style={{ background: 'var(--tinta)', color: 'var(--sup)', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12.5, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.6 : 1 }}>
           {guardando ? 'Guardando…' : 'Guardar'}
+        </button>
+      </div>
+      {errorLocal && <div style={{ color: 'var(--rojo-t)', fontSize: 11.5, marginTop: 8 }}>{errorLocal}</div>}
+    </div>
+  )
+}
+
+// ── Una diferencia que dejó pendiente un colaborador: el admin la aprueba o la rechaza ──
+function RenglonRevision({ p, onResolver }) {
+  const [trabajando, setTrabajando] = useState(false)
+  const [errorLocal, setErrorLocal] = useState('')
+  const dif = p.diferencia
+  const signo = dif > 0 ? '+' : ''
+  const stockCambio = p.producto && p.producto.stock !== p.stock_sistema
+
+  const resolver = async (aprobar) => {
+    setTrabajando(true)
+    setErrorLocal('')
+    const r = await onResolver(p.id, aprobar)
+    setTrabajando(false)
+    if (!r.ok) setErrorLocal(r.mensaje)
+  }
+
+  return (
+    <div style={{ ...tarjeta, padding: '13px 16px', borderColor: 'rgba(245,158,11,0.35)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{p.producto?.nombre || 'Producto'}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--w40)', marginTop: 2 }}>
+            {p.categoria ? `${p.categoria} · ` : ''}{p.producto?.codigo_barras || 'sin código'}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700 }}>Sistema {p.stock_sistema} → contado {p.cantidad_contada}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: dif > 0 ? 'var(--ambar-t)' : 'var(--rojo-t)' }}>{signo}{dif} piezas</div>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 12.5, color: 'var(--w45)', marginTop: 8 }}>
+        {p.contador?.nombre || 'Un colaborador'} · {fmtFecha(p.contado_en)}
+        {p.justificacion ? ` · “${p.justificacion}”` : ''}
+      </div>
+
+      {stockCambio && (
+        <div style={{ fontSize: 11.5, color: 'var(--ambar-t)', marginTop: 6 }}>
+          Desde el conteo el stock del sistema cambió a {p.producto.stock} (ventas o entradas). Al aprobar se suma la diferencia al stock de hoy.
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+        <button onClick={() => resolver(true)} disabled={trabajando}
+          style={{ background: 'var(--tinta)', color: 'var(--sup)', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12.5, fontWeight: 700, cursor: trabajando ? 'not-allowed' : 'pointer', opacity: trabajando ? 0.6 : 1 }}>
+          Aprobar ajuste ({signo}{dif})
+        </button>
+        <button onClick={() => resolver(false)} disabled={trabajando}
+          style={{ background: 'transparent', color: 'var(--w45)', border: '1px solid var(--w14)', borderRadius: 8, padding: '8px 16px', fontSize: 12.5, fontWeight: 700, cursor: trabajando ? 'not-allowed' : 'pointer', opacity: trabajando ? 0.6 : 1 }}>
+          Rechazar
         </button>
       </div>
       {errorLocal && <div style={{ color: 'var(--rojo-t)', fontSize: 11.5, marginTop: 8 }}>{errorLocal}</div>}

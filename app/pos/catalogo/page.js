@@ -29,6 +29,8 @@ export default function CatalogoColaborador() {
   const [descripcion, setDescripcion] = useState('');
   const [imagenUrl, setImagenUrl] = useState('');
   const [galeria, setGaleria] = useState([]);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [subiendoVideo, setSubiendoVideo] = useState(false);
   const [subiendoSlot, setSubiendoSlot] = useState(null); // 'principal' | number | null
   const [editandoId, setEditandoId] = useState(null);
   const [editandoEraPendiente, setEditandoEraPendiente] = useState(false);
@@ -87,6 +89,42 @@ export default function CatalogoColaborador() {
 
   const quitarFotoGaleria = (idx) => setGaleria((g) => g.filter((_, i) => i !== idx));
 
+  // VIDEO CORTO (opcional, para la pantalla de la tienda). Mismo mecanismo que
+  // las fotos: el archivo va directo del navegador a Supabase Storage.
+  const subirVideo = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!['video/mp4', 'video/webm'].includes(file.type)) {
+      setMensaje({ tipo: 'error', texto: 'El video debe ser MP4 o WEBM. Si es de iPhone, expórtalo como MP4 (CapCut o Fotos lo hacen).' });
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setMensaje({ tipo: 'error', texto: 'El video pesa más de 50MB. Usa uno más corto o más ligero (10 a 20 segundos).' });
+      return;
+    }
+    setSubiendoVideo(true);
+    setMensaje({ tipo: '', texto: '' });
+    try {
+      const res = await fetch('/api/catalogo/subir-imagen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: file.type, carpeta: 'videos' }),
+      });
+      const datos = await res.json();
+      if (!datos.ok) throw new Error(datos.mensaje || 'No se pudo preparar la subida.');
+      const formData = new FormData();
+      formData.append('', file, file.name);
+      const subeRes = await fetch(datos.signedUrl, { method: 'PUT', body: formData });
+      if (!subeRes.ok) throw new Error('Error al subir el video al servidor.');
+      setVideoUrl(datos.publicUrl);
+    } catch (err) {
+      setMensaje({ tipo: 'error', texto: 'Error al subir el video: ' + err.message });
+    } finally {
+      setSubiendoVideo(false);
+    }
+  };
+
   const limpiarFormulario = () => {
     setEditandoId(null);
     setEditandoEraPendiente(false);
@@ -96,6 +134,7 @@ export default function CatalogoColaborador() {
     setDescripcion('');
     setImagenUrl('');
     setGaleria([]);
+    setVideoUrl('');
   };
 
   const guardarProducto = async (e) => {
@@ -112,6 +151,7 @@ export default function CatalogoColaborador() {
       descripcion: descripcion.trim() || null,
       imagen_url: imagenUrl.trim() || null,
       galeria: galeria.filter(Boolean),
+      video_url: videoUrl.trim() || null,
     };
 
     try {
@@ -144,6 +184,7 @@ export default function CatalogoColaborador() {
     setDescripcion(p.descripcion || '');
     setImagenUrl(p.imagen_url || '');
     setGaleria(p.galeria || []);
+    setVideoUrl(p.video_url || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -161,7 +202,7 @@ export default function CatalogoColaborador() {
         <div>
           <h1 className="text-xl font-bold text-white tracking-tight">🏷️ Catálogo</h1>
           <p className="text-xs text-slate-400 mt-1">
-            Puedes agregar productos nuevos y editar el título, categoría, código de barras, fotos y descripción. El costo, precio y stock los completa un admin antes de que el producto quede activo.
+            Puedes agregar productos nuevos y editar el título, categoría, código de barras, fotos, video (opcional) y descripción. El costo, precio y stock los completa un admin antes de que el producto quede activo.
           </p>
         </div>
 
@@ -251,6 +292,28 @@ export default function CatalogoColaborador() {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-400 font-bold">Video <span className="text-[10px] text-slate-500">(opcional · MP4 o WEBM, de 10 a 20 segundos)</span></label>
+                <div className="flex items-center gap-3">
+                  {videoUrl ? (
+                    <video src={videoUrl} muted playsInline className="w-16 h-16 rounded-lg object-cover border border-slate-700 flex-none bg-black" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-[#1e2533] border border-slate-700 flex-none flex items-center justify-center text-xl">🎬</div>
+                  )}
+                  <div className="flex-1 space-y-1.5">
+                    <label className="block w-full text-center bg-[#c1553a] hover:bg-[#9b3f28] sobre-color font-bold py-2.5 rounded-xl cursor-pointer transition-all">
+                      {subiendoVideo ? 'Subiendo video…' : videoUrl ? '🎬 Cambiar video' : '🎬 Subir video corto'}
+                      <input type="file" accept="video/mp4,video/webm" onChange={subirVideo} disabled={subiendoVideo} className="hidden" />
+                    </label>
+                    {videoUrl && (
+                      <button type="button" onClick={() => setVideoUrl('')} className="w-full text-center text-[11px] text-red-400 hover:underline">
+                        Quitar video
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -30,6 +30,7 @@ export default function PuntoDeVenta() {
   const [confirmandoRetiro, setConfirmandoRetiro] = useState(false)
   const [vendedorTienda, setVendedorTienda] = useState(null)
   const [vendedores, setVendedores] = useState([])
+  const [ventaPropia, setVentaPropia] = useState(false)
 
   const [modo, setModo] = useState('modo1');
   const [domicilios, setDomicilios] = useState([])
@@ -683,11 +684,14 @@ const horariosDelDia = (f) => {
           clienteTiendaId: clienteTienda?.id ?? null,
           vendedorTiendaId: vendedorTienda?.id ?? null,
           autorizadoDescuentoPor,
+          ventaPropia,
         }),
       });
 
       const resultado = await res.json();
       if (!resultado.ok) throw new Error(resultado.mensaje || 'Error al cobrar');
+      setVentaPropia(false);
+      setVendedorTienda(colaborador);
 
       setMensaje({ tipo: 'exito', texto: totalGeneral === 0 ? '¡Pedido entregado! Cubierto con anticipos' : '¡Cobro registrado con éxito en caja!' });
       // ¿Se entregó mercancía de encargos en este cobro? Solo entonces aplica
@@ -1419,6 +1423,8 @@ const horariosDelDia = (f) => {
                 vendedorTienda={vendedorTienda}
                 setVendedorTienda={setVendedorTienda}
                 vendedores={vendedores}
+                ventaPropia={ventaPropia}
+                setVentaPropia={setVentaPropia}
                 colaborador={colaborador}
                 todosClientes={todosClientes}
                 clienteTienda={clienteTienda}

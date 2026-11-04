@@ -1,5 +1,6 @@
 'use client'
 import { useTema } from '../../lib/tema'
+import JarvisBurbuja from '../components/JarvisBurbuja'
 
 // Las pantallas del colaborador (/pos/*) se habían quedado fuera del tema
 // claro: ninguna llamaba a useTema(), así que <html> nunca recibía la clase y
@@ -7,5 +8,10 @@ import { useTema } from '../../lib/tema'
 // aplica una sola vez para toda la rama.
 export default function PosLayout({ children }) {
   const { clase } = useTema()
-  return <div className={clase}>{children}</div>
+  return (
+    <div className={clase}>
+      {children}
+      <JarvisBurbuja />
+    </div>
+  )
 }

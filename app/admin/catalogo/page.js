@@ -94,6 +94,7 @@ export default function CatalogoTienda() {
   const [precioUsd, setPrecioUsd] = useState('');
   const [costo, setCosto] = useState('');
   const [precioVenta, setPrecioVenta] = useState('');
+  const [comisionPct, setComisionPct] = useState('');
   const [stock, setStock] = useState('');
   const [categoria, setCategoria] = useState('Ropa');
   const [imagenUrl, setImagenUrl] = useState('');
@@ -276,6 +277,7 @@ export default function CatalogoTienda() {
       costo_tipo_cambio: precioUsd ? Number(tipoCambio) : null,
       costo_impuesto_pct: precioUsd ? Math.round(taxPct * 10000) / 100 : null,
       precio_venta: Number(precioVenta) || 0,
+      comision_pct: comisionPct === '' ? null : Math.min(100, Math.max(0, Number(comisionPct) || 0)),
       stock: Number(stock) || 0,
       categoria: categoria,
       imagen_url: imagenUrl.trim() || null,
@@ -358,6 +360,7 @@ export default function CatalogoTienda() {
     cargarCotizador(p);
     setCosto(p.costo || '');
     setPrecioVenta(p.precio_venta || '');
+    setComisionPct(p.comision_pct != null ? String(p.comision_pct) : '');
     setStock(p.stock || '0');
     setCategoria(p.categoria || 'Ropa');
     setImagenUrl(p.imagen_url || '');
@@ -690,6 +693,7 @@ export default function CatalogoTienda() {
     setPrecioUsd('');
     setCosto('');
     setPrecioVenta('');
+    setComisionPct('');
     setStock('');
     setCategoria(listaCategorias[0] || 'Ropa');
     setImagenUrl('');
@@ -1550,6 +1554,17 @@ export default function CatalogoTienda() {
                     </span>
                   </div>
                 )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-400 font-bold">🤝 Comisión al colaborador (% de la utilidad)</label>
+                <input type="number" step="0.5" min="0" max="100" value={comisionPct} onChange={(e) => setComisionPct(e.target.value)} placeholder="Vacío = el % estándar de Jarvis" className="w-full bg-[#1e2533] border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none" />
+                {comisionPct !== '' && precioVenta && costoMxn > 0 && (
+                  <div className="text-[11px] mt-1.5 px-1 text-emerald-400">
+                    Por pieza vendida como venta propia: ${(Math.max(0, utilidad) * (Number(comisionPct) || 0) / 100).toFixed(2)}
+                  </div>
+                )}
+                <div className="text-[11px] px-1 text-slate-500">Solo aplica cuando el colaborador marca &quot;Es mi cliente&quot;. Tú la apruebas en Jarvis.</div>
               </div>
 
               <div className="space-y-1">

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { paraWaMe } from '@/lib/whatsapp/telefono'
 
 // Pedidos específicos que llegan por WhatsApp. Vive como pestaña dentro de
@@ -8,6 +8,7 @@ import { paraWaMe } from '@/lib/whatsapp/telefono'
 // Los comprobantes se atienden en Anticipos, donde aplicarlos crea el pago;
 // el tipo "sin responder" se eliminó porque no funcionaba en la práctica.
 const TIPO = 'pedido_especifico'
+const POR_PAGINA = 30
 
 function haceCuanto(fecha) {
   const ms = Date.now() - new Date(fecha).getTime()
@@ -53,20 +54,75 @@ export default function PedidosWhatsApp({ embebido = false }) {
     resumen: '',
   })
 
-  const [clientes, setClientes] = useState([])
-  const [descarteReciente, setDescarteReciente] = useState(null) // { id, resumen } para el "Deshacer"
+  const [descarteReciente, setDescarteReciente] = useState(null) // { id, resumen, fila } para el "Deshacer"
   const [avisoAccion, setAvisoAccion] = useState('') // por qué el servidor no dejó cerrar algo
+  const [hayMas, setHayMas] = useState(false)
+  const [cargandoMas, setCargandoMas] = useState(false)
+  // Cuántas veces se pidió "Ver más". Si ya se expandió la lista, el refresco
+  // automático se pausa para no mover lo que la persona está revisando.
+  const paginasCargadas = useRef(1)
+  // Para ignorar respuestas viejas si se cambia de vista a media carga.
+  const peticion = useRef(0)
 
-  const cargar = useCallback(async () => {
-    const res = await fetch(`/api/pendientes?vista=${vista}`)
-    const data = await res.json()
-    if (data.ok) setPendientes(data.pendientes)
-    setCargando(false)
+  // Fecha por la que se ordena (y se pagina) cada vista.
+  const columnaOrden = vista === 'resueltos' ? 'resuelto_en'
+    : vista === 'descartados' ? 'descartado_en'
+    : 'creado_en'
+
+  const urlLista = useCallback((antes) => {
+    const q = new URLSearchParams({ vista, tipo: TIPO, limite: String(POR_PAGINA) })
+    if (antes) q.set('antes', antes)
+    return `/api/pendientes?${q.toString()}`
   }, [vista])
 
+  // Primera página (las más recientes). Se usa al entrar y en el refresco.
+  const cargar = useCallback(async () => {
+    const miPeticion = ++peticion.current
+    try {
+      const data = await fetch(urlLista()).then(r => r.json())
+      if (miPeticion !== peticion.current) return
+      if (data.ok) {
+        setPendientes(data.pendientes)
+        setHayMas(!!data.hay_mas)
+        paginasCargadas.current = 1
+      }
+    } finally {
+      if (miPeticion === peticion.current) setCargando(false)
+    }
+  }, [urlLista])
+
+  const cargarMas = async () => {
+    const ultima = pendientes[pendientes.length - 1]
+    if (!ultima || cargandoMas) return
+    setCargandoMas(true)
+    try {
+      const data = await fetch(urlLista(ultima[columnaOrden])).then(r => r.json())
+      if (data.ok) {
+        setPendientes(prev => {
+          const ya = new Set(prev.map(p => p.id))
+          return [...prev, ...data.pendientes.filter(p => !ya.has(p.id))]
+        })
+        setHayMas(!!data.hay_mas)
+        paginasCargadas.current += 1
+      }
+    } finally {
+      setCargandoMas(false)
+    }
+  }
+
+  // Al cambiar de vista se vacía la lista: si no, por un momento se vería la
+  // vista anterior con los botones de la nueva.
   useEffect(() => {
+    setPendientes([])
+    setHayMas(false)
+    setCargando(true)
     cargar()
-    const intervalo = setInterval(cargar, 20000)
+    // Refresco cada 30 s, sólo con la pestaña a la vista y sin haber pedido
+    // "Ver más".
+    const intervalo = setInterval(() => {
+      if (document.hidden || paginasCargadas.current > 1) return
+      cargar()
+    }, 30000)
     return () => clearInterval(intervalo)
   }, [cargar])
 
@@ -77,24 +133,37 @@ export default function PedidosWhatsApp({ embebido = false }) {
     return () => clearTimeout(t)
   }, [descarteReciente])
 
-  useEffect(() => {
-    fetch('/api/clientes/listar').then(r => r.json()).then(d => setClientes(d.clientes || []))
-  }, [])
+  const avisar = (texto) => {
+    setAvisoAccion(texto)
+    setTimeout(() => setAvisoAccion(''), 9000)
+  }
 
-  const accion = async (id, accion) => {
-    const r = await fetch('/api/pendientes', {
+  const enviarAccion = (id, accion, extra = {}) =>
+    fetch('/api/pendientes', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, accion }),
-    }).then(res => res.json()).catch(() => ({ ok: false }))
-    // El servidor ahora puede negarse a cerrar un comprobante sin su pago.
-    // Ese mensaje tiene que verse, si no el colaborador cree que ya quedo.
-    if (!r.ok && r.mensaje) {
-      setAvisoAccion(r.mensaje)
-      setTimeout(() => setAvisoAccion(''), 9000)
-      return
+      body: JSON.stringify({ id, accion, ...extra }),
+    }).then(res => res.json()).catch(() => ({ ok: false, mensaje: 'No se pudo conectar. Intenta de nuevo.' }))
+
+  // Los botones actualizan la pantalla al instante y guardan en segundo
+  // plano, sin volver a bajar toda la lista (antes cada clic esperaba el
+  // guardado, luego la recarga completa con fotos). Si el servidor se niega
+  // o falla, la lista vuelve a como estaba y se muestra el motivo.
+  const accion = async (id, accion) => {
+    const antes = pendientes
+    if (accion === 'ver') {
+      setPendientes(ps => ps.map(p => p.id === id ? { ...p, estado: 'visto', atendido: { nombre: 'Tú' } } : p))
+    } else {
+      // resolver / reabrir / restaurar: la tarjeta sale de la vista actual.
+      setPendientes(ps => ps.filter(p => p.id !== id))
     }
-    cargar()
+    const r = await enviarAccion(id, accion)
+    // El servidor puede negarse a cerrar un comprobante sin su pago. Ese
+    // mensaje tiene que verse, si no el colaborador cree que ya quedó.
+    if (!r.ok) {
+      setPendientes(antes)
+      avisar(r.mensaje || 'No se pudo guardar. Intenta de nuevo.')
+    }
   }
 
   // "Esto no era": saca el pendiente de la lista de un solo clic, sin
@@ -104,25 +173,34 @@ export default function PedidosWhatsApp({ embebido = false }) {
   // el deshacer solo aparece cuando hizo falta. No borra: ver
   // docs/PENDIENTES.md §7.
   const descartar = async (id) => {
+    const antes = pendientes
     const previo = pendientes.find(p => p.id === id)
-    await fetch('/api/pendientes', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, accion: 'descartar' }),
-    })
-    setDescarteReciente({ id, resumen: previo?.resumen || '' })
-    cargar()
+    setPendientes(ps => ps.filter(p => p.id !== id))
+    setDescarteReciente({ id, resumen: previo?.resumen || '', fila: previo || null })
+    const r = await enviarAccion(id, 'descartar')
+    if (!r.ok) {
+      setPendientes(antes)
+      setDescarteReciente(null)
+      avisar(r.mensaje || 'No se pudo descartar. Intenta de nuevo.')
+    }
   }
 
   const deshacerDescarte = async () => {
     if (!descarteReciente) return
-    await fetch('/api/pendientes', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: descarteReciente.id, accion: 'restaurar' }),
-    })
+    const { id, fila } = descarteReciente
     setDescarteReciente(null)
-    cargar()
+    // Vuelve a su lugar (por fecha) sin recargar.
+    if (fila) {
+      setPendientes(ps => [...ps, { ...fila, estado: fila.estado }]
+        .sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en)))
+    }
+    const r = await enviarAccion(id, 'restaurar')
+    if (!r.ok) {
+      avisar(r.mensaje || 'No se pudo deshacer. Intenta de nuevo.')
+      cargar()
+    } else if (!fila) {
+      cargar()
+    }
   }
 
   const agregarAMano = async () => {
@@ -255,7 +333,7 @@ export default function PedidosWhatsApp({ embebido = false }) {
                     </a>
                   ) : (
                     <a href={p.imagen_url} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 10 }}>
-                      <img src={p.imagen_url} alt="Comprobante" style={{ maxHeight: 160, borderRadius: 8, border: '1px solid var(--w10)' }} />
+                      <img src={p.imagen_url} alt="Comprobante" loading="lazy" decoding="async" style={{ maxHeight: 160, borderRadius: 8, border: '1px solid var(--w10)' }} />
                     </a>
                   ))}
 
@@ -299,6 +377,13 @@ export default function PedidosWhatsApp({ embebido = false }) {
                 </div>
               )
             })
+          )}
+
+          {hayMas && !cargando && (
+            <button onClick={cargarMas} disabled={cargandoMas}
+              style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 12, padding: '12px', color: 'var(--w60)', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: cargandoMas ? 0.6 : 1 }}>
+              {cargandoMas ? 'Cargando...' : `Ver ${POR_PAGINA} más antiguas`}
+            </button>
           )}
         </div>
       </div>

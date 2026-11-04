@@ -27,14 +27,41 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url)
   const vista = searchParams.get('vista') || 'activos'
 
+  // Paginación (6 nov 2026): con 500+ solicitudes activas la pantalla bajaba
+  // y firmaba cientos de fotos en cada clic. Ahora el servidor entrega una
+  // página (las más recientes primero) y sólo firma las fotos de esa página.
+  //   tipo   → filtra aquí (antes la pantalla traía comprobantes y los tiraba)
+  //   limite → tamaño de página (máx. 100). Sin 'limite' se conserva el
+  //            comportamiento anterior, por si otra pantalla lo usa.
+  //   antes  → cursor: la fecha de la última tarjeta que ya se mostró.
+  const tipo = searchParams.get('tipo')
+  const limite = Math.min(Math.max(parseInt(searchParams.get('limite') || '0', 10) || 0, 0), 100)
+  const antes = searchParams.get('antes')
+
   let query = supabase.from('pendientes').select(SELECT)
+  if (tipo) query = query.eq('tipo', tipo)
+
+  // Columna que ordena cada vista: es también la del cursor.
+  const columnaOrden = vista === 'resueltos' ? 'resuelto_en'
+    : vista === 'descartados' ? 'descartado_en'
+    : 'creado_en'
 
   if (vista === 'resueltos') {
-    query = query.eq('estado', 'resuelto').order('resuelto_en', { ascending: false }).limit(200)
+    query = query.eq('estado', 'resuelto')
   } else if (vista === 'descartados') {
-    query = query.eq('estado', 'descartado').order('descartado_en', { ascending: false }).limit(200)
+    query = query.eq('estado', 'descartado')
   } else {
-    query = query.in('estado', ['nuevo', 'visto']).order('creado_en', { ascending: true })
+    query = query.in('estado', ['nuevo', 'visto'])
+  }
+
+  if (limite) {
+    // Más reciente primero. Se pide una fila de más para saber si hay otra página.
+    if (antes) query = query.lt(columnaOrden, antes)
+    query = query.order(columnaOrden, { ascending: false }).limit(limite + 1)
+  } else if (vista === 'activos') {
+    query = query.order('creado_en', { ascending: true })
+  } else {
+    query = query.order(columnaOrden, { ascending: false }).limit(200)
   }
 
   const { data, error } = await query
@@ -43,7 +70,8 @@ export async function GET(req) {
   // imagen_url guarda la ruta dentro del bucket privado 'whatsapp-media'
   // (no una URL directa) — se firma aquí, con vigencia de una hora, para
   // que el navegador la pueda mostrar.
-  const filas = data || []
+  const hayMas = !!limite && (data || []).length > limite
+  const filas = hayMas ? data.slice(0, limite) : (data || [])
   const firmadas = await urlsFirmadas(supabase, filas.map(p => p.imagen_url), 3600)
   const pendientesConImagen = filas.map(p => (
     !p.imagen_url || p.imagen_url.startsWith('http')
@@ -51,7 +79,7 @@ export async function GET(req) {
       : { ...p, imagen_url: firmadas[p.imagen_url] || null }
   ))
 
-  return NextResponse.json({ ok: true, pendientes: pendientesConImagen })
+  return NextResponse.json({ ok: true, pendientes: pendientesConImagen, hay_mas: hayMas })
 }
 
 // Crea un pendiente. Lo usa el clasificador (B3/webhook) con la service

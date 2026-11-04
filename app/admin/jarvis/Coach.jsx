@@ -9,7 +9,7 @@ function Bloque({ icono, titulo, items, color }) {
   return (
     <div style={{ marginTop: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: 1.3, color, marginBottom: 4 }}>{icono} {titulo}</div>
-      {items.map((t, i) => <div key={i} style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.4, marginBottom: 3 }}>• {t}</div>)}
+      {items.map((t, i) => <div key={i} style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.35, marginBottom: 3 }}>• {t}</div>)}
     </div>
   )
 }
@@ -18,9 +18,9 @@ function Mensaje({ titulo, m }) {
   return (
     <div style={{ border: `2px solid ${MORADO}`, borderRadius: 18, padding: '14px 16px', background: 'rgba(124,92,255,0.07)', marginBottom: 14 }}>
       <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.5, color: MORADO }}>🤖 {titulo}</div>
-      {m.saludo && <div style={{ fontSize: 17, fontWeight: 900, marginTop: 6, lineHeight: 1.3 }}>{m.saludo}</div>}
-      <Bloque icono="🌟" titulo="LO EXCELENTE" items={m.excelente} color="#3f7a00" />
-      <Bloque icono="🎯" titulo="A MEJORAR" items={m.mejorar} color="#d97706" />
+      {m.saludo && <div style={{ fontSize: 20, fontWeight: 900, marginTop: 6, lineHeight: 1.3 }}>{m.saludo}</div>}
+      <Bloque icono="🌟" titulo="LO MEJOR" items={m.excelente} color="#3f7a00" />
+      <Bloque icono="🎯" titulo="PARA SUBIR DE NIVEL" items={m.mejorar} color="#d97706" />
       <Bloque icono="👥" titulo="EL EQUIPO" items={m.equipo} color={MORADO} />
       {m.reto && (
         <div style={{ marginTop: 12, background: MORADO, color: '#fff', borderRadius: 12, padding: '10px 12px', fontSize: 14, fontWeight: 800, lineHeight: 1.4 }}>

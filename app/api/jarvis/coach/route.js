@@ -90,7 +90,7 @@ export async function GET(req) {
           equipo.push({ nombre: cl?.find(c => c.id === uid)?.nombre, ayer: h })
         }
         return {
-          nombre, hoy: fecha, hora_actual: hhmm, dia_semana: DIAS[dowDe(fecha) - 1],
+          nombre: 'Lalo', hoy: fecha, hora_actual: hhmm, dia_semana: DIAS[dowDe(fecha) - 1],
           dinero_entrado: r.dinero,
           tienda: { hoy: r.tienda?.hoy, ayer: r.tienda?.ayer, semana: r.tienda?.semana, semana_anterior: r.tienda?.semana_anterior, piezas_semana: r.tienda?.piezas_semana },
           top_productos: r.top, por_resurtir: r.resurtir,

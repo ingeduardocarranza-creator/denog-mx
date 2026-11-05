@@ -108,7 +108,7 @@ export default function MercadoLibreAdmin() {
       if (!d.ok) setError(d.mensaje || 'No se pudo sincronizar')
       else {
         const r = d.resumen
-        setAviso(`Listo: ${r.publicaciones} publicaciones leídas · ${r.ligada || 0} en tu catálogo (ligadas por SKU) · ${r.bajo_pedido || 0} bajo pedido · ${r.ambigua || 0} por revisar.`)
+        setAviso(`Listo: ${r.publicaciones} publicaciones leídas${r.cerradas ? ` (${r.cerradas} cerradas omitidas)` : ''} · ${r.ligada || 0} en tu catálogo (ligadas por SKU) · ${r.bajo_pedido || 0} bajo pedido · ${r.ambigua || 0} por revisar.`)
         await cargar()
       }
     } catch { setError('No se pudo conectar con el servidor') }

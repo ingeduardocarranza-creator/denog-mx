@@ -19,6 +19,8 @@ const botonAzul = (ocupado) => ({
   fontWeight: 800, fontSize: 13.5, cursor: ocupado ? 'wait' : 'pointer', opacity: ocupado ? 0.6 : 1,
 })
 const botonSuave = { minHeight: 36, padding: '0 12px', borderRadius: 9, border: '1px solid var(--w10)', background: 'var(--w04)', color: 'var(--w60)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }
+// La miniatura de MercadoLibre es de 90 px (se ve borrosa al agrandarla): la versión -O es la grande.
+const grande = (u) => u ? String(u).replace(/-I\.(jpg|jpeg|webp|png)$/i, '-O.$1') : u
 const fechaHora = (iso) => iso
   ? new Date(iso).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/Hermosillo' })
   : ''
@@ -208,7 +210,7 @@ export default function PorComprarML() {
             <div key={f.id} style={{ padding: '14px 16px', borderTop: '1px solid var(--w10)', display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
               {f.miniatura
                 // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={f.miniatura} alt="" width={56} height={56} style={{ borderRadius: 10, objectFit: 'cover', flex: 'none' }} />
+                ? <img src={grande(f.miniatura)} alt="" width={56} height={56} style={{ borderRadius: 10, objectFit: 'cover', flex: 'none' }} />
                 : <div style={{ width: 56, height: 56, borderRadius: 10, background: 'var(--w10)', flex: 'none' }} />}
               <div style={{ flex: '2 1 280px', minWidth: 0 }}>
                 <div style={{ fontSize: 15.5, fontWeight: 700, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>

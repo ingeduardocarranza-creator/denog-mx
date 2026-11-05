@@ -22,6 +22,23 @@ const botonSuave = { minHeight: 36, padding: '0 12px', borderRadius: 9, border: 
 const fechaHora = (iso) => iso
   ? new Date(iso).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/Hermosillo' })
   : ''
+const hoyLocal = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Hermosillo' })
+// "Tienes hasta ..." según la fecha límite (la de MercadoLibre o venta + días prometidos).
+function plazo(limite) {
+  if (!limite) return null
+  const faltan = Math.round((new Date(`${limite.dia}T00:00:00Z`) - new Date(`${hoyLocal()}T00:00:00Z`)) / 86400000)
+  const fecha = new Date(`${limite.dia}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
+  if (faltan < 0) return { color: 'rojo', texto: `Ya venció el ${fecha} (hace ${-faltan} ${-faltan === 1 ? 'día' : 'días'})` }
+  if (faltan === 0) return { color: 'rojo', texto: `Vence hoy · ${fecha}` }
+  if (faltan === 1) return { color: 'amarillo', texto: `Tienes hasta mañana · ${fecha}` }
+  if (faltan <= 3) return { color: 'amarillo', texto: `Tienes hasta el ${fecha} (${faltan} días)` }
+  return { color: 'normal', texto: `Tienes hasta el ${fecha} (${faltan} días)` }
+}
+const COLOR_PLAZO = {
+  rojo: { c: 'var(--rojo)', bg: 'rgba(185,28,28,0.10)' },
+  amarillo: { c: '#8a6a00', bg: 'rgba(181,137,0,0.16)' },
+  normal: { c: 'var(--w60)', bg: 'var(--w05)' },
+}
 const usd = (n) => n == null || n === '' ? '' : Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
 function Ficha({ fila, alGuardar }) {
@@ -200,6 +217,17 @@ export default function PorComprarML() {
                   Cantidad <b style={{ color: 'var(--tinta)' }}>{f.cantidad}</b> · Venta {String(f.order_id).slice(-6)} · {fechaHora(f.fecha_venta)}
                   {f.estado === 'comprado' && f.comprado_en ? ` · Comprado ${fechaHora(f.comprado_en)}` : ''}
                 </div>
+                {(() => {
+                  const pz = plazo(f.limite)
+                  if (!pz) return null
+                  const c = COLOR_PLAZO[pz.color]
+                  return (
+                    <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 800, color: c.c, background: c.bg, borderRadius: 999, padding: '3px 12px' }}>{pz.texto}</span>
+                      <span style={{ fontSize: 12, color: 'var(--w40)' }}>{f.limite.origen === 'mercadolibre' ? 'fecha de MercadoLibre' : `${f.dias_prometidos} días de tu publicación`}</span>
+                    </div>
+                  )
+                })()}
                 <div style={{ fontSize: 13, color: 'var(--w50)', marginTop: 3 }}>
                   Costo {f.ficha?.costo_usd != null ? usd(f.ficha.costo_usd) : (f.costo_catalogo_usd != null ? `${usd(f.costo_catalogo_usd)} (catálogo)` : 'sin capturar')}
                   {f.ficha?.enlace_compra && <> · <a href={f.ficha.enlace_compra} target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 700 }}>Abrir enlace de compra ↗</a></>}

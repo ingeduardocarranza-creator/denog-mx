@@ -10,7 +10,7 @@ import { clay, status } from '@/lib/theme/colors'
 
 const fmt = n => (Number(n) || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 })
 
-const inp = { width: '100%', background: 'var(--w05)', border: '1px solid var(--w12)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 14, outline: 'none', boxSizing: 'border-box', transition: 'border-color .15s' }
+const inp = { width: '100%', background: 'var(--w05)', borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--w12)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 14, outline: 'none', boxSizing: 'border-box', transition: 'border-color .15s' }
 const inpFocus = { borderColor: clay[500] }
 const lbl = { display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--w50)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }
 

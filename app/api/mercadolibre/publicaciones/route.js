@@ -56,7 +56,7 @@ export async function PATCH(req) {
 
   const cambios = producto_id
     ? { producto_id, liga_estado: 'ligada', liga_manual: true }
-    : { producto_id: null, liga_estado: 'sin_coincidencia', liga_manual: false }
+    : { producto_id: null, liga_estado: 'bajo_pedido', liga_manual: false }
   const { error } = await supabase.from('ml_publicaciones').update(cambios).eq('id', id)
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
   return NextResponse.json({ ok: true })

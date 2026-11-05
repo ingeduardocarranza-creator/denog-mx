@@ -5,11 +5,12 @@ import { useState, useEffect, useCallback } from 'react'
 // publicaciones y ligarlas al catálogo por SKU. Lo que no se liga solo se
 // resuelve aquí a mano. Esta pantalla no modifica nada en MercadoLibre.
 
+// La mayoría de las publicaciones son "bajo pedido": no están en el catálogo
+// porque se compran hasta que se venden. Eso es normal, no algo por arreglar.
 const ETIQUETA = {
-  ligada:           { t: 'Ligada',            c: 'var(--verde)', bg: 'rgba(15,138,99,0.10)' },
-  sin_sku:          { t: 'Sin SKU',           c: 'var(--ambar)', bg: 'rgba(161,98,7,0.10)' },
-  sin_coincidencia: { t: 'SKU sin producto',  c: 'var(--rojo)',  bg: 'rgba(185,28,28,0.08)' },
-  ambigua:          { t: 'SKU repetido',      c: 'var(--rojo)',  bg: 'rgba(185,28,28,0.08)' },
+  ligada:      { t: 'En tu catálogo', c: 'var(--verde)', bg: 'rgba(15,138,99,0.10)' },
+  bajo_pedido: { t: 'Bajo pedido',    c: '#466D9B',      bg: 'rgba(70,109,155,0.12)' },
+  ambigua:     { t: 'SKU repetido',   c: 'var(--rojo)',  bg: 'rgba(185,28,28,0.08)' },
 }
 const MENSAJES_ERROR = {
   faltan_credenciales: 'Faltan ML_CLIENT_ID y ML_CLIENT_SECRET en .env.local (y en Vercel).',
@@ -55,7 +56,7 @@ function Ligar({ pub, alLigar }) {
 
   return (
     <div style={{ marginTop: 8 }}>
-      <input style={{ ...inputEstilo, width: '100%', boxSizing: 'border-box' }} placeholder="Buscar en tu catálogo por nombre o código para ligarla"
+      <input style={{ ...inputEstilo, width: '100%', boxSizing: 'border-box' }} placeholder="¿Ya lo tienes en tu catálogo? Búscalo por nombre o código para ligarla"
         value={texto} onChange={e => { setTexto(e.target.value); if (e.target.value.trim().length < 2) setOpciones([]) }} />
       {buscando && <div style={{ fontSize: 12, color: 'var(--w40)', marginTop: 4 }}>Buscando…</div>}
       {opciones.length > 0 && (
@@ -76,7 +77,7 @@ function Ligar({ pub, alLigar }) {
 export default function MercadoLibreAdmin() {
   const [estado, setEstado] = useState(null)
   const [pubs, setPubs] = useState(null)
-  const [filtro, setFiltro] = useState('pendientes')
+  const [filtro, setFiltro] = useState('todas')
   const [buscar, setBuscar] = useState('')
   const [sincronizando, setSincronizando] = useState(false)
   const [aviso, setAviso] = useState('')
@@ -107,7 +108,7 @@ export default function MercadoLibreAdmin() {
       if (!d.ok) setError(d.mensaje || 'No se pudo sincronizar')
       else {
         const r = d.resumen
-        setAviso(`Listo: ${r.publicaciones} publicaciones leídas · ${r.ligada || 0} ligadas por SKU · ${(r.sin_sku || 0) + (r.sin_coincidencia || 0) + (r.ambigua || 0)} por revisar.`)
+        setAviso(`Listo: ${r.publicaciones} publicaciones leídas · ${r.ligada || 0} en tu catálogo (ligadas por SKU) · ${r.bajo_pedido || 0} bajo pedido · ${r.ambigua || 0} por revisar.`)
         await cargar()
       }
     } catch { setError('No se pudo conectar con el servidor') }
@@ -123,11 +124,11 @@ export default function MercadoLibreAdmin() {
     await cargar()
   }
 
-  const c = estado?.conteos || { total: 0, ligada: 0, sin_sku: 0, sin_coincidencia: 0, ambigua: 0 }
-  const pendientes = c.sin_sku + c.sin_coincidencia + c.ambigua
+  const c = estado?.conteos || { total: 0, ligada: 0, bajo_pedido: 0, ambigua: 0 }
   const visibles = (pubs || []).filter(p => {
-    if (filtro === 'pendientes' && p.liga_estado === 'ligada') return false
+    if (filtro === 'bajo_pedido' && p.liga_estado !== 'bajo_pedido') return false
     if (filtro === 'ligadas' && p.liga_estado !== 'ligada') return false
+    if (filtro === 'revisar' && p.liga_estado !== 'ambigua') return false
     const t = buscar.trim().toLowerCase()
     return !t || `${p.titulo} ${p.sku || ''} ${p.item_id}`.toLowerCase().includes(t)
   })
@@ -173,7 +174,7 @@ export default function MercadoLibreAdmin() {
 
         {estado?.conectado && (<>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-            {[['pendientes', `Por revisar · ${pendientes}`], ['ligadas', `Ligadas · ${c.ligada}`], ['todas', `Todas · ${c.total}`]].map(([v, t]) => (
+            {[['todas', `Todas · ${c.total}`], ['bajo_pedido', `Bajo pedido · ${c.bajo_pedido || 0}`], ['ligadas', `En tu catálogo · ${c.ligada}`], ['revisar', `Por revisar · ${c.ambigua || 0}`]].map(([v, t]) => (
               <button key={v} style={chip(filtro === v)} onClick={() => setFiltro(v)}>{t}</button>
             ))}
             <input style={{ ...inputEstilo, flex: 1, minWidth: 180 }} placeholder="Buscar por título, SKU o número de publicación" value={buscar} onChange={e => setBuscar(e.target.value)} />
@@ -187,7 +188,7 @@ export default function MercadoLibreAdmin() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {visibles.map(p => {
-                  const et = ETIQUETA[p.liga_estado] || ETIQUETA.sin_coincidencia
+                  const et = ETIQUETA[p.liga_estado] || ETIQUETA.bajo_pedido
                   return (
                     <div key={p.id} style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 12, padding: 12, display: 'flex', gap: 12 }}>
                       {p.miniatura && <img src={p.miniatura} alt="" width={56} height={56} style={{ borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />}
@@ -207,7 +208,10 @@ export default function MercadoLibreAdmin() {
                             <span>→ <b style={{ color: 'var(--tinta)' }}>{p.producto.nombre}</b> · stock {p.producto.stock}{p.liga_manual ? ' · a mano' : ''}</span>
                             <button onClick={() => ligar(p.id, null)} style={{ background: 'none', border: 'none', color: 'var(--w40)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Quitar liga</button>
                           </div>
-                        ) : <Ligar pub={p} alLigar={ligar} />}
+                        ) : (<>
+                          {p.liga_estado === 'bajo_pedido' && <div style={{ fontSize: 12.5, color: 'var(--w50)', marginTop: 6 }}>Se compra cuando se vende.</div>}
+                          <Ligar pub={p} alLigar={ligar} />
+                        </>)}
                       </div>
                     </div>
                   )

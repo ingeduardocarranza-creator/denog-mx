@@ -19,7 +19,7 @@ export async function GET(req) {
     .select('liga_estado, estado_ml, tiempo_preparacion, sincronizado_en')
   if (errPub) return NextResponse.json({ ok: false, mensaje: errPub.message })
 
-  const conteos = { total: 0, ligada: 0, sin_sku: 0, sin_coincidencia: 0, ambigua: 0 }
+  const conteos = { total: 0, ligada: 0, bajo_pedido: 0, ambigua: 0 }
   let ultima = null
   for (const f of filas || []) {
     conteos.total += 1

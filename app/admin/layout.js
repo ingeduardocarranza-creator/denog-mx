@@ -47,6 +47,12 @@ const grupos = [
     ],
   },
   {
+    label: 'MERCADOLIBRE',
+    items: [
+      { label: 'Conexión y publicaciones', icon: '🟡', href: '/admin/mercadolibre' },
+    ],
+  },
+  {
     label: 'CLIENTES',
     items: [
       { label: 'Clientes',  icon: '👥', href: '/admin/clientes' },

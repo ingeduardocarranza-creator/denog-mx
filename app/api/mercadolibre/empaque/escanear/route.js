@@ -12,6 +12,8 @@ export async function POST(req) {
   let b
   try { b = await req.json() } catch { return NextResponse.json({ ok: false, mensaje: 'Datos inválidos' }, { status: 400 }) }
   const codigo = canon(b.codigo)
+  // La cámara puede leer varios códigos a la vez: se prueban todos.
+  const todos = [...new Set([codigo, ...(Array.isArray(b.codigos) ? b.codigos.slice(0, 8).map(canon) : [])].filter(Boolean))]
   if (!b.paquete || !codigo) return NextResponse.json({ ok: false, mensaje: 'No se leyó ningún código' }, { status: 400 })
 
   const supabase = clienteSupabaseServicio()
@@ -25,7 +27,7 @@ export async function POST(req) {
       .select('id, item_id, variacion_id, titulo, sku, producto_id, cantidad, cantidad_escaneada')
       .in('id', p.items.map(i => i.id))
     const codigos = await codigosAceptados(supabase, filas || [])
-    const coincide = (i) => codigos.get(i.id)?.has(codigo)
+    const coincide = (i) => todos.some(c => codigos.get(i.id)?.has(c))
     const pendientes = (filas || []).filter(i => i.cantidad_escaneada < i.cantidad)
 
     const it = pendientes.find(coincide)

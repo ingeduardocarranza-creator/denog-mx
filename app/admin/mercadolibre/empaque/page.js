@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import FotoZoom from '@/app/components/FotoZoom'
+import CamaraLector from '@/app/components/CamaraLector'
 
 // Empaque de MercadoLibre — pantalla del colaborador (y del admin).
 // Un paquete a la vez, con letra grande:
@@ -128,13 +129,13 @@ export default function EmpaqueML() {
     setOcupado(false)
   }
 
-  async function enviarEscaneo(texto) {
-    const valor = texto.trim()
+  async function enviarEscaneo(texto, extra) {
+    const valor = String(texto || '').trim()
     if (!valor || ocupado) return
     setCodigo(''); setOcupado(true)
     try {
       if (pantalla === 'escanear') {
-        const d = await pedir('/api/mercadolibre/empaque/escanear', { paquete: paq.paquete, codigo: valor })
+        const d = await pedir('/api/mercadolibre/empaque/escanear', { paquete: paq.paquete, codigo: valor, codigos: extra })
         if (!d.ok) { pitar(false); setAviso({ tipo: 'rojo', texto: d.mensaje }) }
         else if (d.resultado === 'correcto') {
           pitar(true)
@@ -145,12 +146,29 @@ export default function EmpaqueML() {
           pitar(false); setDesconocido({ codigo: valor, candidatos: d.candidatos, mensaje: d.mensaje })
         } else { pitar(false); setAviso({ tipo: 'rojo', texto: d.mensaje }) }
       } else if (pantalla === 'verificar') {
-        const d = await pedir('/api/mercadolibre/empaque/verificar', { paquete: paq.paquete, codigo: valor })
+        const d = await pedir('/api/mercadolibre/empaque/verificar', { paquete: paq.paquete, codigo: Array.isArray(extra) ? extra.join(' ') : valor })
         if (!d.ok) { pitar(false); setAviso({ tipo: 'rojo', texto: d.mensaje }) }
         else if (d.resultado === 'listo') { pitar(true); setAviso(null); setPantalla('listo') }
         else { pitar(false); setAviso({ tipo: 'rojo', texto: d.mensaje }) }
       }
     } catch { pitar(false); setAviso({ tipo: 'rojo', texto: 'No se pudo conectar. Intenta de nuevo.' }) }
+    setOcupado(false)
+  }
+
+  // La cámara llama siempre a la versión más nueva de enviarEscaneo.
+  const enviarRef = useRef(enviarEscaneo)
+  useEffect(() => { enviarRef.current = enviarEscaneo })
+  const alLeerCamara = useCallback((textos) => enviarRef.current(textos[0], textos), [])
+
+  async function continuarSinEscanear() {
+    if (ocupado) return
+    if (!window.confirm('¿Continuar sin escanear el producto? Quedará registrado a tu nombre.')) return
+    setOcupado(true)
+    try {
+      const d = await pedir('/api/mercadolibre/empaque/sin-escanear', { paquete: paq.paquete })
+      if (!d.ok) setAviso({ tipo: 'rojo', texto: d.mensaje })
+      else { setAviso(null); setDesconocido(null); setPaq(d.paquete); setPantalla('imprimir') }
+    } catch { setAviso({ tipo: 'rojo', texto: 'No se pudo conectar. Intenta de nuevo.' }) }
     setOcupado(false)
   }
 
@@ -333,9 +351,11 @@ export default function EmpaqueML() {
               onChange={e => setCodigo(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') enviarEscaneo(codigo) }}
               style={{ minHeight: 64, borderRadius: 14, border: `3px solid ${AZUL}`, padding: '0 18px', fontSize: 22, background: 'var(--w05)', color: 'var(--tinta)', outline: 'none' }} />
+            <CamaraLector onLeer={alLeerCamara} ayuda="Apunta al código de barras del producto" />
           </>
         )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          <button style={botonSuave} disabled={ocupado} onClick={continuarSinEscanear}>Continuar sin escanear el producto</button>
           <button style={botonSuave} onClick={() => { const l = [...omitir, paq.paquete]; setOmitir(l); siguiente(l) }}>No lo encuentro · saltar paquete</button>
         </div>
       </div>
@@ -377,6 +397,7 @@ export default function EmpaqueML() {
           onChange={e => setCodigo(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') enviarEscaneo(codigo) }}
           style={{ minHeight: 64, borderRadius: 14, border: `3px solid ${AZUL}`, padding: '0 18px', fontSize: 22, background: 'var(--w05)', color: 'var(--tinta)', outline: 'none' }} />
+        <CamaraLector onLeer={alLeerCamara} ayuda="Apunta al código de la etiqueta" />
       </div>
       {aviso && <Mensaje color={aviso.tipo}>{aviso.texto}</Mensaje>}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

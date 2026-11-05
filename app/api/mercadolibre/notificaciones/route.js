@@ -1,5 +1,8 @@
-import { NextResponse } from 'next/server'
-import { clienteSupabaseServicio } from '@/lib/mercadolibre/api'
+import { NextResponse, after } from 'next/server'
+import { clienteSupabaseServicio, obtenerAcceso } from '@/lib/mercadolibre/api'
+import { procesarPendientes } from '@/lib/mercadolibre/ventas'
+
+export const maxDuration = 60
 
 // Aquí MercadoLibre avisa (POST) cuando pasa algo en tu cuenta: venta nueva,
 // cambio de envío, reclamo, mensaje, cambio en una publicación.
@@ -43,6 +46,17 @@ export async function POST(req) {
     }, { onConflict: 'ml_id', ignoreDuplicates: true })
     // 500 para que MercadoLibre reintente si no se pudo guardar.
     if (error) return NextResponse.json({ ok: false }, { status: 500 })
+
+    // Ya respondido el 200, se atiende el aviso aparte (ventas y envíos).
+    if (aviso.topic === 'orders_v2' || aviso.topic === 'shipments') {
+      after(async () => {
+        try {
+          const sb = clienteSupabaseServicio()
+          const { token } = await obtenerAcceso(sb)
+          await procesarPendientes(sb, token, { limite: 20 })
+        } catch {}
+      })
+    }
   } catch {
     return NextResponse.json({ ok: false }, { status: 500 })
   }

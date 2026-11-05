@@ -127,7 +127,7 @@ export default function MercadoLibreAdmin() {
       if (!d.ok) setError(d.mensaje || 'No se pudo sincronizar')
       else {
         const r = d.resumen
-        setAviso(`Listo: ${r.publicaciones} publicaciones leídas${r.cerradas ? ` (${r.cerradas} cerradas omitidas)` : ''} · ${r.ligada || 0} en tu catálogo (ligadas por SKU) · ${r.bajo_pedido || 0} bajo pedido · ${r.ambigua || 0} por revisar.`)
+        setAviso(`Listo: ${r.publicaciones} publicaciones leídas${r.cerradas ? ` (${r.cerradas} cerradas omitidas)` : ''}${r.mercado_pago?.total ? ` (${r.mercado_pago.total} productos de Mercado Pago omitidos: no son de MercadoLibre)` : ''} · ${r.ligada || 0} en tu catálogo (ligadas por SKU) · ${r.bajo_pedido || 0} bajo pedido · ${r.ambigua || 0} por revisar.`)
         await cargar()
       }
     } catch { setError('No se pudo conectar con el servidor') }
@@ -282,7 +282,7 @@ export default function MercadoLibreAdmin() {
 
         {estado?.conectado && (<>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-            {[['todas', `Todas · ${c.total}`], ['bajo_pedido', `Bajo pedido · ${c.bajo_pedido || 0}`], ['ligadas', `En tu catálogo · ${c.ligada}`], ['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`], ['sinenvio', `Sin Mercado Envíos · ${nSinEnvio}`]].map(([v, t]) => (
+            {[['todas', `Todas · ${c.total}`], ['bajo_pedido', `Bajo pedido · ${c.bajo_pedido || 0}`], ['ligadas', `En tu catálogo · ${c.ligada}`], ['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`], ...(nSinEnvio > 0 ? [['sinenvio', `Sin Mercado Envíos · ${nSinEnvio}`]] : [])].map(([v, t]) => (
               <button key={v} style={chip(filtro === v)} onClick={() => setFiltro(v)}>{t}</button>
             ))}
             <input style={{ ...inputEstilo, flex: 1, minWidth: 180 }} placeholder="Buscar por título, SKU o número de publicación" value={buscar} onChange={e => setBuscar(e.target.value)} />

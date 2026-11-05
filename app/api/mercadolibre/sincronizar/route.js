@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requerirAdmin } from '@/lib/auth/session'
 import {
   clienteSupabaseServicio, obtenerAcceso, listarIdsPublicaciones, detallePublicaciones,
-  filasDePublicacion, ligarPorSku, normalizarCodigo,
+  filasDePublicacion, ligarPorSku, normalizarCodigo, esMercadoPago,
 } from '@/lib/mercadolibre/api'
 
 export const maxDuration = 60
@@ -21,8 +21,15 @@ export async function POST(req) {
     const todas = await detallePublicaciones(token, ids)
     // Las cerradas ya no se pueden reactivar ni vender: se dejan fuera (y si ya
     // estaban guardadas, se quitan de la lista en esta misma sincronización).
-    const items = todas.filter(i => i.status !== 'closed')
-    const cerradas = todas.length - items.length
+    const sinCerradas = todas.filter(i => i.status !== 'closed')
+    const cerradas = todas.length - sinCerradas.length
+    // Los productos de Mercado Pago (cobros / link de pago) no son
+    // publicaciones de MercadoLibre: se dejan fuera, pero se reporta cuántos
+    // son y de cuándo, para que se sepa qué eran.
+    const deMp = sinCerradas.filter(esMercadoPago)
+    const items = sinCerradas.filter(i => !esMercadoPago(i))
+    const fechasMp = deMp.map(i => i.date_created).filter(Boolean).sort()
+    const mercado_pago = { total: deMp.length, primera: fechasMp[0] || null, ultima: fechasMp.at(-1) || null }
     const filas = items.flatMap(filasDePublicacion)
 
     // Índice código → productos del catálogo (todos, activos o no, para no
@@ -70,7 +77,7 @@ export async function POST(req) {
       await supabase.from('ml_publicaciones').delete().eq('item_id', e.item_id).eq('variacion_id', e.variacion_id)
     }
 
-    const resumen = { publicaciones: items.length, cerradas, filas: aGuardar.length, quitadas: aBorrar.length }
+    const resumen = { publicaciones: items.length, cerradas, mercado_pago, filas: aGuardar.length, quitadas: aBorrar.length }
     for (const f of aGuardar) resumen[f.liga_estado] = (resumen[f.liga_estado] || 0) + 1
     return NextResponse.json({ ok: true, resumen })
   } catch (e) {

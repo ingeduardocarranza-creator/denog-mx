@@ -39,7 +39,7 @@ const nextConfig = {
               // /admin/conectar-whatsapp (B7) — coexistencia de WhatsApp.
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https://*.supabase.co",
+              "img-src 'self' data: blob: https://*.supabase.co https://*.mlstatic.com",
               // Videos cortos de los productos (pantalla de la tienda y catálogo).
               "media-src 'self' blob: https://*.supabase.co",
               "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://graph.facebook.com https://*.facebook.com",

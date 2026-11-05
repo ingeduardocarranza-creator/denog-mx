@@ -125,7 +125,16 @@ export default function MercadoLibreAdmin() {
   }
 
   const c = estado?.conteos || { total: 0, ligada: 0, bajo_pedido: 0, ambigua: 0 }
+  // Listas para depurar: publicaciones activas que prometen entrega inmediata
+  // (sin días de entrega) pero no tienen producto detrás.
+  const activa = (p) => p.estado_ml === 'active'
+  const sinCatalogoSinDias = (p) => activa(p) && p.liga_estado === 'bajo_pedido' && !p.tiempo_preparacion
+  const instanteSinStock = (p) => activa(p) && p.liga_estado === 'ligada' && !p.tiempo_preparacion && p.producto?.stock === 0
+  const nBaja = (pubs || []).filter(sinCatalogoSinDias).length
+  const nSinStock = (pubs || []).filter(instanteSinStock).length
   const visibles = (pubs || []).filter(p => {
+    if (filtro === 'baja' && !sinCatalogoSinDias(p)) return false
+    if (filtro === 'sinstock' && !instanteSinStock(p)) return false
     if (filtro === 'bajo_pedido' && p.liga_estado !== 'bajo_pedido') return false
     if (filtro === 'ligadas' && p.liga_estado !== 'ligada') return false
     if (filtro === 'revisar' && p.liga_estado !== 'ambigua') return false
@@ -174,12 +183,14 @@ export default function MercadoLibreAdmin() {
 
         {estado?.conectado && (<>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-            {[['todas', `Todas · ${c.total}`], ['bajo_pedido', `Bajo pedido · ${c.bajo_pedido || 0}`], ['ligadas', `En tu catálogo · ${c.ligada}`], ['revisar', `Por revisar · ${c.ambigua || 0}`]].map(([v, t]) => (
+            {[['todas', `Todas · ${c.total}`], ['bajo_pedido', `Bajo pedido · ${c.bajo_pedido || 0}`], ['ligadas', `En tu catálogo · ${c.ligada}`], ['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`]].map(([v, t]) => (
               <button key={v} style={chip(filtro === v)} onClick={() => setFiltro(v)}>{t}</button>
             ))}
             <input style={{ ...inputEstilo, flex: 1, minWidth: 180 }} placeholder="Buscar por título, SKU o número de publicación" value={buscar} onChange={e => setBuscar(e.target.value)} />
           </div>
 
+          {filtro === 'baja' && <div style={{ fontSize: 12.5, color: 'var(--w60)', marginBottom: 10, lineHeight: 1.5 }}>Activas, sin días de entrega y fuera de tu catálogo: prometen entrega inmediata y no hay producto detrás. Cada una se da de baja, se le ponen días de entrega, o se liga si sí existe en tu catálogo (con el buscador de cada fila).</div>}
+          {filtro === 'sinstock' && <div style={{ fontSize: 12.5, color: 'var(--w60)', marginBottom: 10, lineHeight: 1.5 }}>Ligadas a tu catálogo, sin días de entrega, y tu catálogo marca 0 piezas: si se venden, no hay producto para despachar.</div>}
           {pubs === null ? <div style={{ color: 'var(--w40)', fontSize: 13 }}>Cargando…</div>
             : visibles.length === 0 ? (
               <div style={{ color: 'var(--w40)', fontSize: 13 }}>

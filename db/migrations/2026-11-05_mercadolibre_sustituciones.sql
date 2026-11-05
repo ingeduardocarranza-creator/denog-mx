@@ -1,0 +1,3 @@
+-- Se sustituye por otro producto: tabla ml_sustituciones + ml_empacar_paquete
+-- descuenta el stock de lo que sí se mandó. (Aplicada en Supabase.)
+-- Ver definición en la migración "ml_sustituciones".

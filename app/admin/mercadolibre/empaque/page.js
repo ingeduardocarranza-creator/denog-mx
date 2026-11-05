@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import FotoZoom from '@/app/components/FotoZoom'
 import CamaraLector from '@/app/components/CamaraLector'
+import SustituirProducto from '@/app/components/SustituirProducto'
 
 // Empaque de MercadoLibre — pantalla del colaborador (y del admin).
 // Un paquete a la vez, con letra grande:
@@ -72,6 +73,7 @@ export default function EmpaqueML() {
   const [ocupado, setOcupado] = useState(false)
   const [desconocido, setDesconocido] = useState(null)
   const [errorGeneral, setErrorGeneral] = useState('')
+  const [sustituyendo, setSustituyendo] = useState(false)
   const inputRef = useRef(null)
 
   const pedir = useCallback(async (url, cuerpo) => {
@@ -97,7 +99,7 @@ export default function EmpaqueML() {
   }, [pantalla, cargarMenu])
 
   // El lector escribe en el campo: se mantiene enfocado mientras se escanea.
-  const escaneando = (pantalla === 'escanear' || pantalla === 'verificar') && !desconocido
+  const escaneando = (pantalla === 'escanear' || pantalla === 'verificar') && !desconocido && !sustituyendo
   useEffect(() => {
     if (escaneando) inputRef.current?.focus()
   }, [escaneando, pantalla, paq])
@@ -159,6 +161,22 @@ export default function EmpaqueML() {
   const enviarRef = useRef(enviarEscaneo)
   useEffect(() => { enviarRef.current = enviarEscaneo })
   const alLeerCamara = useCallback((textos) => enviarRef.current(textos[0], textos), [])
+
+  async function confirmarSustitucion(itemRowId, productos) {
+    if (ocupado) return
+    setOcupado(true)
+    try {
+      const d = await pedir('/api/mercadolibre/empaque/sustituir', { paquete: paq.paquete, item_row_id: itemRowId, productos })
+      if (!d.ok) { pitar(false); setAviso({ tipo: 'rojo', texto: d.mensaje }) }
+      else {
+        pitar(true); setSustituyendo(false); setDesconocido(null)
+        setPaq(d.paquete)
+        if (d.paquete?.todo_escaneado) { setAviso(null); setPantalla('imprimir') }
+        else setAviso({ tipo: 'verde', texto: 'Sustitución guardada. Falta escanear los demás productos.' })
+      }
+    } catch { pitar(false); setAviso({ tipo: 'rojo', texto: 'No se pudo conectar. Intenta de nuevo.' }) }
+    setOcupado(false)
+  }
 
   async function continuarSinEscanear() {
     if (ocupado) return
@@ -334,7 +352,9 @@ export default function EmpaqueML() {
           </div>
         )}
         {aviso && <Mensaje color={aviso.tipo}>{aviso.texto}</Mensaje>}
-        {desconocido ? (
+        {sustituyendo ? (
+          <SustituirProducto items={paq.items} ocupado={ocupado} onConfirmar={confirmarSustitucion} onCerrar={() => setSustituyendo(false)} />
+        ) : desconocido ? (
           <div style={{ ...tarjeta, borderColor: AMARILLO }}>
             <div style={{ fontSize: 22, fontWeight: 800 }}>{desconocido.mensaje}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
@@ -355,6 +375,7 @@ export default function EmpaqueML() {
           </>
         )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          {!sustituyendo && <button style={botonSuave} disabled={ocupado} onClick={() => { setAviso(null); setDesconocido(null); setSustituyendo(true) }}>Se sustituye por otro producto</button>}
           <button style={botonSuave} disabled={ocupado} onClick={continuarSinEscanear}>Continuar sin escanear el producto</button>
           <button style={botonSuave} onClick={() => { const l = [...omitir, paq.paquete]; setOmitir(l); siguiente(l) }}>No lo encuentro · saltar paquete</button>
         </div>

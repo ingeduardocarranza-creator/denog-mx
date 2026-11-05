@@ -138,8 +138,9 @@ export default function PorComprarML() {
 
   const porComprar = useMemo(() => items.filter(i => i.estado === 'por_comprar'), [items])
   const comprados = useMemo(() => items.filter(i => i.estado === 'comprado'), [items])
+  const sinEtiqueta = useMemo(() => items.filter(i => i.esperando_etiqueta), [items])
   const urgentes = porComprar.filter(i => i.urgente)
-  const lista = vista === 'por_comprar' ? porComprar : comprados
+  const lista = vista === 'por_comprar' ? porComprar : vista === 'comprados' ? comprados : sinEtiqueta
 
   const grupos = useMemo(() => {
     if (!agrupar) return [{ nombre: null, filas: lista }]
@@ -180,6 +181,7 @@ export default function PorComprarML() {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 18 }}>
         <button style={chip(vista === 'por_comprar')} onClick={() => setVista('por_comprar')}>Por comprar ({porComprar.length})</button>
         <button style={chip(vista === 'comprados')} onClick={() => setVista('comprados')}>Comprados, en camino ({comprados.length})</button>
+        <button style={chip(vista === 'etiqueta')} onClick={() => setVista('etiqueta')}>Ya aquí, esperando etiqueta ({sinEtiqueta.length})</button>
         <span style={{ flex: 1 }} />
         <button style={chip(agrupar)} onClick={() => setAgrupar(a => !a)}>{agrupar ? 'Agrupado por tienda' : 'Lista simple'}</button>
       </div>
@@ -187,7 +189,7 @@ export default function PorComprarML() {
       {cargando && <div style={{ marginTop: 20, color: 'var(--w40)' }}>Cargando…</div>}
       {!cargando && lista.length === 0 && (
         <div style={{ marginTop: 20, color: 'var(--w50)', fontSize: 14.5 }}>
-          {vista === 'por_comprar' ? 'No hay nada por comprar. Las ventas nuevas aparecen aquí solas.' : 'No hay compras en camino.'}
+          {vista === 'por_comprar' ? 'No hay nada por comprar. Las ventas nuevas aparecen aquí solas.' : vista === 'comprados' ? 'No hay compras en camino.' : 'No hay productos esperando etiqueta.'}
         </div>
       )}
 
@@ -214,7 +216,7 @@ export default function PorComprarML() {
                   {f.urgente && <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--rojo)', background: 'rgba(185,28,28,0.1)', borderRadius: 999, padding: '2px 10px' }}>Urgente</span>}
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--w50)', marginTop: 3 }}>
-                  Cantidad <b style={{ color: 'var(--tinta)' }}>{f.cantidad}</b> · Venta {String(f.order_id).slice(-6)} · {fechaHora(f.fecha_venta)}
+                  Cantidad <b style={{ color: 'var(--tinta)' }}>{f.cantidad}</b> · Venta #{f.pack_id || f.order_id} · {fechaHora(f.fecha_venta)}
                   {f.estado === 'comprado' && f.comprado_en ? ` · Comprado ${fechaHora(f.comprado_en)}` : ''}
                 </div>
                 {(() => {
@@ -232,6 +234,16 @@ export default function PorComprarML() {
                   Costo {f.ficha?.costo_usd != null ? usd(f.ficha.costo_usd) : (f.costo_catalogo_usd != null ? `${usd(f.costo_catalogo_usd)} (catálogo)` : 'sin capturar')}
                   {f.ficha?.enlace_compra && <> · <a href={f.ficha.enlace_compra} target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 700 }}>Abrir enlace de compra ↗</a></>}
                 </div>
+                {f.esperando_etiqueta && (
+                  <div style={{ marginTop: 8, background: 'rgba(181,137,0,0.14)', border: '1.5px solid #B58900', borderRadius: 10, padding: '10px 12px', fontSize: 13.5, lineHeight: 1.5 }}>
+                    MercadoLibre todavía no libera la etiqueta{f.limite ? ` (la entrega el ${new Date(`${f.limite.dia}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })})` : ''}.
+                    Como ya tienes el producto, entra a MercadoLibre, busca esta venta y toca <b>«Ya tengo el producto»</b>. En cuanto MercadoLibre libere la etiqueta, el paquete pasa solo a «Empacar ahora» del colaborador.
+                    <div style={{ marginTop: 6 }}>
+                      <a href="https://www.mercadolibre.com.mx/ventas/omni/listado?filters=shipping_upcoming" target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 800 }}>Abrir mis ventas en MercadoLibre ↗</a>
+                      <span style={{ color: 'var(--w50)' }}> · envío #{f.shipment_id}</span>
+                    </div>
+                  </div>
+                )}
                 <div style={{ marginTop: 8 }}><Ficha key={`${f.id}-${f.ficha?.actualizada || ''}-${f.ficha?.tienda || ''}-${f.ficha?.costo_usd || ''}`} fila={f} alGuardar={cargar} /></div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

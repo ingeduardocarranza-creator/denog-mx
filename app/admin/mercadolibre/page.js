@@ -1,9 +1,15 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 
-// MercadoLibre · Fase 1 (solo admin): conectar la cuenta por API, traer las
-// publicaciones y ligarlas al catálogo por SKU. Lo que no se liga solo se
-// resuelve aquí a mano. Esta pantalla no modifica nada en MercadoLibre.
+// MercadoLibre (solo admin): conectar la cuenta por API, traer las
+// publicaciones, ligarlas al catálogo por SKU y depurar las que prometen
+// entrega inmediata sin tener producto.
+//
+// Depurar: en las listas "Dar de baja o ligar" y "Al instante sin stock" se
+// marca una decisión por publicación. NADA se cambia en MercadoLibre hasta que
+// se confirma en el paso final ("Aplicar en MercadoLibre").
+
+const DIAS_BAJO_PEDIDO = 13
 
 // La mayoría de las publicaciones son "bajo pedido": no están en el catálogo
 // porque se compran hasta que se venden. Eso es normal, no algo por arreglar.
@@ -35,6 +41,13 @@ const botonAzul = (ocupado) => ({
   fontWeight: 700, fontSize: 13, cursor: ocupado ? 'wait' : 'pointer', opacity: ocupado ? 0.6 : 1, textDecoration: 'none',
   display: 'inline-flex', alignItems: 'center',
 })
+const botonDecision = (activo, color) => ({
+  minHeight: 34, padding: '0 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 800, cursor: 'pointer',
+  border: `1.5px solid ${activo ? color : 'var(--w10)'}`,
+  background: activo ? color : 'var(--w04)',
+  color: activo ? '#fff' : 'var(--w60)',
+})
+const enlaceBoton = { background: 'none', border: 'none', color: '#466D9B', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }
 
 function Ligar({ pub, alLigar }) {
   const [texto, setTexto] = useState('')
@@ -56,7 +69,7 @@ function Ligar({ pub, alLigar }) {
 
   return (
     <div style={{ marginTop: 8 }}>
-      <input style={{ ...inputEstilo, width: '100%', boxSizing: 'border-box' }} placeholder="¿Ya lo tienes en tu catálogo? Búscalo por nombre o código para ligarla"
+      <input style={{ ...inputEstilo, width: '100%', boxSizing: 'border-box' }} placeholder="¿Sí existe en tu catálogo? Búscalo por nombre o código para ligarla"
         value={texto} onChange={e => { setTexto(e.target.value); if (e.target.value.trim().length < 2) setOpciones([]) }} />
       {buscando && <div style={{ fontSize: 12, color: 'var(--w40)', marginTop: 4 }}>Buscando…</div>}
       {opciones.length > 0 && (
@@ -82,6 +95,12 @@ export default function MercadoLibreAdmin() {
   const [sincronizando, setSincronizando] = useState(false)
   const [aviso, setAviso] = useState('')
   const [error, setError] = useState('')
+  // Decisiones marcadas (todavía NO aplicadas): id de fila → 'pausar' | 'dias'
+  const [decisiones, setDecisiones] = useState({})
+  const [confirmando, setConfirmando] = useState(false)
+  const [aplicando, setAplicando] = useState(false)
+  const [progreso, setProgreso] = useState('')
+  const [resultado, setResultado] = useState(null)
 
   const cargar = useCallback(async () => {
     try {
@@ -121,10 +140,18 @@ export default function MercadoLibreAdmin() {
       method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, producto_id }),
     }).then(r => r.json()).catch(() => ({ ok: false, mensaje: 'No se pudo conectar con el servidor' }))
     if (!d.ok) { setError(d.mensaje || 'No se pudo ligar'); return }
+    setDecisiones(prev => { const n = { ...prev }; delete n[id]; return n })
     await cargar()
   }
 
+  const decidir = (id, valor) => setDecisiones(prev => {
+    const n = { ...prev }
+    if (n[id] === valor) delete n[id]; else n[id] = valor
+    return n
+  })
+
   const c = estado?.conteos || { total: 0, ligada: 0, bajo_pedido: 0, ambigua: 0 }
+
   // Listas para depurar: publicaciones activas que prometen entrega inmediata
   // (sin días de entrega) pero no tienen producto detrás.
   const activa = (p) => p.estado_ml === 'active'
@@ -132,6 +159,7 @@ export default function MercadoLibreAdmin() {
   const instanteSinStock = (p) => activa(p) && p.liga_estado === 'ligada' && !p.tiempo_preparacion && p.producto?.stock === 0
   const nBaja = (pubs || []).filter(sinCatalogoSinDias).length
   const nSinStock = (pubs || []).filter(instanteSinStock).length
+
   const visibles = (pubs || []).filter(p => {
     if (filtro === 'baja' && !sinCatalogoSinDias(p)) return false
     if (filtro === 'sinstock' && !instanteSinStock(p)) return false
@@ -142,8 +170,61 @@ export default function MercadoLibreAdmin() {
     return !t || `${p.titulo} ${p.sku || ''} ${p.item_id}`.toLowerCase().includes(t)
   })
 
+  const enDepuracion = filtro === 'baja' || filtro === 'sinstock'
+  const marcarVisibles = (valor) => setDecisiones(prev => {
+    const n = { ...prev }
+    for (const p of visibles) n[p.id] = valor
+    return n
+  })
+
+  // Resumen de lo marcado, por publicación (una publicación = un item_id).
+  const porId = Object.fromEntries((pubs || []).map(p => [p.id, p]))
+  const marcadas = Object.entries(decisiones).map(([id, v]) => ({ pub: porId[id], valor: v })).filter(x => x.pub)
+  const aPausar = marcadas.filter(x => x.valor === 'pausar')
+  const aDias = marcadas.filter(x => x.valor === 'dias')
+
+  const aplicar = async () => {
+    setAplicando(true); setResultado(null); setError('')
+    // Sin repetir publicaciones (una con variantes ocupa varias filas).
+    const vistos = new Set()
+    const acciones = []
+    for (const { pub, valor } of marcadas) {
+      const clave = `${pub.item_id}:${valor}`
+      if (vistos.has(clave)) continue
+      vistos.add(clave)
+      acciones.push(valor === 'pausar'
+        ? { item_id: pub.item_id, accion: 'pausar', titulo: pub.titulo }
+        : { item_id: pub.item_id, accion: 'dias_entrega', dias: DIAS_BAJO_PEDIDO, titulo: pub.titulo })
+    }
+    const todos = []
+    try {
+      for (let i = 0; i < acciones.length; i += 10) {
+        setProgreso(`Aplicando ${Math.min(i + 10, acciones.length)} de ${acciones.length}…`)
+        const lote = acciones.slice(i, i + 10).map(a => ({ item_id: a.item_id, accion: a.accion, ...(a.dias ? { dias: a.dias } : {}) }))
+        const d = await fetch('/api/mercadolibre/acciones', {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ acciones: lote }),
+        }).then(r => r.json())
+        if (!d.ok) { setError(d.mensaje || 'No se pudo aplicar'); break }
+        todos.push(...d.resultados)
+      }
+    } catch { setError('Se cortó la conexión. Revisa abajo qué alcanzó a aplicarse y vuelve a intentar con el resto.') }
+
+    const titulos = Object.fromEntries(acciones.map(a => [a.item_id, a.titulo]))
+    const fallos = todos.filter(r => !r.ok).map(r => ({ ...r, titulo: titulos[r.item_id] || r.item_id }))
+    const exitosos = new Set(todos.filter(r => r.ok).map(r => r.item_id))
+    setResultado({ ok: todos.length - fallos.length, fallos })
+    // Lo aplicado sale de las decisiones; lo que falló se queda para reintentar.
+    setDecisiones(prev => {
+      const n = { ...prev }
+      for (const id of Object.keys(n)) if (exitosos.has(porId[id]?.item_id)) delete n[id]
+      return n
+    })
+    setConfirmando(false); setProgreso(''); setAplicando(false)
+    await cargar()
+  }
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--fondo)', padding: '22px 24px 60px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--fondo)', padding: `22px 24px ${marcadas.length ? 110 : 60}px` }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <div style={{ marginBottom: 18 }}>
           <div style={{ color: 'var(--tinta)', fontSize: 25, fontWeight: 800, letterSpacing: -0.6 }}>MercadoLibre</div>
@@ -152,6 +233,21 @@ export default function MercadoLibreAdmin() {
 
         {error && <div style={{ background: 'rgba(185,28,28,0.08)', border: '1px solid rgba(185,28,28,0.3)', color: 'var(--rojo)', borderRadius: 10, padding: '10px 14px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
         {aviso && <div style={{ background: 'rgba(15,138,99,0.08)', border: '1px solid rgba(15,138,99,0.3)', color: 'var(--verde)', borderRadius: 10, padding: '10px 14px', fontSize: 13, marginBottom: 12 }}>{aviso}</div>}
+
+        {resultado && (
+          <div style={{ background: 'var(--sup)', border: `1px solid ${resultado.fallos.length ? 'rgba(185,28,28,0.3)' : 'rgba(15,138,99,0.3)'}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--tinta)' }}>
+              {resultado.ok} cambio{resultado.ok === 1 ? '' : 's'} aplicado{resultado.ok === 1 ? '' : 's'} en MercadoLibre{resultado.fallos.length ? ` · ${resultado.fallos.length} con error` : ''}
+            </div>
+            {resultado.fallos.map(f => (
+              <div key={f.item_id + f.accion} style={{ fontSize: 12.5, color: 'var(--rojo)', marginTop: 6, lineHeight: 1.4 }}>
+                <b>{f.titulo}</b> ({f.item_id}): {f.mensaje}
+              </div>
+            ))}
+            {resultado.fallos.length > 0 && <div style={{ fontSize: 12, color: 'var(--w50)', marginTop: 8 }}>Las que fallaron siguen marcadas para que las reintentes.</div>}
+            <button onClick={() => setResultado(null)} style={{ marginTop: 10, background: 'none', border: 'none', color: 'var(--w40)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>Cerrar</button>
+          </div>
+        )}
 
         <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 12, padding: 14, marginBottom: 16 }}>
           {!estado ? <div style={{ color: 'var(--w40)', fontSize: 13 }}>Cargando…</div>
@@ -168,7 +264,7 @@ export default function MercadoLibreAdmin() {
                   <div style={{ fontSize: 12, color: 'var(--w50)', marginTop: 3 }}>
                     {estado.conectado
                       ? `Última sincronización: ${estado.ultima_sincronizacion ? fechaHora(estado.ultima_sincronizacion) : 'todavía no'}`
-                      : 'Autoriza a Denog a leer tus publicaciones y ventas. No modifica nada en MercadoLibre.'}
+                      : 'Autoriza a Denog a leer tus publicaciones y ventas.'}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -189,19 +285,38 @@ export default function MercadoLibreAdmin() {
             <input style={{ ...inputEstilo, flex: 1, minWidth: 180 }} placeholder="Buscar por título, SKU o número de publicación" value={buscar} onChange={e => setBuscar(e.target.value)} />
           </div>
 
-          {filtro === 'baja' && <div style={{ fontSize: 12.5, color: 'var(--w60)', marginBottom: 10, lineHeight: 1.5 }}>Activas, sin días de entrega y fuera de tu catálogo: prometen entrega inmediata y no hay producto detrás. Cada una se da de baja, se le ponen días de entrega, o se liga si sí existe en tu catálogo (con el buscador de cada fila).</div>}
-          {filtro === 'sinstock' && <div style={{ fontSize: 12.5, color: 'var(--w60)', marginBottom: 10, lineHeight: 1.5 }}>Ligadas a tu catálogo, sin días de entrega, y tu catálogo marca 0 piezas: si se venden, no hay producto para despachar.</div>}
+          {filtro === 'baja' && (
+            <div style={{ fontSize: 12.5, color: 'var(--w60)', marginBottom: 10, lineHeight: 1.5 }}>
+              Activas, sin días de entrega y fuera de tu catálogo: prometen entrega inmediata y no hay producto detrás.
+              En cada una decide: <b>si sí existe</b>, búscala abajo y se liga; <b>si ya no existe</b>, márcala para pausar.
+              <div style={{ marginTop: 6 }}>
+                <button onClick={() => marcarVisibles('pausar')} style={enlaceBoton}>Marcar todas las que se ven para pausar</button>
+              </div>
+            </div>
+          )}
+          {filtro === 'sinstock' && (
+            <div style={{ fontSize: 12.5, color: 'var(--w60)', marginBottom: 10, lineHeight: 1.5 }}>
+              Ligadas a tu catálogo, sin días de entrega, y tu catálogo marca 0 piezas: si se venden, no hay producto para despachar.
+              En cada una decide: <b>pausar</b>, o dejarla <b>bajo pedido con {DIAS_BAJO_PEDIDO} días</b> de entrega.
+              <div style={{ marginTop: 6, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                <button onClick={() => marcarVisibles('pausar')} style={enlaceBoton}>Todas a pausar</button>
+                <button onClick={() => marcarVisibles('dias')} style={enlaceBoton}>Todas a {DIAS_BAJO_PEDIDO} días</button>
+              </div>
+            </div>
+          )}
+
           {pubs === null ? <div style={{ color: 'var(--w40)', fontSize: 13 }}>Cargando…</div>
             : visibles.length === 0 ? (
               <div style={{ color: 'var(--w40)', fontSize: 13 }}>
-                {c.total === 0 ? 'Todavía no hay publicaciones. Toca “Sincronizar publicaciones”.' : 'Nada en este filtro.'}
+                {c.total === 0 ? 'Todavía no hay publicaciones. Toca “Sincronizar publicaciones”.' : enDepuracion ? 'Nada pendiente en esta lista. 🎉' : 'Nada en este filtro.'}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {visibles.map(p => {
                   const et = ETIQUETA[p.liga_estado] || ETIQUETA.bajo_pedido
+                  const dec = decisiones[p.id]
                   return (
-                    <div key={p.id} style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 12, padding: 12, display: 'flex', gap: 12 }}>
+                    <div key={p.id} style={{ background: 'var(--sup)', border: `1px solid ${dec ? '#466D9B' : 'var(--w08)'}`, borderRadius: 12, padding: 12, display: 'flex', gap: 12 }}>
                       {p.miniatura && <img src={p.miniatura} alt="" width={56} height={56} style={{ borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -211,8 +326,10 @@ export default function MercadoLibreAdmin() {
                         <div style={{ fontSize: 12, color: 'var(--w50)', marginTop: 4 }}>
                           {p.item_id} · {p.sku ? <>SKU <span style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--tinta)' }}>{p.sku}</span></> : 'sin SKU'}
                           {p.precio != null ? ` · ${peso(p.precio)}` : ''}
+                          {p.stock_ml != null ? ` · stock en MercadoLibre: ${p.stock_ml}` : ''}
                           {p.tiempo_preparacion ? ` · entrega en ${p.tiempo_preparacion} días` : ''}
                           {p.estado_ml && p.estado_ml !== 'active' ? ` · ${p.estado_ml}` : ''}
+                          {p.enlace && <> · <a href={p.enlace} target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 700 }}>Ver en MercadoLibre ↗</a></>}
                         </div>
                         {p.producto ? (
                           <div style={{ fontSize: 12.5, color: 'var(--w60)', marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -220,9 +337,27 @@ export default function MercadoLibreAdmin() {
                             <button onClick={() => ligar(p.id, null)} style={{ background: 'none', border: 'none', color: 'var(--w40)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Quitar liga</button>
                           </div>
                         ) : (<>
-                          {p.liga_estado === 'bajo_pedido' && <div style={{ fontSize: 12.5, color: 'var(--w50)', marginTop: 6 }}>Se compra cuando se vende.</div>}
+                          {p.liga_estado === 'bajo_pedido' && !enDepuracion && <div style={{ fontSize: 12.5, color: 'var(--w50)', marginTop: 6 }}>Se compra cuando se vende.</div>}
                           <Ligar pub={p} alLigar={ligar} />
                         </>)}
+
+                        {filtro === 'baja' && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                            <button onClick={() => decidir(p.id, 'pausar')} style={botonDecision(dec === 'pausar', '#b91c1c')}>
+                              {dec === 'pausar' ? '✓ Ya no existe: se pausará' : 'Ya no existe → pausar'}
+                            </button>
+                          </div>
+                        )}
+                        {filtro === 'sinstock' && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                            <button onClick={() => decidir(p.id, 'pausar')} style={botonDecision(dec === 'pausar', '#b91c1c')}>
+                              {dec === 'pausar' ? '✓ Se pausará' : 'Pausar'}
+                            </button>
+                            <button onClick={() => decidir(p.id, 'dias')} style={botonDecision(dec === 'dias', '#466D9B')}>
+                              {dec === 'dias' ? `✓ Bajo pedido · ${DIAS_BAJO_PEDIDO} días` : `Bajo pedido · ${DIAS_BAJO_PEDIDO} días`}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
@@ -231,6 +366,41 @@ export default function MercadoLibreAdmin() {
             )}
         </>)}
       </div>
+
+      {marcadas.length > 0 && !confirmando && (
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: 'var(--sup)', borderTop: '1px solid var(--w10)', padding: '12px 24px', zIndex: 40, boxShadow: '0 -4px 14px rgba(0,0,0,0.08)' }}>
+          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 13.5, color: 'var(--tinta)', fontWeight: 700 }}>
+              {marcadas.length} decisión{marcadas.length === 1 ? '' : 'es'} marcada{marcadas.length === 1 ? '' : 's'}
+              <span style={{ color: 'var(--w50)', fontWeight: 600 }}> · {aPausar.length} para pausar · {aDias.length} bajo pedido a {DIAS_BAJO_PEDIDO} días · aún no se aplica nada</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setDecisiones({})} style={{ ...botonAzul(false), background: 'var(--w05)', color: 'var(--w60)' }}>Limpiar</button>
+              <button onClick={() => setConfirmando(true)} style={botonAzul(false)}>Revisar y aplicar en MercadoLibre</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmando && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 60 }}>
+          <div style={{ background: 'var(--sup)', borderRadius: 14, padding: 20, maxWidth: 480, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--tinta)' }}>Esto cambia tu cuenta de MercadoLibre</div>
+            <div style={{ fontSize: 13.5, color: 'var(--w60)', marginTop: 10, lineHeight: 1.55 }}>
+              {aPausar.length > 0 && <div>• <b>{aPausar.length}</b> publicación{aPausar.length === 1 ? '' : 'es'} se <b>pausará{aPausar.length === 1 ? '' : 'n'}</b>. Se pueden reactivar cuando quieras desde MercadoLibre.</div>}
+              {aDias.length > 0 && <div>• <b>{aDias.length}</b> publicación{aDias.length === 1 ? '' : 'es'} pasará{aDias.length === 1 ? '' : 'n'} a <b>entrega en {DIAS_BAJO_PEDIDO} días</b> (bajo pedido). Tendrán menos exposición que las que tienen stock.</div>}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--w50)', marginTop: 10, lineHeight: 1.5 }}>
+              Cada cambio queda registrado con cómo estaba antes. Si alguna falla, las demás siguen y te muestro cuál.
+              {marcadas.length > 1 && ' Si es la primera vez, puedes probar con una sola y revisar en MercadoLibre antes de aplicar el resto.'}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirmando(false)} disabled={aplicando} style={{ ...botonAzul(false), background: 'var(--w05)', color: 'var(--w60)' }}>Cancelar</button>
+              <button onClick={aplicar} disabled={aplicando} style={botonAzul(aplicando)}>{aplicando ? (progreso || 'Aplicando…') : 'Sí, aplicar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

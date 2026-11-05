@@ -157,10 +157,13 @@ export default function MercadoLibreAdmin() {
   const activa = (p) => p.estado_ml === 'active'
   const sinCatalogoSinDias = (p) => activa(p) && p.liga_estado === 'bajo_pedido' && !p.tiempo_preparacion
   const instanteSinStock = (p) => activa(p) && p.liga_estado === 'ligada' && !p.tiempo_preparacion && p.producto?.stock === 0
+  const sinEnvio = (p) => p.tipo_envio === 'not_specified'
+  const nSinEnvio = (pubs || []).filter(p => activa(p) && sinEnvio(p)).length
   const nBaja = (pubs || []).filter(sinCatalogoSinDias).length
   const nSinStock = (pubs || []).filter(instanteSinStock).length
 
   const visibles = (pubs || []).filter(p => {
+    if (filtro === 'sinenvio' && !(activa(p) && sinEnvio(p))) return false
     if (filtro === 'baja' && !sinCatalogoSinDias(p)) return false
     if (filtro === 'sinstock' && !instanteSinStock(p)) return false
     if (filtro === 'bajo_pedido' && p.liga_estado !== 'bajo_pedido') return false
@@ -279,12 +282,18 @@ export default function MercadoLibreAdmin() {
 
         {estado?.conectado && (<>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-            {[['todas', `Todas · ${c.total}`], ['bajo_pedido', `Bajo pedido · ${c.bajo_pedido || 0}`], ['ligadas', `En tu catálogo · ${c.ligada}`], ['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`]].map(([v, t]) => (
+            {[['todas', `Todas · ${c.total}`], ['bajo_pedido', `Bajo pedido · ${c.bajo_pedido || 0}`], ['ligadas', `En tu catálogo · ${c.ligada}`], ['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`], ['sinenvio', `Sin Mercado Envíos · ${nSinEnvio}`]].map(([v, t]) => (
               <button key={v} style={chip(filtro === v)} onClick={() => setFiltro(v)}>{t}</button>
             ))}
             <input style={{ ...inputEstilo, flex: 1, minWidth: 180 }} placeholder="Buscar por título, SKU o número de publicación" value={buscar} onChange={e => setBuscar(e.target.value)} />
           </div>
 
+          {filtro === 'sinenvio' && (
+            <div style={{ fontSize: 12.5, color: 'var(--w60)', marginBottom: 10, lineHeight: 1.5 }}>
+              Publicaciones que la API de MercadoLibre marca como activas pero <b>no usan Mercado Envíos</b>. Son las que no ves en tu panel de vendedor
+              (el panel muestra solo las que sí lo usan) y su página pública no abre. Mira el sub-estado en cada fila: ahí MercadoLibre dice qué les pasa.
+            </div>
+          )}
           {filtro === 'baja' && (
             <div style={{ fontSize: 12.5, color: 'var(--w60)', marginBottom: 10, lineHeight: 1.5 }}>
               Activas, sin días de entrega y fuera de tu catálogo: prometen entrega inmediata y no hay producto detrás.
@@ -329,6 +338,7 @@ export default function MercadoLibreAdmin() {
                           {p.stock_ml != null ? ` · stock en MercadoLibre: ${p.stock_ml}` : ''}
                           {p.tiempo_preparacion ? ` · entrega en ${p.tiempo_preparacion} días` : ''}
                           {p.estado_ml && p.estado_ml !== 'active' ? ` · ${p.estado_ml}` : ''}
+                          {p.sub_estado ? ` · ${p.sub_estado}` : ''}
                           {p.enlace && <> · <a href={p.enlace} target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 700 }}>Ver en MercadoLibre ↗</a></>}
                         </div>
                         {p.producto ? (
@@ -341,14 +351,19 @@ export default function MercadoLibreAdmin() {
                           <Ligar pub={p} alLigar={ligar} />
                         </>)}
 
-                        {filtro === 'baja' && (
+                        {enDepuracion && sinEnvio(p) && (
+                          <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ambar)', lineHeight: 1.45 }}>
+                            Sin Mercado Envíos: no aparece en tu panel de MercadoLibre. Primero revisamos qué son estas publicaciones; por eso aquí no se puede decidir todavía.
+                          </div>
+                        )}
+                        {filtro === 'baja' && !sinEnvio(p) && (
                           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                             <button onClick={() => decidir(p.id, 'pausar')} style={botonDecision(dec === 'pausar', '#b91c1c')}>
                               {dec === 'pausar' ? '✓ Ya no existe: se pausará' : 'Ya no existe → pausar'}
                             </button>
                           </div>
                         )}
-                        {filtro === 'sinstock' && (
+                        {filtro === 'sinstock' && !sinEnvio(p) && (
                           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                             <button onClick={() => decidir(p.id, 'pausar')} style={botonDecision(dec === 'pausar', '#b91c1c')}>
                               {dec === 'pausar' ? '✓ Se pausará' : 'Pausar'}

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import FotoZoom from '@/app/components/FotoZoom'
 
 // Empaque de MercadoLibre — pantalla del colaborador (y del admin).
 // Un paquete a la vez, con letra grande:
@@ -19,9 +20,6 @@ const COLOR = {
   rojo: { borde: ROJO, fondo: 'rgba(200,54,44,0.12)' },
   amarillo: { borde: AMARILLO, fondo: 'rgba(181,137,0,0.16)' },
 }
-
-// La miniatura de MercadoLibre es de 90 px (se ve borrosa al agrandarla): la versión -O es la grande.
-const grande = (u) => u ? String(u).replace(/-I\.(jpg|jpeg|webp|png)$/i, '-O.$1') : u
 
 function pitar(ok) {
   try {
@@ -57,10 +55,7 @@ function Mensaje({ color, children }) {
 }
 
 function Foto({ url, tam = 120 }) {
-  return url
-    // eslint-disable-next-line @next/next/no-img-element
-    ? <img src={grande(url)} alt="" width={tam} height={tam} style={{ width: tam, height: tam, borderRadius: 18, objectFit: 'cover', flex: 'none' }} />
-    : <div style={{ width: tam, height: tam, borderRadius: 18, background: 'var(--w10)', flex: 'none' }} />
+  return <FotoZoom url={url} tam={tam} radio={18} />
 }
 
 export default function EmpaqueML() {

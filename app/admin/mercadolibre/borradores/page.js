@@ -290,7 +290,7 @@ export default function Borradores() {
   const [q, setQ] = useState('')
   const [res, setRes] = useState([])
   const [error, setError] = useState('')
-  const [filtro, setFiltro] = useState('todos')
+  const [filtro, setFiltro] = useState('pendientes')
   const cargar = useCallback(async () => {
     const r = await fetch('/api/mercadolibre/borradores', { cache: 'no-store' })
     const d = await r.json()
@@ -338,12 +338,12 @@ export default function Borradores() {
       {lista.length > 0 && (() => {
         const grupo = (b) => (b.estado === 'publicado' ? 'creados' : b.estado === 'validado' ? 'listos' : 'arreglar')
         const n = (g) => lista.filter(b => grupo(b) === g).length
-        const tabs = [['todos', 'Todos', lista.length], ['arreglar', 'Por arreglar', n('arreglar')], ['listos', 'Listos para crear', n('listos')], ['creados', 'Creados', n('creados')]]
+        const tabs = [['pendientes', 'En proceso', n('arreglar') + n('listos')], ['arreglar', 'Por arreglar', n('arreglar')], ['listos', 'Listos para crear', n('listos')], ['creados', 'Ya creadas', n('creados')], ['todos', 'Todos', lista.length]]
         return <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {tabs.map(([k, et, c]) => <button key={k} onClick={() => setFiltro(k)} style={{ ...botonSuave, background: filtro === k ? AZUL : '#fff', color: filtro === k ? '#fff' : TINTA, borderColor: filtro === k ? AZUL : undefined }}>{et} · {c}</button>)}
         </div>
       })()}
-      {lista.filter(b => filtro === 'todos' || (filtro === 'creados' ? b.estado === 'publicado' : filtro === 'listos' ? b.estado === 'validado' : b.estado !== 'publicado' && b.estado !== 'validado')).map(b => <Borrador key={`${b.id}-${b.actualizado_en}`} b={b} alCambiar={cargar} />)}
+      {lista.filter(b => filtro === 'todos' || (filtro === 'pendientes' ? b.estado !== 'publicado' : filtro === 'creados' ? b.estado === 'publicado' : filtro === 'listos' ? b.estado === 'validado' : b.estado !== 'publicado' && b.estado !== 'validado')).map(b => <Borrador key={`${b.id}-${b.actualizado_en}`} b={b} alCambiar={cargar} />)}
       {!lista.length && <div style={{ textAlign: 'center', padding: 30, color: 'rgba(42,33,24,0.65)', fontWeight: 600 }}>Todavía no hay borradores. Busca un producto arriba para empezar.</div>}
     </div>
   )

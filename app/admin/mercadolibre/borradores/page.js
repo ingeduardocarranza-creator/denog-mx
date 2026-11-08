@@ -112,6 +112,18 @@ function Borrador({ b, alCambiar }) {
           ))}
         </div>
       )}
+      {!publicado && (
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 700 }}>Paquete para el envío (MercadoLibre lo pide)</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(110px,1fr))', gap: 8, marginTop: 4 }}>
+            {[['SELLER_PACKAGE_HEIGHT', 'Alto (cm)', 'cm'], ['SELLER_PACKAGE_WIDTH', 'Ancho (cm)', 'cm'], ['SELLER_PACKAGE_LENGTH', 'Largo (cm)', 'cm'], ['SELLER_PACKAGE_WEIGHT', 'Peso (g)', 'g']].map(([id, et, u]) => (
+              <input key={id} style={campo} placeholder={et} inputMode="decimal"
+                value={String((f.atributos || {})[id] || '').replace(/[^\d.]/g, '')}
+                onChange={e => set('atributos', { ...(f.atributos || {}), [id]: e.target.value ? `${e.target.value} ${u}` : '' })} />
+            ))}
+          </div>
+        </div>
+      )}
       <label style={{ fontSize: 12, fontWeight: 700 }}>Descripción</label>
       <textarea style={{ ...campo, minHeight: 90 }} value={f.descripcion || ''} disabled={publicado} onChange={e => set('descripcion', e.target.value)} />
       {msg && <div style={{ whiteSpace: 'pre-wrap', fontWeight: 700, fontSize: 13.5, color: msg.t === 'rojo' ? '#C8362C' : '#2F8F4E' }}>{msg.x}</div>}

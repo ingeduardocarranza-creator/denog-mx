@@ -137,10 +137,10 @@ export default function Borradores() {
     const d = await r.json()
     if (d.ok) setLista(d.borradores); else setError(d.mensaje)
   }, [])
-  useEffect(() => { cargar() }, [cargar])
+  useEffect(() => { const t = setTimeout(cargar, 0); return () => clearTimeout(t) }, [cargar])
   useEffect(() => {
-    if (q.trim().length < 2) { setRes([]); return }
     const t = setTimeout(async () => {
+      if (q.trim().length < 2) { setRes([]); return }
       const r = await fetch(`/api/mercadolibre/empaque/productos?q=${encodeURIComponent(q)}`)
       const d = await r.json()
       if (d.ok) setRes(d.productos)

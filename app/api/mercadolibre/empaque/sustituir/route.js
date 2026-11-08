@@ -43,10 +43,12 @@ export async function POST(req) {
     if (falta.length) return NextResponse.json({ ok: false, mensaje: `No hay stock suficiente de: ${falta.join(', ')}` })
 
     const { data: fila } = await supabase.from('ml_venta_items').select('id, titulo, cantidad, producto_id').eq('id', itemRow).single()
-    await supabase.from('ml_sustituciones').delete().eq('venta_item_id', itemRow)
-    await supabase.from('ml_sustituciones').insert([...mapa].map(([producto_id, cantidad]) => ({
+    const { error: eDel } = await supabase.from('ml_sustituciones').delete().eq('venta_item_id', itemRow)
+    if (eDel) return NextResponse.json({ ok: false, mensaje: `No se pudo guardar la sustitución: ${eDel.message}` })
+    const { error: eIns } = await supabase.from('ml_sustituciones').insert([...mapa].map(([producto_id, cantidad]) => ({
       venta_item_id: itemRow, paquete: p.paquete, producto_id, cantidad, hecho_por: por,
     })))
+    if (eIns) return NextResponse.json({ ok: false, mensaje: `No se pudo guardar la sustitución: ${eIns.message}` })
     // El producto vendido se da por cubierto y se libera su apartado.
     await supabase.from('ml_venta_items').update({ cantidad_escaneada: fila.cantidad, cantidad_reservada: 0 }).eq('id', itemRow)
     await supabase.from('ml_eventos').insert({

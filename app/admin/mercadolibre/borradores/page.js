@@ -58,7 +58,7 @@ function Borrador({ b, alCambiar }) {
     const d = await api({ accion: 'validar', id: b.id })
     if (!d.ok) { setMsg({ t: 'rojo', x: d.mensaje }); return }
     setF(d.borrador); alCambiar()
-    setMsg(d.validacion.ok ? { t: 'verde', x: 'MercadoLibre lo aceptó. Todavía NO está publicado.' } : { t: 'rojo', x: 'MercadoLibre pide corregir:\n• ' + d.validacion.errores.join('\n• ') })
+    setMsg(d.validacion.ok ? { t: 'verde', x: 'MercadoLibre lo aceptó. Todavía NO está publicado.' + (d.validacion.avisos?.length ? '\nAvisos de MercadoLibre:\n• ' + d.validacion.avisos.join('\n• ') : '') } : { t: 'rojo', x: 'MercadoLibre pide corregir:\n• ' + d.validacion.errores.join('\n• ') })
   })
   const acPublicar = () => correr(async () => {
     if (!window.confirm(`Esto CREA la publicación en tu cuenta de MercadoLibre por $${f.precio} (queda en PAUSA). ¿Continuar?`)) return

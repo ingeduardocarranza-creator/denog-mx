@@ -127,7 +127,7 @@ function Borrador({ b, alCambiar }) {
           </div>
           <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.25, color: TINTA }}>{f.titulo || 'Sin título'}</div>
           <div style={{ fontSize: 13.5, color: 'rgba(42,33,24,0.7)', marginTop: 3 }}>
-            {f.precio ? `$${Number(f.precio).toLocaleString('es-MX')}` : 'Sin precio'} · {f.cantidad || 1} {Number(f.cantidad) === 1 ? 'pieza' : 'piezas'}{b.item_id_publicado ? ` · ${b.item_id_publicado}` : ''}
+            {f.precio ? `Precio $${Number(f.precio).toLocaleString('es-MX')}` : 'Sin precio'}{b.costo != null ? ` · Te costó $${Number(b.costo).toLocaleString('es-MX')}` : ''} · {f.cantidad || 1} {Number(f.cantidad) === 1 ? 'pieza' : 'piezas'}{b.item_id_publicado ? ` · ${b.item_id_publicado}` : ''}
           </div>
         </div>
       </header>
@@ -140,7 +140,7 @@ function Borrador({ b, alCambiar }) {
               <input style={campo} value={f.titulo || ''} maxLength={60} disabled={publicado} onChange={e => set('titulo', e.target.value)} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 14 }}>
-              <div><label style={etiqueta}>Precio (MXN)</label><input style={{ ...campo, fontSize: 18, fontWeight: 800 }} inputMode="decimal" placeholder="0.00" value={f.precio ?? ''} disabled={publicado} onChange={e => set('precio', e.target.value)} /></div>
+              <div><label style={etiqueta}>Precio (MXN){b.costo != null ? ` · te costó $${Number(b.costo).toLocaleString('es-MX')}` : ''}</label><input style={{ ...campo, fontSize: 18, fontWeight: 800 }} inputMode="decimal" placeholder="0.00" value={f.precio ?? ''} disabled={publicado} onChange={e => set('precio', e.target.value)} /></div>
               <div><label style={etiqueta}>Cantidad</label><input style={campo} inputMode="numeric" value={f.cantidad ?? ''} disabled={publicado} onChange={e => set('cantidad', e.target.value)} /></div>
               <div><label style={etiqueta}>Días de entrega</label><input style={campo} inputMode="numeric" placeholder="Inmediata" value={f.dias_entrega ?? ''} disabled={publicado} onChange={e => set('dias_entrega', e.target.value)} /><div style={ayuda}>Vacío = entrega inmediata</div></div>
             </div>

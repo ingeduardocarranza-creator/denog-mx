@@ -32,12 +32,12 @@ export async function POST(req) {
   try {
     if (b.accion === 'crear') {
       const { data: pr } = await supabase.from('productos_tienda')
-        .select('id, nombre, codigo_barras, stock, imagen_url, galeria, descripcion').eq('id', Number(b.producto_id)).maybeSingle()
+        .select('id, nombre, codigo_barras, stock, imagen_url, galeria, descripcion, costo').eq('id', Number(b.producto_id)).maybeSingle()
       if (!pr) return NextResponse.json({ ok: false, mensaje: 'Ese producto no existe en el catálogo' })
       const imagenes = [pr.imagen_url, ...(pr.galeria || [])].filter(u => /^https:\/\//.test(u || ''))
       const { data, error } = await supabase.from('ml_borradores').insert({
         producto_id: pr.id, titulo: String(pr.nombre).slice(0, 60), descripcion: pr.descripcion || null,
-        cantidad: Math.max(1, pr.stock || 1), gtin: /^\d{8}$|^\d{12,14}$/.test(String(pr.codigo_barras || '').trim()) ? String(pr.codigo_barras).trim() : null, sku: String(pr.id),
+        cantidad: Math.max(1, pr.stock || 1), gtin: /^\d{8}$|^\d{12,14}$/.test(String(pr.codigo_barras || '').trim()) ? String(pr.codigo_barras).trim() : null, sku: String(pr.codigo_barras || pr.id), costo: pr.costo,
         imagenes, creado_por: sesion.nombre || String(sesion.id),
       }).select('*').single()
       if (error) throw new Error(error.message)
@@ -57,6 +57,19 @@ export async function POST(req) {
       const { data, error } = await supabase.from('ml_borradores')
         .update({ ...cambios, estado: 'borrador', validacion: null, actualizado_en: new Date().toISOString() }).eq('id', id).select('*').single()
       if (error) throw new Error(error.message)
+      // Mismos datos en el catálogo del sitio: descripción (si no tenía) y medidas.
+      if (data.producto_id) {
+        const at = data.atributos || {}
+        const n = (k) => { const v = parseFloat(String(at[k] || '').replace(',', '.')); return Number.isFinite(v) ? v : null }
+        const { data: pr } = await supabase.from('productos_tienda').select('descripcion').eq('id', data.producto_id).maybeSingle()
+        const act = {}
+        if (data.descripcion && !(pr?.descripcion || '').trim()) act.descripcion = data.descripcion
+        if (n('SELLER_PACKAGE_HEIGHT')) act.alto_cm = n('SELLER_PACKAGE_HEIGHT')
+        if (n('SELLER_PACKAGE_WIDTH')) act.ancho_cm = n('SELLER_PACKAGE_WIDTH')
+        if (n('SELLER_PACKAGE_LENGTH')) act.largo_cm = n('SELLER_PACKAGE_LENGTH')
+        if (n('SELLER_PACKAGE_WEIGHT')) act.peso_g = n('SELLER_PACKAGE_WEIGHT')
+        if (Object.keys(act).length) await supabase.from('productos_tienda').update(act).eq('id', data.producto_id)
+      }
       return NextResponse.json({ ok: true, borrador: data })
     }
     if (b.accion === 'descartar') {

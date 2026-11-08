@@ -76,6 +76,19 @@ export async function POST(req) {
         .update({ estado: v.ok ? 'validado' : 'borrador', validacion: v, actualizado_en: new Date().toISOString() }).eq('id', id).select('*').single()
       return NextResponse.json({ ok: true, validacion: v, borrador: data })
     }
+    if (b.accion === 'probar') {
+      // Solo diagnóstico (admin): manda a /items/validate el payload con ajustes. NO publica.
+      const { mlPost } = await import('@/lib/mercadolibre/api')
+      const base = armarPayload(bor, b.familia !== false)
+      const payload = { ...base, ...(b.ajustes || {}) }
+      for (const k of b.quitar || []) delete payload[k]
+      try {
+        await mlPost(token, '/items/validate', payload)
+        return NextResponse.json({ ok: true, resultado: 'aceptado', payload })
+      } catch (e) {
+        return NextResponse.json({ ok: true, resultado: 'rechazado', detalle: e.detalle || e.message })
+      }
+    }
     if (b.accion === 'publicar') {
       if (b.confirmar !== true) return NextResponse.json({ ok: false, mensaje: 'Falta tu confirmación' }, { status: 400 })
       if (bor.estado !== 'validado') return NextResponse.json({ ok: false, mensaje: 'Primero hay que validarlo con MercadoLibre' })

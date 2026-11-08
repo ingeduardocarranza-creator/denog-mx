@@ -43,6 +43,15 @@ function Paso({ n, titulo, hecho, children }) {
   )
 }
 
+function traducir(e) {
+  const t = String(e || '')
+  if (/otra categor/i.test(t)) return 'MercadoLibre ya tiene este código de barras registrado en otra categoría. Prueba «Buscar en el catálogo de MercadoLibre» (en Más opciones) o publícalo directo en MercadoLibre.'
+  if (/\[GTIN\] are required/i.test(t)) return 'Esta categoría exige código de barras y este producto no tiene uno válido.'
+  if (/family_name|title/i.test(t) && /required|must/i.test(t)) return 'MercadoLibre pide ajustar el título de la publicación.'
+  if (/SELLER_PACKAGE/i.test(t)) return 'Faltan las medidas o el peso de la caja.'
+  return t
+}
+
 function Estado({ b }) {
   const publicado = b.estado === 'publicado'
   const validado = b.estado === 'validado'
@@ -128,6 +137,21 @@ function Borrador({ b, alCambiar }) {
   const catLista = !!f.categoria_id
   const paqueteListo = ['SELLER_PACKAGE_HEIGHT', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WEIGHT'].every(k => num(k))
   const fotos = f.imagenes || []
+  const [abierto, setAbierto] = useState(false)
+  const errores = (b.validacion && b.validacion.ok === false && b.validacion.errores) || []
+  const faltan = []
+  if (!((f.titulo || '').length > 3)) faltan.push('título')
+  if (!catLista) faltan.push('categoría')
+  if (!(Number(f.precio) > 0)) faltan.push('precio')
+  if (!paqueteListo) faltan.push('medidas de la caja')
+  if (!fotos.length) faltan.push('fotos')
+  let paso
+  if (publicado) paso = { texto: 'Creada en pausa. Entra a MercadoLibre para activarla o cambiar el precio.', boton: null }
+  else if (!catLista) paso = { texto: 'Lo primero: elegir la categoría.', boton: ['🔎 Buscar categoría', () => { setAbierto(true); acCats() }, AZUL_CLARO] }
+  else if (!(Number(f.precio) > 0)) paso = { texto: 'Falta ponerle precio.', boton: ['💲 Poner precio', () => setAbierto(true), AZUL_CLARO] }
+  else if (!paqueteListo) paso = { texto: 'Faltan las medidas y el peso de la caja.', boton: ['📦 Poner medidas', () => setAbierto(true), AZUL_CLARO] }
+  else if (b.estado === 'validado') paso = { texto: 'MercadoLibre lo aceptó. Ya se puede crear (queda en pausa).', boton: ['🚀 Crear en MercadoLibre (en pausa)', acPublicar, VERDE] }
+  else paso = { texto: 'Todo listo. Falta que MercadoLibre lo revise.', boton: ['✅ Revisar con MercadoLibre', acValidar, '#6B4FA0'] }
 
   return (
     <article style={{ ...tarjeta, overflow: 'hidden' }}>
@@ -138,7 +162,6 @@ function Borrador({ b, alCambiar }) {
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ marginBottom: 6, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <Estado b={b} />
-            {publicado && b.enlace_publicado && <a href={b.enlace_publicado} target="_blank" rel="noreferrer" style={{ fontSize: 13.5, fontWeight: 700, color: AZUL_CLARO }}>Ver en MercadoLibre ↗</a>}
           </div>
           <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.25, color: TINTA }}>{f.titulo || 'Sin título'}</div>
           <div style={{ fontSize: 13.5, color: 'rgba(42,33,24,0.7)', marginTop: 3 }}>
@@ -147,7 +170,27 @@ function Borrador({ b, alCambiar }) {
         </div>
       </header>
 
-      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 26 }}>
+      <div style={{ padding: '16px 20px', display: 'grid', gap: 12, borderBottom: abierto ? BORDE : 'none' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[['Categoría', catLista], ['Precio', Number(f.precio) > 0], ['Medidas', paqueteListo], ['Fotos', fotos.length > 0]].map(([n, ok]) => (
+            <span key={n} style={{ fontSize: 13, fontWeight: 700, padding: '5px 11px', borderRadius: 999, background: ok ? 'rgba(15,138,99,0.12)' : 'rgba(179,38,30,0.10)', color: ok ? '#0b6b4d' : ROJO }}>{ok ? '✓' : '✗'} {n}</span>
+          ))}
+        </div>
+        <div style={{ fontSize: 15.5, fontWeight: 700, color: TINTA }}>{paso.texto}</div>
+        {errores.length > 0 && !publicado && b.estado !== 'validado' && (
+          <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(179,38,30,0.10)', color: ROJO, fontWeight: 700, fontSize: 14, lineHeight: 1.45 }}>
+            Último aviso de MercadoLibre:{errores.map((e, i) => <div key={i}>• {traducir(e)}</div>)}
+          </div>
+        )}
+        {msg && <div style={{ whiteSpace: 'pre-wrap', fontWeight: 700, fontSize: 14, padding: '12px 14px', borderRadius: 12, lineHeight: 1.45, background: msg.t === 'rojo' ? 'rgba(179,38,30,0.10)' : 'rgba(15,138,99,0.12)', color: msg.t === 'rojo' ? ROJO : '#0b6b4d' }}>{msg.t === 'rojo' ? msg.x.split('\n').map(traducir).join('\n') : msg.x}</div>}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {paso.boton && <button style={{ ...boton(paso.boton[2], ocupado), minHeight: 54, fontSize: 16 }} disabled={ocupado} onClick={paso.boton[1]}>{ocupado ? 'Un momento…' : paso.boton[0]}</button>}
+          {publicado && b.enlace_publicado && <a href={b.enlace_publicado} target="_blank" rel="noreferrer" style={{ ...boton(AMARILLO_ML, false), minHeight: 54, display: 'inline-flex', alignItems: 'center', textDecoration: 'none', fontSize: 16 }}>Ver en MercadoLibre ↗</a>}
+          <button style={botonSuave} onClick={() => setAbierto(a => !a)}>{abierto ? '▲ Cerrar detalles' : '✏️ Editar detalles / Más opciones'}</button>
+        </div>
+      </div>
+
+      {abierto && <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 26 }}>
         <Paso n={1} titulo="Datos de la publicación" hecho={datosListos}>
           <div style={{ display: 'grid', gap: 14 }}>
             <div>
@@ -233,13 +276,11 @@ function Borrador({ b, alCambiar }) {
                 <button style={boton('#6B4FA0', ocupado)} disabled={ocupado} onClick={acValidar}>Revisar con MercadoLibre</button>
                 <button style={boton(VERDE, ocupado || b.estado !== 'validado')} disabled={ocupado || b.estado !== 'validado'} onClick={acPublicar}>Crear en MercadoLibre (en pausa)</button>
               </div>
-              {msg && <div style={{ whiteSpace: 'pre-wrap', fontWeight: 700, fontSize: 14, padding: '12px 14px', borderRadius: 12, lineHeight: 1.45, background: msg.t === 'rojo' ? 'rgba(179,38,30,0.10)' : 'rgba(15,138,99,0.12)', color: msg.t === 'rojo' ? ROJO : '#0b6b4d' }}>{msg.x}</div>}
               <div><button style={{ ...botonSuave, color: ROJO, borderColor: 'rgba(179,38,30,0.35)' }} disabled={ocupado} onClick={acDescartar}>Descartar este borrador</button></div>
             </div>
           </Paso>
         )}
-        {publicado && msg && <div style={{ whiteSpace: 'pre-wrap', fontWeight: 700 }}>{msg.x}</div>}
-      </div>
+      </div>}
     </article>
   )
 }
@@ -249,6 +290,7 @@ export default function Borradores() {
   const [q, setQ] = useState('')
   const [res, setRes] = useState([])
   const [error, setError] = useState('')
+  const [filtro, setFiltro] = useState('todos')
   const cargar = useCallback(async () => {
     const r = await fetch('/api/mercadolibre/borradores', { cache: 'no-store' })
     const d = await r.json()
@@ -293,7 +335,15 @@ export default function Borradores() {
         )}
       </div>
       {error && <div style={{ color: ROJO, fontWeight: 700 }}>{error}</div>}
-      {lista.map(b => <Borrador key={`${b.id}-${b.actualizado_en}`} b={b} alCambiar={cargar} />)}
+      {lista.length > 0 && (() => {
+        const grupo = (b) => (b.estado === 'publicado' ? 'creados' : b.estado === 'validado' ? 'listos' : 'arreglar')
+        const n = (g) => lista.filter(b => grupo(b) === g).length
+        const tabs = [['todos', 'Todos', lista.length], ['arreglar', 'Por arreglar', n('arreglar')], ['listos', 'Listos para crear', n('listos')], ['creados', 'Creados', n('creados')]]
+        return <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {tabs.map(([k, et, c]) => <button key={k} onClick={() => setFiltro(k)} style={{ ...botonSuave, background: filtro === k ? AZUL : '#fff', color: filtro === k ? '#fff' : TINTA, borderColor: filtro === k ? AZUL : undefined }}>{et} · {c}</button>)}
+        </div>
+      })()}
+      {lista.filter(b => filtro === 'todos' || (filtro === 'creados' ? b.estado === 'publicado' : filtro === 'listos' ? b.estado === 'validado' : b.estado !== 'publicado' && b.estado !== 'validado')).map(b => <Borrador key={`${b.id}-${b.actualizado_en}`} b={b} alCambiar={cargar} />)}
       {!lista.length && <div style={{ textAlign: 'center', padding: 30, color: 'rgba(42,33,24,0.65)', fontWeight: 600 }}>Todavía no hay borradores. Busca un producto arriba para empezar.</div>}
     </div>
   )

@@ -78,7 +78,7 @@ export async function POST(req) {
     }
 
     const { token } = await obtenerAcceso(supabase)
-    if (b.accion === 'categorias') return NextResponse.json({ ok: true, categorias: await sugerirCategorias(token, bor.titulo) })
+    if (b.accion === 'categorias') return NextResponse.json({ ok: true, categorias: await sugerirCategorias(token, bor.titulo, bor.gtin) })
     if (b.accion === 'obligatorios') {
       if (!bor.categoria_id) return NextResponse.json({ ok: false, mensaje: 'Elige primero la categoría' })
       return NextResponse.json({ ok: true, obligatorios: await atributosObligatorios(token, bor.categoria_id) })

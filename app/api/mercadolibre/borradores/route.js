@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import { requerirAdmin } from '@/lib/auth/session'
 import { clienteSupabaseServicio, obtenerAcceso } from '@/lib/mercadolibre/api'
-import { sugerirCategorias, atributosObligatorios, armarPayload, validarBorrador, publicarEnPausa } from '@/lib/mercadolibre/borradores'
+import { buscarEnCatalogoML, sugerirCategorias, atributosObligatorios, armarPayload, validarBorrador, publicarEnPausa } from '@/lib/mercadolibre/borradores'
 
 export const maxDuration = 60
 
-const CAMPOS = ['titulo', 'descripcion', 'categoria_id', 'categoria_nombre', 'precio', 'cantidad', 'tipo_publicacion', 'dias_entrega', 'gtin', 'sku', 'imagenes', 'atributos']
+const CAMPOS = ['catalogo_producto_id', 'catalogo_nombre', 'titulo', 'descripcion', 'categoria_id', 'categoria_nombre', 'precio', 'cantidad', 'tipo_publicacion', 'dias_entrega', 'gtin', 'sku', 'imagenes', 'atributos']
 
 export async function GET(req) {
   if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
@@ -79,6 +79,10 @@ export async function POST(req) {
 
     const { token } = await obtenerAcceso(supabase)
     if (b.accion === 'categorias') return NextResponse.json({ ok: true, categorias: await sugerirCategorias(token, bor.titulo, bor.gtin) })
+    if (b.accion === 'catalogo') {
+      const productos = await buscarEnCatalogoML(token, b.gtin || bor.gtin)
+      return NextResponse.json({ ok: true, productos })
+    }
     if (b.accion === 'obligatorios') {
       if (!bor.categoria_id) return NextResponse.json({ ok: false, mensaje: 'Elige primero la categoría' })
       return NextResponse.json({ ok: true, obligatorios: await atributosObligatorios(token, bor.categoria_id) })

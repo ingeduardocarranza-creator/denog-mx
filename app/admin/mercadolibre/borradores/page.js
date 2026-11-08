@@ -65,6 +65,7 @@ function Borrador({ b, alCambiar }) {
   const guardar = async () => api({
     accion: 'guardar', id: b.id,
     cambios: {
+      catalogo_producto_id: f.catalogo_producto_id || null, catalogo_nombre: f.catalogo_nombre || null,
       titulo: f.titulo, descripcion: f.descripcion, categoria_id: f.categoria_id, categoria_nombre: f.categoria_nombre,
       precio: f.precio === '' || f.precio == null ? null : Number(f.precio), cantidad: Number(f.cantidad) || 1,
       dias_entrega: f.dias_entrega ? Number(f.dias_entrega) : null, gtin: f.gtin, sku: f.sku, atributos: at,
@@ -84,6 +85,20 @@ function Borrador({ b, alCambiar }) {
     const d = await api({ accion: 'categorias', id: b.id })
     if (d.ok) setCats(d.categorias); else setMsg({ t: 'rojo', x: d.mensaje })
   })
+  const [catML, setCatML] = useState(null)
+  const acCatalogoML = () => correr(async () => {
+    await guardar()
+    const d = await api({ accion: 'catalogo', id: b.id })
+    if (!d.ok) { setMsg({ t: 'rojo', x: d.mensaje }); return }
+    setCatML(d.productos)
+    if (!d.productos.length) setMsg({ t: 'rojo', x: 'MercadoLibre no tiene ese código en su catálogo.' })
+  })
+  const usarCatML = (pr) => {
+    set('catalogo_producto_id', pr.id); set('catalogo_nombre', pr.nombre)
+    if (pr.categoria_id) { set('categoria_id', pr.categoria_id); set('categoria_nombre', pr.dominio || pr.categoria_id) }
+    setCatML(null)
+    setMsg({ t: 'verde', x: 'Producto del catálogo de MercadoLibre elegido. Toca Guardar.' })
+  }
   const acOblig = () => correr(async () => {
     await guardar()
     const d = await api({ accion: 'obligatorios', id: b.id })
@@ -168,7 +183,11 @@ function Borrador({ b, alCambiar }) {
             <div style={{ padding: '12px 14px', borderRadius: 12, background: catLista ? 'rgba(15,138,99,0.10)' : 'rgba(42,33,24,0.05)', fontWeight: 700, color: TINTA }}>
               {catLista ? `${f.categoria_nombre} (${f.categoria_id})` : 'Todavía no eliges la categoría'}
             </div>
-            {!publicado && <div><button style={botonSuave} disabled={ocupado} onClick={acCats}>🔎 Sugerir categorías</button></div>}
+            {!publicado && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button style={botonSuave} disabled={ocupado} onClick={acCats}>🔎 Sugerir categorías</button><button style={botonSuave} disabled={ocupado} onClick={acCatalogoML}>📚 Buscar en el catálogo de MercadoLibre</button></div>}
+            {f.catalogo_producto_id && <div style={{ padding: '10px 14px', borderRadius: 12, background: 'rgba(15,138,99,0.10)', fontWeight: 700 }}>Catálogo de MercadoLibre: {f.catalogo_nombre || f.catalogo_producto_id}</div>}
+            {catML && catML.map(pr => (
+              <button key={pr.id} style={{ ...botonSuave, textAlign: 'left', minHeight: 54 }} onClick={() => usarCatML(pr)}><b>{pr.nombre}</b><div style={{ fontWeight: 500, fontSize: 12.5, opacity: 0.7 }}>{pr.id}{pr.dominio ? ` · ${pr.dominio}` : ''}</div></button>
+            ))}
             {cats.length > 0 && (
               <div style={{ display: 'grid', gap: 8 }}>
                 <div style={ayuda}>Elige la que corresponde. A veces la primera no es la correcta.</div>

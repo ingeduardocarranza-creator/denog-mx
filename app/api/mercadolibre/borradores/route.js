@@ -37,7 +37,7 @@ export async function POST(req) {
       const imagenes = [pr.imagen_url, ...(pr.galeria || [])].filter(u => /^https:\/\//.test(u || ''))
       const { data, error } = await supabase.from('ml_borradores').insert({
         producto_id: pr.id, titulo: String(pr.nombre).slice(0, 60), descripcion: pr.descripcion || null,
-        cantidad: Math.max(1, pr.stock || 1), gtin: pr.codigo_barras || null, sku: String(pr.id),
+        cantidad: Math.max(1, pr.stock || 1), gtin: /^\d{8}$|^\d{12,14}$/.test(String(pr.codigo_barras || '').trim()) ? String(pr.codigo_barras).trim() : null, sku: String(pr.id),
         imagenes, creado_por: sesion.nombre || String(sesion.id),
       }).select('*').single()
       if (error) throw new Error(error.message)

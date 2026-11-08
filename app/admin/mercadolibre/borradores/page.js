@@ -145,7 +145,7 @@ function Borrador({ b, alCambiar }) {
               <div><label style={etiqueta}>Días de entrega</label><input style={campo} inputMode="numeric" placeholder="Inmediata" value={f.dias_entrega ?? ''} disabled={publicado} onChange={e => set('dias_entrega', e.target.value)} /><div style={ayuda}>Vacío = entrega inmediata</div></div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14 }}>
-              <div><label style={etiqueta}>Código de barras</label><input style={campo} value={f.gtin || ''} disabled={publicado} onChange={e => set('gtin', e.target.value)} /></div>
+              <div><label style={etiqueta}>Código de barras</label><input style={campo} value={f.gtin || ''} disabled={publicado} onChange={e => set('gtin', e.target.value)} /><div style={ayuda}>Solo números reales (8, 12, 13 o 14 dígitos). Si el producto no tiene, déjalo vacío.</div></div>
               <div><label style={etiqueta}>SKU</label><input style={campo} value={f.sku || ''} disabled={publicado} onChange={e => set('sku', e.target.value)} /></div>
             </div>
             {fotos.length > 0 && (

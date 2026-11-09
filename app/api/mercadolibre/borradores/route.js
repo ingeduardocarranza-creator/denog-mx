@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { requerirAdmin } from '@/lib/auth/session'
 import { clienteSupabaseServicio, obtenerAcceso } from '@/lib/mercadolibre/api'
 import { armarBorradorDeOportunidad } from '@/lib/mercadolibre/oportunidades'
+import { leerPaginaTienda, guardarFoto } from '@/lib/mercadolibre/tienda'
 import { buscarEnCatalogoML, sugerirCategorias, atributosObligatorios, armarPayload, validarBorrador, publicarEnPausa } from '@/lib/mercadolibre/borradores'
 
 export const maxDuration = 60
 
-const CAMPOS = ['catalogo_producto_id', 'catalogo_nombre', 'titulo', 'descripcion', 'categoria_id', 'categoria_nombre', 'precio', 'cantidad', 'tipo_publicacion', 'dias_entrega', 'gtin', 'sku', 'imagenes', 'atributos']
+const CAMPOS = ['catalogo_producto_id', 'catalogo_nombre', 'titulo', 'descripcion', 'categoria_id', 'categoria_nombre', 'precio', 'cantidad', 'tipo_publicacion', 'dias_entrega', 'gtin', 'sku', 'imagenes', 'atributos', 'enlace_compra']
 
 export async function GET(req) {
   if (!requerirAdmin(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
@@ -83,6 +84,32 @@ export async function POST(req) {
     if (!bor) return NextResponse.json({ ok: false, mensaje: 'Ese borrador no existe' })
     if (bor.estado === 'publicado' && b.accion !== 'descartar') return NextResponse.json({ ok: false, mensaje: 'Ese borrador ya se publicó' })
 
+    // Pega el enlace de la tienda donde se compra: trae nombre, descripción, fotos y código de barras.
+    if (b.accion === 'desde_enlace') {
+      const pag = await leerPaginaTienda(b.url)
+      if (!pag.ok) return NextResponse.json({ ok: false, mensaje: pag.mensaje, bloqueada: Boolean(pag.bloqueada) })
+      const at = { ...(bor.atributos || {}) }
+      const cambios = { enlace_compra: pag.url, tienda_compra: pag.tienda, precio_tienda_usd: pag.precio_usd, estado: 'borrador', validacion: null, actualizado_en: new Date().toISOString() }
+      const resumen = []
+      const tengo = new Set(bor.imagenes || [])
+      const nuevas = []
+      const hay = (bor.imagenes || []).length
+      for (let i = 0; i < pag.imagenes.length && hay + nuevas.length < 10; i++) {
+        const url = await guardarFoto(supabase, pag.imagenes[i], String(id), i, pag.url)
+        if (url && !tengo.has(url)) nuevas.push(url)
+      }
+      if (nuevas.length) { cambios.imagenes = [...(bor.imagenes || []), ...nuevas]; resumen.push(`${nuevas.length} foto(s) agregadas`) }
+      else if (pag.imagenes.length) resumen.push('No pude copiar las fotos (la tienda las protege): súbelas a mano o pásamelas por el chat')
+      if (!(bor.descripcion || '').trim() && pag.descripcion) { cambios.descripcion = pag.descripcion; resumen.push('descripción') }
+      if (!bor.gtin && pag.gtin) { cambios.gtin = pag.gtin; resumen.push('código de barras ' + pag.gtin) }
+      if (pag.marca && !at.BRAND) { at.BRAND = pag.marca; cambios.atributos = at; resumen.push('marca ' + pag.marca) }
+      if (!((bor.titulo || '').trim().length > 3) && pag.titulo) { cambios.titulo = pag.titulo.slice(0, 60); resumen.push('título') }
+      if (bor.costo == null && pag.precio_usd) { cambios.costo = Math.round(pag.precio_usd * 18.5 * 1.086 * 100) / 100; resumen.push(`costo estimado $${cambios.costo} MXN (USD ${pag.precio_usd})`) }
+      const { data, error } = await supabase.from('ml_borradores').update(cambios).eq('id', id).select('*').single()
+      if (error) throw new Error(error.message)
+      return NextResponse.json({ ok: true, borrador: data, resumen, tienda: pag.tienda, titulo_tienda: pag.titulo, precio_usd: pag.precio_usd })
+    }
+
     if (b.accion === 'guardar') {
       const cambios = {}
       for (const k of CAMPOS) if (b.cambios && k in b.cambios) cambios[k] = b.cambios[k]
@@ -149,8 +176,9 @@ export async function POST(req) {
       // Si el borrador vino de Oportunidades, queda guardado dónde se compra (para el guardián y Por comprar).
       try {
         const { data: op } = await supabase.from('ml_oportunidades').select('url_oferta, tienda, precio_usd').eq('borrador_id', id).limit(1).maybeSingle()
-        if (op?.url_oferta) {
-          await supabase.from('ml_fichas_compra').upsert({ item_id: r.item_id, variacion_id: 0, tienda: op.tienda || null, enlace_compra: op.url_oferta, costo_usd: op.precio_usd || null, notas: 'Automático desde Oportunidades', actualizada_en: new Date().toISOString(), disponible: true, revisada_en: new Date().toISOString() }, { onConflict: 'item_id,variacion_id' })
+        const enlaceFicha = bor.enlace_compra || op?.url_oferta
+        if (enlaceFicha) {
+          await supabase.from('ml_fichas_compra').upsert({ item_id: r.item_id, variacion_id: 0, tienda: bor.tienda_compra || op?.tienda || null, enlace_compra: enlaceFicha, costo_usd: bor.precio_tienda_usd || op?.precio_usd || null, notas: bor.enlace_compra ? 'Del enlace pegado en el borrador' : 'Automático desde Oportunidades', actualizada_en: new Date().toISOString(), disponible: true, revisada_en: new Date().toISOString() }, { onConflict: 'item_id,variacion_id' })
         }
       } catch {}
       await supabase.from('ml_acciones').insert({ item_id: r.item_id, accion: 'publicar_borrador', valor: String(id), antes: null, ok: true, mensaje: r.aviso.join(' ') || null, hecho_por: sesion.id })

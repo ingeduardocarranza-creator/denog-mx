@@ -101,6 +101,15 @@ function Borrador({ b, alCambiar }) {
       ? { t: 'verde', x: `MercadoLibre sugiere ${d.categorias.length} ${d.categorias.length === 1 ? 'categoría' : 'categorías'}. Elige una abajo (revisa que sea la correcta).` }
       : { t: 'rojo', x: 'MercadoLibre no encontró categorías. Escribe qué es el producto con otras palabras y busca de nuevo.' })
   })
+  const [enlaceTienda, setEnlaceTienda] = useState(b.enlace_compra || '')
+  const acEnlace = () => correr(async () => {
+    if (!/^https?:\/\//i.test(enlaceTienda.trim())) { setMsg({ t: 'rojo', x: 'Pega la dirección completa de la tienda (empieza con https://).' }); return }
+    await guardar()
+    const d = await api({ accion: 'desde_enlace', id: b.id, url: enlaceTienda.trim() })
+    if (!d.ok) { setMsg({ t: 'rojo', x: d.mensaje }); return }
+    setF(d.borrador); alCambiar()
+    setMsg({ t: 'verde', x: `Listo, leí ${d.tienda}: "${d.titulo_tienda}"${d.precio_usd ? ` · USD ${d.precio_usd}` : ''}.\n${d.resumen.length ? 'Traje: ' + d.resumen.join(', ') + '.' : 'No había nada nuevo que traer.'}\nEl enlace quedó guardado como lugar de compra. Revisa que sea el producto correcto.` })
+  })
   const [catML, setCatML] = useState(null)
   const acCatalogoML = () => correr(async () => {
     await guardar()
@@ -184,6 +193,12 @@ function Borrador({ b, alCambiar }) {
             <span key={n} style={{ fontSize: 13, fontWeight: 700, padding: '5px 11px', borderRadius: 999, background: ok ? 'rgba(15,138,99,0.12)' : 'rgba(179,38,30,0.10)', color: ok ? '#0b6b4d' : ROJO }}>{ok ? '✓' : '✗'} {n}</span>
           ))}
         </div>
+        {!publicado && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input style={{ ...campo, flex: '1 1 280px' }} placeholder="🔗 Link de la tienda donde lo compras (Amazon, Walmart, Target…)" value={enlaceTienda} onChange={e => setEnlaceTienda(e.target.value)} />
+            <button style={botonSuave} disabled={ocupado || !enlaceTienda.trim()} onClick={acEnlace}>{ocupado ? 'Leyendo…' : '📥 Traer datos y fotos'}</button>
+          </div>
+        )}
         <div style={{ fontSize: 15.5, fontWeight: 700, color: TINTA }}>{paso.texto}</div>
         {errores.length > 0 && !publicado && b.estado !== 'validado' && (
           <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(179,38,30,0.10)', color: ROJO, fontWeight: 700, fontSize: 14, lineHeight: 1.45 }}>

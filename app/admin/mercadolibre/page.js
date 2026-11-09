@@ -49,6 +49,163 @@ const botonDecision = (activo, color) => ({
 })
 const enlaceBoton = { background: 'none', border: 'none', color: '#466D9B', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }
 
+// ── Fotos grandes: MercadoLibre manda una miniatura de 90 px (-I.jpg); la versión
+// original (-O.jpg) es mucho más nítida. Si no existe, se usa la miniatura.
+const fotoGrande = (u) => {
+  if (!u) return null
+  return String(u).replace(/^http:\/\//, 'https://').replace(/-[A-Z]\.jpg(\?.*)?$/i, '-O.jpg')
+}
+// Códigos de MercadoLibre → español.
+const CODIGOS_ML = {
+  out_of_stock: 'Sin stock', under_review: 'En revisión de MercadoLibre', forbidden: 'Bloqueada por MercadoLibre',
+  waiting_for_patch: 'Esperando corrección', picture_download_pending: 'Descargando fotos', paused_by_seller: 'Pausada por ti',
+  suspended: 'Suspendida', moderation_penalty: 'Penalizada', pending_documentation: 'Falta documentación',
+  deleted: 'Eliminada', expired: 'Vencida', not_yet_active: 'Aún no activa', freezed: 'Congelada', warning: 'Con aviso',
+  item_blocked: 'Bloqueada', health_pending: 'Pendiente de salud', invalid_domain: 'Dominio inválido', closed: 'Cerrada',
+}
+const PROBLEMAS = new Set(['under_review', 'forbidden', 'waiting_for_patch', 'suspended', 'moderation_penalty', 'pending_documentation', 'item_blocked', 'deleted', 'freezed', 'closed', 'expired'])
+const traducirCodigo = (c) => CODIGOS_ML[c] || String(c).replace(/_/g, ' ')
+function estadoVisible(p) {
+  const codigos = String(p.sub_estado || '').split(',').map(s => s.trim()).filter(Boolean)
+  const problema = codigos.find(c => PROBLEMAS.has(c))
+  if (problema) return { t: traducirCodigo(problema), c: '#8a1c14', bg: 'rgba(179,38,30,0.12)', problema: true, extra: codigos.filter(c => c !== problema && c !== 'paused_by_seller') }
+  if (p.estado_ml === 'active') return { t: 'Activa', c: '#0b6b4d', bg: 'rgba(15,138,99,0.14)', problema: false, extra: codigos.filter(c => c !== 'paused_by_seller') }
+  if (p.estado_ml === 'paused') return { t: 'Pausada', c: '#6b5a2a', bg: 'rgba(201,151,0,0.16)', problema: false, extra: codigos.filter(c => c !== 'paused_by_seller') }
+  return { t: p.estado_ml || 'Sin estado', c: '#6b645a', bg: 'rgba(42,33,24,0.08)', problema: false, extra: codigos }
+}
+const normal = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+// ¿El título de MercadoLibre y el producto ligado parecen cosas distintas?
+function ligaSospechosa(p) {
+  if (!p.producto?.nombre) return null
+  const a = normal(p.titulo), b = normal(p.producto.nombre)
+  const pal = b.split(/[^a-z0-9]+/).filter(w => w.length > 3)
+  const hit = pal.filter(w => a.includes(w)).length
+  if (pal.length >= 2 && hit / pal.length < 0.4) return 'Los nombres casi no se parecen'
+  const nA = new Set(a.match(/\d+(?:[.,]\d+)?/g) || []), nB = new Set(b.match(/\d+(?:[.,]\d+)?/g) || [])
+  const soloA = [...nA].filter(x => !nB.has(x)), soloB = [...nB].filter(x => !nA.has(x))
+  if (soloA.length && soloB.length) return `Revisa cantidades: la publicación dice ${soloA.join(', ')} y el producto ${soloB.join(', ')}`
+  return null
+}
+
+// Foto del producto: grande, nítida; al tocarla se amplía.
+function Foto({ p, tam = 112, alAbrir }) {
+  const [err, setErr] = useState(0)
+  const fuente = err === 0 ? fotoGrande(p.miniatura) : err === 1 ? (p.miniatura ? String(p.miniatura).replace(/^http:\/\//, 'https://') : null) : null
+  const caja = { width: tam, height: tam, borderRadius: 12, border: '1px solid var(--w10)', background: '#fff', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 0, cursor: fuente ? 'zoom-in' : 'default' }
+  return (
+    <button type="button" onClick={() => fuente && alAbrir?.({ src: fuente, titulo: p.titulo })} style={caja} aria-label="Ampliar foto">
+      {fuente
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={fuente} alt="" onError={() => setErr(e => e + 1)} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        : <span style={{ fontSize: 12, color: 'var(--w40)', textAlign: 'center', lineHeight: 1.3 }}>📦<br />Sin foto</span>}
+    </button>
+  )
+}
+
+// Una publicación: foto grande, estado en español, stock y ganancia a la vista.
+function Tarjeta({ p, enDepuracion, filtro, dec, decidir, ligar, alCambiar, sinEnvio, dias, alAbrirFoto }) {
+  const [abierto, setAbierto] = useState(false)
+  const est = estadoVisible(p)
+  const d = p.dinero
+  const bajoPedido = p.liga_estado === 'bajo_pedido'
+  const sospecha = ligaSospechosa(p)
+  const sinReal = bajoPedido && !d?.real
+  const cat = p.producto ? p.producto.stock : null
+  const igual = cat != null && p.stock_ml != null && Math.max(0, cat - 0) === p.stock_ml
+  const verdeGan = d?.ganancia == null ? 'var(--w50)' : d.ganancia < 0 ? '#b3261e' : d.sobre_costo_pct < 15 ? '#b26a00' : '#0b6b4d'
+  const avisos = []
+  if (sospecha) avisos.push(['⚠ ¿Liga correcta? ' + sospecha, '#8a5a00', 'rgba(201,151,0,0.16)'])
+  if (d && d.comision == null && !sinReal && !est.problema) avisos.push(['Falta la comisión', '#8a5a00', 'rgba(201,151,0,0.16)'])
+  if (p.sku && /^\d{1,5}$/.test(String(p.sku))) avisos.push([`SKU raro (${p.sku})`, '#8a5a00', 'rgba(201,151,0,0.16)'])
+  const chipE = (t, c, bg) => <span key={t} style={{ fontSize: 11.5, fontWeight: 800, borderRadius: 999, padding: '3px 10px', color: c, background: bg, whiteSpace: 'nowrap' }}>{t}</span>
+  return (
+    <div style={{ background: 'var(--sup)', border: `1.5px solid ${dec ? '#466D9B' : 'var(--w08)'}`, borderRadius: 16, padding: 14, opacity: p.estado_ml === 'paused' ? 0.92 : 1 }}>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+        <Foto p={p} alAbrir={alAbrirFoto} />
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+            {chipE(est.t, est.c, est.bg)}
+            {est.extra.map(x => chipE(traducirCodigo(x), '#6b645a', 'rgba(42,33,24,0.08)'))}
+            {chipE(bajoPedido ? 'Bajo pedido' : p.liga_estado === 'ambigua' ? 'SKU repetido' : 'En tu catálogo', bajoPedido ? '#4a3680' : p.liga_estado === 'ambigua' ? '#8a1c14' : '#2F4D70', bajoPedido ? 'rgba(107,79,160,0.14)' : p.liga_estado === 'ambigua' ? 'rgba(185,28,28,0.10)' : 'rgba(70,109,155,0.14)')}
+            {p.sync_stock && chipE('Automático ✓', '#0b6b4d', 'rgba(15,138,99,0.14)')}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--tinta)', lineHeight: 1.3 }}>{p.titulo}</div>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8, fontSize: 13, color: 'var(--w60)' }}>
+            {p.producto && <span>Catálogo <b style={{ color: 'var(--tinta)' }}>{cat} pza</b></span>}
+            {p.stock_ml != null && <span>MercadoLibre <b style={{ color: 'var(--tinta)' }}>{p.stock_ml} pza</b>{p.producto && (igual ? <span style={{ color: '#0b6b4d' }}> ✓</span> : <span style={{ color: '#b26a00' }}> ⚠ distinto</span>)}</span>}
+            <span>{p.tiempo_preparacion ? `Entrega en ${p.tiempo_preparacion} días` : (p.estado_ml === 'active' ? 'Entrega inmediata' : '')}</span>
+          </div>
+          {avisos.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>{avisos.map(([t, c, bg]) => chipE(t, c, bg))}</div>}
+        </div>
+        <div style={{ flex: '0 0 190px', maxWidth: '100%', textAlign: 'right', alignSelf: 'center', marginLeft: 'auto' }}>
+          {est.problema
+            ? <div style={{ fontSize: 12.5, color: 'var(--w50)', lineHeight: 1.4, textAlign: 'left' }}>No se vende mientras esté así. Resuélvelo en MercadoLibre.</div>
+            : sinReal
+              ? <><div style={{ fontSize: 11.5, color: 'var(--w50)', fontWeight: 700 }}>Cobras</div><div style={{ fontSize: 22, fontWeight: 900, color: 'var(--tinta)' }}>{peso(p.precio)}</div><div style={{ fontSize: 11.5, color: 'var(--w40)', marginTop: 2 }}>La ganancia se ve al vender</div></>
+              : d ? <>
+                <div style={{ fontSize: 11.5, color: 'var(--w50)', fontWeight: 700 }}>Cobras {peso(d.precio)} · Te pagan {peso(d.neto)}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--w50)', fontWeight: 700, marginTop: 4 }}>GANANCIA</div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: verdeGan, lineHeight: 1.1 }}>{d.ganancia != null ? peso(d.ganancia) : '—'}</div>
+                {d.ganancia != null && <div style={{ fontSize: 12.5, fontWeight: 800, color: verdeGan }}>{d.sobre_costo_pct}% sobre costo</div>}
+                <div style={{ marginTop: 4 }}>{chipE(d.real ? 'Real' : 'Estimado', d.real ? '#0b6b4d' : '#6b645a', d.real ? 'rgba(15,138,99,0.14)' : 'rgba(42,33,24,0.08)')}</div>
+              </> : <div style={{ fontSize: 12.5, color: 'var(--w50)' }}>Sin precio</div>}
+        </div>
+      </div>
+
+      {p.producto && <StockML pub={p} alCambiar={alCambiar} modo="rapido" />}
+
+      {enDepuracion && sinEnvio(p) && (
+        <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ambar)', lineHeight: 1.45 }}>
+          Sin Mercado Envíos: no aparece en tu panel de MercadoLibre. Primero revisamos qué son estas publicaciones; por eso aquí no se puede decidir todavía.
+        </div>
+      )}
+      {enDepuracion && !p.producto && <Ligar pub={p} alLigar={ligar} />}
+      {filtro === 'baja' && !sinEnvio(p) && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          <button onClick={() => decidir(p.id, 'pausar')} style={botonDecision(dec === 'pausar', '#b91c1c')}>
+            {dec === 'pausar' ? '✓ Ya no existe: se pausará' : 'Ya no existe → pausar'}
+          </button>
+        </div>
+      )}
+      {filtro === 'sinstock' && !sinEnvio(p) && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          <button onClick={() => decidir(p.id, 'pausar')} style={botonDecision(dec === 'pausar', '#b91c1c')}>{dec === 'pausar' ? '✓ Se pausará' : 'Pausar'}</button>
+          <button onClick={() => decidir(p.id, 'dias')} style={botonDecision(dec === 'dias', '#466D9B')}>{dec === 'dias' ? `✓ Bajo pedido · ${dias} días` : `Bajo pedido · ${dias} días`}</button>
+        </div>
+      )}
+
+      <div style={{ marginTop: 10, borderTop: '1px solid var(--w08)', paddingTop: 8 }}>
+        <button type="button" onClick={() => setAbierto(a => !a)} style={{ ...enlaceBoton, textDecoration: 'none', fontSize: 13 }}>{abierto ? '▴ Ocultar opciones y desglose' : '▾ Opciones y desglose de dinero'}</button>
+        {abierto && (
+          <div style={{ marginTop: 10, display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+              {p.producto ? (
+                <div style={{ fontSize: 12.5, color: 'var(--w60)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span>Producto ligado: <b style={{ color: 'var(--tinta)' }}>{p.producto.nombre}</b> · stock {p.producto.stock}{p.liga_manual ? ' · a mano' : ''}</span>
+                  <button onClick={() => ligar(p.id, null)} style={{ background: 'none', border: 'none', color: 'var(--w40)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Quitar liga</button>
+                </div>
+              ) : (<>
+                {bajoPedido && <div style={{ fontSize: 12.5, color: 'var(--w50)' }}>Se compra cuando se vende.</div>}
+                {!enDepuracion && <Ligar pub={p} alLigar={ligar} />}
+              </>)}
+              {p.producto && <StockML pub={p} alCambiar={alCambiar} modo="completo" />}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: 'var(--w40)' }}>
+                <span>{p.sku ? `SKU ${p.sku}` : 'sin SKU'}</span><span>{p.item_id}</span>
+                {p.enlace && <a href={p.enlace} target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 700 }}>Ver en MercadoLibre ↗</a>}
+              </div>
+            </div>
+            <div style={{ flex: '0 0 250px', maxWidth: '100%' }}>
+              {sinReal
+                ? <div style={{ fontSize: 12.5, color: 'var(--w60)', lineHeight: 1.5 }}>Precio <b style={{ color: 'var(--tinta)' }}>{peso(p.precio)}</b><div style={{ color: 'var(--w40)', marginTop: 4 }}>Sin costo en el catálogo: la ganancia se verá cuando vendas esta publicación.</div></div>
+                : <Dinero pub={p} />}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Ligar({ pub, alLigar }) {
   const [texto, setTexto] = useState('')
   const [opciones, setOpciones] = useState([])
@@ -126,7 +283,7 @@ function Dinero({ pub }) {
 }
 
 // Stock del catálogo → MercadoLibre: botón manual + interruptor automático.
-function StockML({ pub, alCambiar }) {
+function StockML({ pub, alCambiar, modo = 'completo' }) {
   const [msg, setMsg] = useState(null)
   const [ocupado, setOcupado] = useState(false)
   const [piezas, setPiezas] = useState(String(pub.bajo_pedido_piezas ?? 10))
@@ -150,16 +307,23 @@ function StockML({ pub, alCambiar }) {
     if (!pub.sync_stock && !window.confirm(`Desde ahora esta publicación se ajusta SOLA cada 10 minutos: con stock en el catálogo → ese stock y entrega inmediata; si el catálogo llega a 0 NO cambio nada y te pregunto qué hacer (bajo pedido ${piezas || 10} piezas / ${dias || 9} días, pausar o dejarla). ¿Activar?`)) return
     llamar({ accion: 'auto', valor: !pub.sync_stock })
   }
+  const botones = (
+    <>
+      <button disabled={ocupado} onClick={ahora} style={{ minHeight: 36, padding: '0 14px', borderRadius: 10, border: '1.5px solid #466D9B', background: '#fff', color: '#2F4D70', fontWeight: 800, cursor: 'pointer' }}>{ocupado ? 'Enviando…' : '↑ Enviar stock a MercadoLibre'}</button>
+      <button disabled={ocupado} onClick={auto} style={{ minHeight: 36, padding: '0 14px', borderRadius: 10, border: 'none', background: pub.sync_stock ? '#0f8a63' : 'rgba(42,33,24,0.12)', color: pub.sync_stock ? '#fff' : 'var(--tinta)', fontWeight: 800, cursor: 'pointer' }}>{pub.sync_stock ? '✓ Automático encendido' : 'Automático apagado'}</button>
+    </>
+  )
+  const ajustes = (
+    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', color: 'var(--w60)' }}>Bajo pedido:
+      <input value={piezas} onChange={e => setPiezas(e.target.value.replace(/\D/g, ''))} onBlur={() => llamar({ accion: 'config', piezas, dias })} inputMode="numeric" style={{ width: 46, minHeight: 32, borderRadius: 8, border: '1.5px solid rgba(42,33,24,0.2)', textAlign: 'center', fontWeight: 700 }} /> piezas ·
+      <input value={dias} onChange={e => setDias(e.target.value.replace(/\D/g, ''))} onBlur={() => llamar({ accion: 'config', piezas, dias })} inputMode="numeric" style={{ width: 46, minHeight: 32, borderRadius: 8, border: '1.5px solid rgba(42,33,24,0.2)', textAlign: 'center', fontWeight: 700 }} /> días
+    </span>
+  )
   return (
-    <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5 }}>
-      <button disabled={ocupado} onClick={ahora} style={{ minHeight: 34, padding: '0 12px', borderRadius: 9, border: '1.5px solid #466D9B', background: '#fff', color: '#2F4D70', fontWeight: 800, cursor: 'pointer' }}>{ocupado ? 'Enviando…' : '↑ Enviar stock a MercadoLibre'}</button>
-      <button disabled={ocupado} onClick={auto} style={{ minHeight: 34, padding: '0 12px', borderRadius: 9, border: 'none', background: pub.sync_stock ? '#0f8a63' : 'rgba(42,33,24,0.12)', color: pub.sync_stock ? '#fff' : 'var(--tinta)', fontWeight: 800, cursor: 'pointer' }}>{pub.sync_stock ? '✓ Automático encendido' : 'Automático apagado'}</button>
-      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', color: 'var(--w60)' }}>Bajo pedido:
-        <input value={piezas} onChange={e => setPiezas(e.target.value.replace(/\D/g, ''))} onBlur={() => llamar({ accion: 'config', piezas, dias })} inputMode="numeric" style={{ width: 46, minHeight: 32, borderRadius: 8, border: '1.5px solid rgba(42,33,24,0.2)', textAlign: 'center', fontWeight: 700 }} /> piezas ·
-        <input value={dias} onChange={e => setDias(e.target.value.replace(/\D/g, ''))} onBlur={() => llamar({ accion: 'config', piezas, dias })} inputMode="numeric" style={{ width: 46, minHeight: 32, borderRadius: 8, border: '1.5px solid rgba(42,33,24,0.2)', textAlign: 'center', fontWeight: 700 }} /> días
-      </span>
+    <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5 }}>
+      {modo === 'rapido' ? botones : ajustes}
       {msg && <span style={{ fontWeight: 700, color: msg.ok ? '#0b6b4d' : '#b3261e' }}>{msg.x}</span>}
-      {!msg && pub.sync_stock_msg && <span style={{ color: 'var(--w50)' }}>Último: {pub.sync_stock_msg}</span>}
+      {!msg && modo === 'completo' && pub.sync_stock_msg && <span style={{ color: 'var(--w50)' }}>Último: {pub.sync_stock_msg}</span>}
     </div>
   )
 }
@@ -266,6 +430,8 @@ export default function MercadoLibreAdmin() {
   const [aplicando, setAplicando] = useState(false)
   const [progreso, setProgreso] = useState('')
   const [resultado, setResultado] = useState(null)
+  const [foto, setFoto] = useState(null)
+  const [limite, setLimite] = useState({ firma: '', n: 12 })
 
   const cargar = useCallback(async () => {
     try {
@@ -326,6 +492,7 @@ export default function MercadoLibreAdmin() {
   const nSinEnvio = (pubs || []).filter(p => activa(p) && sinEnvio(p)).length
   const nBaja = (pubs || []).filter(sinCatalogoSinDias).length
   const nSinStock = (pubs || []).filter(instanteSinStock).length
+  const nDep = (c.ambigua || 0) + nBaja + nSinStock + nSinEnvio
 
   const visibles = (pubs || []).filter(p => {
     if (filtro === 'sinenvio' && !(activa(p) && sinEnvio(p))) return false
@@ -348,6 +515,8 @@ export default function MercadoLibreAdmin() {
   })
 
   const enDepuracion = filtro === 'baja' || filtro === 'sinstock'
+  const firma = `${filtro}|${sub}|${buscar}|${orden}`
+  const limiteEf = limite.firma === firma ? limite.n : 12
   const marcarVisibles = (valor) => setDecisiones(prev => {
     const n = { ...prev }
     for (const p of visibles) n[p.id] = valor
@@ -402,10 +571,29 @@ export default function MercadoLibreAdmin() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--fondo)', padding: `22px 24px ${marcadas.length ? 110 : 60}px` }}>
-      <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ color: 'var(--tinta)', fontSize: 25, fontWeight: 800, letterSpacing: -0.6 }}>MercadoLibre</div>
-          <div style={{ color: 'var(--w40)', fontSize: 13, marginTop: 4 }}>Conexión de tu cuenta y publicaciones ligadas a tu catálogo por SKU</div>
+      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+        <div style={{ background: 'linear-gradient(135deg,#2F4D70 0%,#466D9B 100%)', color: '#fff', borderRadius: 18, padding: '18px 20px', marginBottom: 14, boxShadow: '0 6px 18px rgba(47,77,112,0.25)' }}>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.6 }}>MercadoLibre</div>
+              <div style={{ fontSize: 13, opacity: 0.85, marginTop: 3 }}>Tus publicaciones, su stock y cuánto te dejan</div>
+            </div>
+            {!estado ? <div style={{ fontSize: 13, opacity: 0.8 }}>Cargando…</div>
+              : !estado.credenciales ? <div style={{ fontSize: 13, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '8px 12px' }}>Falta poner ML_CLIENT_ID y ML_CLIENT_SECRET en .env.local (y en Vercel).</div>
+              : (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.14)', borderRadius: 12, padding: '8px 14px' }}>
+                    <div style={{ fontSize: 14, fontWeight: 800 }}>
+                      <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 99, background: estado.conectado ? '#5be3a8' : '#ffb4a8', marginRight: 7 }} />
+                      {estado.conectado ? `Conectada${estado.cuenta?.nickname ? ` · ${estado.cuenta.nickname}` : ''}` : 'Sin conectar'}
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>{estado.conectado ? `Sincronizado: ${estado.ultima_sincronizacion ? fechaHora(estado.ultima_sincronizacion) : 'todavía no'}` : 'Autoriza a Denog a leer tus publicaciones y ventas.'}</div>
+                  </div>
+                  {estado.conectado && <button onClick={sincronizar} disabled={sincronizando} style={{ minHeight: 42, padding: '0 18px', borderRadius: 11, border: 'none', background: '#fff', color: '#2F4D70', fontWeight: 900, fontSize: 14, cursor: sincronizando ? 'wait' : 'pointer', opacity: sincronizando ? 0.7 : 1 }}>{sincronizando ? 'Sincronizando…' : '↻ Sincronizar'}</button>}
+                  <a href="/api/mercadolibre/conectar" style={{ minHeight: 42, padding: '0 14px', borderRadius: 11, display: 'inline-flex', alignItems: 'center', fontWeight: 800, fontSize: 13, textDecoration: 'none', color: estado.conectado ? '#fff' : '#2F4D70', background: estado.conectado ? 'rgba(255,255,255,0.16)' : '#fff' }}>{estado.conectado ? 'Reconectar' : 'Conectar MercadoLibre'}</a>
+                </div>
+              )}
+          </div>
         </div>
 
         {error && <div style={{ background: 'rgba(185,28,28,0.08)', border: '1px solid rgba(185,28,28,0.3)', color: 'var(--rojo)', borderRadius: 10, padding: '10px 14px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
@@ -426,77 +614,68 @@ export default function MercadoLibreAdmin() {
           </div>
         )}
 
-        <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 12, padding: 14, marginBottom: 16 }}>
-          {!estado ? <div style={{ color: 'var(--w40)', fontSize: 13 }}>Cargando…</div>
-            : !estado.credenciales ? (
-              <div style={{ fontSize: 13, color: 'var(--ambar)', lineHeight: 1.5 }}>
-                Falta crear la aplicación en MercadoLibre y poner <b>ML_CLIENT_ID</b> y <b>ML_CLIENT_SECRET</b> en .env.local (y en Vercel).
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--tinta)' }}>
-                    {estado.conectado ? `✓ Conectada${estado.cuenta?.nickname ? ` · ${estado.cuenta.nickname}` : ''}` : 'Sin conectar'}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--w50)', marginTop: 3 }}>
-                    {estado.conectado
-                      ? `Última sincronización: ${estado.ultima_sincronizacion ? fechaHora(estado.ultima_sincronizacion) : 'todavía no'}`
-                      : 'Autoriza a Denog a leer tus publicaciones y ventas.'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {estado.conectado && <button onClick={sincronizar} disabled={sincronizando} style={botonAzul(sincronizando)}>{sincronizando ? 'Sincronizando…' : 'Sincronizar publicaciones'}</button>}
-                  <a href="/api/mercadolibre/conectar" style={{ ...botonAzul(false), background: estado.conectado ? 'var(--w05)' : '#466D9B', color: estado.conectado ? 'var(--w60)' : '#fff' }}>
-                    {estado.conectado ? 'Reconectar' : 'Conectar MercadoLibre'}
-                  </a>
-                </div>
-              </div>
-            )}
-        </div>
-
         {estado?.conectado && (<>
+          {(() => {
+            const act = (pubs || []).filter(activa)
+            const conG = act.filter(p => p.dinero?.ganancia != null && !p.dinero.sinReal)
+            const prom = conG.length ? Math.round(conG.reduce((s, p) => s + (p.dinero.sobre_costo_pct || 0), 0) / conG.length) : null
+            const pierden = conG.filter(p => p.dinero.ganancia < 0).length
+            const pendDec = (pubs || []).filter(p => p.sync_pendiente === 'sin_stock').length
+            const atencion = nDep + pendDec
+            const tile = (icono, n, et, sub, col, ir) => (
+              <button key={et} onClick={ir} style={{ flex: '1 1 150px', textAlign: 'left', cursor: 'pointer', background: 'var(--sup)', border: '1px solid var(--w08)', borderTop: `4px solid ${col}`, borderRadius: 14, padding: '12px 14px' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--w50)' }}>{icono} {et}</div>
+                <div style={{ fontSize: 30, fontWeight: 900, color: col, lineHeight: 1.15 }}>{n}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--w50)' }}>{sub}</div>
+              </button>
+            )
+            return (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                {tile('🟢', act.length, 'Activas', 'publicaciones en venta', '#0b6b4d', () => { setFiltro('ligadas'); setSub('activas') })}
+                {tile('📈', prom != null ? `${prom}%` : '—', 'Ganancia promedio', 'sobre lo que te costó', '#2F4D70', () => { setFiltro('ligadas'); setSub('todas'); setOrden('mas') })}
+                {tile('📉', pierden, 'Pierden dinero', 'ganancia negativa', pierden ? '#b3261e' : '#6b645a', () => { setFiltro('ligadas'); setSub('todas'); setOrden('menos') })}
+                {tile('🔧', atencion, 'Necesitan atención', 'por revisar o decidir', atencion ? '#d9731a' : '#6b645a', () => setFiltro('revisar'))}
+              </div>
+            )
+          })()}
           <Reputacion />
           <PorDecidir pubs={pubs} alCambiar={cargar} />
           {(() => {
             const seccion = filtro === 'ligadas' ? 'stock' : filtro === 'bajo_pedido' ? 'pedido' : 'depurar'
-            const nDep = (c.ambigua || 0) + nBaja + nSinStock + nSinEnvio
-            const grande = (activo, col) => ({ flex: '1 1 220px', textAlign: 'left', cursor: 'pointer', padding: '14px 16px', borderRadius: 14, border: `2px solid ${activo ? col : 'var(--w10)'}`, background: activo ? col : 'var(--sup)', color: activo ? '#fff' : 'var(--tinta)' })
+            const tab = (activo, col) => ({ flex: '1 1 150px', textAlign: 'center', cursor: 'pointer', padding: '10px 12px', borderRadius: 12, border: `2px solid ${activo ? col : 'var(--w10)'}`, background: activo ? col : 'var(--sup)', color: activo ? '#fff' : 'var(--tinta)', fontWeight: 900, fontSize: 14 })
             const tabs = [
-              ['stock', 'ligadas', '📦 Con stock', `${c.ligada} publicaciones`, 'Ligadas a tu catálogo. El stock se maneja desde el sitio.', '#2F4D70'],
-              ['pedido', 'bajo_pedido', '🕒 Bajo pedido', `${c.bajo_pedido || 0} publicaciones`, 'Sin stock físico: se compra cuando se vende y se entrega en días.', '#6B4FA0'],
-              ['depurar', 'revisar', '🔧 Por revisar', `${nDep} pendientes`, 'Dudosas, sin envío o sin stock que prometen entrega inmediata.', '#8a4b3a'],
+              ['stock', 'ligadas', '📦 Con stock', c.ligada, 'Ligadas a tu catálogo. El stock se maneja desde el sitio.', '#2F4D70'],
+              ['pedido', 'bajo_pedido', '🕒 Bajo pedido', c.bajo_pedido || 0, 'Sin stock físico: se compra cuando se vende y se entrega en días.', '#6B4FA0'],
+              ['depurar', 'revisar', '🔧 Por revisar', nDep, 'Dudosas, sin envío o sin stock que prometen entrega inmediata.', '#8a4b3a'],
             ]
-            return (<>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                {tabs.map(([k, f, t, n, d, col]) => (
-                  <button key={k} onClick={() => setFiltro(f)} style={grande(seccion === k, col)}>
-                    <div style={{ fontSize: 16, fontWeight: 900 }}>{t}</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.95 }}>{n}</div>
-                    <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2, lineHeight: 1.3 }}>{d}</div>
-                  </button>
-                ))}
+            return (
+              <div style={{ position: 'sticky', top: 0, zIndex: 30, background: 'var(--fondo)', padding: '8px 0 10px', borderBottom: '1px solid var(--w08)', marginBottom: 12 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {tabs.map(([k, f, t, n, , col]) => <button key={k} onClick={() => setFiltro(f)} style={tab(seccion === k, col)}>{t} <span style={{ opacity: 0.85 }}>· {n}</span></button>)}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--w50)', margin: '6px 2px 0' }}>{tabs.find(x => x[0] === seccion)?.[4]}</div>
+                {seccion === 'stock' && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {[['todas', 'Todas'], ['activas', 'Activas'], ['pausadas', 'Pausadas'], ['bajo', 'Stock bajo (2 o menos)']].map(([v, t]) => <button key={v} style={chip(sub === v)} onClick={() => setSub(v)}>{t}</button>)}
+                  </div>
+                )}
+                {seccion === 'depurar' && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {[['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`], ...(nSinEnvio > 0 ? [['sinenvio', `Sin Mercado Envíos · ${nSinEnvio}`]] : [])].map(([v, t]) => <button key={v} style={chip(filtro === v)} onClick={() => setFiltro(v)}>{t}</button>)}
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                  <input style={{ ...inputEstilo, flex: 1, minWidth: 180 }} placeholder="🔎 Buscar por título, SKU o número de publicación" value={buscar} onChange={e => setBuscar(e.target.value)} />
+                  <select value={orden} onChange={e => setOrden(e.target.value)} style={{ ...inputEstilo, minWidth: 170 }}>
+                    <option value="titulo">Orden: por nombre</option>
+                    <option value="mas">Orden: más ganancia</option>
+                    <option value="menos">Orden: menos ganancia</option>
+                    <option value="stock">Orden: stock más bajo</option>
+                  </select>
+                </div>
               </div>
-              {seccion === 'stock' && (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                  {[['todas', 'Todas'], ['activas', 'Activas'], ['pausadas', 'Pausadas'], ['bajo', 'Stock bajo (2 o menos)']].map(([v, t]) => <button key={v} style={chip(sub === v)} onClick={() => setSub(v)}>{t}</button>)}
-                </div>
-              )}
-              {seccion === 'depurar' && (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                  {[['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`], ...(nSinEnvio > 0 ? [['sinenvio', `Sin Mercado Envíos · ${nSinEnvio}`]] : [])].map(([v, t]) => <button key={v} style={chip(filtro === v)} onClick={() => setFiltro(v)}>{t}</button>)}
-                </div>
-              )}
-            </>)
+            )
           })()}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-            <input style={{ ...inputEstilo, flex: 1, minWidth: 180 }} placeholder="Buscar por título, SKU o número de publicación" value={buscar} onChange={e => setBuscar(e.target.value)} />
-            <select value={orden} onChange={e => setOrden(e.target.value)} style={{ ...inputEstilo, minWidth: 170 }}>
-              <option value="titulo">Orden: por nombre</option>
-              <option value="mas">Orden: más ganancia</option>
-              <option value="menos">Orden: menos ganancia</option>
-              <option value="stock">Orden: stock más bajo</option>
-            </select>
-          </div>
 
           {filtro === 'sinenvio' && (
             <div style={{ fontSize: 12.5, color: 'var(--w60)', marginBottom: 10, lineHeight: 1.5 }}>
@@ -530,77 +709,33 @@ export default function MercadoLibreAdmin() {
                 {c.total === 0 ? 'Todavía no hay publicaciones. Toca “Sincronizar publicaciones”.' : enDepuracion ? 'Nada pendiente en esta lista. 🎉' : 'Nada en este filtro.'}
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {visibles.map(p => {
-                  const et = ETIQUETA[p.liga_estado] || ETIQUETA.bajo_pedido
-                  const dec = decisiones[p.id]
-                  return (
-                    <div key={p.id} style={{ background: 'var(--sup)', border: `1px solid ${dec ? '#466D9B' : 'var(--w08)'}`, borderRadius: 14, padding: 14, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                      {p.miniatura && <img src={p.miniatura} alt="" width={56} height={56} style={{ borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />}
-                      <div style={{ flex: '1 1 320px', minWidth: 0 }}>
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--tinta)', lineHeight: 1.3 }}>{p.titulo}</div>
-                          <span style={{ fontSize: 11.5, fontWeight: 800, borderRadius: 6, padding: '3px 8px', color: et.c, background: et.bg, whiteSpace: 'nowrap' }}>{et.t}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6, fontSize: 12 }}>
-                          {[
-                            [p.estado_ml === 'active' ? 'Activa' : p.estado_ml === 'paused' ? 'Pausada' : p.estado_ml, p.estado_ml === 'active' ? 'rgba(15,138,99,0.14)' : 'rgba(42,33,24,0.08)'],
-                            [p.sku ? `SKU ${p.sku}` : 'sin SKU', 'rgba(42,33,24,0.06)'],
-                            [p.stock_ml != null ? `MercadoLibre: ${p.stock_ml} pza` : null, 'rgba(70,109,155,0.14)'],
-                            [p.tiempo_preparacion ? `Entrega ${p.tiempo_preparacion} días` : (p.estado_ml === 'active' ? 'Entrega inmediata' : null), 'rgba(70,109,155,0.10)'],
-                            [p.sub_estado || null, 'rgba(179,38,30,0.10)'],
-                          ].filter(x => x[0]).map(([t, bg]) => <span key={t} style={{ background: bg, borderRadius: 999, padding: '3px 9px', fontWeight: 700, color: 'var(--tinta)' }}>{t}</span>)}
-                          <span style={{ color: 'var(--w40)', alignSelf: 'center' }}>{p.item_id}</span>
-                          {p.enlace && <a href={p.enlace} target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 700, alignSelf: 'center' }}>Ver en MercadoLibre ↗</a>}
-                        </div>
-                        {p.producto ? (
-                          <div style={{ fontSize: 12.5, color: 'var(--w60)', marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <span>→ <b style={{ color: 'var(--tinta)' }}>{p.producto.nombre}</b> · stock {p.producto.stock}{p.liga_manual ? ' · a mano' : ''}</span>
-                            <button onClick={() => ligar(p.id, null)} style={{ background: 'none', border: 'none', color: 'var(--w40)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Quitar liga</button>
-                          </div>
-                        ) : null}
-                        {p.producto ? (
-                          <StockML pub={p} alCambiar={cargar} />
-                        ) : (<>
-                          {p.liga_estado === 'bajo_pedido' && !enDepuracion && <div style={{ fontSize: 12.5, color: 'var(--w50)', marginTop: 6 }}>Se compra cuando se vende.</div>}
-                          <Ligar pub={p} alLigar={ligar} />
-                        </>)}
-
-                        {enDepuracion && sinEnvio(p) && (
-                          <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ambar)', lineHeight: 1.45 }}>
-                            Sin Mercado Envíos: no aparece en tu panel de MercadoLibre. Primero revisamos qué son estas publicaciones; por eso aquí no se puede decidir todavía.
-                          </div>
-                        )}
-                        {filtro === 'baja' && !sinEnvio(p) && (
-                          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                            <button onClick={() => decidir(p.id, 'pausar')} style={botonDecision(dec === 'pausar', '#b91c1c')}>
-                              {dec === 'pausar' ? '✓ Ya no existe: se pausará' : 'Ya no existe → pausar'}
-                            </button>
-                          </div>
-                        )}
-                        {filtro === 'sinstock' && !sinEnvio(p) && (
-                          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                            <button onClick={() => decidir(p.id, 'pausar')} style={botonDecision(dec === 'pausar', '#b91c1c')}>
-                              {dec === 'pausar' ? '✓ Se pausará' : 'Pausar'}
-                            </button>
-                            <button onClick={() => decidir(p.id, 'dias')} style={botonDecision(dec === 'dias', '#466D9B')}>
-                              {dec === 'dias' ? `✓ Bajo pedido · ${DIAS_BAJO_PEDIDO} días` : `Bajo pedido · ${DIAS_BAJO_PEDIDO} días`}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ flex: '0 0 250px', maxWidth: '100%', borderLeft: '1px solid var(--w08)', paddingLeft: 14 }}>
-                        {p.liga_estado === 'bajo_pedido' && !p.dinero?.real
-                          ? <div style={{ fontSize: 12.5, color: 'var(--w60)', lineHeight: 1.5 }}><div>Precio <b style={{ color: 'var(--tinta)' }}>{peso(p.precio)}</b></div><div style={{ color: 'var(--w40)', marginTop: 4 }}>Sin costo en el catálogo: la ganancia se verá cuando vendas esta publicación.</div></div>
-                          : <Dinero pub={p} />}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <>
+                {filtro === 'ligadas' && visibles.some(p => p.dinero && !p.dinero.real && p.dinero.ganancia != null) && (
+                  <div style={{ fontSize: 12, color: 'var(--w50)', margin: '0 2px 8px' }}>ℹ️ Las ganancias marcadas <b>Estimado</b> no incluyen el envío (aún no se venden); se corrigen solas con la primera venta.</div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {visibles.slice(0, limiteEf).map(p => (
+                    <Tarjeta key={p.id} p={p} enDepuracion={enDepuracion} filtro={filtro} dec={decisiones[p.id]} decidir={decidir} ligar={ligar}
+                      alCambiar={cargar} sinEnvio={sinEnvio} dias={DIAS_BAJO_PEDIDO} alAbrirFoto={setFoto} />
+                  ))}
+                </div>
+                {visibles.length > limiteEf && (
+                  <div style={{ textAlign: 'center', marginTop: 14 }}>
+                    <button onClick={() => setLimite({ firma, n: limiteEf + 12 })} style={{ ...botonAzul(false), minHeight: 44, padding: '0 22px' }}>Ver 12 más · faltan {visibles.length - limiteEf}</button>
+                  </div>
+                )}
+              </>
             )}
         </>)}
       </div>
+
+      {foto && (
+        <div onClick={() => setFoto(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, cursor: 'zoom-out' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={foto.src} alt="" style={{ maxWidth: '94vw', maxHeight: '82vh', background: '#fff', borderRadius: 14, objectFit: 'contain' }} />
+          <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, marginTop: 12, maxWidth: 700, textAlign: 'center' }}>{foto.titulo}</div>
+        </div>
+      )}
 
       {marcadas.length > 0 && !confirmando && (
         <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: 'var(--sup)', borderTop: '1px solid var(--w10)', padding: '12px 24px', zIndex: 40, boxShadow: '0 -4px 14px rgba(0,0,0,0.08)' }}>

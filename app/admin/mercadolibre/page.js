@@ -109,7 +109,7 @@ function StockML({ pub, alCambiar }) {
     llamar({ accion: 'ahora' })
   }
   const auto = () => {
-    if (!pub.sync_stock && !window.confirm(`Desde ahora esta publicación se ajusta SOLA cada 10 minutos: con stock en el catálogo → ese stock y entrega inmediata; si el catálogo llega a 0 → bajo pedido (${piezas || 10} piezas, ${dias || 9} días). ¿Activar?`)) return
+    if (!pub.sync_stock && !window.confirm(`Desde ahora esta publicación se ajusta SOLA cada 10 minutos: con stock en el catálogo → ese stock y entrega inmediata; si el catálogo llega a 0 NO cambio nada y te pregunto qué hacer (bajo pedido ${piezas || 10} piezas / ${dias || 9} días, pausar o dejarla). ¿Activar?`)) return
     llamar({ accion: 'auto', valor: !pub.sync_stock })
   }
   return (
@@ -122,6 +122,43 @@ function StockML({ pub, alCambiar }) {
       </span>
       {msg && <span style={{ fontWeight: 700, color: msg.ok ? '#0b6b4d' : '#b3261e' }}>{msg.x}</span>}
       {!msg && pub.sync_stock_msg && <span style={{ color: 'var(--w50)' }}>Último: {pub.sync_stock_msg}</span>}
+    </div>
+  )
+}
+
+// Publicaciones cuyo catálogo llegó a 0 y esperan tu decisión.
+function PorDecidir({ pubs, alCambiar }) {
+  const [ocupado, setOcupado] = useState(null)
+  const [msg, setMsg] = useState('')
+  const lista = (pubs || []).filter(p => p.sync_pendiente === 'sin_stock')
+  if (!lista.length) return null
+  const decidir = async (p, valor) => {
+    setOcupado(p.id); setMsg('')
+    try {
+      const d = await fetch('/api/mercadolibre/stock', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: p.id, accion: 'decidir', valor }) }).then(r => r.json())
+      setMsg(`${p.titulo}: ${d.mensaje || (d.ok ? 'Listo' : 'No se pudo')}`)
+      await alCambiar()
+    } catch { setMsg('No se pudo conectar con el servidor') }
+    setOcupado(null)
+  }
+  return (
+    <div style={{ background: '#fff7d6', border: '2px solid #e0b400', borderRadius: 14, padding: 16, marginBottom: 16 }}>
+      <div style={{ fontWeight: 900, fontSize: 16, color: '#2a2118' }}>⚠️ Se acabó el stock en el catálogo ({lista.length})</div>
+      <div style={{ fontSize: 13.5, margin: '4px 0 12px', color: '#3b2f20' }}>MercadoLibre sigue mostrando piezas. Decide qué hacer con cada una; mientras no decidas, no se cambia nada.</div>
+      <div style={{ display: 'grid', gap: 10 }}>
+        {lista.map(p => (
+          <div key={p.id} style={{ background: '#fff', borderRadius: 12, padding: 12, border: '1px solid rgba(42,33,24,0.12)' }}>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>{p.titulo}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--w50)', margin: '2px 0 8px' }}>{p.item_id} · hoy en MercadoLibre: {p.stock_ml ?? '?'}</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button disabled={ocupado === p.id} onClick={() => decidir(p, 'bajo_pedido')} style={{ minHeight: 40, padding: '0 14px', borderRadius: 10, border: 'none', background: '#466D9B', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Bajo pedido ({p.bajo_pedido_piezas || 10} piezas · {p.bajo_pedido_dias || 9} días)</button>
+              <button disabled={ocupado === p.id} onClick={() => decidir(p, 'pausar')} style={{ minHeight: 40, padding: '0 14px', borderRadius: 10, border: 'none', background: '#b91c1c', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Pausar</button>
+              <button disabled={ocupado === p.id} onClick={() => decidir(p, 'dejar')} style={{ minHeight: 40, padding: '0 14px', borderRadius: 10, border: '1.5px solid rgba(42,33,24,0.25)', background: '#fff', fontWeight: 800, cursor: 'pointer' }}>Dejar como está</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {msg && <div style={{ marginTop: 10, fontWeight: 700, fontSize: 13.5 }}>{msg}</div>}
     </div>
   )
 }
@@ -320,6 +357,7 @@ export default function MercadoLibreAdmin() {
         </div>
 
         {estado?.conectado && (<>
+          <PorDecidir pubs={pubs} alCambiar={cargar} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
             {[['todas', `Todas · ${c.total}`], ['bajo_pedido', `Bajo pedido · ${c.bajo_pedido || 0}`], ['ligadas', `En tu catálogo · ${c.ligada}`], ['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`], ...(nSinEnvio > 0 ? [['sinenvio', `Sin Mercado Envíos · ${nSinEnvio}`]] : [])].map(([v, t]) => (
               <button key={v} style={chip(filtro === v)} onClick={() => setFiltro(v)}>{t}</button>

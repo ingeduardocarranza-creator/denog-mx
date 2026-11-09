@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requerirAdmin } from '@/lib/auth/session'
-import { clienteSupabaseServicio, obtenerAcceso } from '@/lib/mercadolibre/api'
+import { clienteSupabaseServicio, obtenerAcceso, mlPut } from '@/lib/mercadolibre/api'
 import { enviarStock } from '@/lib/mercadolibre/stock'
 
 export const maxDuration = 60
@@ -25,6 +25,22 @@ export async function POST(req) {
     if (error) return NextResponse.json({ ok: false, mensaje: error.message })
     await supabase.from('ml_acciones').insert({ item_id: pub.item_id, accion: valor ? 'stock_auto_on' : 'stock_auto_off', valor: String(valor), ok: true, hecho_por: sesion.id })
     return NextResponse.json({ ok: true })
+  }
+  if (b.accion === 'decidir') {
+    let token
+    try { ({ token } = await obtenerAcceso(supabase)) } catch (e) { return NextResponse.json({ ok: false, mensaje: e.message }) }
+    if (b.valor === 'bajo_pedido') {
+      const r = await enviarStock(supabase, token, pub, { por: sesion.id })
+      return NextResponse.json(r)
+    }
+    if (b.valor === 'pausar') {
+      try { await mlPut(token, `/items/${pub.item_id}`, { status: 'paused' }) } catch (e) { return NextResponse.json({ ok: false, mensaje: String(e.message).slice(0, 200) }) }
+      await supabase.from('ml_publicaciones').update({ estado_ml: 'paused', sync_pendiente: null }).eq('id', pub.id)
+      await supabase.from('ml_acciones').insert({ item_id: pub.item_id, accion: 'pausar', valor: 'paused', ok: true, mensaje: 'Pausada por catálogo en 0', hecho_por: sesion.id })
+      return NextResponse.json({ ok: true, mensaje: 'Publicación pausada' })
+    }
+    await supabase.from('ml_publicaciones').update({ sync_pendiente: 'ignorado' }).eq('id', pub.id)
+    return NextResponse.json({ ok: true, mensaje: 'Se queda como está' })
   }
   if (b.accion === 'config') {
     const piezas = parseInt(b.piezas, 10), dias = parseInt(b.dias, 10)

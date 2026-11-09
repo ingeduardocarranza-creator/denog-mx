@@ -146,6 +146,13 @@ export async function POST(req) {
       await supabase.from('ml_borradores').update({
         estado: 'publicado', item_id_publicado: r.item_id, enlace_publicado: r.enlace, publicado_en: new Date().toISOString(),
       }).eq('id', id)
+      // Si el borrador vino de Oportunidades, queda guardado dónde se compra (para el guardián y Por comprar).
+      try {
+        const { data: op } = await supabase.from('ml_oportunidades').select('url_oferta, tienda, precio_usd').eq('borrador_id', id).limit(1).maybeSingle()
+        if (op?.url_oferta) {
+          await supabase.from('ml_fichas_compra').upsert({ item_id: r.item_id, variacion_id: 0, tienda: op.tienda || null, enlace_compra: op.url_oferta, costo_usd: op.precio_usd || null, notas: 'Automático desde Oportunidades', actualizada_en: new Date().toISOString(), disponible: true, revisada_en: new Date().toISOString() }, { onConflict: 'item_id,variacion_id' })
+        }
+      } catch {}
       await supabase.from('ml_acciones').insert({ item_id: r.item_id, accion: 'publicar_borrador', valor: String(id), antes: null, ok: true, mensaje: r.aviso.join(' ') || null, hecho_por: sesion.id })
       return NextResponse.json({ ok: true, item_id: r.item_id, enlace: r.enlace, aviso: r.aviso })
     }

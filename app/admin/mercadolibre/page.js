@@ -367,6 +367,7 @@ function Guardian({ alCambiar }) {
         </div>
       </div>
       <div style={{ fontSize: 13, color: 'var(--w60)', marginTop: 6, lineHeight: 1.45 }}>
+        {r.sin_enlace > 0 && <b style={{ color: '#8a5a00' }}>⚠ {r.sin_enlace} de {r.total} no tienen enlace de compra guardado: la revisión semanal solo puede verificar las que sí. Se guarda en Por comprar (Ficha) al vender, o solo al publicar desde Oportunidades.<br /></b>}
         Revisa cada hora tus {r.total} publicaciones bajo pedido. Si llevas más de {d.config.verde_dias} días sin comprar/verificar una, la marca; pasados {d.config.amarillo_dias} días baja su stock a {d.config.tope_piezas} pza; si algo ya no se consigue, la pausa; y si una venta lleva {d.config.dias_sin_comprar} días sin comprarse, te avisa y pausa esa publicación.
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10, alignItems: 'center' }}>

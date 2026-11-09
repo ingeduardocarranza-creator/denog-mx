@@ -92,7 +92,7 @@ function Dinero({ pub }) {
   const d = pub.dinero
   const m = (n) => (n == null ? '—' : Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 }))
   if (!d) return <div style={{ fontSize: 12.5, color: 'var(--w50)' }}>Sin precio</div>
-  const color = d.ganancia == null ? 'var(--w50)' : d.ganancia < 0 ? '#b3261e' : d.margen_pct < 15 ? '#b26a00' : '#0b6b4d'
+  const color = d.ganancia == null ? 'var(--w50)' : d.ganancia < 0 ? '#b3261e' : d.sobre_costo_pct < 15 ? '#b26a00' : '#0b6b4d'
   const fila = (et, v, neg) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5 }}>
       <span style={{ color: 'var(--w60)' }}>{et}</span><span style={{ fontWeight: 700, color: neg ? '#8a4b3a' : 'var(--tinta)' }}>{v}</span>
@@ -108,8 +108,18 @@ function Dinero({ pub }) {
       {fila('Te pagan', m(d.neto))}
       <div style={{ marginTop: 4, padding: '6px 8px', borderRadius: 8, background: 'rgba(42,33,24,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 800 }}>Ganancia</span>
-        <span style={{ fontSize: 16, fontWeight: 900, color }}>{d.ganancia != null ? `${m(d.ganancia)} · ${d.margen_pct}%` : '—'}</span>
+        <span style={{ fontSize: 16, fontWeight: 900, color }}>{d.ganancia != null ? m(d.ganancia) : '—'}</span>
       </div>
+      {d.ganancia != null && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5 }}>
+          <span style={{ color: 'var(--w60)' }}>Sobre lo que te costó</span><b style={{ color }}>{d.sobre_costo_pct}%</b>
+        </div>
+      )}
+      {d.ganancia != null && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5 }}>
+          <span style={{ color: 'var(--w60)' }}>Sobre el precio de venta</span><b style={{ color }}>{d.margen_pct}%</b>
+        </div>
+      )}
       <div style={{ fontSize: 11, color: 'var(--w40)' }}>{d.real ? 'Comisión y envío reales de tu última venta.' : d.comision != null ? 'Estimado: aún no vendes esta publicación (sin envío).' : 'Sin ventas ni estimado todavía.'}</div>
     </div>
   )

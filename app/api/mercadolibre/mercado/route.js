@@ -13,7 +13,14 @@ export async function GET(req) {
   const supabase = clienteSupabaseServicio()
   try {
     const { token } = await obtenerAcceso(supabase)
-    const pruebas = {
+    const pid = new URL(req.url).searchParams.get('producto')
+    const pruebas = pid ? {
+      producto: [`/products/${pid}`, {}],
+      producto_ofertas: [`/products/${pid}/items`, { limit: '10' }],
+      producto_buybox: [`/products/${pid}/buy_box_winner`, {}],
+      categoria_mas_vendidos_salud: ['/highlights/MLM/category/MLM1246', {}],
+      item_publico: [`/items/${new URL(req.url).searchParams.get('item') || 'MLM2123159549'}`, {}],
+    } : {
       tendencias_pais: ['/trends/MLM', {}],
       tendencias_categoria: ['/trends/MLM/MLM1276', {}],
       mas_vendidos_categoria: ['/highlights/MLM/category/MLM1276', {}],
@@ -28,7 +35,7 @@ export async function GET(req) {
       try {
         const r = await mlGet(token, ruta, params)
         const lista = Array.isArray(r) ? r : (r.results || r.content || r.trends || null)
-        resultados[k] = { ok: true, tipo: Array.isArray(r) ? 'lista' : 'objeto', total: Array.isArray(lista) ? lista.length : null, claves: Array.isArray(r) ? undefined : Object.keys(r).slice(0, 12), muestra: JSON.stringify(Array.isArray(lista) ? lista.slice(0, 2) : r).slice(0, 700) }
+        resultados[k] = { ok: true, tipo: Array.isArray(r) ? 'lista' : 'objeto', total: Array.isArray(lista) ? lista.length : null, claves: Array.isArray(r) ? undefined : Object.keys(r).slice(0, 12), muestra: JSON.stringify(Array.isArray(lista) ? lista.slice(0, 2) : r).slice(0, pid ? 1500 : 700) }
       } catch (e) {
         resultados[k] = { ok: false, error: String(e.message).slice(0, 200) }
       }

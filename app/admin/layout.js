@@ -52,6 +52,7 @@ const grupos = [
       { label: 'Por comprar', icon: '🛒', href: '/admin/mercadolibre/por-comprar' },
       { label: 'Empacar MercadoLibre', icon: '📦', href: '/admin/mercadolibre/empaque' },
       { label: 'Borradores de publicación', icon: '📝', href: '/admin/mercadolibre/borradores' },
+      { label: 'Oportunidades', icon: '💡', href: '/admin/mercadolibre/oportunidades' },
       { label: 'Conexión y publicaciones', icon: '🟡', href: '/admin/mercadolibre' },
     ],
   },

@@ -66,6 +66,7 @@ function Tarjeta({ o, alAbrir, alDescartar, alCambiar }) {
             {chipE(tipo.t, tipo.c, tipo.bg)}
             {o.ranking != null && chipE(`🔥 Más vendido #${o.ranking}`, '#8a1c14', 'rgba(185,28,28,0.12)')}
             {o.tendencia && chipE('📈 En tendencia', '#0b6b4d', 'rgba(15,138,99,0.14)')}
+            {o.producto_id && chipE(o.stock_catalogo > 0 ? `📦 Ya lo tienes: ${o.stock_catalogo} pza` : '📦 Está en tu catálogo (sin stock)', '#0b6b4d', 'rgba(15,138,99,0.14)')}
             {o.tienda && chipE(o.tienda, '#6b645a', 'rgba(42,33,24,0.08)')}
             {dudosa && chipE('⚠ Ganancia muy alta: confirma que sea el mismo producto (sabor, tamaño, cantidad)', '#8a5a00', 'rgba(201,151,0,0.2)')}
           </div>
@@ -78,7 +79,7 @@ function Tarjeta({ o, alAbrir, alDescartar, alCambiar }) {
           </div>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 6, fontSize: 13, color: 'var(--w60)' }}>
             <span>Cuesta en EE. UU. <b style={{ color: 'var(--tinta)' }}>{usd(o.precio_usd)}</b></span>
-            <span>Te cuesta en México <b style={{ color: 'var(--tinta)' }}>{peso(o.costo_mxn)}</b></span>
+            <span>Te cuesta en México <b style={{ color: 'var(--tinta)' }}>{peso(o.costo_mxn)}</b> <span style={{ color: 'var(--w40)' }}>({o.costo_fuente === 'catalogo' ? 'de tu catálogo' : 'estimado'})</span></span>
           </div>
         </div>
         <div style={{ flex: '0 0 200px', maxWidth: '100%', textAlign: 'right', alignSelf: 'center', marginLeft: 'auto' }}>

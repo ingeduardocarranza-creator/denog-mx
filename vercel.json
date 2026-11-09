@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/ml-stock",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/ml-oportunidades",
+      "schedule": "0 15 * * *"
     }
   ]
 }

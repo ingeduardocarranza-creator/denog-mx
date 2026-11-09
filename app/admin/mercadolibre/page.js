@@ -338,41 +338,53 @@ function Reputacion() {
   }, [])
   if (!d) return null
   const r = d.reputacion
-  const COL = { green: ['#0f8a63', 'Verde'], light_green: ['#5aa832', 'Verde claro'], yellow: ['#c99700', 'Amarilla'], orange: ['#d9731a', 'Naranja'], red: ['#b3261e', 'Roja'] }
-  const [col, nombre] = COL[r?.color] || ['#6b645a', r?.color || 'Sin dato']
+  // Escala de MercadoLibre de peor a mejor.
+  const NIVELES = [['red', 'Roja', '#c0392b'], ['orange', 'Naranja', '#e67e22'], ['yellow', 'Amarilla', '#f1c40f'], ['light_green', 'Verde claro', '#7bc043'], ['green', 'Verde', '#1e9e6a']]
+  const pos = NIVELES.findIndex(n => n[0] === r?.color)
+  const [, nombre, col] = pos >= 0 ? NIVELES[pos] : [null, r?.color || 'Sin dato', '#6b645a']
   const metrica = (et, x) => (
-    <div style={{ minWidth: 110 }}>
-      <div style={{ fontSize: 11.5, color: 'var(--w50)', fontWeight: 700 }}>{et}</div>
-      <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--tinta)' }}>{x?.tasa != null ? `${x.tasa}%` : '—'}</div>
-      {x?.cantidad != null && <div style={{ fontSize: 11.5, color: 'var(--w50)' }}>{x.cantidad} venta(s)</div>}
+    <div style={{ flex: '1 1 130px', background: 'var(--w04)', border: '1px solid var(--w08)', borderRadius: 12, padding: '10px 14px' }}>
+      <div style={{ fontSize: 12, color: 'var(--w50)', fontWeight: 800 }}>{et}</div>
+      <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--tinta)', lineHeight: 1.15 }}>{x?.tasa != null ? `${x.tasa}%` : '—'}</div>
+      <div style={{ fontSize: 12, color: 'var(--w50)' }}>{x?.cantidad != null ? `${x.cantidad} venta(s)` : 'sin dato'}</div>
     </div>
   )
   const vencidas = d.riesgo.filter(x => x.vencida)
   return (
-    <div style={{ background: 'var(--sup)', border: `2px solid ${col}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
-      <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ background: col, color: '#fff', borderRadius: 999, padding: '6px 14px', fontWeight: 900, fontSize: 14 }}>Reputación {nombre}</div>
-        {r?.ventas_completadas != null && <div style={{ fontSize: 12.5, color: 'var(--w60)' }}>{r.ventas_completadas} ventas completadas{r.periodo ? ` (${r.periodo})` : ''}</div>}
-        <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginLeft: 'auto' }}>
+    <div style={{ background: 'var(--sup)', border: '1px solid var(--w10)', borderLeft: `10px solid ${col}`, borderRadius: 16, padding: '16px 18px', marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--w50)', letterSpacing: 0.4 }}>TU REPUTACIÓN EN MERCADOLIBRE</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--tinta)', lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 18, height: 18, borderRadius: 99, background: col, display: 'inline-block', boxShadow: '0 0 0 3px var(--sup), 0 0 0 5px ' + col }} />{nombre}
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginTop: 10, maxWidth: 340 }}>
+            {NIVELES.map(([k, n, c], i) => (
+              <div key={k} title={n} style={{ flex: 1, height: i === pos ? 14 : 8, alignSelf: 'center', borderRadius: 99, background: c, opacity: i === pos ? 1 : 0.28, border: i === pos ? '2px solid var(--tinta)' : 'none', boxSizing: 'border-box' }} />
+            ))}
+          </div>
+          {r?.ventas_completadas != null && <div style={{ fontSize: 12.5, color: 'var(--w60)', marginTop: 8 }}>{r.ventas_completadas} ventas completadas{r.periodo ? ` · ${r.periodo}` : ''}</div>}
+        </div>
+        <div style={{ display: 'flex', gap: 10, flex: '2 1 380px', flexWrap: 'wrap' }}>
           {metrica('Despacho tarde', r?.demoras)}{metrica('Cancelaciones', r?.cancelaciones)}{metrica('Reclamos', r?.reclamos)}
         </div>
       </div>
       {d.riesgo.length > 0 ? (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 900, fontSize: 14, color: vencidas.length ? '#b3261e' : '#b26a00' }}>
-            {vencidas.length ? `⚠️ ${vencidas.length} venta(s) YA vencida(s) sin empacar` : '⏰ Ventas por vencer (próximas 36 horas)'}
+        <div style={{ marginTop: 14, borderTop: '1px solid var(--w08)', paddingTop: 12 }}>
+          <div style={{ fontWeight: 900, fontSize: 15, color: vencidas.length ? '#a32017' : '#8a5a00' }}>
+            {vencidas.length ? `⚠️ ${vencidas.length} venta(s) ya vencida(s) sin empacar` : '⏰ Ventas por vencer (próximas 36 horas)'}
           </div>
           <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
             {d.riesgo.map(x => (
-              <div key={x.paquete} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', fontSize: 13, background: x.vencida ? 'rgba(179,38,30,0.08)' : 'rgba(201,151,0,0.10)', borderRadius: 8, padding: '8px 10px' }}>
-                <span style={{ fontWeight: 700 }}>{x.titulo}</span>
-                <span style={{ fontWeight: 800, color: x.vencida ? '#b3261e' : '#b26a00', whiteSpace: 'nowrap' }}>{x.vencida ? `venció hace ${Math.abs(x.horas)} h` : `vence en ${x.horas} h`}</span>
+              <div key={x.paquete} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', fontSize: 13.5, background: 'var(--w04)', border: '1px solid var(--w08)', borderLeft: `5px solid ${x.vencida ? '#c0392b' : '#e0a800'}`, borderRadius: 10, padding: '9px 12px' }}>
+                <span style={{ fontWeight: 700, color: 'var(--tinta)', minWidth: 0 }}>{x.titulo}</span>
+                <span style={{ fontWeight: 900, fontSize: 12.5, color: '#fff', background: x.vencida ? '#c0392b' : '#b8860b', borderRadius: 999, padding: '4px 10px', whiteSpace: 'nowrap' }}>{x.vencida ? `venció hace ${Math.abs(x.horas)} h` : `vence en ${x.horas} h`}</span>
               </div>
             ))}
           </div>
-          <a href="/admin/mercadolibre/empaque" style={{ display: 'inline-block', marginTop: 10, fontWeight: 800, color: '#466D9B' }}>Ir a empacar →</a>
+          <a href="/admin/mercadolibre/empaque" style={{ ...botonAzul(false), marginTop: 12 }}>Ir a empacar →</a>
         </div>
-      ) : <div style={{ marginTop: 10, fontSize: 13, color: '#0b6b4d', fontWeight: 700 }}>✓ No hay ventas por vencer en las próximas 36 horas.</div>}
+      ) : <div style={{ marginTop: 12, fontSize: 13, color: '#0b6b4d', fontWeight: 700 }}>✓ No hay ventas por vencer en las próximas 36 horas.</div>}
     </div>
   )
 }

@@ -1,8 +1,21 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
-    { "path": "/api/cron/tendencias", "schedule": "0 13 * * *" },
-    { "path": "/api/cron/tendencias", "schedule": "0 19 * * *" },
-    { "path": "/api/cron/tendencias", "schedule": "0 1 * * *" }
+    {
+      "path": "/api/cron/tendencias",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/tendencias",
+      "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/tendencias",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/ml-stock",
+      "schedule": "*/10 * * * *"
+    }
   ]
 }

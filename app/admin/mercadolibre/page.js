@@ -87,6 +87,38 @@ function Ligar({ pub, alLigar }) {
   )
 }
 
+// Stock del catálogo → MercadoLibre: botón manual + interruptor automático.
+function StockML({ pub, alCambiar }) {
+  const [msg, setMsg] = useState(null)
+  const [ocupado, setOcupado] = useState(false)
+  if (!pub.producto_id || pub.variacion_id || !['active', 'paused'].includes(pub.estado_ml)) return null
+  const llamar = async (cuerpo) => {
+    setOcupado(true); setMsg(null)
+    try {
+      const d = await fetch('/api/mercadolibre/stock', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: pub.id, ...cuerpo }) }).then(r => r.json())
+      setMsg({ ok: d.ok, x: d.mensaje || (d.ok ? 'Listo' : 'No se pudo') })
+      if (d.ok) alCambiar()
+    } catch { setMsg({ ok: false, x: 'No se pudo conectar con el servidor' }) }
+    setOcupado(false)
+  }
+  const ahora = () => {
+    if (!window.confirm(`Esto CAMBIA el stock de esta publicación en MercadoLibre (hoy tiene ${pub.stock_ml ?? '?'}) al stock disponible del catálogo (${pub.producto?.stock ?? '?'} menos lo ya apartado). ¿Continuar?`)) return
+    llamar({ accion: 'ahora' })
+  }
+  const auto = () => {
+    if (!pub.sync_stock && !window.confirm('Desde ahora el stock de esta publicación se igualará SOLO al del catálogo (se revisa cada 10 minutos). Si el catálogo llega a 0, MercadoLibre la pausará. ¿Activar?')) return
+    llamar({ accion: 'auto', valor: !pub.sync_stock })
+  }
+  return (
+    <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5 }}>
+      <button disabled={ocupado} onClick={ahora} style={{ minHeight: 34, padding: '0 12px', borderRadius: 9, border: '1.5px solid #466D9B', background: '#fff', color: '#2F4D70', fontWeight: 800, cursor: 'pointer' }}>{ocupado ? 'Enviando…' : '↑ Enviar stock a MercadoLibre'}</button>
+      <button disabled={ocupado} onClick={auto} style={{ minHeight: 34, padding: '0 12px', borderRadius: 9, border: 'none', background: pub.sync_stock ? '#0f8a63' : 'rgba(42,33,24,0.12)', color: pub.sync_stock ? '#fff' : 'var(--tinta)', fontWeight: 800, cursor: 'pointer' }}>{pub.sync_stock ? '✓ Automático encendido' : 'Automático apagado'}</button>
+      {msg && <span style={{ fontWeight: 700, color: msg.ok ? '#0b6b4d' : '#b3261e' }}>{msg.x}</span>}
+      {!msg && pub.sync_stock_msg && <span style={{ color: 'var(--w50)' }}>Último: {pub.sync_stock_msg}</span>}
+    </div>
+  )
+}
+
 export default function MercadoLibreAdmin() {
   const [estado, setEstado] = useState(null)
   const [pubs, setPubs] = useState(null)
@@ -346,6 +378,9 @@ export default function MercadoLibreAdmin() {
                             <span>→ <b style={{ color: 'var(--tinta)' }}>{p.producto.nombre}</b> · stock {p.producto.stock}{p.liga_manual ? ' · a mano' : ''}</span>
                             <button onClick={() => ligar(p.id, null)} style={{ background: 'none', border: 'none', color: 'var(--w40)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Quitar liga</button>
                           </div>
+                        ) : null}
+                        {p.producto ? (
+                          <StockML pub={p} alCambiar={cargar} />
                         ) : (<>
                           {p.liga_estado === 'bajo_pedido' && !enDepuracion && <div style={{ fontSize: 12.5, color: 'var(--w50)', marginTop: 6 }}>Se compra cuando se vende.</div>}
                           <Ligar pub={p} alLigar={ligar} />

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requerirAdmin } from '@/lib/auth/session'
 import { clienteSupabaseServicio } from '@/lib/mercadolibre/api'
+import { ultimasVentas, calcularDinero } from '@/lib/mercadolibre/dinero'
 
 // GET                          → publicaciones con su producto ligado
 // GET ?buscar_producto=texto   → productos del catálogo para ligar a mano
@@ -36,15 +37,22 @@ export async function GET(req) {
   if (ids.length) {
     const { data: prods, error: errProd } = await supabase
       .from('productos_tienda')
-      .select('id, nombre, codigo_barras, stock')
+      .select('id, nombre, codigo_barras, stock, costo')
       .in('id', ids)
     if (errProd) return NextResponse.json({ ok: false, mensaje: errProd.message })
     porId = Object.fromEntries((prods || []).map(p => [p.id, p]))
   }
 
+  const ventas = await ultimasVentas(supabase).catch(() => ({}))
   return NextResponse.json({
     ok: true,
-    publicaciones: (pubs || []).map(p => ({ ...p, producto: p.producto_id ? porId[p.producto_id] || null : null })),
+    publicaciones: (pubs || []).map(p => {
+      const producto = p.producto_id ? porId[p.producto_id] || null : null
+      const v = ventas[`${p.item_id}:${p.variacion_id || 0}`] || null
+      const comisionPct = v ? v.comisionPct : (p.comision_pct_est != null ? Number(p.comision_pct_est) : null)
+      const dinero = calcularDinero({ precio: p.precio, costo: producto?.costo, comisionPct, envio: v?.envio })
+      return { ...p, producto, dinero: dinero ? { ...dinero, real: Boolean(v), envio_real: v?.envio != null } : null }
+    }),
   })
 }
 

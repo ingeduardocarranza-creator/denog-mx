@@ -87,6 +87,34 @@ function Ligar({ pub, alLigar }) {
   )
 }
 
+// Bloque de dinero: precio → lo que te pagan → ganancia.
+function Dinero({ pub }) {
+  const d = pub.dinero
+  const m = (n) => (n == null ? '—' : Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 }))
+  if (!d) return <div style={{ fontSize: 12.5, color: 'var(--w50)' }}>Sin precio</div>
+  const color = d.ganancia == null ? 'var(--w50)' : d.ganancia < 0 ? '#b3261e' : d.margen_pct < 15 ? '#b26a00' : '#0b6b4d'
+  const fila = (et, v, neg) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5 }}>
+      <span style={{ color: 'var(--w60)' }}>{et}</span><span style={{ fontWeight: 700, color: neg ? '#8a4b3a' : 'var(--tinta)' }}>{v}</span>
+    </div>
+  )
+  return (
+    <div style={{ display: 'grid', gap: 3 }}>
+      {fila('Precio', m(d.precio))}
+      {fila('Te costó', d.costo != null ? `− ${m(d.costo)}` : 'sin costo', true)}
+      {fila(`Comisión${d.comision_pct != null ? ` (${d.comision_pct}%)` : ''}`, d.comision != null ? `− ${m(d.comision)}` : 'sin dato', true)}
+      {fila(d.envio_real ? 'Envío (última venta)' : 'Envío', d.envio != null ? `− ${m(d.envio)}` : 'no incluido', true)}
+      {fila('Impuestos', `− ${m(d.impuestos)}`, true)}
+      {fila('Te pagan', m(d.neto))}
+      <div style={{ marginTop: 4, padding: '6px 8px', borderRadius: 8, background: 'rgba(42,33,24,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 800 }}>Ganancia</span>
+        <span style={{ fontSize: 16, fontWeight: 900, color }}>{d.ganancia != null ? `${m(d.ganancia)} · ${d.margen_pct}%` : '—'}</span>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--w40)' }}>{d.real ? 'Comisión y envío reales de tu última venta.' : d.comision != null ? 'Estimado: aún no vendes esta publicación (sin envío).' : 'Sin ventas ni estimado todavía.'}</div>
+    </div>
+  )
+}
+
 // Stock del catálogo → MercadoLibre: botón manual + interruptor automático.
 function StockML({ pub, alCambiar }) {
   const [msg, setMsg] = useState(null)
@@ -168,6 +196,7 @@ export default function MercadoLibreAdmin() {
   const [pubs, setPubs] = useState(null)
   const [filtro, setFiltro] = useState('todas')
   const [buscar, setBuscar] = useState('')
+  const [orden, setOrden] = useState('titulo')
   const [sincronizando, setSincronizando] = useState(false)
   const [aviso, setAviso] = useState('')
   const [error, setError] = useState('')
@@ -247,6 +276,12 @@ export default function MercadoLibreAdmin() {
     if (filtro === 'revisar' && p.liga_estado !== 'ambigua') return false
     const t = buscar.trim().toLowerCase()
     return !t || `${p.titulo} ${p.sku || ''} ${p.item_id}`.toLowerCase().includes(t)
+  }).sort((x, y) => {
+    const g = (p) => p.dinero?.ganancia
+    if (orden === 'mas') return (g(y) ?? -Infinity) - (g(x) ?? -Infinity)
+    if (orden === 'menos') return (g(x) ?? Infinity) - (g(y) ?? Infinity)
+    if (orden === 'stock') return (x.producto?.stock ?? Infinity) - (y.producto?.stock ?? Infinity)
+    return 0
   })
 
   const enDepuracion = filtro === 'baja' || filtro === 'sinstock'
@@ -363,6 +398,12 @@ export default function MercadoLibreAdmin() {
               <button key={v} style={chip(filtro === v)} onClick={() => setFiltro(v)}>{t}</button>
             ))}
             <input style={{ ...inputEstilo, flex: 1, minWidth: 180 }} placeholder="Buscar por título, SKU o número de publicación" value={buscar} onChange={e => setBuscar(e.target.value)} />
+            <select value={orden} onChange={e => setOrden(e.target.value)} style={{ ...inputEstilo, minWidth: 170 }}>
+              <option value="titulo">Orden: por nombre</option>
+              <option value="mas">Orden: más ganancia</option>
+              <option value="menos">Orden: menos ganancia</option>
+              <option value="stock">Orden: stock más bajo</option>
+            </select>
           </div>
 
           {filtro === 'sinenvio' && (
@@ -402,21 +443,23 @@ export default function MercadoLibreAdmin() {
                   const et = ETIQUETA[p.liga_estado] || ETIQUETA.bajo_pedido
                   const dec = decisiones[p.id]
                   return (
-                    <div key={p.id} style={{ background: 'var(--sup)', border: `1px solid ${dec ? '#466D9B' : 'var(--w08)'}`, borderRadius: 12, padding: 12, display: 'flex', gap: 12 }}>
+                    <div key={p.id} style={{ background: 'var(--sup)', border: `1px solid ${dec ? '#466D9B' : 'var(--w08)'}`, borderRadius: 14, padding: 14, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                       {p.miniatura && <img src={p.miniatura} alt="" width={56} height={56} style={{ borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />}
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ flex: '1 1 320px', minWidth: 0 }}>
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--tinta)', lineHeight: 1.3 }}>{p.titulo}</div>
                           <span style={{ fontSize: 11.5, fontWeight: 800, borderRadius: 6, padding: '3px 8px', color: et.c, background: et.bg, whiteSpace: 'nowrap' }}>{et.t}</span>
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--w50)', marginTop: 4 }}>
-                          {p.item_id} · {p.sku ? <>SKU <span style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--tinta)' }}>{p.sku}</span></> : 'sin SKU'}
-                          {p.precio != null ? ` · ${peso(p.precio)}` : ''}
-                          {p.stock_ml != null ? ` · stock en MercadoLibre: ${p.stock_ml}` : ''}
-                          {p.tiempo_preparacion ? ` · entrega en ${p.tiempo_preparacion} días` : ''}
-                          {p.estado_ml && p.estado_ml !== 'active' ? ` · ${p.estado_ml}` : ''}
-                          {p.sub_estado ? ` · ${p.sub_estado}` : ''}
-                          {p.enlace && <> · <a href={p.enlace} target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 700 }}>Ver en MercadoLibre ↗</a></>}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6, fontSize: 12 }}>
+                          {[
+                            [p.estado_ml === 'active' ? 'Activa' : p.estado_ml === 'paused' ? 'Pausada' : p.estado_ml, p.estado_ml === 'active' ? 'rgba(15,138,99,0.14)' : 'rgba(42,33,24,0.08)'],
+                            [p.sku ? `SKU ${p.sku}` : 'sin SKU', 'rgba(42,33,24,0.06)'],
+                            [p.stock_ml != null ? `MercadoLibre: ${p.stock_ml} pza` : null, 'rgba(70,109,155,0.14)'],
+                            [p.tiempo_preparacion ? `Entrega ${p.tiempo_preparacion} días` : (p.estado_ml === 'active' ? 'Entrega inmediata' : null), 'rgba(70,109,155,0.10)'],
+                            [p.sub_estado || null, 'rgba(179,38,30,0.10)'],
+                          ].filter(x => x[0]).map(([t, bg]) => <span key={t} style={{ background: bg, borderRadius: 999, padding: '3px 9px', fontWeight: 700, color: 'var(--tinta)' }}>{t}</span>)}
+                          <span style={{ color: 'var(--w40)', alignSelf: 'center' }}>{p.item_id}</span>
+                          {p.enlace && <a href={p.enlace} target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 700, alignSelf: 'center' }}>Ver en MercadoLibre ↗</a>}
                         </div>
                         {p.producto ? (
                           <div style={{ fontSize: 12.5, color: 'var(--w60)', marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -453,6 +496,9 @@ export default function MercadoLibreAdmin() {
                             </button>
                           </div>
                         )}
+                      </div>
+                      <div style={{ flex: '0 0 250px', maxWidth: '100%', borderLeft: '1px solid var(--w08)', paddingLeft: 14 }}>
+                        <Dinero pub={p} />
                       </div>
                     </div>
                   )

@@ -253,9 +253,10 @@ function PorDecidir({ pubs, alCambiar }) {
 export default function MercadoLibreAdmin() {
   const [estado, setEstado] = useState(null)
   const [pubs, setPubs] = useState(null)
-  const [filtro, setFiltro] = useState('todas')
+  const [filtro, setFiltro] = useState('ligadas')
   const [buscar, setBuscar] = useState('')
   const [orden, setOrden] = useState('titulo')
+  const [sub, setSub] = useState('todas')
   const [sincronizando, setSincronizando] = useState(false)
   const [aviso, setAviso] = useState('')
   const [error, setError] = useState('')
@@ -332,6 +333,9 @@ export default function MercadoLibreAdmin() {
     if (filtro === 'sinstock' && !instanteSinStock(p)) return false
     if (filtro === 'bajo_pedido' && p.liga_estado !== 'bajo_pedido') return false
     if (filtro === 'ligadas' && p.liga_estado !== 'ligada') return false
+    if (filtro === 'ligadas' && sub === 'activas' && p.estado_ml !== 'active') return false
+    if (filtro === 'ligadas' && sub === 'pausadas' && p.estado_ml !== 'paused') return false
+    if (filtro === 'ligadas' && sub === 'bajo' && !((p.producto?.stock ?? 0) <= 2)) return false
     if (filtro === 'revisar' && p.liga_estado !== 'ambigua') return false
     const t = buscar.trim().toLowerCase()
     return !t || `${p.titulo} ${p.sku || ''} ${p.item_id}`.toLowerCase().includes(t)
@@ -453,10 +457,38 @@ export default function MercadoLibreAdmin() {
         {estado?.conectado && (<>
           <Reputacion />
           <PorDecidir pubs={pubs} alCambiar={cargar} />
+          {(() => {
+            const seccion = filtro === 'ligadas' ? 'stock' : filtro === 'bajo_pedido' ? 'pedido' : 'depurar'
+            const nDep = (c.ambigua || 0) + nBaja + nSinStock + nSinEnvio
+            const grande = (activo, col) => ({ flex: '1 1 220px', textAlign: 'left', cursor: 'pointer', padding: '14px 16px', borderRadius: 14, border: `2px solid ${activo ? col : 'var(--w10)'}`, background: activo ? col : 'var(--sup)', color: activo ? '#fff' : 'var(--tinta)' })
+            const tabs = [
+              ['stock', 'ligadas', '📦 Con stock', `${c.ligada} publicaciones`, 'Ligadas a tu catálogo. El stock se maneja desde el sitio.', '#2F4D70'],
+              ['pedido', 'bajo_pedido', '🕒 Bajo pedido', `${c.bajo_pedido || 0} publicaciones`, 'Sin stock físico: se compra cuando se vende y se entrega en días.', '#6B4FA0'],
+              ['depurar', 'revisar', '🔧 Por revisar', `${nDep} pendientes`, 'Dudosas, sin envío o sin stock que prometen entrega inmediata.', '#8a4b3a'],
+            ]
+            return (<>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                {tabs.map(([k, f, t, n, d, col]) => (
+                  <button key={k} onClick={() => setFiltro(f)} style={grande(seccion === k, col)}>
+                    <div style={{ fontSize: 16, fontWeight: 900 }}>{t}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.95 }}>{n}</div>
+                    <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2, lineHeight: 1.3 }}>{d}</div>
+                  </button>
+                ))}
+              </div>
+              {seccion === 'stock' && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                  {[['todas', 'Todas'], ['activas', 'Activas'], ['pausadas', 'Pausadas'], ['bajo', 'Stock bajo (2 o menos)']].map(([v, t]) => <button key={v} style={chip(sub === v)} onClick={() => setSub(v)}>{t}</button>)}
+                </div>
+              )}
+              {seccion === 'depurar' && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                  {[['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`], ...(nSinEnvio > 0 ? [['sinenvio', `Sin Mercado Envíos · ${nSinEnvio}`]] : [])].map(([v, t]) => <button key={v} style={chip(filtro === v)} onClick={() => setFiltro(v)}>{t}</button>)}
+                </div>
+              )}
+            </>)
+          })()}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-            {[['todas', `Todas · ${c.total}`], ['bajo_pedido', `Bajo pedido · ${c.bajo_pedido || 0}`], ['ligadas', `En tu catálogo · ${c.ligada}`], ['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`], ...(nSinEnvio > 0 ? [['sinenvio', `Sin Mercado Envíos · ${nSinEnvio}`]] : [])].map(([v, t]) => (
-              <button key={v} style={chip(filtro === v)} onClick={() => setFiltro(v)}>{t}</button>
-            ))}
             <input style={{ ...inputEstilo, flex: 1, minWidth: 180 }} placeholder="Buscar por título, SKU o número de publicación" value={buscar} onChange={e => setBuscar(e.target.value)} />
             <select value={orden} onChange={e => setOrden(e.target.value)} style={{ ...inputEstilo, minWidth: 170 }}>
               <option value="titulo">Orden: por nombre</option>
@@ -558,7 +590,9 @@ export default function MercadoLibreAdmin() {
                         )}
                       </div>
                       <div style={{ flex: '0 0 250px', maxWidth: '100%', borderLeft: '1px solid var(--w08)', paddingLeft: 14 }}>
-                        <Dinero pub={p} />
+                        {p.liga_estado === 'bajo_pedido' && !p.dinero?.real
+                          ? <div style={{ fontSize: 12.5, color: 'var(--w60)', lineHeight: 1.5 }}><div>Precio <b style={{ color: 'var(--tinta)' }}>{peso(p.precio)}</b></div><div style={{ color: 'var(--w40)', marginTop: 4 }}>Sin costo en el catálogo: la ganancia se verá cuando vendas esta publicación.</div></div>
+                          : <Dinero pub={p} />}
                       </div>
                     </div>
                   )

@@ -128,6 +128,12 @@ function Tarjeta({ p, enDepuracion, filtro, dec, decidir, ligar, alCambiar, sinE
             {est.extra.map(x => chipE(traducirCodigo(x), '#6b645a', 'rgba(42,33,24,0.08)'))}
             {chipE(bajoPedido ? 'Bajo pedido' : p.liga_estado === 'ambigua' ? 'SKU repetido' : 'En tu catálogo', bajoPedido ? '#4a3680' : p.liga_estado === 'ambigua' ? '#8a1c14' : '#2F4D70', bajoPedido ? 'rgba(107,79,160,0.14)' : p.liga_estado === 'ambigua' ? 'rgba(185,28,28,0.10)' : 'rgba(70,109,155,0.14)')}
             {p.sync_stock && chipE('Automático ✓', '#0b6b4d', 'rgba(15,138,99,0.14)')}
+            {p.tiempo_preparacion != null && p.riesgo && chipE(
+              p.riesgo === 'verde' ? '🟢 Disponible verificado' : p.riesgo === 'amarillo' ? '🟡 Verificar pronto' : p.riesgo === 'agotado' ? '⛔ Ya no se consigue' : '🔴 Sin verificar',
+              p.riesgo === 'verde' ? '#0b6b4d' : p.riesgo === 'amarillo' ? '#8a5a00' : '#8a1c14',
+              p.riesgo === 'verde' ? 'rgba(15,138,99,0.14)' : p.riesgo === 'amarillo' ? 'rgba(201,151,0,0.16)' : 'rgba(185,28,28,0.12)')}
+            {p.tope_aplicado && chipE('Tope de 2 pza (guardián)', '#8a1c14', 'rgba(185,28,28,0.08)')}
+            {p.guardian_pausada && chipE('Pausada por el guardián', '#8a1c14', 'rgba(185,28,28,0.12)')}
           </div>
           <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--tinta)', lineHeight: 1.3 }}>{p.titulo}</div>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8, fontSize: 13, color: 'var(--w60)' }}>
@@ -329,6 +335,69 @@ function StockML({ pub, alCambiar, modo = 'completo' }) {
 }
 
 // Reputación y ventas en riesgo de despacho tarde.
+// Guardián de disponibilidad: protege de vender bajo pedido algo que ya no se consigue.
+function Guardian({ alCambiar }) {
+  const [d, setD] = useState(null)
+  const [ocupado, setOcupado] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [ver, setVer] = useState(false)
+  const cargar = useCallback(() => fetch('/api/mercadolibre/guardian', { cache: 'no-store' }).then(r => r.json()).then(x => { if (x.ok) setD(x) }).catch(() => {}), [])
+  useEffect(() => { cargar() }, [cargar])
+  if (!d) return null
+  const r = d.resumen, activo = d.config.activo
+  const post = async (cuerpo) => {
+    setOcupado(true); setMsg('')
+    try {
+      const x = await fetch('/api/mercadolibre/guardian', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) }).then(r => r.json())
+      if (!x.ok) setMsg(x.mensaje || 'No se pudo'); else if (x.hechas) setMsg(`Listo: ${x.hechas.length} cambio(s) hechos.`)
+    } catch { setMsg('Error de conexión') }
+    setOcupado(false); cargar(); alCambiar && alCambiar()
+  }
+  const encender = () => {
+    if (confirm(`Al encender, el guardián hará AHORA estos cambios en tu MercadoLibre:\n\n• Bajar a ${d.config.tope_piezas} pieza(s): ${r.bajar} publicación(es)\n• Pausar: ${r.pausar} publicación(es)\n\nY después revisará cada hora solo. ¿Encender?`)) post({ accion: 'config', activo: true })
+  }
+  const chip = (t, n, c) => <span style={{ fontWeight: 800, fontSize: 13, color: c }}>{t} {n}</span>
+  return (
+    <div style={{ background: 'var(--sup)', border: `1.5px solid ${activo ? '#0b6b4d' : 'var(--w10)'}`, borderRadius: 16, padding: 14, marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontWeight: 900, fontSize: 16, color: 'var(--tinta)' }}>🛡️ Guardián de disponibilidad</div>
+        <span style={{ fontSize: 12, fontWeight: 900, borderRadius: 999, padding: '3px 10px', color: '#fff', background: activo ? '#0b6b4d' : '#6b645a' }}>{activo ? 'ENCENDIDO' : 'APAGADO (solo avisa)'}</span>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginLeft: 'auto' }}>
+          {chip('🟢', r.verde, '#0b6b4d')}{chip('🟡', r.amarillo, '#8a5a00')}{chip('🔴', r.rojo, '#8a1c14')}{chip('⛔', r.agotado, '#8a1c14')}
+        </div>
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--w60)', marginTop: 6, lineHeight: 1.45 }}>
+        Revisa cada hora tus {r.total} publicaciones bajo pedido. Si llevas más de {d.config.verde_dias} días sin comprar/verificar una, la marca; pasados {d.config.amarillo_dias} días baja su stock a {d.config.tope_piezas} pza; si algo ya no se consigue, la pausa; y si una venta lleva {d.config.dias_sin_comprar} días sin comprarse, te avisa y pausa esa publicación.
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10, alignItems: 'center' }}>
+        {activo
+          ? <button disabled={ocupado} onClick={() => confirm('¿Apagar el guardián? Dejará de cambiar cosas en MercadoLibre.') && post({ accion: 'config', activo: false })} style={{ padding: '8px 14px', borderRadius: 10, border: '1.5px solid var(--w20)', background: 'var(--sup)', fontWeight: 800, cursor: 'pointer' }}>Apagar</button>
+          : <button disabled={ocupado} onClick={encender} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#0b6b4d', color: '#fff', fontWeight: 900, cursor: 'pointer' }}>Encender (haría {r.bajar} bajadas y {r.pausar} pausas)</button>}
+        <button disabled={ocupado} onClick={() => post({ accion: 'correr' })} style={{ padding: '8px 14px', borderRadius: 10, border: '1.5px solid var(--w20)', background: 'var(--sup)', fontWeight: 800, cursor: 'pointer' }}>Revisar ahora</button>
+        {r.rojo + r.agotado > 0 && <button onClick={() => setVer(!ver)} style={{ background: 'none', border: 'none', fontWeight: 800, color: '#2F4D70', cursor: 'pointer' }}>{ver ? '▴ Ocultar' : '▾ Ver'} las {r.rojo + r.agotado} en riesgo</button>}
+        {msg && <span style={{ fontSize: 13, fontWeight: 700 }}>{msg}</span>}
+      </div>
+      {d.avisos.length > 0 && (
+        <div style={{ marginTop: 10, background: 'rgba(185,28,28,0.08)', borderRadius: 10, padding: 10 }}>
+          {d.avisos.map(a => <div key={a.id} style={{ fontSize: 13, color: '#8a1c14', fontWeight: 700, marginBottom: 4 }}>⚠ {a.mensaje}</div>)}
+          <button onClick={() => post({ accion: 'visto' })} style={{ marginTop: 4, fontSize: 12, fontWeight: 800, cursor: 'pointer', background: 'none', border: 'none', color: '#2F4D70' }}>Marcar avisos como vistos</button>
+        </div>
+      )}
+      {ver && (
+        <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+          {d.rojas.map(x => (
+            <div key={x.item_id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+              <span style={{ flex: '1 1 260px' }}>{x.riesgo === 'agotado' ? '⛔' : '🔴'} {x.titulo} <span style={{ color: 'var(--w50)' }}>· {x.motivo}</span></span>
+              <button disabled={ocupado} onClick={() => post({ accion: 'disponible', item_id: x.item_id, disponible: true })} style={{ padding: '5px 10px', borderRadius: 8, border: '1.5px solid #0b6b4d', color: '#0b6b4d', background: 'var(--sup)', fontWeight: 800, cursor: 'pointer' }}>Sigue disponible ✓</button>
+              <button disabled={ocupado} onClick={() => confirm('¿Marcar que ya no lo consigues? ' + (activo ? 'Se pausará la publicación.' : '')) && post({ accion: 'disponible', item_id: x.item_id, disponible: false, nota: x.titulo })} style={{ padding: '5px 10px', borderRadius: 8, border: '1.5px solid #8a1c14', color: '#8a1c14', background: 'var(--sup)', fontWeight: 800, cursor: 'pointer' }}>Ya no lo consigo</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Reputacion() {
   const [d, setD] = useState(null)
   useEffect(() => {
@@ -651,6 +720,7 @@ export default function MercadoLibreAdmin() {
             )
           })()}
           <Reputacion />
+          <Guardian alCambiar={cargar} />
           <PorDecidir pubs={pubs} alCambiar={cargar} />
           {(() => {
             const seccion = filtro === 'ligadas' ? 'stock' : filtro === 'bajo_pedido' ? 'pedido' : 'depurar'

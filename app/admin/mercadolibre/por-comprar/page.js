@@ -246,7 +246,14 @@ export default function PorComprarML() {
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {f.estado === 'por_comprar' && (
-                  <button style={botonAzul(ocupado)} disabled={ocupado} onClick={() => cambiar('comprado', [f.id])}>Ya la compré</button>
+                  <>
+                    <button style={botonAzul(ocupado)} disabled={ocupado} onClick={() => cambiar('comprado', [f.id])}>Ya la compré</button>
+                    <button style={{ ...botonSuave, color: '#8a1c14' }} disabled={ocupado} onClick={async () => {
+                      if (!confirm('¿Marcar que YA NO LO CONSIGUES? Se te avisa y, con el guardián encendido, se pausa la publicación. Recuerda cancelar/reembolsar esta venta en MercadoLibre.')) return
+                      await fetch('/api/mercadolibre/guardian', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'disponible', item_id: f.item_id, disponible: false, nota: f.titulo }) })
+                      cargar()
+                    }}>No lo consigo</button>
+                  </>
                 )}
                 {f.estado === 'comprado' && (
                   <>

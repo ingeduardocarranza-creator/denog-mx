@@ -20,6 +20,10 @@
     {
       "path": "/api/cron/ml-oportunidades",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/ml-guardian",
+      "schedule": "0 16 * * *"
     }
   ]
 }

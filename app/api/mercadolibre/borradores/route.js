@@ -78,7 +78,7 @@ export async function POST(req) {
     }
 
     const { token } = await obtenerAcceso(supabase)
-    if (b.accion === 'categorias') return NextResponse.json({ ok: true, categorias: await sugerirCategorias(token, bor.titulo, bor.gtin) })
+    if (b.accion === 'categorias') return NextResponse.json({ ok: true, categorias: await sugerirCategorias(token, bor.titulo, bor.gtin, b.consulta) })
     if (b.accion === 'catalogo') {
       const productos = await buscarEnCatalogoML(token, b.gtin || bor.gtin)
       return NextResponse.json({ ok: true, productos })

@@ -89,18 +89,26 @@ function Borrador({ b, alCambiar }) {
     const d = await guardar()
     if (d.ok) { setF(d.borrador); setMsg({ t: 'verde', x: 'Cambios guardados.' }); alCambiar() } else setMsg({ t: 'rojo', x: d.mensaje })
   })
+  const [consulta, setConsulta] = useState('')
+  const [avisoCat, setAvisoCat] = useState(null)
   const acCats = () => correr(async () => {
     await guardar()
-    const d = await api({ accion: 'categorias', id: b.id })
-    if (d.ok) setCats(d.categorias); else setMsg({ t: 'rojo', x: d.mensaje })
+    setAvisoCat(null)
+    const d = await api({ accion: 'categorias', id: b.id, consulta })
+    if (!d.ok) { setAvisoCat({ t: 'rojo', x: d.mensaje }); return }
+    setCats(d.categorias)
+    setAvisoCat(d.categorias.length
+      ? { t: 'verde', x: `MercadoLibre sugiere ${d.categorias.length} ${d.categorias.length === 1 ? 'categoría' : 'categorías'}. Elige una abajo (revisa que sea la correcta).` }
+      : { t: 'rojo', x: 'MercadoLibre no encontró categorías. Escribe qué es el producto con otras palabras y busca de nuevo.' })
   })
   const [catML, setCatML] = useState(null)
   const acCatalogoML = () => correr(async () => {
     await guardar()
+    setAvisoCat(null)
     const d = await api({ accion: 'catalogo', id: b.id })
-    if (!d.ok) { setMsg({ t: 'rojo', x: d.mensaje }); return }
+    if (!d.ok) { setAvisoCat({ t: 'rojo', x: d.mensaje }); return }
     setCatML(d.productos)
-    if (!d.productos.length) setMsg({ t: 'rojo', x: 'MercadoLibre no tiene ese código en su catálogo.' })
+    setAvisoCat(d.productos.length ? { t: 'verde', x: 'Encontré esto en el catálogo de MercadoLibre. Toca el que sea tu producto.' } : { t: 'rojo', x: 'MercadoLibre no tiene este código de barras en su catálogo. Pasa a elegir la categoría y publícalo como producto nuevo.' })
   })
   const usarCatML = (pr) => {
     set('catalogo_producto_id', pr.id); set('catalogo_nombre', pr.nombre)
@@ -226,7 +234,11 @@ function Borrador({ b, alCambiar }) {
             <div style={{ padding: '12px 14px', borderRadius: 12, background: catLista ? 'rgba(15,138,99,0.10)' : 'rgba(42,33,24,0.05)', fontWeight: 700, color: TINTA }}>
               {catLista ? `${f.categoria_nombre} (${f.categoria_id})` : 'Todavía no eliges la categoría'}
             </div>
-            {!publicado && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button style={botonSuave} disabled={ocupado} onClick={acCats}>🔎 Sugerir categorías</button><button style={botonSuave} disabled={ocupado} onClick={acCatalogoML}>📚 Buscar en el catálogo de MercadoLibre</button></div>}
+            {!publicado && <div style={{ display: 'grid', gap: 8 }}>
+              <input style={campo} placeholder="Opcional: escribe qué es (ej. kit de arte con pintura fluida)" value={consulta} onChange={e => setConsulta(e.target.value)} />
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button style={botonSuave} disabled={ocupado} onClick={acCats}>{ocupado ? 'Buscando…' : '🔎 Sugerir categorías'}</button><button style={botonSuave} disabled={ocupado} onClick={acCatalogoML}>📚 Buscar en el catálogo de MercadoLibre</button></div>
+              {avisoCat && <div style={{ padding: '10px 14px', borderRadius: 12, fontWeight: 700, fontSize: 14, background: avisoCat.t === 'rojo' ? 'rgba(179,38,30,0.10)' : 'rgba(15,138,99,0.12)', color: avisoCat.t === 'rojo' ? ROJO : '#0b6b4d' }}>{avisoCat.x}</div>}
+            </div>}
             {f.catalogo_producto_id && <div style={{ padding: '10px 14px', borderRadius: 12, background: 'rgba(15,138,99,0.10)', fontWeight: 700 }}>Catálogo de MercadoLibre: {f.catalogo_nombre || f.catalogo_producto_id}</div>}
             {catML && catML.map(pr => (
               <button key={pr.id} style={{ ...botonSuave, textAlign: 'left', minHeight: 54 }} onClick={() => usarCatML(pr)}><b>{pr.nombre}</b><div style={{ fontWeight: 500, fontSize: 12.5, opacity: 0.7 }}>{pr.id}{pr.dominio ? ` · ${pr.dominio}` : ''}</div></button>

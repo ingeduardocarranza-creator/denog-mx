@@ -91,6 +91,8 @@ function Ligar({ pub, alLigar }) {
 function StockML({ pub, alCambiar }) {
   const [msg, setMsg] = useState(null)
   const [ocupado, setOcupado] = useState(false)
+  const [piezas, setPiezas] = useState(String(pub.bajo_pedido_piezas ?? 10))
+  const [dias, setDias] = useState(String(pub.bajo_pedido_dias ?? 9))
   if (!pub.producto_id || pub.variacion_id || !['active', 'paused'].includes(pub.estado_ml)) return null
   const llamar = async (cuerpo) => {
     setOcupado(true); setMsg(null)
@@ -102,17 +104,22 @@ function StockML({ pub, alCambiar }) {
     setOcupado(false)
   }
   const ahora = () => {
-    if (!window.confirm(`Esto CAMBIA el stock de esta publicación en MercadoLibre (hoy tiene ${pub.stock_ml ?? '?'}) al stock disponible del catálogo (${pub.producto?.stock ?? '?'} menos lo ya apartado). ¿Continuar?`)) return
+    const hay = (pub.producto?.stock ?? 0) > 0
+    if (!window.confirm(hay ? `Esto CAMBIA la publicación en MercadoLibre (hoy tiene ${pub.stock_ml ?? '?'}): pondrá el stock del catálogo (${pub.producto?.stock} menos lo ya apartado) y entrega inmediata. ¿Continuar?` : `El catálogo está en 0. Esto pondrá la publicación BAJO PEDIDO: ${piezas || 10} piezas con entrega en ${dias || 9} días. ¿Continuar?`)) return
     llamar({ accion: 'ahora' })
   }
   const auto = () => {
-    if (!pub.sync_stock && !window.confirm('Desde ahora el stock de esta publicación se igualará SOLO al del catálogo (se revisa cada 10 minutos). Si el catálogo llega a 0, MercadoLibre la pausará. ¿Activar?')) return
+    if (!pub.sync_stock && !window.confirm(`Desde ahora esta publicación se ajusta SOLA cada 10 minutos: con stock en el catálogo → ese stock y entrega inmediata; si el catálogo llega a 0 → bajo pedido (${piezas || 10} piezas, ${dias || 9} días). ¿Activar?`)) return
     llamar({ accion: 'auto', valor: !pub.sync_stock })
   }
   return (
     <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5 }}>
       <button disabled={ocupado} onClick={ahora} style={{ minHeight: 34, padding: '0 12px', borderRadius: 9, border: '1.5px solid #466D9B', background: '#fff', color: '#2F4D70', fontWeight: 800, cursor: 'pointer' }}>{ocupado ? 'Enviando…' : '↑ Enviar stock a MercadoLibre'}</button>
       <button disabled={ocupado} onClick={auto} style={{ minHeight: 34, padding: '0 12px', borderRadius: 9, border: 'none', background: pub.sync_stock ? '#0f8a63' : 'rgba(42,33,24,0.12)', color: pub.sync_stock ? '#fff' : 'var(--tinta)', fontWeight: 800, cursor: 'pointer' }}>{pub.sync_stock ? '✓ Automático encendido' : 'Automático apagado'}</button>
+      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', color: 'var(--w60)' }}>Bajo pedido:
+        <input value={piezas} onChange={e => setPiezas(e.target.value.replace(/\D/g, ''))} onBlur={() => llamar({ accion: 'config', piezas, dias })} inputMode="numeric" style={{ width: 46, minHeight: 32, borderRadius: 8, border: '1.5px solid rgba(42,33,24,0.2)', textAlign: 'center', fontWeight: 700 }} /> piezas ·
+        <input value={dias} onChange={e => setDias(e.target.value.replace(/\D/g, ''))} onBlur={() => llamar({ accion: 'config', piezas, dias })} inputMode="numeric" style={{ width: 46, minHeight: 32, borderRadius: 8, border: '1.5px solid rgba(42,33,24,0.2)', textAlign: 'center', fontWeight: 700 }} /> días
+      </span>
       {msg && <span style={{ fontWeight: 700, color: msg.ok ? '#0b6b4d' : '#b3261e' }}>{msg.x}</span>}
       {!msg && pub.sync_stock_msg && <span style={{ color: 'var(--w50)' }}>Último: {pub.sync_stock_msg}</span>}
     </div>

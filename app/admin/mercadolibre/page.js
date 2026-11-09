@@ -164,6 +164,55 @@ function StockML({ pub, alCambiar }) {
   )
 }
 
+// Reputación y ventas en riesgo de despacho tarde.
+function Reputacion() {
+  const [d, setD] = useState(null)
+  useEffect(() => {
+    let vivo = true
+    fetch('/api/mercadolibre/reputacion', { cache: 'no-store' }).then(r => r.json()).then(x => { if (vivo && x.ok) setD(x) }).catch(() => {})
+    return () => { vivo = false }
+  }, [])
+  if (!d) return null
+  const r = d.reputacion
+  const COL = { green: ['#0f8a63', 'Verde'], light_green: ['#5aa832', 'Verde claro'], yellow: ['#c99700', 'Amarilla'], orange: ['#d9731a', 'Naranja'], red: ['#b3261e', 'Roja'] }
+  const [col, nombre] = COL[r?.color] || ['#6b645a', r?.color || 'Sin dato']
+  const metrica = (et, x) => (
+    <div style={{ minWidth: 110 }}>
+      <div style={{ fontSize: 11.5, color: 'var(--w50)', fontWeight: 700 }}>{et}</div>
+      <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--tinta)' }}>{x?.tasa != null ? `${x.tasa}%` : '—'}</div>
+      {x?.cantidad != null && <div style={{ fontSize: 11.5, color: 'var(--w50)' }}>{x.cantidad} venta(s)</div>}
+    </div>
+  )
+  const vencidas = d.riesgo.filter(x => x.vencida)
+  return (
+    <div style={{ background: 'var(--sup)', border: `2px solid ${col}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ background: col, color: '#fff', borderRadius: 999, padding: '6px 14px', fontWeight: 900, fontSize: 14 }}>Reputación {nombre}</div>
+        {r?.ventas_completadas != null && <div style={{ fontSize: 12.5, color: 'var(--w60)' }}>{r.ventas_completadas} ventas completadas{r.periodo ? ` (${r.periodo})` : ''}</div>}
+        <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginLeft: 'auto' }}>
+          {metrica('Despacho tarde', r?.demoras)}{metrica('Cancelaciones', r?.cancelaciones)}{metrica('Reclamos', r?.reclamos)}
+        </div>
+      </div>
+      {d.riesgo.length > 0 ? (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontWeight: 900, fontSize: 14, color: vencidas.length ? '#b3261e' : '#b26a00' }}>
+            {vencidas.length ? `⚠️ ${vencidas.length} venta(s) YA vencida(s) sin empacar` : '⏰ Ventas por vencer (próximas 36 horas)'}
+          </div>
+          <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+            {d.riesgo.map(x => (
+              <div key={x.paquete} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', fontSize: 13, background: x.vencida ? 'rgba(179,38,30,0.08)' : 'rgba(201,151,0,0.10)', borderRadius: 8, padding: '8px 10px' }}>
+                <span style={{ fontWeight: 700 }}>{x.titulo}</span>
+                <span style={{ fontWeight: 800, color: x.vencida ? '#b3261e' : '#b26a00', whiteSpace: 'nowrap' }}>{x.vencida ? `venció hace ${Math.abs(x.horas)} h` : `vence en ${x.horas} h`}</span>
+              </div>
+            ))}
+          </div>
+          <a href="/admin/mercadolibre/empaque" style={{ display: 'inline-block', marginTop: 10, fontWeight: 800, color: '#466D9B' }}>Ir a empacar →</a>
+        </div>
+      ) : <div style={{ marginTop: 10, fontSize: 13, color: '#0b6b4d', fontWeight: 700 }}>✓ No hay ventas por vencer en las próximas 36 horas.</div>}
+    </div>
+  )
+}
+
 // Publicaciones cuyo catálogo llegó a 0 y esperan tu decisión.
 function PorDecidir({ pubs, alCambiar }) {
   const [ocupado, setOcupado] = useState(null)
@@ -402,6 +451,7 @@ export default function MercadoLibreAdmin() {
         </div>
 
         {estado?.conectado && (<>
+          <Reputacion />
           <PorDecidir pubs={pubs} alCambiar={cargar} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
             {[['todas', `Todas · ${c.total}`], ['bajo_pedido', `Bajo pedido · ${c.bajo_pedido || 0}`], ['ligadas', `En tu catálogo · ${c.ligada}`], ['revisar', `Por revisar · ${c.ambigua || 0}`], ['baja', `Dar de baja o ligar · ${nBaja}`], ['sinstock', `Al instante sin stock · ${nSinStock}`], ...(nSinEnvio > 0 ? [['sinenvio', `Sin Mercado Envíos · ${nSinEnvio}`]] : [])].map(([v, t]) => (

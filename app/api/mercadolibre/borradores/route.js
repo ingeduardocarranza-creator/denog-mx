@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requerirAdmin } from '@/lib/auth/session'
 import { clienteSupabaseServicio, obtenerAcceso } from '@/lib/mercadolibre/api'
+import { armarBorradorDeOportunidad } from '@/lib/mercadolibre/oportunidades'
 import { buscarEnCatalogoML, sugerirCategorias, atributosObligatorios, armarPayload, validarBorrador, publicarEnPausa } from '@/lib/mercadolibre/borradores'
 
 export const maxDuration = 60
@@ -42,6 +43,38 @@ export async function POST(req) {
       }).select('*').single()
       if (error) throw new Error(error.message)
       return NextResponse.json({ ok: true, borrador: data })
+    }
+
+    // Borrador desde una oportunidad de mercado: se arma con lo que ya se sabe del producto.
+    if (b.accion === 'desde_oportunidad') {
+      const { data: op } = await supabase.from('ml_oportunidades').select('*').eq('oferta_id', b.oferta_id).maybeSingle()
+      if (!op || !op.ml_producto_id) return NextResponse.json({ ok: false, mensaje: 'Esa oportunidad no existe' })
+      // Si ya hay un borrador de este producto, se reutiliza (no se duplica).
+      const { data: previo } = await supabase.from('ml_borradores').select('*').eq('catalogo_producto_id', op.ml_producto_id).neq('estado', 'descartado').limit(1).maybeSingle()
+      if (previo) {
+        await supabase.from('ml_oportunidades').update({ borrador_id: previo.id }).eq('oferta_id', op.oferta_id)
+        return NextResponse.json({ ok: true, existente: true, borrador: previo })
+      }
+      const { data: oferta } = await supabase.from('ofertas').select('imagen_url').eq('id', op.oferta_id).maybeSingle()
+      const { token } = await obtenerAcceso(supabase)
+      const { _gtin, ...nuevo } = await armarBorradorDeOportunidad(token, op, oferta)
+      const { data: creado, error: errIns } = await supabase.from('ml_borradores').insert({ ...nuevo, producto_id: null, creado_por: sesion.nombre || String(sesion.id) }).select('*').single()
+      if (errIns) throw new Error(errIns.message)
+      // MercadoLibre lo revisa SIN publicar, para decirte de una vez qué falta.
+      let borrador = creado, validacion = null
+      try {
+        validacion = await validarBorrador(token, creado)
+        // La categoría del producto de catálogo puede exigir código de barras: se usa el del propio catálogo de MercadoLibre.
+        if (!validacion.ok && _gtin && validacion.errores.some(e => /GTIN/i.test(e))) {
+          const conGtin = { ...creado, atributos: { ...(creado.atributos || {}), GTIN: _gtin } }
+          const v2 = await validarBorrador(token, conGtin)
+          if (v2.ok) { validacion = v2; await supabase.from('ml_borradores').update({ atributos: conGtin.atributos }).eq('id', creado.id) }
+        }
+        const { data: act } = await supabase.from('ml_borradores').update({ estado: validacion.ok ? 'validado' : 'borrador', validacion, actualizado_en: new Date().toISOString() }).eq('id', creado.id).select('*').single()
+        if (act) borrador = act
+      } catch {}
+      await supabase.from('ml_oportunidades').update({ borrador_id: creado.id }).eq('oferta_id', op.oferta_id)
+      return NextResponse.json({ ok: true, existente: false, borrador, validacion })
     }
 
     const id = Number(b.id)

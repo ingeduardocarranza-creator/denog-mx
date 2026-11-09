@@ -34,7 +34,21 @@ function Foto({ src, alt, tam = 110, alAbrir }) {
   )
 }
 
-function Tarjeta({ o, alAbrir, alDescartar }) {
+function Tarjeta({ o, alAbrir, alDescartar, alCambiar }) {
+  const [crear, setCrear] = useState({ ocupado: false, msg: null })
+  const crearBorrador = async () => {
+    setCrear({ ocupado: true, msg: null })
+    try {
+      const d = await fetch('/api/mercadolibre/borradores', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ accion: 'desde_oportunidad', oferta_id: o.oferta_id }) }).then(r => r.json())
+      if (!d.ok) { setCrear({ ocupado: false, msg: { ok: false, x: d.mensaje || 'No se pudo crear' } }); return }
+      const v = d.validacion
+      const x = d.existente ? 'Ya tenías un borrador de este producto.'
+        : v?.ok ? 'Borrador listo: MercadoLibre lo revisó y no encontró problemas. Revisa precio y medidas.'
+        : `Borrador creado. Falta: ${(v?.errores || ['revisar los datos']).slice(0, 2).join(' · ')}`
+      setCrear({ ocupado: false, msg: { ok: true, x } })
+      alCambiar?.()
+    } catch { setCrear({ ocupado: false, msg: { ok: false, x: 'No se pudo conectar con el servidor' } }) }
+  }
   const tipo = TIPOS[o.tipo] || TIPOS.nicho
   const buena = o.sobre_costo_pct != null && o.sobre_costo_pct >= 15
   const dudosa = o.sobre_costo_pct != null && o.sobre_costo_pct > 300
@@ -82,8 +96,17 @@ function Tarjeta({ o, alAbrir, alDescartar }) {
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, borderTop: '1px solid var(--w08)', paddingTop: 8, fontSize: 12.5 }}>
         {o.ml_producto_id && <a href={`https://www.mercadolibre.com.mx/p/${o.ml_producto_id}`} target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 700 }}>Ver en MercadoLibre ↗</a>}
         {o.url_oferta && <a href={o.url_oferta} target="_blank" rel="noreferrer" style={{ color: '#466D9B', fontWeight: 700 }}>Ver oferta en {o.tienda || 'la tienda'} ↗</a>}
+        {o.borrador_id
+          ? <a href="/admin/mercadolibre/borradores" style={{ color: '#0b6b4d', fontWeight: 800 }}>✓ Ya tiene borrador #{o.borrador_id} · abrir</a>
+          : <button onClick={crearBorrador} disabled={crear.ocupado} style={{ minHeight: 34, padding: '0 14px', borderRadius: 9, border: 'none', background: '#6B4FA0', color: '#fff', fontWeight: 800, fontSize: 13, cursor: crear.ocupado ? 'wait' : 'pointer' }}>{crear.ocupado ? 'Armando borrador…' : '📝 Crear borrador'}</button>}
         <button onClick={() => alDescartar(o.oferta_id)} style={{ background: 'none', border: 'none', color: 'var(--w40)', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 12.5 }}>No me interesa</button>
       </div>
+      {crear.msg && (
+        <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 700, color: crear.msg.ok ? '#0b6b4d' : '#b3261e', lineHeight: 1.4 }}>
+          {crear.msg.x} {crear.msg.ok && <a href="/admin/mercadolibre/borradores" style={{ color: '#466D9B' }}>Abrir Borradores →</a>}
+          <div style={{ fontWeight: 600, color: 'var(--w50)' }}>Las medidas y el precio son estimados: ajústalos. Nada se publica hasta que tú lo confirmes y queda en pausa.</div>
+        </div>
+      )}
     </div>
   )
 }
@@ -192,7 +215,7 @@ export default function Oportunidades() {
             </div>
           ) : (<>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {visibles.slice(0, lim).map(o => <Tarjeta key={o.oferta_id} o={o} alAbrir={setFoto} alDescartar={descartar} />)}
+              {visibles.slice(0, lim).map(o => <Tarjeta key={o.oferta_id} o={o} alAbrir={setFoto} alDescartar={descartar} alCambiar={cargar} />)}
             </div>
             {visibles.length > lim && (
               <div style={{ textAlign: 'center', marginTop: 14 }}>

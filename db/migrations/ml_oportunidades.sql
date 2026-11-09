@@ -32,3 +32,4 @@ create table if not exists public.ml_oportunidades (
 create index if not exists ml_oportunidades_tipo_idx on public.ml_oportunidades (tipo, sobre_costo_pct desc);
 alter table public.ml_oportunidades enable row level security;
 grant select, insert, update, delete on public.ml_oportunidades to service_role;
+alter table public.ml_oportunidades add column if not exists borrador_id bigint;

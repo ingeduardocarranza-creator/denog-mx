@@ -379,9 +379,7 @@ export default function Reportes() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
           <div>
             <div style={{ color: 'var(--tinta)', fontSize: 25, fontWeight: 800, letterSpacing: -0.6 }}>Reportes</div>
-            <div style={{ color: 'var(--w55)', fontSize: 13, marginTop: 3 }}>
-              {vista === 'entrega' ? 'Una entrega completa: lo vendido, la utilidad y quién falta por pagar' : etiquetaPeriodo()}
-            </div>
+            <div style={{ color: 'var(--w55)', fontSize: 13.5, marginTop: 3 }}>Qué entró, qué se vendió y si el dinero cuadra</div>
           </div>
           {hayDatos && (
             <button onClick={exportarExcel}
@@ -391,53 +389,65 @@ export default function Reportes() {
           )}
         </div>
 
-        {/* Pestañas y periodo */}
-        <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--w04)', border: '1px solid var(--w06)', borderRadius: 14, overflowX: 'auto', marginBottom: 10 }}>
-          {VISTAS.map(([k, t]) => {
-            const activa = vista === k
-            const montoTab = k === 'tienda' ? (cargandoTienda ? 0 : analisisTienda.totalVendido) : k === 'pedidos' && g && !cargandoGeneral ? pedidosTotal : 0
-            return (
-              <button key={k} onClick={() => setVista(k)}
-                style={{
-                  flex: '1 0 auto', padding: '10px 16px', borderRadius: 10, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
-                  border: 'none', background: activa ? 'var(--sup)' : 'transparent',
-                  boxShadow: activa ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-                  color: activa ? 'var(--tinta)' : 'var(--w50)', fontWeight: activa ? 800 : 600,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                }}>
-                {t}
-                {montoTab > 0 && <span className="monto" style={{ fontSize: 12, fontWeight: 700, color: activa ? 'var(--w50)' : 'var(--w35)' }}>{fmt(montoTab)}</span>}
-                {k === 'control' && hayAlertaControl && <span style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--rojo)' }} />}
-              </button>
-            )
-          })}
-        </div>
+        {/* Panel de control: primero el menú (qué quiero ver), luego el periodo
+            (de cuándo). Todo lo de abajo obedece a este panel. */}
+        <div style={{ background: 'var(--sup)', border: '1px solid var(--w08)', borderRadius: 16, overflow: 'hidden', marginBottom: 22, boxShadow: '0 1px 2px rgba(42,33,24,0.05)' }}>
 
-        {/* Periodo (no aplica a "Por entrega") */}
-        {vista !== 'entrega' && (
-          <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
-            {[['hoy', 'Hoy'], ['dia', 'Un día'], ['7', 'Últimos 7 días'], ['mes', 'Mes en curso'], ['rango', 'Entre fechas']].map(([v, t]) => (
-              <button key={v} onClick={() => setRango(v)}
-                style={{
-                  padding: '7px 13px', borderRadius: 10, fontSize: 12, cursor: 'pointer',
-                  border: `1px solid ${rango === v ? 'rgba(193,85,58,0.55)' : 'var(--w10)'}`,
-                  background: rango === v ? 'rgba(193,85,58,0.14)' : 'transparent',
-                  color: rango === v ? 'var(--marca-t)' : 'var(--w50)',
-                  fontWeight: rango === v ? 700 : 500,
-                }}>{t}</button>
-            ))}
-            {rango === 'dia' && <input type="date" value={rangoDesde} onChange={e => setRangoDesde(e.target.value)} style={campoR} />}
-            {rango === 'rango' && (
-              <>
-                <input type="date" value={rangoDesde} onChange={e => setRangoDesde(e.target.value)} style={campoR} />
-                <span style={{ color: 'var(--w50)', fontSize: 12 }}>a</span>
-                <input type="date" value={rangoHasta} onChange={e => setRangoHasta(e.target.value)} style={campoR} />
-              </>
-            )}
+          <div style={{ display: 'flex', gap: 2, padding: '4px 10px 0', overflowX: 'auto', borderBottom: '1px solid var(--w07)' }}>
+            {VISTAS.map(([k, t]) => {
+              const activa = vista === k
+              const montoTab = k === 'tienda' ? (cargandoTienda ? 0 : analisisTienda.totalVendido) : k === 'pedidos' && g && !cargandoGeneral ? pedidosTotal : 0
+              return (
+                <button key={k} onClick={() => setVista(k)}
+                  style={{
+                    flex: '1 0 auto', padding: '13px 14px 11px', fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap',
+                    border: 'none', borderBottom: `3px solid ${activa ? 'var(--marca)' : 'transparent'}`, background: 'transparent',
+                    color: activa ? 'var(--tinta)' : 'var(--w55)', fontWeight: activa ? 800 : 600,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}>
+                  {t}
+                  {montoTab > 0 && <span className="monto" style={{ fontSize: 12, fontWeight: 700, color: activa ? 'var(--marca-t)' : 'var(--w50)' }}>{fmt(montoTab)}</span>}
+                  {k === 'control' && hayAlertaControl && <span style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--rojo)' }} />}
+                </button>
+              )
+            })}
           </div>
-        )}
 
+          {vista !== 'entrega' ? (
+            <div style={{ padding: '12px 16px', background: 'var(--w02)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ ...rotulo, color: 'var(--w50)' }}>Periodo</span>
+              <div style={{ display: 'flex', gap: 2, padding: 3, background: 'var(--w05)', borderRadius: 11 }}>
+                {[['hoy', 'Hoy'], ['dia', 'Un día'], ['7', '7 días'], ['mes', 'Este mes'], ['rango', 'Fechas']].map(([v, t]) => (
+                  <button key={v} onClick={() => setRango(v)}
+                    style={{
+                      padding: '6px 13px', borderRadius: 8, fontSize: 13, cursor: 'pointer', border: 'none', whiteSpace: 'nowrap',
+                      background: rango === v ? 'var(--sup)' : 'transparent',
+                      boxShadow: rango === v ? '0 1px 2px rgba(0,0,0,0.12)' : 'none',
+                      color: rango === v ? 'var(--marca-t)' : 'var(--w55)',
+                      fontWeight: rango === v ? 800 : 600,
+                    }}>{t}</button>
+                ))}
+              </div>
+              {rango === 'dia' && <input type="date" value={rangoDesde} onChange={e => setRangoDesde(e.target.value)} style={campoR} />}
+              {rango === 'rango' && (
+                <>
+                  <input type="date" value={rangoDesde} onChange={e => setRangoDesde(e.target.value)} style={campoR} />
+                  <span style={{ color: 'var(--w50)', fontSize: 12.5 }}>a</span>
+                  <input type="date" value={rangoHasta} onChange={e => setRangoHasta(e.target.value)} style={campoR} />
+                </>
+              )}
+              <span style={{ marginLeft: 'auto', color: 'var(--w60)', fontSize: 13, fontWeight: 600 }}>{etiquetaPeriodo()}</span>
+            </div>
+          ) : (
+            <div style={{ padding: '12px 16px', background: 'var(--w02)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ ...rotulo, color: 'var(--w50)' }}>Entrega</span>
+              <select value={entregaSeleccionada} onChange={e => { setEntregaSeleccionada(e.target.value); setFiltroCatReporte('') }}
+                style={{ flex: '1 1 260px', minWidth: 0, background: 'var(--sup)', border: '1px solid var(--w12)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 14, fontWeight: 700, outline: 'none' }}>
+                <option value="">— Elige una entrega —</option>
+                {entregas.map(e => <option key={e.id} value={e.id}>{e.fecha_entrega}{e.nota ? ` · ${e.nota}` : ''}</option>)}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Error / carga de las vistas que dependen de "general" */}
@@ -610,12 +620,6 @@ export default function Reportes() {
         {/* ═══════════════════ POR ENTREGA ═══════════════════ */}
         {vista === 'entrega' && (
           <div>
-            <select value={entregaSeleccionada} onChange={e => { setEntregaSeleccionada(e.target.value); setFiltroCatReporte('') }}
-              style={{ width: '100%', background: 'var(--sup)', border: '1px solid var(--w10)', borderRadius: 12, padding: '12px 14px', color: 'var(--tinta)', fontSize: 14, fontWeight: 600, outline: 'none', marginBottom: 16 }}>
-              <option value="">— Elige una entrega —</option>
-              {entregas.map(e => <option key={e.id} value={e.id}>{e.fecha_entrega}{e.nota ? ` · ${e.nota}` : ''}</option>)}
-            </select>
-
             {cargandoEC && <div style={{ color: 'var(--w50)', textAlign: 'center', padding: 40 }}>Cargando…</div>}
 
             {!cargandoEC && metricasEC && (

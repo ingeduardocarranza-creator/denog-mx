@@ -132,6 +132,7 @@ export default function VistaPlan({ tarjeta }) {
                     {[1, 2, 3].map(p => <option key={p} value={p}>{PRIO[p].e} {PRIO[p].t}</option>)}
                   </select>
                   {t.fecha_limite && <span style={{ fontSize: 12, fontWeight: 800, opacity: .65 }}>📅 {t.fecha_limite.slice(8, 10)}/{t.fecha_limite.slice(5, 7)}</span>}
+                  {t.dia_unico && <span style={{ fontSize: 12, fontWeight: 800, opacity: .65 }}>📌 solo {t.dia_unico.slice(8, 10)}/{t.dia_unico.slice(5, 7)}</span>}
                   {t.requiere_foto && <span style={{ fontSize: 12, fontWeight: 800, opacity: .65 }}>📸 con foto</span>}
                   {t.avance.map(a => (
                     <span key={a.usuario_id} style={{ fontSize: 12, fontWeight: 800, padding: '3px 8px', borderRadius: 999, background: a.hecha_en ? `${VERDE}22` : 'rgba(42,33,24,0.07)', color: a.hecha_en ? VERDE_SOMBRA : 'inherit' }}>

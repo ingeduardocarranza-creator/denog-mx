@@ -34,6 +34,141 @@ function Fila({ t, color, nota }) {
   )
 }
 
+
+async function llamar(cuerpo) {
+  const r = await fetch('/api/jarvis/equipo-lista', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) }).then(x => x.json()).catch(() => null)
+  return r || { ok: false, mensaje: 'Sin conexión' }
+}
+const IDEAS_DIA = [
+  '📦 Llegó paquetería: recibirla, revisarla y acomodarla',
+  '🏷️ Etiquetar y acomodar la mercancía nueva',
+  '📲 Avisar a clientes que ya llegó su pedido',
+]
+const campo = { width: '100%', boxSizing: 'border-box', height: 42, borderRadius: 10, border: '2px solid rgba(42,33,24,0.12)', padding: '0 10px', fontSize: 14, background: 'transparent', color: 'inherit', fontFamily: 'inherit' }
+const botonMini = { minWidth: 34, height: 34, borderRadius: 8, border: '2px solid rgba(42,33,24,0.12)', background: 'transparent', color: 'inherit', fontWeight: 900, fontSize: 14, cursor: 'pointer', padding: 0 }
+
+// Editar la lista de un colaborador: arrastrar para ordenar, editar, quitar, mover y agregar.
+function Editor({ p, otros, alGuardar }) {
+  const nombre = String(p.nombre).split(' ')[0]
+  const [lista, setLista] = useState(p.lista)
+  const [arrastrando, setArrastrando] = useState(null)
+  const [abierto, setAbierto] = useState(null)
+  const [conf, setConf] = useState(null)
+  const [form, setForm] = useState({ titulo: '', detalle: '', hora: '', requiere_foto: false })
+  const [nuevo, setNuevo] = useState({ titulo: '', solo_hoy: true, requiere_foto: false, es_venta: false })
+  const [msg, setMsg] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+
+  const accion = async (cuerpo, ok) => {
+    setOcupado(true); setMsg('')
+    const r = await llamar({ usuario_id: p.usuario_id, ...cuerpo })
+    setOcupado(false)
+    if (!r.ok) { setMsg(r.mensaje || 'No se pudo guardar'); return false }
+    if (ok) setMsg(ok)
+    alGuardar(); return true
+  }
+  const guardarOrden = async (n) => { const r = await llamar({ accion: 'orden', usuario_id: p.usuario_id, items: n.map(t => t.id) }); setMsg(r.ok ? 'Orden guardado ✓' : (r.mensaje || 'No se pudo guardar el orden')) }
+  const poner = (n) => { setLista(n); guardarOrden(n) }
+  const subir = (i, d) => { const j = i + d; if (j < 0 || j >= lista.length) return; const n = [...lista];[n[i], n[j]] = [n[j], n[i]]; poner(n) }
+  const soltar = (i) => {
+    if (arrastrando === null || arrastrando === i) { setArrastrando(null); return }
+    const n = [...lista]; const [x] = n.splice(arrastrando, 1); n.splice(i, 0, x); setArrastrando(null); poner(n)
+  }
+  const abrir = (t) => { setConf(null); setAbierto(abierto === t.id ? null : t.id); setForm({ titulo: t.titulo, detalle: t.detalle || '', hora: t.puntual ? '' : t.hora, requiere_foto: !!t.requiere_foto }) }
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 12, fontWeight: 800, opacity: .65, lineHeight: 1.4, marginBottom: 8 }}>
+        Arrastra ☰ o usa ▲▼: lo de arriba es lo más importante y le sale primero a {nombre}.
+      </div>
+      {lista.map((t, i) => (
+        <div key={t.id} draggable onDragStart={() => setArrastrando(i)} onDragOver={e => e.preventDefault()} onDrop={() => soltar(i)} onDragEnd={() => setArrastrando(null)}
+          style={{ borderTop: '1px solid rgba(42,33,24,0.08)', padding: '6px 0', opacity: arrastrando === i ? .45 : 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div title="Arrastrar" style={{ cursor: 'grab', fontSize: 18, opacity: .5, width: 22, textAlign: 'center', userSelect: 'none' }}>☰</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.25 }}>{t.estado === 'hecha' ? '✅ ' : ''}{t.emoji} {t.titulo}</div>
+              <div style={{ fontSize: 11, fontWeight: 800, opacity: .55 }}>
+                {t.puntual ? (t.solo_hoy ? '📌 solo hoy' : '🗓️ del plan') : `fija · ${t.hora}`}{t.requiere_foto ? ' · 📸 con foto' : ''}
+              </div>
+            </div>
+            <button type="button" aria-label="Subir" style={botonMini} onClick={() => subir(i, -1)}>▲</button>
+            <button type="button" aria-label="Bajar" style={botonMini} onClick={() => subir(i, 1)}>▼</button>
+            <button type="button" aria-label="Editar" style={botonMini} onClick={() => abrir(t)}>✏️</button>
+            <button type="button" aria-label="Quitar" style={botonMini} onClick={() => { setAbierto(null); setConf(conf === t.id ? null : t.id) }}>🗑</button>
+          </div>
+          {conf === t.id && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 2px 28px', fontSize: 13, fontWeight: 800 }}>
+              ¿Quitar de la lista?
+              <button disabled={ocupado} onClick={async () => { if (await accion({ accion: 'quitar', id: t.id }, 'Quitada ✓')) setConf(null) }} style={{ ...botonMini, padding: '0 12px', background: ROJO, color: '#fff', borderColor: ROJO }}>Sí, quitar</button>
+              <button onClick={() => setConf(null)} style={{ ...botonMini, padding: '0 12px' }}>No</button>
+            </div>
+          )}
+          {abierto === t.id && (
+            <div style={{ margin: '8px 0 4px 28px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} maxLength={120} placeholder="Nombre de la actividad" style={campo} />
+              <input value={form.detalle} onChange={e => setForm({ ...form, detalle: e.target.value })} maxLength={300} placeholder="Detalle (opcional)" style={campo} />
+              {!t.puntual && <input type="time" value={form.hora} onChange={e => setForm({ ...form, hora: e.target.value })} style={campo} aria-label="Hora" />}
+              {t.puntual && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
+                  <input type="checkbox" checked={form.requiere_foto} onChange={e => setForm({ ...form, requiere_foto: e.target.checked })} style={{ width: 18, height: 18 }} /> 📸 Pedir foto de evidencia
+                </label>
+              )}
+              {!t.puntual && <div style={{ fontSize: 11, fontWeight: 700, opacity: .6 }}>El cambio aplica todos los días que le toca esta actividad.</div>}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button disabled={ocupado || !form.titulo.trim()} onClick={async () => { if (await accion({ accion: 'editar', id: t.id, ...form }, 'Guardado ✓')) setAbierto(null) }}
+                  style={{ ...botonMini, padding: '0 14px', background: VERDE, color: '#fff', borderColor: VERDE }}>Guardar</button>
+                {t.puntual && (
+                  <button disabled={ocupado} onClick={() => accion({ accion: 'mover', id: t.id, destino: 'manana' }, 'Pasada a mañana ✓')} style={{ ...botonMini, padding: '0 12px' }}>→ Mañana</button>
+                )}
+                {t.puntual && otros.map(o => (
+                  <button key={o.usuario_id} disabled={ocupado} onClick={() => accion({ accion: 'mover', id: t.id, destino: o.usuario_id }, `Pasada a ${String(o.nombre).split(' ')[0]} ✓`)} style={{ ...botonMini, padding: '0 12px' }}>→ {String(o.nombre).split(' ')[0]}</button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+      {lista.length === 0 && <div style={{ fontSize: 13, opacity: .65, fontWeight: 700 }}>Hoy no tiene actividades. Agrega la primera abajo.</div>}
+
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: '2px solid rgba(42,33,24,0.08)' }}>
+        <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.3, opacity: .55, marginBottom: 8 }}>➕ AGREGAR ACTIVIDAD PARA {nombre.toUpperCase()}</div>
+        <input value={nuevo.titulo} onChange={e => setNuevo({ ...nuevo, titulo: e.target.value })} maxLength={120} placeholder="¿Qué tiene que hacer?" style={{ ...campo, marginBottom: 8 }} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {IDEAS_DIA.map(x => (
+            <button key={x} onClick={() => setNuevo({ ...nuevo, titulo: x.replace(/^\S+\s/, ''), solo_hoy: true })}
+              style={{ border: `2px solid ${AZUL}55`, background: `${AZUL}12`, color: 'inherit', borderRadius: 999, padding: '5px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>{x}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          {[[true, '📌 Solo hoy'], [false, '🗓️ Hasta que la haga']].map(([v, t]) => (
+            <button key={String(v)} onClick={() => setNuevo({ ...nuevo, solo_hoy: v })} style={{
+              flex: 1, minHeight: 40, borderRadius: 10, fontWeight: 900, fontSize: 13, cursor: 'pointer', color: 'inherit',
+              border: `2px solid ${nuevo.solo_hoy === v ? AZUL : 'rgba(42,33,24,0.12)'}`, background: nuevo.solo_hoy === v ? 'rgba(28,176,246,0.14)' : 'transparent',
+            }}>{t}</button>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, opacity: .6, marginBottom: 8 }}>
+          {nuevo.solo_hoy ? 'Mañana ya no le aparece. Si hace falta, la pasas a mañana desde ✏️.' : 'Le sigue apareciendo cada día hasta que la marque como hecha.'}
+        </div>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 10 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 800 }}>
+            <input type="checkbox" checked={nuevo.requiere_foto} onChange={e => setNuevo({ ...nuevo, requiere_foto: e.target.checked })} style={{ width: 18, height: 18 }} /> 📸 Con foto
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 800 }}>
+            <input type="checkbox" checked={nuevo.es_venta} onChange={e => setNuevo({ ...nuevo, es_venta: e.target.checked })} style={{ width: 18, height: 18 }} /> 💰 Es de venta
+          </label>
+        </div>
+        <button disabled={ocupado || !nuevo.titulo.trim()} onClick={async () => { if (await accion({ accion: 'agregar', ...nuevo }, `Agregada a la lista de ${nombre} ✓`)) setNuevo({ titulo: '', solo_hoy: true, requiere_foto: false, es_venta: false }) }}
+          style={{ width: '100%', height: 46, border: 0, borderRadius: 14, background: VERDE, boxShadow: `0 4px 0 ${VERDE_SOMBRA}`, color: '#fff', fontWeight: 900, fontSize: 15, cursor: 'pointer', opacity: ocupado || !nuevo.titulo.trim() ? .5 : 1 }}>
+          Agregar a la lista de {nombre}
+        </button>
+        <div style={{ fontSize: 12, fontWeight: 800, marginTop: 6, color: msg.includes('✓') ? VERDE : ROJO }}>{msg}</div>
+      </div>
+    </div>
+  )
+}
+
 function Retroalimentacion({ p, fecha, hoy, alGuardar }) {
   const [val, setVal] = useState(p.comentario?.valoracion || null)
   const [txt, setTxt] = useState(p.comentario?.comentario || '')
@@ -75,7 +210,8 @@ function Retroalimentacion({ p, fecha, hoy, alGuardar }) {
   )
 }
 
-function Tarjeta({ p, fecha, hoy, tarjeta, elegirDia, alGuardar }) {
+function Tarjeta({ p, otros, fecha, hoy, tarjeta, elegirDia, alGuardar }) {
+  const [editando, setEditando] = useState(false)
   const nombre = String(p.nombre).split(' ').slice(0, 2).join(' ')
   const { hechas, total } = p.resumen
   const pct = total ? Math.round((hechas / total) * 100) : 0
@@ -90,6 +226,12 @@ function Tarjeta({ p, fecha, hoy, tarjeta, elegirDia, alGuardar }) {
         <div style={{ fontSize: 18, fontWeight: 900 }}>{nombre}</div>
         <div style={{ fontSize: 12, fontWeight: 800, opacity: .6 }}>{p.trabaja ? `Turno ${p.turno.desde}–${p.turno.hasta}` : `Descansó ${cuando(fecha, hoy)}`}</div>
       </div>
+      {p.trabaja && fecha === hoy && (
+        <button onClick={() => setEditando(e => !e)} style={{
+          width: '100%', minHeight: 40, marginTop: 8, borderRadius: 12, fontWeight: 900, fontSize: 14, cursor: 'pointer', color: 'inherit',
+          border: `2px solid ${editando ? AZUL : 'rgba(42,33,24,0.12)'}`, background: editando ? 'rgba(28,176,246,0.12)' : 'transparent',
+        }}>{editando ? '✔ Listo, volver a la revisión' : `✏️ Editar su lista (agregar, ordenar, quitar)`}</button>
+      )}
 
       {p.trabaja && (
         <>
@@ -109,6 +251,10 @@ function Tarjeta({ p, fecha, hoy, tarjeta, elegirDia, alGuardar }) {
             </span>
           </div>
 
+          {editando ? (
+            <Editor key={p.lista.map(t => t.id + t.titulo + t.estado).join('|')} p={p} otros={otros} alGuardar={alGuardar} />
+          ) : (
+            <>
           {falto.length > 0 && (
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.3, color: ROJO, marginBottom: 2 }}>❌ NO HIZO · {falto.length}</div>
@@ -128,6 +274,8 @@ function Tarjeta({ p, fecha, hoy, tarjeta, elegirDia, alGuardar }) {
             </div>
           )}
           {todas.length === 0 && <div style={{ marginTop: 12, fontSize: 13, opacity: .65, fontWeight: 700 }}>No tenía actividades ese día.</div>}
+            </>
+          )}
         </>
       )}
 
@@ -178,7 +326,7 @@ export default function VistaEquipoNueva({ tarjeta }) {
         {msg && <span style={{ color: ROJO }}> · {msg}</span>}
       </div>
       {d.equipo.map(p => (
-        <Tarjeta key={p.usuario_id} p={p} fecha={d.fecha} hoy={d.hoy} tarjeta={tarjeta} elegirDia={setFecha} alGuardar={() => setTick(t => t + 1)} />
+        <Tarjeta key={p.usuario_id} p={p} otros={d.equipo.filter(x => x.usuario_id !== p.usuario_id)} fecha={d.fecha} hoy={d.hoy} tarjeta={tarjeta} elegirDia={setFecha} alGuardar={() => setTick(t => t + 1)} />
       ))}
       {d.equipo.length === 0 && <div style={{ ...tarjeta, textAlign: 'center', opacity: .7 }}>Aún no hay colaboradores con horario.</div>}
     </div>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
-import { cargarPuntuales, cargarVentaDelDia, ordenarTareas } from '@/lib/jarvis/plan'
+import { cargarPuntuales, cargarVentaDelDia, ordenarTareas, cargarOrden } from '@/lib/jarvis/plan'
 
 export const dynamic = 'force-dynamic'
 
@@ -173,7 +173,7 @@ export async function GET(req) {
       }
     })
     // Las tareas del plan (puntuales) y las de venta van primero; ver lib/jarvis/plan.js
-    const tareas = ordenarTareas([...puntuales, ...tareasFijas])
+    const tareas = ordenarTareas([...puntuales, ...tareasFijas], esAdmin ? null : await cargarOrden(supabase, sesion.id))
     const hechasHoy = tareas.filter(t => t.estado === 'hecha').length
     const xpHoy = deDia(fecha).filter(h => esAdmin || h.usuario_id === sesion.id).reduce((n, h) => n + h.xp, 0)
       + puntuales.reduce((n, t) => n + (t.xp_ganado || 0), 0)

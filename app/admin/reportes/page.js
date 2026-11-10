@@ -1,79 +1,85 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import ExcelJS from 'exceljs'
 
-export default function Reportes() {
-  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Hermosillo' })
-  const [fechaReporte, setFechaReporte] = useState(hoy)
+// ─────────────────────────────────────────────────────────────────────────────
+// Reportes — cinco vistas, cada una responde UNA pregunta:
+//   Resumen     ¿cuánto entró y de dónde?            (cuadre + total + origen)
+//   Tienda      ¿qué se vendió en el mostrador?      (ventas_tienda)
+//   Pedidos     ¿qué entró por encargos y anticipos? (visitas de clientes)
+//   Por entrega ¿cómo le fue a UNA entrega completa? (venta, utilidad, saldo)
+//   Control     ¿alguien descuadra o hay algo raro?  (cortes, colaboradores…)
+// El periodo (hoy / 7 días / mes / fechas) manda en todas menos "Por entrega":
+// una entrega se cobra durante semanas y no cabe en un rango de fechas.
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const [general, setGeneral] = useState(null)
-  const [cargandoGeneral, setCargandoGeneral] = useState(false)
-  const [errorGeneral, setErrorGeneral] = useState('')
-  // Un solo día no revela nada: un faltante de $50 un martes es ruido, pero
-  // acumulado en el mes es una señal. Por eso el general va por rango.
+const TZ = 'America/Hermosillo'
+
+// El signo va antes del peso: "-$11,859", no "$-11,859".
+const fmt = (n) => {
+  const v = Number(n || 0)
+  return `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('es-MX', { maximumFractionDigits: 0 })}`
+}
+
+const hora = (iso) => new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: TZ })
+const diaCorto = (iso) => new Date(iso).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', timeZone: TZ }).replace('.', '')
+
+// Estilos compartidos
+const tarjeta = { background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }
+const rotulo = { color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }
+const th = { color: 'var(--w40)', textAlign: 'left', padding: '11px 14px', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700 }
+const td = { padding: '11px 14px' }
+const campoR = { background: 'var(--w03)', border: '1px solid var(--w10)', borderRadius: 9, padding: '7px 10px', color: 'var(--tinta)', fontSize: 12, outline: 'none' }
+
+const VISTAS = [
+  ['resumen', 'Resumen'],
+  ['tienda', '🏪 Tienda'],
+  ['pedidos', '📦 Pedidos'],
+  ['entrega', '🚚 Por entrega'],
+  ['control', '🔎 Control'],
+]
+
+export default function Reportes() {
+  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: TZ })
+  const [vista, setVista] = useState('resumen')
+
+  // Periodo
   const [rango, setRango] = useState('hoy')
   const [rangoDesde, setRangoDesde] = useState(hoy)
   const [rangoHasta, setRangoHasta] = useState(hoy)
-  const [visitaAbierta, setVisitaAbierta] = useState(null)
-  // Un mes trae ~285 visitas. Se dibujan por tandas: la pantalla abre rápido y
-  // quien busca algo viejo pide más.
-  const [visitasVisibles, setVisitasVisibles] = useState(50)
-  // Segmentar "Transacciones del periodo" -- una visita puede tener varios
-  // conceptos a la vez (p.ej. recogió su encargo Y compró en tienda), así
-  // que el filtro es "trae algo de esto", no "es exactamente esto". Pedido
-  // por Lalo el 23 sep 2026 para poder ver aparte lo de tienda, lo que la
-  // gente recogió de su encargo, y los anticipos.
-  const [filtroVisitas, setFiltroVisitas] = useState('todas')
-  const [entregas, setEntregas] = useState([])
-  const [entregaSeleccionada, setEntregaSeleccionada] = useState('')
-  const [cargando, setCargando] = useState(false)
 
-  // Datos entregas/tienda por fecha
+  // General (cuadre, ingresos, visitas, control…)
+  const [general, setGeneral] = useState(null)
+  const [cargandoGeneral, setCargandoGeneral] = useState(false)
+  const [errorGeneral, setErrorGeneral] = useState('')
+
+  // Pagos del periodo (para Excel) y resumen por cliente
   const [resumenClientesEntregas, setResumenClientesEntregas] = useState([])
-  const [metricasDelDia, setMetricasDelDia] = useState({
-    totalCobradoEntregas: 0,
-    totalAnticipos: 0,
-    totalTienda: 0,
-    totalGeneral: 0,
-    numClientesEntregas: 0,
-    numTransaccionesTienda: 0
-  })
+  const [metricasDelDia, setMetricasDelDia] = useState({ totalCobradoEntregas: 0, totalAnticipos: 0, totalTienda: 0, totalGeneral: 0 })
+  const [rawPagosPeriodo, setRawPagosPeriodo] = useState([])
 
-  // Análisis de ventas de tienda (top productos / vendedores / categorías)
+  // Tienda
   const [analisisTienda, setAnalisisTienda] = useState({
-    topProductos: [],
-    porVendedor: [],
-    porCategoria: [],
-    totalVendido: 0,
-    totalArticulos: 0,
-    vendedorTop: '',
-    restock: [],
-    transacciones: [],
-    utilidadConocida: 0,
-    porConciliar: []
+    topProductos: [], porVendedor: [], porCategoria: [], totalVendido: 0, totalArticulos: 0,
+    vendedorTop: '', restock: [], transacciones: [], utilidadConocida: 0, porConciliar: [],
   })
+  const [cargandoTienda, setCargandoTienda] = useState(false)
   const [incluirPorConciliar, setIncluirPorConciliar] = useState(false)
   const [costoDraft, setCostoDraft] = useState({})
   const [guardandoCosto, setGuardandoCosto] = useState(null)
 
-  // Datos estado de cuenta
+  // Por entrega
+  const [entregas, setEntregas] = useState([])
+  const [entregaSeleccionada, setEntregaSeleccionada] = useState('')
+  const [cargandoEC, setCargandoEC] = useState(false)
   const [metricasEC, setMetricasEC] = useState(null)
   const [porClienteEC, setPorClienteEC] = useState([])
-
-  // Raw data para exportar Excel
   const [rawPedidos, setRawPedidos] = useState([])
-  const [rawPagos, setRawPagos] = useState([])
-
-  // Categorías (usado en Estado de cuenta)
+  const [rawPagosEntrega, setRawPagosEntrega] = useState([])
   const [categoriasReporte, setCategoriasReporte] = useState([])
   const [filtroCatReporte, setFiltroCatReporte] = useState('')
 
-  const chartERef = useRef(null)
-  const chartTRef = useRef(null)
-  const chartEInstance = useRef(null)
-  const chartTInstance = useRef(null)
-
-  // Rango efectivo del reporte general.
+  // Rango efectivo
   const rangoFechas = () => {
     if (rango === 'hoy') return [hoy, hoy]
     if (rango === 'dia') return [rangoDesde, rangoDesde]
@@ -84,54 +90,30 @@ export default function Reportes() {
     return [hoy, hoy]
   }
 
+  const etiquetaPeriodo = () => {
+    const [d, h] = rangoFechas()
+    const larga = (f) => new Date(f + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
+    const corta = (f) => new Date(f + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }).replace('.', '')
+    if (d === h) return d === hoy ? `Hoy · ${larga(d)}` : larga(d)
+    return `${corta(d)} → ${corta(h)}`
+  }
+
+  // ── Cargas ────────────────────────────────────────────────────────────────
   useEffect(() => {
     const [d, h] = rangoFechas()
     setCargandoGeneral(true)
-    setVisitasVisibles(50)
-    setVisitaAbierta(null)
-    setFiltroVisitas('todas')
     fetch(`/api/reportes/general?desde=${d}&hasta=${h}`)
       .then(r => r.json())
       .then(r => {
         if (r.ok) { setGeneral(r); setErrorGeneral('') }
-        // Sin esto, un error dejaba la pantalla vacía y parecía que no había
-        // datos del periodo. Callar un fallo en una pantalla de control es
-        // peor que enseñarlo feo.
+        // Callar un fallo en una pantalla de control es peor que enseñarlo feo.
         else setErrorGeneral(r.mensaje || 'No se pudo cargar el reporte')
         setCargandoGeneral(false)
       })
       .catch(() => { setErrorGeneral('No se pudo conectar con el servidor'); setCargandoGeneral(false) })
+    cargarDatos()
+    cargarAnalisisTienda()
   }, [rango, rangoDesde, rangoHasta])
-
-  const rotulo = { color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }
-  const cifra = { color: 'var(--tinta)', fontSize: 19, fontWeight: 800, marginTop: 5, letterSpacing: -0.5 }
-
-  // Segmentos de "Transacciones del periodo". Una visita puede caer en más
-  // de uno a la vez (recogió su encargo Y compró en tienda) -- el filtro es
-  // "trae algo de esto", no "es solo esto", por eso los conteos de las
-  // pestañas no tienen que sumar el total de visitas.
-  const SEGMENTOS_VISITAS = [
-    { key: 'todas', label: 'Todas' },
-    { key: 'tienda', label: '🏪 Tienda' },
-    { key: 'recogieron', label: '📦 Recogieron su encargo' },
-    { key: 'anticipos', label: '💳 Anticipos' },
-  ]
-  const enSegmentoVisita = (v, seg) => {
-    if (seg === 'tienda') return v.tienda > 0
-    if (seg === 'recogieron') return v.entregas > 0 || v.sinCobro || (v.recogio && v.recogio.length > 0)
-    if (seg === 'anticipos') return v.anticipos > 0
-    return true
-  }
-  const visitasFiltradas = (general?.visitas || []).filter(v => enSegmentoVisita(v, filtroVisitas))
-  const th = { color: 'var(--w40)', textAlign: 'left', padding: '11px 14px', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700 }
-  const td = { padding: '11px 14px' }
-  const campoR = { background: 'var(--w03)', border: '1px solid var(--w10)', borderRadius: 9, padding: '7px 10px', color: 'var(--tinta)', fontSize: 12, outline: 'none' }
-
-  // El signo va antes del peso: "-$11,859", no "$-11,859".
-  const fmt = (n) => {
-    const v = Number(n || 0)
-    return `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('es-MX', { maximumFractionDigits: 0 })}`
-  }
 
   useEffect(() => {
     fetch('/api/entregas').then(r => r.json()).then(d => {
@@ -141,153 +123,108 @@ export default function Reportes() {
     fetch('/api/categorias').then(r => r.json()).then(d => { if (d.ok) setCategoriasReporte(d.categorias) })
   }, [])
 
+  // Al abrir "Por entrega" sin nada elegido, se abre la más reciente.
   useEffect(() => {
-    cargarDatos()
-  }, [fechaReporte])
-
-  useEffect(() => {
-    cargarAnalisisTienda()
-  }, [rango, rangoDesde, rangoHasta])
+    if (vista === 'entrega' && !entregaSeleccionada && entregas.length > 0) setEntregaSeleccionada(entregas[0].id)
+  }, [vista, entregas])
 
   useEffect(() => {
     if (entregaSeleccionada) cargarEstadoCuenta()
   }, [entregaSeleccionada])
 
+  // Pagos del periodo: alimenta el Excel y el resumen por cliente.
   const cargarDatos = async () => {
-    setCargando(true)
-
-    // Traer TODOS los pagos del día (fuente principal de actividad de caja)
-    const resPagos = await fetch(`/api/reportes/pagos?desde=${fechaReporte}&hasta=${fechaReporte}`)
+    const [d, h] = rangoFechas()
+    const resPagos = await fetch(`/api/reportes/pagos?desde=${d}&hasta=${h}`)
     const datPagos = await resPagos.json()
     const pagosDelDia = datPagos.pagos || []
 
-    // Separar pagos de entregas vs tienda
     const pagosEntregas = pagosDelDia.filter(p => p.cliente_id && p.tipo === 'Venta Liquidación')
-    const pagosAnticipios = pagosDelDia.filter(p => p.cliente_id && p.tipo === 'Anticipo')
+    const pagosAnticipos = pagosDelDia.filter(p => p.cliente_id && p.tipo === 'Anticipo')
     const pagosTienda = pagosDelDia.filter(p => !p.cliente_id && p.tipo === 'Venta Liquidación')
 
-    // Para entregas: agrupar por cliente
     const porCliente = {}
     pagosEntregas.forEach(p => {
-      const nombre = p.clientes?.nombre || 'Sin nombre'
-      if (!porCliente[p.cliente_id]) {
-        porCliente[p.cliente_id] = {
-          nombre,
-          pagos: [],
-          totalPagado: 0
-        }
-      }
+      if (!porCliente[p.cliente_id]) porCliente[p.cliente_id] = { nombre: p.clientes?.nombre || 'Sin nombre', pagos: [], totalPagado: 0 }
       porCliente[p.cliente_id].pagos.push(p)
       porCliente[p.cliente_id].totalPagado += Number(p.monto) || 0
     })
 
-    // Traer pedidos entregados de los clientes que pagaron hoy
     const clientesIds = Object.keys(porCliente)
-    let pedidosPorCliente = {}
+    const pedidosPorCliente = {}
     if (clientesIds.length > 0) {
       const resPeds = await fetch(`/api/reportes/pedidos?cliente_id_in=${clientesIds.join(',')}&fotos=no`)
       const datPeds = await resPeds.json()
-      ;(datPeds.pedidos || [])
-        .filter(p => p.estado === 'Entregado')
-        .forEach(p => {
-          if (!pedidosPorCliente[p.cliente_id]) pedidosPorCliente[p.cliente_id] = []
-          pedidosPorCliente[p.cliente_id].push(p)
-        })
+      ;(datPeds.pedidos || []).filter(p => p.estado === 'Entregado').forEach(p => {
+        if (!pedidosPorCliente[p.cliente_id]) pedidosPorCliente[p.cliente_id] = []
+        pedidosPorCliente[p.cliente_id].push(p)
+      })
     }
 
-    // Combinar en resumen por cliente
-    const resumenClientes = Object.entries(porCliente).map(([id, d]) => ({
+    setResumenClientesEntregas(Object.entries(porCliente).map(([id, c]) => ({
       cliente_id: id,
-      nombre: d.nombre,
-      totalPagado: d.totalPagado,
-      metodos: [...new Set(d.pagos.map(p => p.metodo))].join(' + '),
-      pedidos: pedidosPorCliente[id] || [],
-      numArticulos: (pedidosPorCliente[id] || []).length
-    })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+      nombre: c.nombre,
+      totalPagado: c.totalPagado,
+      metodos: [...new Set(c.pagos.map(p => p.metodo))].join(' + '),
+      numArticulos: (pedidosPorCliente[id] || []).length,
+    })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
 
-    setResumenClientesEntregas(resumenClientes)
-
-    // Totales entregas
     const totalCobradoEntregas = pagosEntregas.reduce((s, p) => s + (Number(p.monto) || 0), 0)
-    const totalAnticipos = pagosAnticipios.reduce((s, p) => s + (Number(p.monto) || 0), 0)
-
-    // Totales tienda
+    const totalAnticipos = pagosAnticipos.reduce((s, p) => s + (Number(p.monto) || 0), 0)
     const totalTienda = pagosTienda.reduce((s, p) => s + (Number(p.monto) || 0), 0)
-
-    setMetricasDelDia({
-      totalCobradoEntregas,
-      totalAnticipos,
-      totalTienda,
-      totalGeneral: totalCobradoEntregas + totalAnticipos + totalTienda,
-      numClientesEntregas: resumenClientes.length,
-      numTransaccionesTienda: pagosTienda.length
-    })
-
-    setRawPagos(pagosDelDia)
-    setCargando(false)
+    setMetricasDelDia({ totalCobradoEntregas, totalAnticipos, totalTienda, totalGeneral: totalCobradoEntregas + totalAnticipos + totalTienda })
+    setRawPagosPeriodo(pagosDelDia)
   }
 
   const cargarAnalisisTienda = async () => {
     const [d, h] = rangoFechas()
+    setCargandoTienda(true)
     const res = await fetch(`/api/reportes/ventas-tienda?desde=${d}&hasta=${h}`)
     const data = await res.json()
     const ventas = data.ok ? data.ventas || [] : []
 
-    // Agrupar por producto
     const porProducto = {}
-    ventas.forEach(v => {
-      const key = v.nombre_producto
-      if (!porProducto[key]) porProducto[key] = { nombre: key, categoria: v.categoria, cantidad: 0, revenue: 0, stock: v.productos_tienda?.stock ?? null }
-      porProducto[key].cantidad += v.cantidad
-      porProducto[key].revenue += v.cantidad * v.precio_unitario
-    })
-
-    // Agrupar por vendedor
     const porVendedor = {}
-    ventas.forEach(v => {
-      const nombre = v.clientes?.nombre || 'Sin nombre'
-      if (!porVendedor[nombre]) porVendedor[nombre] = { nombre, articulos: 0, total: 0 }
-      porVendedor[nombre].articulos += v.cantidad
-      porVendedor[nombre].total += v.cantidad * v.precio_unitario
-    })
-
-    // Agrupar por categoría
     const porCategoria = {}
+    const porTransaccion = {}
     ventas.forEach(v => {
+      const importe = v.cantidad * v.precio_unitario
+
+      const k = v.nombre_producto
+      if (!porProducto[k]) porProducto[k] = { nombre: k, categoria: v.categoria, cantidad: 0, revenue: 0, stock: v.productos_tienda?.stock ?? null }
+      porProducto[k].cantidad += v.cantidad
+      porProducto[k].revenue += importe
+
+      const vend = v.clientes?.nombre || 'Sin nombre'
+      if (!porVendedor[vend]) porVendedor[vend] = { nombre: vend, articulos: 0, total: 0 }
+      porVendedor[vend].articulos += v.cantidad
+      porVendedor[vend].total += importe
+
       const cat = v.categoria || 'Sin categoría'
       if (!porCategoria[cat]) porCategoria[cat] = { categoria: cat, cantidad: 0, revenue: 0 }
       porCategoria[cat].cantidad += v.cantidad
-      porCategoria[cat].revenue += v.cantidad * v.precio_unitario
-    })
+      porCategoria[cat].revenue += importe
 
-    // Agrupar por transacción (mismo pago_id)
-    const porTransaccion = {}
-    ventas.forEach(v => {
       const pagoId = v.pago_id || v.id
       if (!porTransaccion[pagoId]) {
         porTransaccion[pagoId] = {
           pago_id: pagoId,
-          vendedor: v.clientes?.nombre || 'Sin nombre',
+          vendedor: vend,
           metodo: v.pagos?.metodo && v.pagos_2?.metodo ? `${v.pagos.metodo} + ${v.pagos_2.metodo}` : (v.pagos?.metodo || '—'),
-          hora: new Date(v.creado_en).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Hermosillo' }),
+          creado_en: v.creado_en,
           articulos: [],
-          total: 0
+          total: 0,
         }
       }
-      porTransaccion[pagoId].articulos.push({
-        nombre: v.nombre_producto,
-        cantidad: v.cantidad,
-        precio: v.precio_unitario
-      })
-      porTransaccion[pagoId].total += v.cantidad * v.precio_unitario
+      porTransaccion[pagoId].articulos.push({ nombre: v.nombre_producto, cantidad: v.cantidad, precio: v.precio_unitario })
+      porTransaccion[pagoId].total += importe
     })
 
-    const topProductos = Object.values(porProducto).sort((a, b) => b.cantidad - a.cantidad)
+    const topProductos = Object.values(porProducto).sort((a, b) => b.revenue - a.revenue)
     const porVendedorOrdenado = Object.values(porVendedor).sort((a, b) => b.total - a.total)
 
-    // Utilidad exacta = solo líneas con costo_unitario conocido (ver README del
-    // rediseño de Tienda). Las líneas manuales sin costo quedan "por conciliar"
-    // hasta que el admin capture el costo real aquí mismo.
+    // Utilidad exacta = solo líneas con costo conocido. Las manuales sin costo
+    // quedan "por conciliar" hasta que el admin capture el costo real.
     const conCosto = ventas.filter(v => v.costo_unitario != null)
     const utilidadConocida = conCosto.reduce((s, v) => s + (v.precio_unitario - v.costo_unitario) * v.cantidad, 0)
     const porConciliar = ventas.filter(v => v.costo_unitario == null)
@@ -299,11 +236,12 @@ export default function Reportes() {
       totalVendido: ventas.reduce((s, v) => s + v.cantidad * v.precio_unitario, 0),
       totalArticulos: ventas.reduce((s, v) => s + v.cantidad, 0),
       vendedorTop: porVendedorOrdenado[0]?.nombre || '—',
-      restock: topProductos.filter(p => p.stock != null && p.stock < 3),
-      transacciones: Object.values(porTransaccion).sort((a, b) => b.hora.localeCompare(a.hora)),
+      restock: [...topProductos].filter(p => p.stock != null && p.stock < 3).sort((a, b) => a.stock - b.stock),
+      transacciones: Object.values(porTransaccion).sort((a, b) => String(b.creado_en).localeCompare(String(a.creado_en))),
       utilidadConocida,
-      porConciliar
+      porConciliar,
     })
+    setCargandoTienda(false)
   }
 
   const guardarCostoConciliacion = async (ventaId) => {
@@ -315,7 +253,7 @@ export default function Reportes() {
       await fetch('/api/reportes/ventas-tienda', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: ventaId, costo_unitario: valor, conciliado_por: admin?.id || null })
+        body: JSON.stringify({ id: ventaId, costo_unitario: valor, conciliado_por: admin?.id || null }),
       })
       await cargarAnalisisTienda()
       setCostoDraft(prev => { const next = { ...prev }; delete next[ventaId]; return next })
@@ -325,15 +263,15 @@ export default function Reportes() {
   }
 
   const cargarEstadoCuenta = async () => {
-    setCargando(true)
+    setCargandoEC(true)
     const [pedidosRes, pagosRes] = await Promise.all([
       fetch(`/api/reportes/pedidos?entrega_id=${entregaSeleccionada}&fotos=no`).then(r => r.json()),
-      fetch(`/api/reportes/pagos?entrega_id=${entregaSeleccionada}`).then(r => r.json())
+      fetch(`/api/reportes/pagos?entrega_id=${entregaSeleccionada}`).then(r => r.json()),
     ])
     const peds = (pedidosRes.ok ? pedidosRes.pedidos || [] : []).filter(p => p.estado !== 'no_llego')
     const pays = pagosRes.ok ? pagosRes.pagos || [] : []
     setRawPedidos(peds)
-    setRawPagos(pays)
+    setRawPagosEntrega(pays)
 
     const ventaTotal = peds.reduce((s, p) => s + (p.precio_venta || 0), 0)
     const costoTotal = peds.reduce((s, p) => s + (p.costo_mxn || 0), 0)
@@ -357,88 +295,54 @@ export default function Reportes() {
 
     setMetricasEC({ ventaTotal, costoTotal, utilidadTotal, margen, cobradoTotal, pendiente: ventaTotal - cobradoTotal, totalAnticipos, totalPedidos: peds.length, clientesUnicos: [...new Set(peds.map(p => p.cliente_id))].length })
     setPorClienteEC(Object.values(porCliente).sort((a, b) => (b.venta - b.cobrado) - (a.venta - a.cobrado)))
-    setCargando(false)
+    setCargandoEC(false)
   }
 
+  // ── Excel: exporta lo que se está viendo ──────────────────────────────────
   const exportarExcel = async () => {
     const ahora = new Date()
-    const fechaStr = `${ahora.getFullYear()}${String(ahora.getMonth()+1).padStart(2,'0')}${String(ahora.getDate()).padStart(2,'0')}`
+    const fechaStr = `${ahora.getFullYear()}${String(ahora.getMonth() + 1).padStart(2, '0')}${String(ahora.getDate()).padStart(2, '0')}`
     const wb = new ExcelJS.Workbook()
-
     const agregarHoja = (nombre, filas) => {
       const ws = wb.addWorksheet(nombre)
       filas.forEach(f => ws.addRow(f))
     }
+    const filaPago = (p) => [
+      p.clientes?.nombre || '(Tienda)',
+      p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
+      p.monto || 0, p.metodo || '', p.tipo || '', p.entrega_id || '',
+    ]
 
-    // Si hay una entrega seleccionada, el Excel es el de esa entrega; si no,
-    // el del periodo.
-    if (entregaSeleccionada) {
-      const filPedidos = rawPedidos.filter(p => p.cliente_id)
+    if (vista === 'entrega') {
       agregarHoja('Pedidos', [
-        ['Cliente','Descripción','Cantidad','Precio USD','Tipo de cambio','Impuesto %','Costo MXN','Precio venta','Utilidad','Estado','Entrega','Fecha captura'],
-        ...filPedidos.map(p => [
-          p.clientes?.nombre || '',
-          p.descripcion || '',
-          p.cantidad || 1,
-          p.precio_usd || '',
-          p.tc || '',
-          p.impuesto != null ? `${p.impuesto}%` : '',
-          p.costo_mxn || 0,
-          p.precio_venta || 0,
-          p.utilidad || 0,
-          p.estado || '',
-          p.entregas?.fecha_entrega || '',
+        ['Cliente', 'Descripción', 'Cantidad', 'Precio USD', 'Tipo de cambio', 'Impuesto %', 'Costo MXN', 'Precio venta', 'Utilidad', 'Estado', 'Entrega', 'Fecha captura'],
+        ...rawPedidos.filter(p => p.cliente_id).map(p => [
+          p.clientes?.nombre || '', p.descripcion || '', p.cantidad || 1, p.precio_usd || '', p.tc || '',
+          p.impuesto != null ? `${p.impuesto}%` : '', p.costo_mxn || 0, p.precio_venta || 0, p.utilidad || 0,
+          p.estado || '', p.entregas?.fecha_entrega || '',
           p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
-        ])
+        ]),
       ])
-
-      agregarHoja('Pagos', [
-        ['Cliente','Fecha','Monto','Método','Tipo','Entrega'],
-        ...rawPagos.map(p => [
-          p.clientes?.nombre || '(Tienda)',
-          p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
-          p.monto || 0,
-          p.metodo || '',
-          p.tipo || '',
-          p.entrega_id || '',
-        ])
-      ])
-
+      agregarHoja('Pagos', [['Cliente', 'Fecha', 'Monto', 'Método', 'Tipo', 'Entrega'], ...rawPagosEntrega.map(filaPago)])
       const m = metricasEC
       agregarHoja('Resumen', m ? [
-        ['Concepto','Valor'],
-        ['Venta total', m.ventaTotal || 0],
-        ['Costo total', m.costoTotal || 0],
-        ['Utilidad total', m.utilidadTotal || 0],
-        ['Margen %', m.margen ? `${m.margen.toFixed(1)}%` : ''],
-        ['Total cobrado', m.cobradoTotal || 0],
-        ['Anticipos', m.totalAnticipos || 0],
-        ['Por cobrar', m.pendiente || 0],
+        ['Concepto', 'Valor'],
+        ['Venta total', m.ventaTotal || 0], ['Costo total', m.costoTotal || 0], ['Utilidad total', m.utilidadTotal || 0],
+        ['Margen %', m.margen ? `${m.margen.toFixed(1)}%` : ''], ['Total cobrado', m.cobradoTotal || 0],
+        ['Anticipos', m.totalAnticipos || 0], ['Por cobrar', m.pendiente || 0],
       ] : [['Sin datos cargados']])
     } else {
-      agregarHoja('Pagos', [
-        ['Cliente','Fecha','Monto','Método','Tipo','Entrega'],
-        ...rawPagos.map(p => [
-          p.clientes?.nombre || '(Tienda)',
-          p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-MX') : '',
-          p.monto || 0,
-          p.metodo || '',
-          p.tipo || '',
-          p.entrega_id || '',
-        ])
-      ])
-
+      agregarHoja('Pagos', [['Cliente', 'Fecha', 'Monto', 'Método', 'Tipo', 'Entrega'], ...rawPagosPeriodo.map(filaPago)])
       agregarHoja('Resumen clientes', [
-        ['Cliente','Artículos','Método(s)','Total pagado'],
-        ...resumenClientesEntregas.map(c => [c.nombre, c.numArticulos, c.metodos, c.totalPagado])
+        ['Cliente', 'Artículos', 'Método(s)', 'Total pagado'],
+        ...resumenClientesEntregas.map(c => [c.nombre, c.numArticulos, c.metodos, c.totalPagado]),
       ])
-
       agregarHoja('Totales', [
-        ['Concepto','Valor'],
+        ['Concepto', 'Valor'],
         ['Total cobrado entregas', metricasDelDia.totalCobradoEntregas],
         ['Anticipos recibidos', metricasDelDia.totalAnticipos],
         ['Ventas tienda', metricasDelDia.totalTienda],
-        ['Total del día', metricasDelDia.totalGeneral],
+        ['Total del periodo', metricasDelDia.totalGeneral],
       ])
     }
 
@@ -452,72 +356,89 @@ export default function Reportes() {
     URL.revokeObjectURL(url)
   }
 
-  // Hay algo que exportar si el día trae pagos, o si hay un estado de cuenta
-  // cargado. El botón se ajusta a lo que se está viendo.
-  const hayDatos = rawPagos.length > 0 || (Boolean(metricasEC) && rawPedidos.length > 0)
+  const hayDatos = vista === 'entrega' ? (Boolean(metricasEC) && rawPedidos.length > 0) : rawPagosPeriodo.length > 0
 
-  const MetricCard = ({ label, value, sub, color }) => (
-    <div style={{ background: color ? `rgba(${color},0.08)` : 'var(--w03)', border: `1px solid ${color ? `rgba(${color},0.15)` : 'var(--w07)'}`, borderRadius: 12, padding: 14 }}>
-      <div style={{ color: color ? `rgba(${color},0.7)` : 'var(--w40)', fontSize: 11, marginBottom: 4 }}>{label}</div>
-      <div style={{ color: color ? `rgb(${color})` : 'white', fontSize: 22, fontWeight: 700 }}>{value}</div>
-      {sub && <div style={{ color: color ? `rgba(${color},0.5)` : 'var(--w30)', fontSize: 10, marginTop: 2 }}>{sub}</div>}
-    </div>
-  )
+  // ── Derivados ─────────────────────────────────────────────────────────────
+  const g = general
+  const pedidosTotal = g ? g.ingresos.entregas + g.ingresos.anticipos + (g.ingresos.envios || 0) : 0
+  const retirosTotal = g ? g.retiros.reduce((s, r) => s + Number(r.monto || 0), 0) : 0
+  const canceladosTotal = g ? g.cancelados.reduce((s, c) => s + Number(c.monto || 0), 0) : 0
+  const hayAlertaControl = g && (Math.abs(g.cuadre.diferencia) > 0.5 || g.alertaCortes?.descuadrados > 0)
 
-  // Utilidad "por conciliar" tratada como si costara $0 (aproximación optimista)
-  // solo cuando el admin decide incluirla explícitamente en el total.
   const utilidadPorConciliarComoIngreso = analisisTienda.porConciliar.reduce((s, v) => s + v.precio_unitario * v.cantidad, 0)
   const utilidadMostrada = analisisTienda.utilidadConocida + (incluirPorConciliar ? utilidadPorConciliarComoIngreso : 0)
 
+  const claveLista = `${rango}-${rangoDesde}-${rangoHasta}`
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-950 p-6">
-      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ maxWidth: 980, margin: '0 auto' }}>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        {/* Encabezado */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
           <div>
             <div style={{ color: 'var(--tinta)', fontSize: 25, fontWeight: 800, letterSpacing: -0.6 }}>Reportes</div>
-            <div style={{ color: 'var(--w40)', fontSize: 13, marginTop: 3 }}>De dónde vino el dinero, por modelo de negocio</div>
+            <div style={{ color: 'var(--w40)', fontSize: 13, marginTop: 3 }}>
+              {vista === 'entrega' ? 'Una entrega completa: lo vendido, la utilidad y quién falta por pagar' : etiquetaPeriodo()}
+            </div>
           </div>
           {hayDatos && (
             <button onClick={exportarExcel}
-              style={{ padding: '9px 18px', borderRadius: 10, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: 'var(--verde)', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              style={{ padding: '9px 18px', borderRadius: 10, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: 'var(--verde)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               Exportar a Excel
             </button>
           )}
         </div>
 
-        {/* ===================== SECCIÓN GENERAL =====================
-            Arriba el control (el cuadre y quién descuadra), luego el dinero.
-            Ese orden es deliberado: lo primero que hay que saber al abrir un
-            reporte de un negocio con efectivo es si el dinero cuadra. */}
-        {(
-          <div>
-            {/* Rango */}
-            <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
-              {[['hoy', 'Hoy'], ['dia', 'Un día'], ['7', 'Últimos 7 días'], ['mes', 'Mes en curso'], ['rango', 'Entre fechas']].map(([v, t]) => (
-                <button key={v} onClick={() => setRango(v)}
-                  style={{
-                    padding: '8px 14px', borderRadius: 10, fontSize: 12, cursor: 'pointer',
-                    border: `1px solid ${rango === v ? 'rgba(193,85,58,0.55)' : 'var(--w10)'}`,
-                    background: rango === v ? 'rgba(193,85,58,0.14)' : 'transparent',
-                    color: rango === v ? 'var(--marca-t)' : 'var(--w50)',
-                    fontWeight: rango === v ? 700 : 500,
-                  }}>{t}</button>
-              ))}
-              {rango === 'dia' && (
+        {/* Vistas */}
+        <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--w04)', border: '1px solid var(--w06)', borderRadius: 14, overflowX: 'auto', marginBottom: 14 }}>
+          {VISTAS.map(([k, t]) => {
+            const activa = vista === k
+            return (
+              <button key={k} onClick={() => setVista(k)}
+                style={{
+                  flex: '1 0 auto', padding: '10px 16px', borderRadius: 10, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
+                  border: 'none', background: activa ? 'var(--sup)' : 'transparent',
+                  boxShadow: activa ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                  color: activa ? 'var(--tinta)' : 'var(--w50)', fontWeight: activa ? 800 : 600,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                }}>
+                {t}
+                {k === 'control' && hayAlertaControl && <span style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--rojo)' }} />}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Periodo (no aplica a "Por entrega") */}
+        {vista !== 'entrega' && (
+          <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
+            {[['hoy', 'Hoy'], ['dia', 'Un día'], ['7', 'Últimos 7 días'], ['mes', 'Mes en curso'], ['rango', 'Entre fechas']].map(([v, t]) => (
+              <button key={v} onClick={() => setRango(v)}
+                style={{
+                  padding: '7px 13px', borderRadius: 10, fontSize: 12, cursor: 'pointer',
+                  border: `1px solid ${rango === v ? 'rgba(193,85,58,0.55)' : 'var(--w10)'}`,
+                  background: rango === v ? 'rgba(193,85,58,0.14)' : 'transparent',
+                  color: rango === v ? 'var(--marca-t)' : 'var(--w50)',
+                  fontWeight: rango === v ? 700 : 500,
+                }}>{t}</button>
+            ))}
+            {rango === 'dia' && <input type="date" value={rangoDesde} onChange={e => setRangoDesde(e.target.value)} style={campoR} />}
+            {rango === 'rango' && (
+              <>
                 <input type="date" value={rangoDesde} onChange={e => setRangoDesde(e.target.value)} style={campoR} />
-              )}
-              {rango === 'rango' && (
-                <>
-                  <input type="date" value={rangoDesde} onChange={e => setRangoDesde(e.target.value)} style={campoR} />
-                  <span style={{ color: 'var(--w38)', fontSize: 12 }}>a</span>
-                  <input type="date" value={rangoHasta} onChange={e => setRangoHasta(e.target.value)} style={campoR} />
-                </>
-              )}
-            </div>
+                <span style={{ color: 'var(--w38)', fontSize: 12 }}>a</span>
+                <input type="date" value={rangoHasta} onChange={e => setRangoHasta(e.target.value)} style={campoR} />
+              </>
+            )}
+          </div>
+        )}
 
+        {/* Error / carga de las vistas que dependen de "general" */}
+        {['resumen', 'pedidos', 'control'].includes(vista) && (
+          <>
             {cargandoGeneral && <div style={{ color: 'var(--w30)', textAlign: 'center', padding: 40 }}>Cargando…</div>}
-
             {!cargandoGeneral && errorGeneral && (
               <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 14, padding: '16px 18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <span style={{ fontSize: 17 }}>🔴</span>
@@ -525,973 +446,931 @@ export default function Reportes() {
                   <div style={{ color: 'var(--rojo-t)', fontSize: 13.5, fontWeight: 700 }}>El reporte no se pudo armar</div>
                   <div style={{ color: 'var(--w45)', fontSize: 12.5, marginTop: 4 }}>{errorGeneral}</div>
                   <div style={{ color: 'var(--w35)', fontSize: 11.5, marginTop: 6, maxWidth: '58ch' }}>
-                    Se muestra el error en vez de una pantalla vacía a propósito: en una pantalla
-                    de control, media verdad es peor que ninguna.
+                    Se muestra el error en vez de una pantalla vacía a propósito: en una pantalla de control, media verdad es peor que ninguna.
                   </div>
                 </div>
               </div>
             )}
+          </>
+        )}
 
-            {!cargandoGeneral && general && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* ═══════════════════ RESUMEN ═══════════════════ */}
+        {vista === 'resumen' && !cargandoGeneral && g && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-                {/* ── EL CUADRE ─────────────────────────────────────────── */}
-                <div style={{
-                  background: 'var(--sup)', borderRadius: 16, overflow: 'hidden',
-                  border: `1px solid ${Math.abs(general.cuadre.diferencia) > 0.5 ? 'rgba(var(--rojo-rgb),0.35)' : 'var(--verde-borde)'}`,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, padding: '20px 22px' }}>
-                    <div>
-                      <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }}>
-                        Cuadre de efectivo
-                      </div>
-                      <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>
-                        El sistema esperaba {fmt(general.cuadre.esperado)} · se contaron {fmt(general.cuadre.contado)}
-                        {general.cuadre.cortes > 0 && ` · ${general.cuadre.cortes} cortes`}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div className="monto" style={{
-                        color: general.cuadre.diferencia < -0.5 ? 'var(--rojo-t)' : general.cuadre.diferencia > 0.5 ? 'var(--ambar)' : 'var(--verde)',
-                        fontSize: 34, fontWeight: 900, letterSpacing: -1.2, lineHeight: 1,
-                      }}>
-                        {general.cuadre.diferencia > 0 ? '+' : ''}{fmt(general.cuadre.diferencia)}
-                      </div>
-                      <div style={{ color: 'var(--w38)', fontSize: 10.5, marginTop: 4 }}>
-                        {general.cuadre.diferencia < -0.5 ? 'falta efectivo' : general.cuadre.diferencia > 0.5 ? 'sobra efectivo' : 'cuadra exacto'}
-                      </div>
-                    </div>
-                  </div>
-                  {general.cuadre.sin_verificar > 0 && (
-                    <div style={{ padding: '10px 22px', borderTop: '1px solid var(--w07)', background: 'rgba(245,158,11,0.08)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13 }}>⚠️</span>
-                      <span style={{ color: 'var(--ambar-t)', fontSize: 12, fontWeight: 600 }}>
-                        {general.cuadre.sin_verificar} {general.cuadre.sin_verificar === 1 ? 'corte se cerró' : 'cortes se cerraron'} sin poder calcular sus totales por método — revísalos a mano contra los pagos.
-                      </span>
-                    </div>
-                  )}
+            <CuadreCard g={g} compacto onVer={() => setVista('control')} />
+
+            {/* Entró en el periodo */}
+            <div style={tarjeta}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, padding: '20px 22px' }}>
+                <div>
+                  <div style={rotulo}>Entró en el periodo</div>
+                  <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>Todo el dinero cobrado, tienda y pedidos juntos</div>
                 </div>
-
-                {/* ── Cada corte contra los pagos que quedaron ──────────────
-                    El cuadre de arriba compara efectivo esperado contra
-                    contado. Este compara lo que el corte anotó por método
-                    contra lo que HOY sigue en `pagos` en ese mismo periodo:
-                    detecta dinero que se registró y después desapareció. Es
-                    la comparación que destapó el bug de los anticipos
-                    borrados, tres semanas tarde. */}
-                {general.cuadreCortes?.length > 0 && (
-                  <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }}>
-                    <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--w06)' }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                        <span style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }}>
-                          Cada corte contra lo registrado
-                        </span>
-                        {general.alertaCortes?.descuadrados > 0 ? (
-                          <span className="monto" style={{ color: 'var(--rojo-t)', fontSize: 13, fontWeight: 800 }}>
-                            {general.alertaCortes.descuadrados} descuadrado{general.alertaCortes.descuadrados !== 1 ? 's' : ''} · {fmt(general.alertaCortes.monto)}
-                          </span>
-                        ) : general.alertaCortes?.revisados > 0 ? (
-                          <span style={{ color: 'var(--verde)', fontSize: 13, fontWeight: 700 }}>Todos cuadran</span>
-                        ) : null}
-                      </div>
-                      <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6, maxWidth: 620, lineHeight: 1.5 }}>
-                        Lo que el corte anotó por método contra lo que sigue registrado en ese mismo periodo.
-                        Si el corte contó más, algo se borró o se canceló después.
-                        {general.alertaCortes?.sin_periodo > 0 && ` ${general.alertaCortes.sin_periodo} corte${general.alertaCortes.sin_periodo !== 1 ? 's' : ''} no se puede${general.alertaCortes.sin_periodo !== 1 ? 'n' : ''} cuadrar: son anteriores al cambio que guarda el periodo.`}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      {general.cuadreCortes.map((c) => {
-                        const hora = new Date(c.creado_en).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-                        if (!c.conciliable) {
-                          return (
-                            <div key={c.id} style={{ padding: '11px 22px', borderTop: '1px solid var(--w04)', display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                              <span style={{ color: 'var(--w45)', fontSize: 12.5, minWidth: 130 }}>{hora}</span>
-                              <span style={{ color: 'var(--w35)', fontSize: 12 }}>{c.quien}</span>
-                              <span style={{ color: 'var(--w28)', fontSize: 11.5, marginLeft: 'auto' }}>{c.motivo || 'No conciliable'}</span>
-                            </div>
-                          )
-                        }
-                        const mal = Math.abs(c.descuadre) > 0.5
-                        return (
-                          <div key={c.id} style={{ padding: '13px 22px', borderTop: '1px solid var(--w04)', background: mal ? 'rgba(var(--rojo-rgb),0.07)' : 'transparent' }}>
-                            <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                              <span style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600, minWidth: 130 }}>{hora}</span>
-                              <span style={{ color: 'var(--w40)', fontSize: 12 }}>{c.quien}</span>
-                              <span className="monto" style={{ marginLeft: 'auto', fontSize: 13.5, fontWeight: 800, color: mal ? 'var(--rojo-t)' : 'var(--verde)' }}>
-                                {!mal ? 'cuadra' : c.descuadre > 0 ? `faltan ${fmt(c.descuadre)}` : `sobran ${fmt(-c.descuadre)}`}
-                              </span>
-                            </div>
-                            {mal && (
-                              <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 8 }}>
-                                {c.metodos.filter(m => Math.abs(m.diferencia) > 0.5).map(m => (
-                                  <div key={m.metodo} style={{ fontSize: 11.5, color: 'var(--w45)' }}>
-                                    <span style={{ fontWeight: 600, color: 'var(--w60)' }}>{m.metodo}:</span>{' '}
-                                    anotó <span className="monto">{fmt(m.anoto)}</span>, hay <span className="monto">{fmt(m.hay)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Señales de control ────────────────────────────────── */}
-                {(general.tienda.manuales > 0 || general.tienda.lineasSinCosto > 0 || general.comprobantesResueltos > 0 || general.cancelados.length > 0) && (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {[
-                      general.tienda.manuales > 0 && [`${general.tienda.manuales} ventas por monto libre`, fmt(general.tienda.montoManual)],
-                      general.tienda.lineasSinCosto > 0 && [`${general.tienda.lineasSinCosto} ventas sin costo`, fmt(general.tienda.ventaSinCosto)],
-                      general.cancelados.length > 0 && [`${general.cancelados.length} pagos cancelados`, fmt(general.cancelados.reduce((s, c) => s + Number(c.monto || 0), 0))],
-                    ].filter(Boolean).map(([et, v], i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--ambar-borde)', background: 'var(--ambar-suave)', borderRadius: 20, padding: '7px 14px' }}>
-                        <span style={{ color: 'var(--w55)', fontSize: 12 }}>{et}</span>
-                        <span className="monto" style={{ color: 'var(--ambar)', fontSize: 12.5, fontWeight: 800 }}>{v}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* ── Dinero del periodo ────────────────────────────────── */}
-                <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, padding: '20px 22px' }}>
-                    <div>
-                      <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }}>
-                        Entró en el periodo
-                      </div>
-                      <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>
-                        {general.periodo.desde === general.periodo.hasta ? general.periodo.desde : `${general.periodo.desde} a ${general.periodo.hasta}`}
-                      </div>
-                    </div>
-                    <div className="monto" style={{ color: 'var(--marca-t)', fontSize: 40, fontWeight: 900, letterSpacing: -1.5, lineHeight: 1 }}>
-                      {fmt(general.total)}
-                    </div>
-                  </div>
-
-                  <div style={{ padding: '0 22px 20px' }}>
-                    <Barra titulo="Por origen" total={general.total} partes={[
-                      ['Entregas', general.ingresos.entregas, '#c1553a'],
-                      ['Anticipos', general.ingresos.anticipos, '#2563eb'],
-                      ['Tienda', general.ingresos.tienda, '#0f8a63'],
-                      ['Envíos', general.ingresos.envios || 0, '#a06d14'],
-                      ['Otros', general.ingresos.otros, '#8a8178'],
-                    ]} fmt={fmt} />
-                    <div style={{ height: 20 }} />
-                    <Desglose titulo="Por método de cobro" total={general.total} partes={[
-                      ['Efectivo', general.porMetodo.Efectivo],
-                      ['Transferencia', general.porMetodo.Transferencia],
-                      ['Terminal', general.porMetodo.Terminal],
-                      ['Otro', general.porMetodo.Otro],
-                    ]} fmt={fmt} />
-                  </div>
-
-                  <div className="cifras-caja" style={{ borderTop: '1px solid var(--w06)' }}>
-                    <div>
-                      <div style={rotulo}>Utilidad de tienda</div>
-                      <div className="monto" style={{ ...cifra, color: 'var(--verde)' }}>{fmt(general.tienda.utilidad)}</div>
-                      <div style={{ color: 'var(--w35)', fontSize: 10, marginTop: 3 }}>
-                        sobre {fmt(general.tienda.ventaConCosto)} con costo conocido
-                      </div>
-                    </div>
-                    <div>
-                      <div style={rotulo}>Margen de tienda</div>
-                      <div className="monto" style={{ ...cifra, color: 'var(--verde)' }}>
-                        {general.tienda.ventaConCosto > 0 ? `${((general.tienda.utilidad / general.tienda.ventaConCosto) * 100).toFixed(0)}%` : '—'}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={rotulo}>Artículos vendidos</div>
-                      <div className="monto" style={cifra}>{general.tienda.articulos}</div>
-                    </div>
-                    <div>
-                      <div style={rotulo}>Retiros de caja</div>
-                      <div className="monto" style={{ ...cifra, color: general.retiros.length ? 'var(--ambar)' : 'var(--tinta)' }}>
-                        {fmt(general.retiros.reduce((s, r) => s + Number(r.monto || 0), 0))}
-                      </div>
-                      <div style={{ color: 'var(--w35)', fontSize: 10, marginTop: 3 }}>{general.retiros.length} en el periodo</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Visitas ───────────────────────────────────────────
-                    Una visita = lo que pasó con una persona en un momento:
-                    lo que recogió de su encargo, lo que se llevó de la tienda,
-                    con qué métodos pagó y cuánto fue en total. En la base eso
-                    vive como varios renglones sueltos; aquí vuelve a ser una
-                    sola transacción, que es como ocurrió en el mostrador. */}
-                {general.visitas?.length > 0 && (
-                  <div>
-                    <h3 style={{ ...rotulo, marginBottom: 4 }}>Transacciones del periodo</h3>
-
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 10 }}>
-                      {SEGMENTOS_VISITAS.map(seg => {
-                        const enEsteSegmento = seg.key === 'todas' ? general.visitas : general.visitas.filter(v => enSegmentoVisita(v, seg.key))
-                        const activo = filtroVisitas === seg.key
-                        return (
-                          <div key={seg.key}
-                            onClick={() => { setFiltroVisitas(seg.key); setVisitasVisibles(50); setVisitaAbierta(null) }}
-                            style={{ cursor: 'pointer', border: `1px solid ${activo ? 'var(--marca)' : 'var(--w10)'}`, background: activo ? 'rgba(193,85,58,0.1)' : 'var(--w03)', color: activo ? 'var(--marca-t)' : 'var(--w45)', borderRadius: 20, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {seg.label}
-                            <span style={{ color: activo ? 'var(--marca-t)' : 'var(--w30)', fontWeight: 800 }}>{enEsteSegmento.length}</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    <p style={{ color: 'var(--w40)', fontSize: 12, marginBottom: 12 }}>
-                      {visitasFiltradas.length} {visitasFiltradas.length === 1 ? 'visita' : 'visitas'}
-                      {visitasFiltradas.length > visitasVisibles && ` · mostrando las ${visitasVisibles} más recientes`}
-                      {' · toca una para ver el detalle'}
-                    </p>
-                    <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }}>
-                      {visitasFiltradas.length === 0 && (
-                        <div style={{ padding: 24, textAlign: 'center', color: 'var(--w30)', fontSize: 12 }}>
-                          Nada en este segmento durante el periodo
-                        </div>
-                      )}
-                      {visitasFiltradas.slice(0, visitasVisibles).map((v, i) => {
-                        const abierta = visitaAbierta === i
-                        const mixta = v.tienda > 0 && (v.entregas > 0 || v.anticipos > 0)
-                        return (
-                          <div key={i} style={{ borderBottom: i < general.visitas.length - 1 ? '1px solid var(--w05)' : 'none' }}>
-                            <div onClick={() => setVisitaAbierta(abierta ? null : i)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', cursor: 'pointer', background: abierta ? 'var(--w03)' : 'transparent' }}>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                  <span style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 700 }}>{v.nombre}</span>
-                                  {mixta && (
-                                    <span style={{ background: 'var(--marca)', color: 'var(--sup)', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 5, letterSpacing: 0.3 }}>
-                                      ENCARGO + TIENDA
-                                    </span>
-                                  )}
-                                  {v.sinCobro && (
-                                    <span style={{ border: '1px solid var(--w14)', color: 'var(--w45)', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 5, letterSpacing: 0.3 }}>
-                                      YA ESTABA PAGADO
-                                    </span>
-                                  )}
-                                </div>
-                                <div style={{ color: 'var(--w38)', fontSize: 11, marginTop: 3 }}>
-                                  {new Date(v.desde).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                                  {' · '}
-                                  {v.sinCobro
-                                    ? `recogió ${fmt(v.valorRecogido)} en mercancía · no se cobró nada`
-                                    : [
-                                      v.entregas > 0 && `encargo ${fmt(v.entregas)}`,
-                                      v.tienda > 0 && `tienda ${fmt(v.tienda)}`,
-                                      v.anticipos > 0 && `anticipo ${fmt(v.anticipos)}`,
-                                      v.otros > 0 && `otros ${fmt(v.otros)}`,
-                                    ].filter(Boolean).join(' + ')}
-                                </div>
-                                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                                  {Object.entries(v.metodos).map(([m, monto]) => (
-                                    <span key={m} style={{ border: '1px solid var(--w10)', borderRadius: 20, padding: '2px 9px', fontSize: 10.5, color: 'var(--w50)' }}>
-                                      {m} <b className="monto" style={{ color: 'var(--w70)' }}>{fmt(monto)}</b>
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                              <div className="monto" style={{ color: v.sinCobro ? 'var(--w30)' : 'var(--marca-t)', fontSize: 17, fontWeight: 800, flexShrink: 0 }}>{fmt(v.total)}</div>
-                            </div>
-
-                            {abierta && (
-                              <div style={{ padding: '0 16px 15px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 18 }}>
-                                <div>
-                                  <div style={{ ...rotulo, marginBottom: 7 }}>Recogió de su encargo</div>
-                                  {v.recogio.length === 0
-                                    ? <div style={{ color: 'var(--w30)', fontSize: 12 }}>Nada marcado como entregado</div>
-                                    : v.recogio.map((a, j) => (
-                                      <div key={j} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, padding: '3px 0' }}>
-                                        <span style={{ color: 'var(--w60)' }}>{a.cantidad > 1 ? `${a.cantidad}× ` : ''}{a.descripcion}</span>
-                                        <span className="monto" style={{ color: 'var(--w45)', flexShrink: 0 }}>{fmt(a.precio)}</span>
-                                      </div>
-                                    ))}
-                                </div>
-                                <div>
-                                  <div style={{ ...rotulo, marginBottom: 7 }}>Se llevó de la tienda</div>
-                                  {v.articulos.length === 0
-                                    ? <div style={{ color: 'var(--w30)', fontSize: 12 }}>Nada</div>
-                                    : v.articulos.map((a, j) => (
-                                      <div key={j} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, padding: '3px 0' }}>
-                                        <span style={{ color: 'var(--w60)' }}>
-                                          {a.cantidad > 1 ? `${a.cantidad}× ` : ''}{a.nombre}
-                                          {a.manual && <span style={{ color: 'var(--ambar)', fontSize: 10, marginLeft: 5 }}>monto libre</span>}
-                                        </span>
-                                        <span className="monto" style={{ color: 'var(--w45)', flexShrink: 0 }}>{fmt(a.importe)}</span>
-                                      </div>
-                                    ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {visitasFiltradas.length > visitasVisibles && (
-                      <button onClick={() => setVisitasVisibles(n => n + 50)}
-                        style={{
-                          width: '100%', marginTop: 10, padding: '11px', borderRadius: 11, cursor: 'pointer',
-                          border: '1px solid var(--w10)', background: 'transparent',
-                          color: 'var(--marca-t)', fontSize: 12.5, fontWeight: 700,
-                        }}>
-                        Ver 50 más · quedan {visitasFiltradas.length - visitasVisibles}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* ── Por colaborador ───────────────────────────────────── */}
-                {general.control.length > 0 && (
-                  <div>
-                    <h3 style={{ ...rotulo, marginBottom: 10 }}>Por colaborador</h3>
-                    <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }}>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 720 }}>
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid var(--w08)' }}>
-                              <th style={th}>Persona</th>
-                              <th style={{ ...th, textAlign: 'center' }}>Cortes</th>
-                              <th style={{ ...th, textAlign: 'right' }}>Diferencia acumulada</th>
-                              <th style={{ ...th, textAlign: 'right' }}>Peor corte</th>
-                              <th style={{ ...th, textAlign: 'right' }}>Vendió</th>
-                              <th style={{ ...th, textAlign: 'right' }}>Monto libre</th>
-                              <th style={{ ...th, textAlign: 'right' }}>Descuentos</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {general.control.map(c => (
-                              <tr key={c.id} style={{ borderBottom: '1px solid var(--w04)' }}>
-                                <td style={{ ...td, fontWeight: 700, color: 'var(--tinta)' }}>{c.nombre}</td>
-                                <td style={{ ...td, textAlign: 'center', color: 'var(--w45)' }}>{c.cortes || '—'}</td>
-                                <td className="monto" style={{ ...td, textAlign: 'right', fontWeight: 800, color: c.diferencia < -0.5 ? 'var(--rojo-t)' : c.diferencia > 0.5 ? 'var(--ambar)' : 'var(--verde)' }}>
-                                  {c.cortes ? `${c.diferencia > 0 ? '+' : ''}${fmt(c.diferencia)}` : '—'}
-                                </td>
-                                <td className="monto" style={{ ...td, textAlign: 'right', color: 'var(--w45)' }}>
-                                  {c.peorDiferencia ? fmt(c.peorDiferencia) : '—'}
-                                </td>
-                                <td className="monto" style={{ ...td, textAlign: 'right', color: 'var(--w55)' }}>{fmt(c.montoVendido)}</td>
-                                <td style={{ ...td, textAlign: 'right' }}>
-                                  {c.manuales > 0 ? (
-                                    <span>
-                                      <span className="monto" style={{ color: c.pctManual >= 20 ? 'var(--rojo-t)' : c.pctManual >= 10 ? 'var(--ambar)' : 'var(--w55)', fontWeight: 700 }}>
-                                        {fmt(c.montoManual)}
-                                      </span>
-                                      <span style={{ color: 'var(--w35)', fontSize: 10.5, marginLeft: 5 }}>{c.pctManual}%</span>
-                                    </span>
-                                  ) : <span style={{ color: 'var(--w25)' }}>—</span>}
-                                </td>
-                                <td className="monto" style={{ ...td, textAlign: 'right', color: c.montoDescuento > 0 ? 'var(--ambar)' : 'var(--w25)' }}>
-                                  {c.montoDescuento > 0 ? fmt(c.montoDescuento) : '—'}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                    <p style={{ color: 'var(--w38)', fontSize: 11, marginTop: 9, lineHeight: 1.5 }}>
-                      La diferencia acumulada suma todos los cortes del periodo. Un faltante aislado casi
-                      siempre es error de captura; lo que hay que mirar es el patrón — la misma persona
-                      cerrando corto una y otra vez. "Monto libre" son ventas tecleadas sin producto del
-                      catálogo: por encima del 20% de lo que vende alguien, vale la pena revisar.
-                    </p>
-                  </div>
-                )}
-
-                {/* ── Retiros y cancelaciones ───────────────────────────── */}
-                {(general.retiros.length > 0 || general.cancelados.length > 0) && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
-                    {general.retiros.length > 0 && (
-                      <div>
-                        <h3 style={{ ...rotulo, marginBottom: 10 }}>Retiros de caja</h3>
-                        <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }}>
-                          {general.retiros.map((r, i) => (
-                            <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '11px 14px', borderBottom: i < general.retiros.length - 1 ? '1px solid var(--w04)' : 'none' }}>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600 }}>{r.motivo || 'Sin motivo'}</div>
-                                <div style={{ color: r.admin_id ? 'var(--w35)' : 'var(--rojo-t)', fontSize: 10.5 }}>
-                                  {r.admin_id ? r.quien : 'sin responsable registrado'} · {String(r.creado_en).slice(0, 10)}
-                                </div>
-                              </div>
-                              <span className="monto" style={{ color: 'var(--ambar)', fontWeight: 800, fontSize: 13 }}>{fmt(r.monto)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {general.cancelados.length > 0 && (
-                      <div>
-                        <h3 style={{ ...rotulo, marginBottom: 10 }}>Pagos cancelados</h3>
-                        <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }}>
-                          {general.cancelados.map((c, i) => (
-                            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '11px 14px', borderBottom: i < general.cancelados.length - 1 ? '1px solid var(--w04)' : 'none' }}>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600 }}>{c.cliente}</div>
-                                <div style={{ color: 'var(--w35)', fontSize: 10.5 }}>{c.cancelado_motivo} · {c.quien}</div>
-                              </div>
-                              <span className="monto" style={{ color: 'var(--rojo-t)', fontWeight: 800, fontSize: 13 }}>{fmt(c.monto)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
+                <div className="monto" style={{ color: 'var(--marca-t)', fontSize: 40, fontWeight: 900, letterSpacing: -1.5, lineHeight: 1 }}>{fmt(g.total)}</div>
               </div>
-            )}
+
+              {/* Los dos negocios, lado a lado: tocar uno abre su vista */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, padding: '0 22px 20px' }}>
+                <Pilar
+                  tono="#0f8a63" titulo="🏪 Tienda" monto={g.ingresos.tienda} total={g.total}
+                  lineas={[
+                    `${g.tienda.articulos} ${g.tienda.articulos === 1 ? 'artículo' : 'artículos'}`,
+                    g.tienda.ventaConCosto > 0 ? `utilidad ${fmt(g.tienda.utilidad)} (${((g.tienda.utilidad / g.tienda.ventaConCosto) * 100).toFixed(0)}%)` : 'utilidad sin calcular',
+                  ]}
+                  onClick={() => setVista('tienda')} />
+                <Pilar
+                  tono="#c1553a" titulo="📦 Pedidos" monto={pedidosTotal} total={g.total}
+                  lineas={[
+                    `entregas ${fmt(g.ingresos.entregas)} · anticipos ${fmt(g.ingresos.anticipos)}`,
+                    g.ingresos.envios > 0 ? `envíos ${fmt(g.ingresos.envios)}` : null,
+                  ].filter(Boolean)}
+                  onClick={() => setVista('pedidos')} />
+              </div>
+
+              <div style={{ padding: '0 22px 20px', borderTop: '1px solid var(--w06)', paddingTop: 18 }}>
+                <Barra titulo="Por origen" total={g.total} partes={[
+                  ['Entregas', g.ingresos.entregas, '#c1553a'],
+                  ['Anticipos', g.ingresos.anticipos, '#2563eb'],
+                  ['Tienda', g.ingresos.tienda, '#0f8a63'],
+                  ['Envíos', g.ingresos.envios || 0, '#a06d14'],
+                  ['Otros', g.ingresos.otros, '#8a8178'],
+                ]} fmt={fmt} />
+                <div style={{ height: 20 }} />
+                <Desglose titulo="Por método de cobro" total={g.total} partes={[
+                  ['Efectivo', g.porMetodo.Efectivo],
+                  ['Transferencia', g.porMetodo.Transferencia],
+                  ['Terminal', g.porMetodo.Terminal],
+                  ['Otro', g.porMetodo.Otro],
+                ]} fmt={fmt} />
+              </div>
+            </div>
+
+            <Senales g={g} fmt={fmt} onVer={() => setVista('control')} />
           </div>
         )}
 
-        {/* La tabla de entregas del día se retiró: las Transacciones del
-            periodo muestran lo mismo y con más detalle. */}
-        {false && (
-          <div>
-            {cargando && <div style={{ color: 'var(--w30)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
+        {/* ═══════════════════ TIENDA ═══════════════════ */}
+        {vista === 'tienda' && (
+          cargandoTienda ? <div style={{ color: 'var(--w30)', textAlign: 'center', padding: 40 }}>Cargando…</div> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-            {!cargando && (
-              <div>
-                {/* ── El día ──────────────────────────────────────────
-                    Antes eran tres tarjetas iguales y el total en una cuarta,
-                    más chica y desalineada. El total del día manda; el resto
-                    explica de dónde salió. */}
-                <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden', marginBottom: 20 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, padding: '20px 22px' }}>
-                    <div>
-                      <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }}>
-                        Total del día
-                      </div>
-                      <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>
-                        {metricasDelDia.numClientesEntregas === 1
-                          ? '1 cliente en entregas'
-                          : `${metricasDelDia.numClientesEntregas} clientes en entregas`}
-                        {metricasDelDia.numTransaccionesTienda > 0 && ` · ${metricasDelDia.numTransaccionesTienda} ventas en tienda`}
-                      </div>
-                    </div>
-                    <div className="monto" style={{ color: 'var(--marca-t)', fontSize: 40, fontWeight: 900, letterSpacing: -1.5, lineHeight: 1 }}>
-                      {fmt(metricasDelDia.totalGeneral)}
-                    </div>
-                  </div>
-
-                  {/* De dónde vino. Tres orígenes con etiqueta y cifra: el
-                      color acompaña, nunca carga el dato solo. */}
-                  {metricasDelDia.totalGeneral > 0 && (
-                    <div style={{ padding: '0 22px 18px' }}>
-                      <div style={{ display: 'flex', gap: 2, height: 12 }}>
-                        {[
-                          ['Entregas', metricasDelDia.totalCobradoEntregas, '#c1553a'],
-                          ['Anticipos', metricasDelDia.totalAnticipos, '#2563eb'],
-                          ['Tienda', metricasDelDia.totalTienda, '#0f8a63'],
-                        ].filter(([, v]) => v > 0).map(([et, v, tono], i, arr) => (
-                          <div key={et} title={`${et}: ${fmt(v)}`} style={{
-                            width: `${(v / metricasDelDia.totalGeneral) * 100}%`,
-                            background: tono,
-                            borderTopLeftRadius: i === 0 ? 6 : 2, borderBottomLeftRadius: i === 0 ? 6 : 2,
-                            borderTopRightRadius: i === arr.length - 1 ? 6 : 2, borderBottomRightRadius: i === arr.length - 1 ? 6 : 2,
-                          }} />
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', gap: 18, marginTop: 11, flexWrap: 'wrap' }}>
-                        {[
-                          ['Entregas', metricasDelDia.totalCobradoEntregas, '#c1553a'],
-                          ['Anticipos', metricasDelDia.totalAnticipos, '#2563eb'],
-                          ['Tienda', metricasDelDia.totalTienda, '#0f8a63'],
-                        ].map(([et, v, tono]) => (
-                          <div key={et} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: 2, background: tono, flexShrink: 0 }} />
-                            <span style={{ color: 'var(--w42)', fontSize: 11.5 }}>{et}</span>
-                            <span className="monto" style={{ color: 'var(--w80)', fontSize: 12, fontWeight: 700 }}>{fmt(v)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Tabla resumen por cliente */}
-                {resumenClientesEntregas.length > 0 ? (
-                  <div>
-                    <h3 style={{ color: 'var(--w32)', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 10 }}>
-                      Entregas del día
-                      <span style={{ color: 'var(--marca-t)', marginLeft: 8, fontWeight: 800 }}>
-                        {resumenClientesEntregas.length} {resumenClientesEntregas.length === 1 ? 'cliente' : 'clientes'}
-                      </span>
-                    </h3>
-                    <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid var(--w10)' }}>
-                          <th style={{ color: 'var(--w50)', textAlign: 'left', padding: '12px 14px' }}>Cliente</th>
-                          <th style={{ color: 'var(--w50)', textAlign: 'center', padding: '8px' }}>Artículos</th>
-                          <th style={{ color: 'var(--w50)', textAlign: 'left', padding: '8px' }}>Método</th>
-                          <th style={{ color: 'var(--w50)', textAlign: 'right', padding: '8px' }}>Total pagado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {resumenClientesEntregas.map((c, i) => (
-                          <tr key={c.cliente_id} style={{ borderBottom: '1px solid var(--w05)', background: i % 2 === 0 ? 'var(--w02)' : 'transparent' }}>
-                            <td style={{ color: 'var(--tinta)', padding: '10px 8px', fontWeight: 600 }}>{c.nombre}</td>
-                            <td style={{ color: 'var(--w60)', padding: '10px 8px', textAlign: 'center' }}>{c.numArticulos}</td>
-                            <td style={{ color: 'var(--w60)', padding: '10px 8px' }}>{c.metodos}</td>
-                            <td style={{ color: 'var(--marca-t)', padding: '10px 8px', textAlign: 'right', fontWeight: 700 }}>${c.totalPagado.toLocaleString('es-MX')}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ borderTop: '1px solid var(--w15)' }}>
-                          <td style={{ color: 'var(--w50)', padding: '10px 8px', fontWeight: 700 }}>Total</td>
-                          <td style={{ color: 'var(--w50)', padding: '10px 8px', textAlign: 'center' }}>
-                            {resumenClientesEntregas.reduce((s, c) => s + c.numArticulos, 0)}
-                          </td>
-                          <td></td>
-                          <td style={{ color: 'var(--marca-t)', padding: '10px 8px', textAlign: 'right', fontWeight: 700 }}>
-                            ${metricasDelDia.totalCobradoEntregas.toLocaleString('es-MX')}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ color: 'var(--w40)', textAlign: 'center', padding: 40 }}>
-                    Sin entregas registradas para esta fecha
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ===================== ANÁLISIS DE TIENDA ===================== */}
-        {(
-          <div>
-            {cargando && <div style={{ color: 'var(--w30)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
-
-            {!cargando && (
-              <div style={{ background: 'var(--sup)', border: '1px solid var(--w07)', borderRadius: 16, overflow: 'hidden', marginBottom: 24 }}>
+              <div style={tarjeta}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, padding: '20px 22px' }}>
                   <div>
-                    <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1.1, fontWeight: 700 }}>
-                      Ventas de tienda
-                    </div>
+                    <div style={rotulo}>Vendido en tienda</div>
                     <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>
-                      {metricasDelDia.numTransaccionesTienda === 1 ? '1 transacción' : `${metricasDelDia.numTransaccionesTienda} transacciones`}
-                      {analisisTienda.totalArticulos > 0 && ` · ${analisisTienda.totalArticulos} artículos`}
+                      {analisisTienda.transacciones.length} {analisisTienda.transacciones.length === 1 ? 'venta' : 'ventas'} · {analisisTienda.totalArticulos} {analisisTienda.totalArticulos === 1 ? 'artículo' : 'artículos'}
                     </div>
                   </div>
-                  <div className="monto" style={{ color: 'var(--verde)', fontSize: 40, fontWeight: 900, letterSpacing: -1.5, lineHeight: 1 }}>
-                    {fmt(metricasDelDia.totalTienda)}
-                  </div>
+                  <div className="monto" style={{ color: 'var(--verde)', fontSize: 40, fontWeight: 900, letterSpacing: -1.5, lineHeight: 1 }}>{fmt(analisisTienda.totalVendido)}</div>
                 </div>
-
-                <div className="cifras-caja" style={{ borderTop: '1px solid var(--w06)' }}>
-                  <div>
-                    <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Artículos</div>
-                    <div className="monto" style={{ color: 'var(--tinta)', fontSize: 19, fontWeight: 800, marginTop: 5 }}>{analisisTienda.totalArticulos}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Vendedor más activo</div>
-                    <div style={{ color: 'var(--marca-t)', fontSize: 15, fontWeight: 800, marginTop: 7 }}>{analisisTienda.vendedorTop || '—'}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: 'var(--w32)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Utilidad</div>
-                    <div className="monto" style={{ color: 'var(--ambar)', fontSize: 19, fontWeight: 800, marginTop: 5 }}>{fmt(utilidadMostrada)}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', borderTop: '1px solid var(--w06)' }}>
+                  <Celda rotulo="Utilidad" valor={fmt(utilidadMostrada)} color="var(--verde)"
+                    sub={analisisTienda.totalVendido > 0 ? `margen ${((utilidadMostrada / analisisTienda.totalVendido) * 100).toFixed(0)}%` : null}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--w40)', cursor: 'pointer', marginTop: 5 }}>
                       <input type="checkbox" checked={incluirPorConciliar} onChange={(e) => setIncluirPorConciliar(e.target.checked)} />
                       incluir por conciliar
                     </label>
-                    {analisisTienda.porConciliar.length > 0 && (
-                      <div style={{ color: 'var(--rojo-t)', fontSize: 10.5, marginTop: 4 }}>
-                        {analisisTienda.porConciliar.length} sin costo capturado
-                      </div>
-                    )}
-                  </div>
+                  </Celda>
+                  <Celda rotulo="Ticket promedio"
+                    valor={analisisTienda.transacciones.length ? fmt(analisisTienda.totalVendido / analisisTienda.transacciones.length) : '—'} />
+                  <Celda rotulo="Artículos" valor={analisisTienda.totalArticulos} />
+                  <Celda rotulo="Vendedor top" valor={analisisTienda.vendedorTop || '—'} chico
+                    sub={analisisTienda.porVendedor[0] ? fmt(analisisTienda.porVendedor[0].total) : null} />
                 </div>
               </div>
-            )}
 
-            {/* ── Análisis de ventas de tienda (ventas_tienda) ───────────── */}
-            <div>
-
-              {/* Ventas manuales por conciliar: sin costo_unitario al momento de cobrar */}
-              {analisisTienda.porConciliar.length > 0 && (
-                <div style={{ marginBottom: 24, background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.2)', borderRadius: 12, padding: 16 }}>
-                  <h3 style={{ color: 'var(--ambar)', fontSize: 15, fontWeight: 700, marginBottom: 4 }}>⚠ Ventas manuales por conciliar ({analisisTienda.porConciliar.length})</h3>
-                  <p style={{ color: 'var(--w50)', fontSize: 12, marginBottom: 12 }}>
-                    Ventas rápidas por monto o producto sin catálogo — no tenían costo conocido al cobrar. Captura el costo real para que la utilidad quede exacta.
-                  </p>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--w10)' }}>
-                        <th style={{ color: 'var(--w50)', textAlign: 'left', padding: '8px' }}>Artículo</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'center', padding: '8px' }}>Cant.</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'right', padding: '8px' }}>Precio venta</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'right', padding: '8px' }}>Costo unitario</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'center', padding: '8px' }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {analisisTienda.porConciliar.map((v) => (
-                        <tr key={v.id} style={{ borderBottom: '1px solid var(--w05)' }}>
-                          <td style={{ padding: '8px', color: 'var(--tinta)' }}>{v.nombre_producto}</td>
-                          <td style={{ padding: '8px', textAlign: 'center', color: 'var(--w70)' }}>{v.cantidad}</td>
-                          <td style={{ padding: '8px', textAlign: 'right', color: 'var(--w70)', fontFamily: 'monospace' }}>${Number(v.precio_unitario).toFixed(2)}</td>
-                          <td style={{ padding: '8px', textAlign: 'right' }}>
-                            <input
-                              type="number"
-                              step="0.01"
-                              placeholder="0.00"
-                              value={costoDraft[v.id] ?? ''}
-                              onChange={(e) => setCostoDraft(prev => ({ ...prev, [v.id]: e.target.value }))}
-                              style={{ width: 90, background: 'var(--w05)', border: '1px solid var(--w15)', borderRadius: 8, padding: '6px 8px', color: 'var(--tinta)', fontSize: 12, textAlign: 'right' }}
-                            />
-                          </td>
-                          <td style={{ padding: '8px', textAlign: 'center' }}>
-                            <button
-                              type="button"
-                              disabled={!costoDraft[v.id] || guardandoCosto === v.id}
-                              onClick={() => guardarCostoConciliacion(v.id)}
-                              style={{ background: 'rgba(52,211,153,0.15)', color: 'var(--verde)', border: '1px solid rgba(52,211,153,0.4)', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: costoDraft[v.id] ? 'pointer' : 'not-allowed', opacity: costoDraft[v.id] ? 1 : 0.5 }}
-                            >
-                              {guardandoCosto === v.id ? 'Guardando…' : 'Guardar'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {analisisTienda.transacciones.length === 0 && (
+                <div style={{ ...tarjeta, padding: 40, textAlign: 'center', color: 'var(--w35)', fontSize: 13 }}>
+                  No hubo ventas de tienda en este periodo
                 </div>
               )}
 
-              {/* Top productos */}
-              {analisisTienda.topProductos.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <h3 style={{ color: 'var(--tinta)', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>🏆 Top productos</h3>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--w10)' }}>
-                        <th style={{ color: 'var(--w50)', textAlign: 'left', padding: '8px' }}>Producto</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'left', padding: '8px' }}>Categoría</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'center', padding: '8px' }}>Cantidad</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'right', padding: '8px' }}>Revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {analisisTienda.topProductos.map((p, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid var(--w05)', background: i % 2 === 0 ? 'var(--w02)' : 'transparent' }}>
-                          <td style={{ color: 'var(--tinta)', padding: '8px', fontWeight: 600 }}>{p.nombre}</td>
-                          <td style={{ color: 'var(--w50)', padding: '8px' }}>{p.categoria || '—'}</td>
-                          <td style={{ color: 'var(--w60)', padding: '8px', textAlign: 'center' }}>{p.cantidad}</td>
-                          <td style={{ color: 'var(--verde)', padding: '8px', textAlign: 'right', fontWeight: 700 }}>${p.revenue.toLocaleString('es-MX')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Por vendedor */}
-              {analisisTienda.porVendedor.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <h3 style={{ color: 'var(--tinta)', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>👤 Por vendedor</h3>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--w10)' }}>
-                        <th style={{ color: 'var(--w50)', textAlign: 'left', padding: '8px' }}>Vendedor</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'center', padding: '8px' }}>Artículos</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'right', padding: '8px' }}>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {analisisTienda.porVendedor.map((v, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid var(--w05)' }}>
-                          <td style={{ color: 'var(--tinta)', padding: '8px', fontWeight: 600 }}>{v.nombre}</td>
-                          <td style={{ color: 'var(--w60)', padding: '8px', textAlign: 'center' }}>{v.articulos}</td>
-                          <td style={{ color: 'var(--marca-t)', padding: '8px', textAlign: 'right', fontWeight: 700 }}>${v.total.toLocaleString('es-MX')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Por categoría */}
-              {analisisTienda.porCategoria.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <h3 style={{ color: 'var(--tinta)', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📂 Por categoría</h3>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--w10)' }}>
-                        <th style={{ color: 'var(--w50)', textAlign: 'left', padding: '8px' }}>Categoría</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'center', padding: '8px' }}>Cantidad</th>
-                        <th style={{ color: 'var(--w50)', textAlign: 'right', padding: '8px' }}>Revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {analisisTienda.porCategoria.map((c, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid var(--w05)' }}>
-                          <td style={{ color: 'var(--tinta)', padding: '8px' }}>{c.categoria}</td>
-                          <td style={{ color: 'var(--w60)', padding: '8px', textAlign: 'center' }}>{c.cantidad}</td>
-                          <td style={{ color: 'var(--ambar)', padding: '8px', textAlign: 'right', fontWeight: 700 }}>${c.revenue.toLocaleString('es-MX')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Alerta de restock */}
+              {/* Pendientes: lo que requiere acción, arriba */}
               {analisisTienda.restock.length > 0 && (
-                <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
-                  <div style={{ color: 'var(--rojo-t)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>⚠️ Restock necesario (stock &lt; 3)</div>
-                  {analisisTienda.restock.map((p, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: 'var(--w70)', borderBottom: i < analisisTienda.restock.length - 1 ? '1px solid var(--w05)' : 'none' }}>
-                      <span>{p.nombre}</span>
-                      <span style={{ color: 'var(--rojo-t)', fontWeight: 700 }}>{p.stock} en stock</span>
-                    </div>
-                  ))}
+                <div style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.22)', borderRadius: 16, padding: '14px 18px' }}>
+                  <div style={{ color: 'var(--rojo-t)', fontSize: 12.5, fontWeight: 800, marginBottom: 8 }}>⚠️ Por resurtir · quedan menos de 3</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {analisisTienda.restock.map((p, i) => (
+                      <span key={i} style={{ border: '1px solid rgba(239,68,68,0.25)', borderRadius: 20, padding: '4px 11px', fontSize: 12, color: 'var(--w70)' }}>
+                        {p.nombre} <b style={{ color: 'var(--rojo-t)' }}>{p.stock}</b>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* Transacciones del día */}
-              {analisisTienda.transacciones?.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <h3 style={{ color: 'var(--tinta)', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-                    🧾 Transacciones ({analisisTienda.transacciones.length})
-                  </h3>
-                  {analisisTienda.transacciones.map((t, i) => (
-                    <div key={t.pago_id} style={{
-                      background: 'var(--w04)',
-                      border: '1px solid var(--w08)',
-                      borderRadius: 10,
-                      padding: '12px 16px',
-                      marginBottom: 10
-                    }}>
-                      {/* Header transacción */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                          <span style={{ color: 'var(--w40)', fontSize: 12 }}>🕐 {t.hora}</span>
-                          <span style={{ color: 'var(--w60)', fontSize: 12 }}>👤 {t.vendedor}</span>
-                          <span style={{
-                            background: 'var(--w08)',
-                            color: 'var(--w60)',
-                            fontSize: 11,
-                            padding: '2px 8px',
-                            borderRadius: 20
-                          }}>
-                            {t.metodo}
-                          </span>
-                        </div>
-                        <span style={{ color: 'var(--verde)', fontWeight: 700, fontSize: 15 }}>
-                          ${t.total.toLocaleString('es-MX')}
-                        </span>
-                      </div>
-                      {/* Artículos de la transacción */}
-                      {t.articulos.map((a, j) => (
-                        <div key={j} style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          padding: '4px 0',
-                          borderTop: '1px solid var(--w05)',
-                          fontSize: 13
-                        }}>
-                          <span style={{ color: 'var(--w70)' }}>
-                            {a.cantidad > 1 ? `x${a.cantidad} ` : ''}{a.nombre}
-                          </span>
-                          <span style={{ color: 'var(--tinta)', fontWeight: 600 }}>
-                            ${(a.cantidad * a.precio).toLocaleString('es-MX')}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
+              {analisisTienda.porConciliar.length > 0 && (
+                <PorConciliar filas={analisisTienda.porConciliar} costoDraft={costoDraft} setCostoDraft={setCostoDraft}
+                  guardando={guardandoCosto} onGuardar={guardarCostoConciliacion} />
+              )}
+
+              {analisisTienda.topProductos.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 18, alignItems: 'start' }}>
+                  <Bloque titulo="🏆 Lo que más se vende" nota="por importe">
+                    <Ranking tono="var(--verde)" limite={8} filas={analisisTienda.topProductos.map(p => ({
+                      clave: p.nombre, etiqueta: p.nombre, sub: `${p.cantidad} ${p.cantidad === 1 ? 'pieza' : 'piezas'}${p.categoria ? ' · ' + p.categoria : ''}`,
+                      valor: p.revenue, texto: fmt(p.revenue),
+                    }))} />
+                  </Bloque>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    <Bloque titulo="📂 Por categoría" nota="por importe">
+                      <Ranking tono="var(--ambar)" limite={6} filas={analisisTienda.porCategoria.map(c => ({
+                        clave: c.categoria, etiqueta: c.categoria, sub: `${c.cantidad} ${c.cantidad === 1 ? 'pieza' : 'piezas'}`,
+                        valor: c.revenue, texto: fmt(c.revenue),
+                        pct: analisisTienda.totalVendido > 0 ? Math.round((c.revenue / analisisTienda.totalVendido) * 100) : null,
+                      }))} />
+                    </Bloque>
+                    <Bloque titulo="👤 Por vendedor">
+                      <Ranking tono="var(--marca)" filas={analisisTienda.porVendedor.map(v => ({
+                        clave: v.nombre, etiqueta: v.nombre, sub: `${v.articulos} ${v.articulos === 1 ? 'artículo' : 'artículos'}`,
+                        valor: v.total, texto: fmt(v.total),
+                      }))} />
+                    </Bloque>
+                  </div>
                 </div>
               )}
 
-              {analisisTienda.topProductos.length === 0 && (
-                <div style={{ color: 'var(--w40)', textAlign: 'center', padding: 40 }}>
-                  Sin ventas de tienda para esta fecha
+              {analisisTienda.transacciones.length > 0 && (
+                <div>
+                  <h3 style={{ ...rotulo, marginBottom: 10 }}>Ventas del periodo · toca una para ver los artículos</h3>
+                  <ListaVentasTienda key={claveLista} ventas={analisisTienda.transacciones} />
                 </div>
               )}
             </div>
-          </div>
+          )
         )}
 
-        {/* ===================== SECCIÓN ESTADO DE CUENTA ===================== */}
-        {/* Estado de cuenta: vive dentro de Entregas porque es exactamente eso
-            — quién debe de los encargos de una entrega. Antes era una pestaña
-            aparte y obligaba a saltar entre dos pantallas del mismo tema. */}
-        {(
-          <div style={{ marginTop: 34, borderTop: '1px solid var(--w07)', paddingTop: 26 }}>
-            <h3 style={{ ...rotulo, marginBottom: 4 }}>Rentabilidad por entrega</h3>
-            <p style={{ color: 'var(--w40)', fontSize: 12, marginBottom: 14 }}>
-              Una entrega no cabe en un rango de fechas: se cobra durante semanas. Aquí
-              va completa — lo vendido, la utilidad y quién falta por pagar.
-            </p>
-            <select value={entregaSeleccionada} onChange={e => setEntregaSeleccionada(e.target.value)}
-              style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '10px 14px', color: 'var(--tinta)', fontSize: 13, outline: 'none', marginBottom: 16 }}>
-              <option value="">— Selecciona estado de cuenta —</option>
+        {/* ═══════════════════ PEDIDOS ═══════════════════ */}
+        {vista === 'pedidos' && !cargandoGeneral && g && (
+          <PedidosVista g={g} claveLista={claveLista} pedidosTotal={pedidosTotal} />
+        )}
+
+        {/* ═══════════════════ POR ENTREGA ═══════════════════ */}
+        {vista === 'entrega' && (
+          <div>
+            <select value={entregaSeleccionada} onChange={e => { setEntregaSeleccionada(e.target.value); setFiltroCatReporte('') }}
+              style={{ width: '100%', background: 'var(--sup)', border: '1px solid var(--w10)', borderRadius: 12, padding: '12px 14px', color: 'var(--tinta)', fontSize: 14, fontWeight: 600, outline: 'none', marginBottom: 16 }}>
+              <option value="">— Elige una entrega —</option>
               {entregas.map(e => <option key={e.id} value={e.id}>{e.fecha_entrega}{e.nota ? ` · ${e.nota}` : ''}</option>)}
             </select>
 
-            {cargando && <div style={{ color: 'var(--w30)', textAlign: 'center', padding: 40 }}>Cargando...</div>}
+            {cargandoEC && <div style={{ color: 'var(--w30)', textAlign: 'center', padding: 40 }}>Cargando…</div>}
 
-            {/* Filtro de categoría */}
-            {!cargando && metricasEC && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <span style={{ color: 'var(--w40)', fontSize: 11 }}>Categoría:</span>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <button onClick={() => setFiltroCatReporte('')}
-                    style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${!filtroCatReporte ? 'rgba(193,85,58,0.5)' : 'var(--w10)'}`, background: !filtroCatReporte ? 'rgba(193,85,58,0.15)' : 'var(--w03)', color: !filtroCatReporte ? 'var(--marca-t)' : 'var(--w40)' }}>
-                    Todas
-                  </button>
-                  {categoriasReporte.map(cat => (
-                    <button key={cat.id} onClick={() => setFiltroCatReporte(cat.nombre)}
-                      style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${filtroCatReporte === cat.nombre ? 'rgba(193,85,58,0.5)' : 'var(--w10)'}`, background: filtroCatReporte === cat.nombre ? 'rgba(193,85,58,0.15)' : 'var(--w03)', color: filtroCatReporte === cat.nombre ? 'var(--marca-t)' : 'var(--w40)' }}>
-                      {cat.nombre}
-                    </button>
-                  ))}
+            {!cargandoEC && metricasEC && (
+              <EntregaVista
+                m={metricasEC} peds={rawPedidos} porCliente={porClienteEC}
+                categorias={categoriasReporte} filtroCat={filtroCatReporte} setFiltroCat={setFiltroCatReporte} />
+            )}
+
+            {!entregaSeleccionada && !cargandoEC && (
+              <div style={{ ...tarjeta, padding: 40, textAlign: 'center', color: 'var(--w35)', fontSize: 13 }}>
+                Elige una entrega para ver sus números
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══════════════════ CONTROL ═══════════════════ */}
+        {vista === 'control' && !cargandoGeneral && g && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+            <CuadreCard g={g} />
+            <Senales g={g} fmt={fmt} />
+
+            {/* Cada corte contra lo que sigue registrado: detecta dinero que se
+                anotó y después desapareció (así se destapó el bug de los
+                anticipos borrados, tres semanas tarde). */}
+            {g.cuadreCortes?.length > 0 && (
+              <div style={tarjeta}>
+                <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--w06)' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={rotulo}>Cada corte contra lo registrado</span>
+                    {g.alertaCortes?.descuadrados > 0 ? (
+                      <span className="monto" style={{ color: 'var(--rojo-t)', fontSize: 13, fontWeight: 800 }}>
+                        {g.alertaCortes.descuadrados} descuadrado{g.alertaCortes.descuadrados !== 1 ? 's' : ''} · {fmt(g.alertaCortes.monto)}
+                      </span>
+                    ) : g.alertaCortes?.revisados > 0 ? (
+                      <span style={{ color: 'var(--verde)', fontSize: 13, fontWeight: 700 }}>Todos cuadran</span>
+                    ) : null}
+                  </div>
+                  <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6, maxWidth: 620, lineHeight: 1.5 }}>
+                    Lo que el corte anotó por método contra lo que sigue registrado en ese mismo periodo. Si el corte contó más, algo se borró o se canceló después.
+                    {g.alertaCortes?.sin_periodo > 0 && ` ${g.alertaCortes.sin_periodo} corte${g.alertaCortes.sin_periodo !== 1 ? 's' : ''} no se puede${g.alertaCortes.sin_periodo !== 1 ? 'n' : ''} cuadrar: son anteriores al cambio que guarda el periodo.`}
+                  </div>
+                </div>
+                <div>
+                  {g.cuadreCortes.map((c) => {
+                    const cuando = new Date(c.creado_en).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ })
+                    if (!c.conciliable) {
+                      return (
+                        <div key={c.id} style={{ padding: '11px 22px', borderTop: '1px solid var(--w04)', display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                          <span style={{ color: 'var(--w45)', fontSize: 12.5, minWidth: 130 }}>{cuando}</span>
+                          <span style={{ color: 'var(--w35)', fontSize: 12 }}>{c.quien}</span>
+                          <span style={{ color: 'var(--w28)', fontSize: 11.5, marginLeft: 'auto' }}>{c.motivo || 'No conciliable'}</span>
+                        </div>
+                      )
+                    }
+                    const mal = Math.abs(c.descuadre) > 0.5
+                    return (
+                      <div key={c.id} style={{ padding: '13px 22px', borderTop: '1px solid var(--w04)', background: mal ? 'rgba(var(--rojo-rgb),0.07)' : 'transparent' }}>
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                          <span style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600, minWidth: 130 }}>{cuando}</span>
+                          <span style={{ color: 'var(--w40)', fontSize: 12 }}>{c.quien}</span>
+                          <span className="monto" style={{ marginLeft: 'auto', fontSize: 13.5, fontWeight: 800, color: mal ? 'var(--rojo-t)' : 'var(--verde)' }}>
+                            {!mal ? 'cuadra' : c.descuadre > 0 ? `faltan ${fmt(c.descuadre)}` : `sobran ${fmt(-c.descuadre)}`}
+                          </span>
+                        </div>
+                        {mal && (
+                          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 8 }}>
+                            {c.metodos.filter(m => Math.abs(m.diferencia) > 0.5).map(m => (
+                              <div key={m.metodo} style={{ fontSize: 11.5, color: 'var(--w45)' }}>
+                                <span style={{ fontWeight: 600, color: 'var(--w60)' }}>{m.metodo}:</span>{' '}
+                                anotó <span className="monto">{fmt(m.anoto)}</span>, hay <span className="monto">{fmt(m.hay)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
 
-            {!cargando && metricasEC && (
+            {/* Por colaborador */}
+            {g.control.length > 0 && (
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 12 }}>
-                  <MetricCard label="Venta total" value={fmt(metricasEC.ventaTotal)} sub={`${metricasEC.totalPedidos} pedidos · ${metricasEC.clientesUnicos} clientes`} />
-                  <MetricCard label="Utilidad" value={fmt(metricasEC.utilidadTotal)} sub={`Margen ${metricasEC.margen.toFixed(1)}%`} color="16,185,129" />
-                  <MetricCard label="Total cobrado" value={fmt(metricasEC.cobradoTotal)} sub={`Anticipos: ${fmt(metricasEC.totalAnticipos)}`} />
-                  <MetricCard label="Por cobrar" value={fmt(metricasEC.pendiente)} color="239,68,68" />
+                <h3 style={{ ...rotulo, marginBottom: 10 }}>Por colaborador</h3>
+                <div style={tarjeta}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 720 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--w08)' }}>
+                          <th style={th}>Persona</th>
+                          <th style={{ ...th, textAlign: 'center' }}>Cortes</th>
+                          <th style={{ ...th, textAlign: 'right' }}>Diferencia acumulada</th>
+                          <th style={{ ...th, textAlign: 'right' }}>Peor corte</th>
+                          <th style={{ ...th, textAlign: 'right' }}>Vendió</th>
+                          <th style={{ ...th, textAlign: 'right' }}>Monto libre</th>
+                          <th style={{ ...th, textAlign: 'right' }}>Descuentos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {g.control.map(c => (
+                          <tr key={c.id} style={{ borderBottom: '1px solid var(--w04)' }}>
+                            <td style={{ ...td, fontWeight: 700, color: 'var(--tinta)' }}>{c.nombre}</td>
+                            <td style={{ ...td, textAlign: 'center', color: 'var(--w45)' }}>{c.cortes || '—'}</td>
+                            <td className="monto" style={{ ...td, textAlign: 'right', fontWeight: 800, color: c.diferencia < -0.5 ? 'var(--rojo-t)' : c.diferencia > 0.5 ? 'var(--ambar)' : 'var(--verde)' }}>
+                              {c.cortes ? `${c.diferencia > 0 ? '+' : ''}${fmt(c.diferencia)}` : '—'}
+                            </td>
+                            <td className="monto" style={{ ...td, textAlign: 'right', color: 'var(--w45)' }}>{c.peorDiferencia ? fmt(c.peorDiferencia) : '—'}</td>
+                            <td className="monto" style={{ ...td, textAlign: 'right', color: 'var(--w55)' }}>{fmt(c.montoVendido)}</td>
+                            <td style={{ ...td, textAlign: 'right' }}>
+                              {c.manuales > 0 ? (
+                                <span>
+                                  <span className="monto" style={{ color: c.pctManual >= 20 ? 'var(--rojo-t)' : c.pctManual >= 10 ? 'var(--ambar)' : 'var(--w55)', fontWeight: 700 }}>{fmt(c.montoManual)}</span>
+                                  <span style={{ color: 'var(--w35)', fontSize: 10.5, marginLeft: 5 }}>{c.pctManual}%</span>
+                                </span>
+                              ) : <span style={{ color: 'var(--w25)' }}>—</span>}
+                            </td>
+                            <td className="monto" style={{ ...td, textAlign: 'right', color: c.montoDescuento > 0 ? 'var(--ambar)' : 'var(--w25)' }}>
+                              {c.montoDescuento > 0 ? fmt(c.montoDescuento) : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+                <p style={{ color: 'var(--w38)', fontSize: 11, marginTop: 9, lineHeight: 1.5 }}>
+                  La diferencia acumulada suma todos los cortes del periodo. Un faltante aislado casi siempre es error de captura; lo que hay que mirar es el patrón — la misma persona cerrando corto una y otra vez. "Monto libre" son ventas tecleadas sin producto del catálogo: por encima del 20% de lo que vende alguien, vale la pena revisar.
+                </p>
+              </div>
+            )}
 
-                {/* Métricas filtradas por categoría */}
-                {filtroCatReporte && (() => {
-                  const pedsCat = rawPedidos.filter(p => p.categoria === filtroCatReporte)
-                  const vCat = pedsCat.reduce((s, p) => s + (p.precio_venta || 0), 0)
-                  const uCat = pedsCat.reduce((s, p) => s + (p.utilidad || 0), 0)
-                  const mCat = vCat > 0 ? (uCat / vCat) * 100 : 0
-                  return (
-                    <div style={{ background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.18)', borderRadius: 14, padding: 14, marginBottom: 12 }}>
-                      <div style={{ color: 'var(--marca-t)', fontSize: 12, fontWeight: 600, marginBottom: 10 }}>📊 Categoría: {filtroCatReporte} — {pedsCat.length} pedidos</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-                        <MetricCard label="Venta" value={fmt(vCat)} />
-                        <MetricCard label="Utilidad" value={fmt(uCat)} color="16,185,129" />
-                        <MetricCard label="Margen" value={`${mCat.toFixed(1)}%`} />
-                      </div>
-                    </div>
-                  )
-                })()}
-
-                {/* Desglose por categoría */}
-                {rawPedidos.filter(p => p.categoria).length > 0 && (() => {
-                  const porCat = rawPedidos.reduce((acc, p) => {
-                    const cat = p.categoria || 'Sin categoría'
-                    if (!acc[cat]) acc[cat] = { venta: 0, utilidad: 0, count: 0 }
-                    acc[cat].venta += p.precio_venta || 0
-                    acc[cat].utilidad += p.utilidad || 0
-                    acc[cat].count++
-                    return acc
-                  }, {})
-                  const rows = Object.entries(porCat).sort((a, b) => b[1].venta - a[1].venta)
-                  return (
-                    <div style={{ background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
-                      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--w06)', color: 'var(--tinta)', fontSize: 13, fontWeight: 600 }}>Por categoría</div>
-                      {rows.map(([cat, d], i) => (
-                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '9px 16px', borderTop: '1px solid var(--w04)' }}>
-                          <span style={{ color: 'var(--tinta)', fontSize: 13 }}>{cat}</span>
-                          <span style={{ color: 'var(--tinta)', fontSize: 13, textAlign: 'right' }}>{fmt(d.venta)}</span>
-                          <span style={{ color: 'var(--verde)', fontSize: 13, textAlign: 'right' }}>{fmt(d.utilidad)}</span>
-                          <span style={{ color: 'var(--w50)', fontSize: 13, textAlign: 'right' }}>{d.count} ped.</span>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })()}
-
-                {/* Desglose por día de compra y por tienda — para ver en qué
-                    días se compró y en qué tiendas, cada uno con su venta y
-                    utilidad. */}
-                {rawPedidos.length > 0 && (() => {
-                  const porDia = rawPedidos.reduce((acc, p) => {
-                    const dia = p.fecha_compra || 'Sin fecha'
-                    if (!acc[dia]) acc[dia] = { venta: 0, utilidad: 0, count: 0 }
-                    acc[dia].venta += p.precio_venta || 0
-                    acc[dia].utilidad += p.utilidad || 0
-                    acc[dia].count++
-                    return acc
-                  }, {})
-                  const porTienda = rawPedidos.reduce((acc, p) => {
-                    const tienda = p.lugar_compra || 'Sin tienda'
-                    if (!acc[tienda]) acc[tienda] = { venta: 0, utilidad: 0, count: 0 }
-                    acc[tienda].venta += p.precio_venta || 0
-                    acc[tienda].utilidad += p.utilidad || 0
-                    acc[tienda].count++
-                    return acc
-                  }, {})
-                  const filasDia = Object.entries(porDia).sort((a, b) => a[0].localeCompare(b[0]))
-                  const filasTienda = Object.entries(porTienda).sort((a, b) => b[1].venta - a[1].venta)
-                  const Tabla = ({ titulo, filas }) => (
-                    <div style={{ background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14, overflow: 'hidden' }}>
-                      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--w06)', color: 'var(--tinta)', fontSize: 13, fontWeight: 600 }}>{titulo}</div>
-                      {filas.map(([clave, d], i) => (
-                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '9px 16px', borderTop: '1px solid var(--w04)' }}>
-                          <span style={{ color: 'var(--tinta)', fontSize: 13 }}>{clave}</span>
-                          <span style={{ color: 'var(--tinta)', fontSize: 13, textAlign: 'right' }}>{fmt(d.venta)}</span>
-                          <span style={{ color: 'var(--verde)', fontSize: 13, textAlign: 'right' }}>{fmt(d.utilidad)}</span>
-                          <span style={{ color: 'var(--w50)', fontSize: 13, textAlign: 'right' }}>{d.count} ped.</span>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                  return (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                      <Tabla titulo="Por día de compra" filas={filasDia} />
-                      <Tabla titulo="Por tienda" filas={filasTienda} />
-                    </div>
-                  )
-                })()}
-
-                {porClienteEC.length > 0 && (
-                  <div style={{ background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 14, overflow: 'hidden' }}>
-                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--w06)', color: 'var(--tinta)', fontSize: 13, fontWeight: 600 }}>Por cliente</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '8px 16px', background: 'var(--w02)' }}>
-                      {['Cliente','Venta','Utilidad','Estado'].map((h, i) => (
-                        <span key={i} style={{ color: 'var(--w30)', fontSize: 10, textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
-                      ))}
-                    </div>
-                    {porClienteEC.map((c, i) => {
-                      const pendiente = c.venta - c.cobrado
-                      return (
-                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '10px 16px', borderTop: '1px solid var(--w04)', alignItems: 'center' }}>
-                          <span style={{ color: 'var(--tinta)', fontSize: 13 }}>{c.nombre}</span>
-                          <span style={{ color: 'var(--tinta)', fontSize: 13, textAlign: 'right' }}>{fmt(c.venta)}</span>
-                          <span style={{ color: 'var(--verde)', fontSize: 13, textAlign: 'right' }}>{fmt(c.utilidad)}</span>
-                          <div style={{ textAlign: 'right' }}>
-                            {pendiente <= 0
-                              ? <span style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px', color: 'var(--verde)', fontSize: 10 }}>✓ Liquidado</span>
-                              : <span style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 20, padding: '2px 8px', color: 'var(--rojo-t)', fontSize: 10 }}>{fmt(pendiente)}</span>
-                            }
+            {/* Retiros y cancelaciones */}
+            {(g.retiros.length > 0 || g.cancelados.length > 0) ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+                {g.retiros.length > 0 && (
+                  <div>
+                    <h3 style={{ ...rotulo, marginBottom: 10 }}>Retiros de caja · {fmt(retirosTotal)}</h3>
+                    <div style={tarjeta}>
+                      {g.retiros.map((r, i) => (
+                        <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '11px 14px', borderBottom: i < g.retiros.length - 1 ? '1px solid var(--w04)' : 'none' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600 }}>{r.motivo || 'Sin motivo'}</div>
+                            <div style={{ color: r.admin_id ? 'var(--w35)' : 'var(--rojo-t)', fontSize: 10.5 }}>
+                              {r.admin_id ? r.quien : 'sin responsable registrado'} · {String(r.creado_en).slice(0, 10)}
+                            </div>
                           </div>
+                          <span className="monto" style={{ color: 'var(--ambar)', fontWeight: 800, fontSize: 13 }}>{fmt(r.monto)}</span>
                         </div>
-                      )
-                    })}
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {g.cancelados.length > 0 && (
+                  <div>
+                    <h3 style={{ ...rotulo, marginBottom: 10 }}>Pagos cancelados · {fmt(canceladosTotal)}</h3>
+                    <div style={tarjeta}>
+                      {g.cancelados.map((c, i) => (
+                        <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '11px 14px', borderBottom: i < g.cancelados.length - 1 ? '1px solid var(--w04)' : 'none' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600 }}>{c.cliente}</div>
+                            <div style={{ color: 'var(--w35)', fontSize: 10.5 }}>{c.cancelado_motivo} · {c.quien}</div>
+                          </div>
+                          <span className="monto" style={{ color: 'var(--rojo-t)', fontWeight: 800, fontSize: 13 }}>{fmt(c.monto)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
-            )}
-            {!entregaSeleccionada && (
-              <div style={{ background: 'var(--w02)', border: '1px solid var(--w05)', borderRadius: 14, padding: 40, textAlign: 'center', color: 'var(--w30)', fontSize: 13 }}>
-                Selecciona un estado de cuenta para ver sus números
+            ) : (
+              <div style={{ ...tarjeta, padding: '16px 22px', color: 'var(--w40)', fontSize: 12.5 }}>
+                Sin retiros de caja ni pagos cancelados en este periodo.
               </div>
             )}
           </div>
         )}
 
       </div>
+    </div>
+  )
+}
+
+// ═════════════════════════════ Piezas de la pantalla ═════════════════════════════
+
+// Cuadre de efectivo. Compacto (Resumen) o completo (Control).
+function CuadreCard({ g, compacto, onVer }) {
+  const d = g.cuadre.diferencia
+  const mal = Math.abs(d) > 0.5
+  return (
+    <div style={{ ...tarjeta, border: `1px solid ${mal ? 'rgba(var(--rojo-rgb),0.35)' : 'var(--verde-borde)'}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, padding: compacto ? '16px 22px' : '20px 22px', flexWrap: 'wrap' }}>
+        <div>
+          <div style={rotulo}>Cuadre de efectivo</div>
+          <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>
+            El sistema esperaba {fmt(g.cuadre.esperado)} · se contaron {fmt(g.cuadre.contado)}
+            {g.cuadre.cortes > 0 && ` · ${g.cuadre.cortes} ${g.cuadre.cortes === 1 ? 'corte' : 'cortes'}`}
+          </div>
+          {compacto && onVer && (
+            <button onClick={onVer} style={{ marginTop: 8, background: 'none', border: 'none', padding: 0, color: 'var(--marca-t)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              Ver detalle en Control →
+            </button>
+          )}
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="monto" style={{
+            color: d < -0.5 ? 'var(--rojo-t)' : d > 0.5 ? 'var(--ambar)' : 'var(--verde)',
+            fontSize: compacto ? 30 : 34, fontWeight: 900, letterSpacing: -1.2, lineHeight: 1,
+          }}>
+            {d > 0 ? '+' : ''}{fmt(d)}
+          </div>
+          <div style={{ color: 'var(--w38)', fontSize: 10.5, marginTop: 4 }}>
+            {d < -0.5 ? 'falta efectivo' : d > 0.5 ? 'sobra efectivo' : 'cuadra exacto'}
+          </div>
+        </div>
+      </div>
+      {g.cuadre.sin_verificar > 0 && (
+        <div style={{ padding: '10px 22px', borderTop: '1px solid var(--w07)', background: 'rgba(245,158,11,0.08)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13 }}>⚠️</span>
+          <span style={{ color: 'var(--ambar-t)', fontSize: 12, fontWeight: 600 }}>
+            {g.cuadre.sin_verificar} {g.cuadre.sin_verificar === 1 ? 'corte se cerró' : 'cortes se cerraron'} sin poder calcular sus totales por método — revísalos a mano contra los pagos.
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Señales de control: avisos ámbar de una línea.
+function Senales({ g, fmt, onVer }) {
+  const items = [
+    g.tienda.manuales > 0 && [`${g.tienda.manuales} ventas por monto libre`, fmt(g.tienda.montoManual)],
+    g.tienda.lineasSinCosto > 0 && [`${g.tienda.lineasSinCosto} ventas sin costo`, fmt(g.tienda.ventaSinCosto)],
+    g.cancelados.length > 0 && [`${g.cancelados.length} pagos cancelados`, fmt(g.cancelados.reduce((s, c) => s + Number(c.monto || 0), 0))],
+    g.retiros.length > 0 && [`${g.retiros.length} ${g.retiros.length === 1 ? 'retiro' : 'retiros'} de caja`, fmt(g.retiros.reduce((s, r) => s + Number(r.monto || 0), 0))],
+  ].filter(Boolean)
+  if (!items.length) return null
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      {items.map(([et, v], i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--ambar-borde)', background: 'var(--ambar-suave)', borderRadius: 20, padding: '7px 14px' }}>
+          <span style={{ color: 'var(--w55)', fontSize: 12 }}>{et}</span>
+          <span className="monto" style={{ color: 'var(--ambar)', fontSize: 12.5, fontWeight: 800 }}>{v}</span>
+        </div>
+      ))}
+      {onVer && (
+        <button onClick={onVer} style={{ background: 'none', border: 'none', color: 'var(--marca-t)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          Revisar en Control →
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Tarjeta de un negocio dentro del Resumen. El color acompaña, no carga el dato.
+function Pilar({ tono, titulo, monto, total, lineas, onClick }) {
+  const pct = total > 0 ? Math.round((monto / total) * 100) : 0
+  return (
+    <button onClick={onClick}
+      style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--w03)', border: '1px solid var(--w07)', borderLeft: `4px solid ${tono}`, borderRadius: 12, padding: '14px 16px', display: 'block' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ color: 'var(--tinta)', fontSize: 13.5, fontWeight: 800 }}>{titulo}</span>
+        <span style={{ color: 'var(--w35)', fontSize: 11 }}>{pct}% del total</span>
+      </div>
+      <div className="monto" style={{ color: 'var(--tinta)', fontSize: 26, fontWeight: 900, letterSpacing: -0.8, margin: '6px 0 8px' }}>{fmt(monto)}</div>
+      {lineas.map((l, i) => <div key={i} style={{ color: 'var(--w45)', fontSize: 11.5, marginTop: 2 }}>{l}</div>)}
+      <div style={{ color: 'var(--marca-t)', fontSize: 11.5, fontWeight: 700, marginTop: 10 }}>Ver detalle →</div>
+    </button>
+  )
+}
+
+// Celda de cifra dentro de una tarjeta.
+function Celda({ rotulo: r, valor, sub, color, chico, children }) {
+  return (
+    <div style={{ padding: '14px 18px', borderRight: '1px solid var(--w05)', borderBottom: '1px solid var(--w05)' }}>
+      <div style={rotulo}>{r}</div>
+      <div className="monto" style={{ color: color || 'var(--tinta)', fontSize: chico ? 15 : 20, fontWeight: 800, marginTop: chico ? 8 : 5, letterSpacing: -0.5 }}>{valor}</div>
+      {sub && <div style={{ color: 'var(--w35)', fontSize: 10.5, marginTop: 3 }}>{sub}</div>}
+      {children}
+    </div>
+  )
+}
+
+// Bloque con título para agrupar un listado.
+function Bloque({ titulo, nota, children }) {
+  return (
+    <div style={tarjeta}>
+      <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--w06)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+        <span style={{ color: 'var(--tinta)', fontSize: 13.5, fontWeight: 800 }}>{titulo}</span>
+        {nota && <span style={{ color: 'var(--w32)', fontSize: 10.5 }}>{nota}</span>}
+      </div>
+      <div style={{ padding: '6px 18px 10px' }}>{children}</div>
+    </div>
+  )
+}
+
+// Listado con barra de magnitud: orden + longitud + cifra. Un solo tono por
+// listado; el nombre y la cifra cargan el dato, la barra solo compara.
+function Ranking({ filas, tono = 'var(--marca)', limite = 0, extraTitulo }) {
+  const [todos, setTodos] = useState(false)
+  if (!filas.length) return <div style={{ color: 'var(--w30)', fontSize: 12, padding: '14px 0' }}>Sin datos</div>
+  const visibles = limite && !todos ? filas.slice(0, limite) : filas
+  const mayor = Math.max(...filas.map(f => Math.abs(f.valor)), 1)
+  return (
+    <div>
+      {visibles.map((f, i) => (
+        <div key={f.clave + i} style={{ padding: '9px 0', borderTop: i ? '1px solid var(--w04)' : 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+            <span style={{ color: 'var(--w30)', fontSize: 11, width: 16, flexShrink: 0, fontWeight: 700 }}>{i + 1}</span>
+            <span style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.etiqueta}</span>
+            <span className="monto" style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 800, flexShrink: 0 }}>{f.texto}</span>
+            {f.pct != null && <span style={{ color: 'var(--w32)', fontSize: 10.5, width: 30, textAlign: 'right', flexShrink: 0 }}>{f.pct}%</span>}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 5, paddingLeft: 26 }}>
+            <div style={{ flex: 1, height: 5, background: 'var(--w06)', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ width: `${Math.max(2, (Math.abs(f.valor) / mayor) * 100)}%`, height: '100%', background: tono, opacity: 0.55, borderRadius: 3 }} />
+            </div>
+            {f.sub && <span style={{ color: 'var(--w38)', fontSize: 10.5, flexShrink: 0, maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.sub}</span>}
+          </div>
+        </div>
+      ))}
+      {limite > 0 && filas.length > limite && (
+        <button onClick={() => setTodos(t => !t)}
+          style={{ width: '100%', marginTop: 6, padding: '8px', background: 'none', border: 'none', borderTop: '1px solid var(--w05)', color: 'var(--marca-t)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          {todos ? 'Ver menos' : `Ver los ${filas.length}`}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Ventas por conciliar: ventas sin costo conocido. Pueden ser muchas; se
+// muestran de 5 en 5 para que no tapen el resto de la pantalla.
+function PorConciliar({ filas, costoDraft, setCostoDraft, guardando, onGuardar }) {
+  const [abierto, setAbierto] = useState(false)
+  const [todas, setTodas] = useState(false)
+  const visibles = todas ? filas : filas.slice(0, 5)
+  return (
+    <div style={{ background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.25)', borderRadius: 16, overflow: 'hidden' }}>
+      <button onClick={() => setAbierto(a => !a)}
+        style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'none', border: 'none', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <div>
+          <div style={{ color: 'var(--ambar)', fontSize: 13.5, fontWeight: 800 }}>⚠ {filas.length} {filas.length === 1 ? 'venta' : 'ventas'} sin costo por conciliar</div>
+          <div style={{ color: 'var(--w45)', fontSize: 12, marginTop: 3 }}>Captura el costo real para que la utilidad quede exacta.</div>
+        </div>
+        <span style={{ color: 'var(--ambar)', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{abierto ? 'Ocultar' : 'Capturar costos'}</span>
+      </button>
+      {abierto && (
+        <div style={{ padding: '0 18px 14px', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 460 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--w10)' }}>
+                <th style={{ ...th, padding: '8px' }}>Artículo</th>
+                <th style={{ ...th, padding: '8px', textAlign: 'center' }}>Cant.</th>
+                <th style={{ ...th, padding: '8px', textAlign: 'right' }}>Precio</th>
+                <th style={{ ...th, padding: '8px', textAlign: 'right' }}>Costo unitario</th>
+                <th style={{ ...th, padding: '8px' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibles.map((v) => (
+                <tr key={v.id} style={{ borderBottom: '1px solid var(--w05)' }}>
+                  <td style={{ padding: '8px', color: 'var(--tinta)' }}>{v.nombre_producto}</td>
+                  <td style={{ padding: '8px', textAlign: 'center', color: 'var(--w70)' }}>{v.cantidad}</td>
+                  <td className="monto" style={{ padding: '8px', textAlign: 'right', color: 'var(--w70)' }}>${Number(v.precio_unitario).toFixed(2)}</td>
+                  <td style={{ padding: '8px', textAlign: 'right' }}>
+                    <input type="number" step="0.01" placeholder="0.00" value={costoDraft[v.id] ?? ''}
+                      onChange={(e) => setCostoDraft(prev => ({ ...prev, [v.id]: e.target.value }))}
+                      style={{ width: 90, background: 'var(--w05)', border: '1px solid var(--w15)', borderRadius: 8, padding: '6px 8px', color: 'var(--tinta)', fontSize: 12, textAlign: 'right' }} />
+                  </td>
+                  <td style={{ padding: '8px', textAlign: 'center' }}>
+                    <button type="button" disabled={!costoDraft[v.id] || guardando === v.id} onClick={() => onGuardar(v.id)}
+                      style={{ background: 'rgba(52,211,153,0.15)', color: 'var(--verde)', border: '1px solid rgba(52,211,153,0.4)', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: costoDraft[v.id] ? 'pointer' : 'not-allowed', opacity: costoDraft[v.id] ? 1 : 0.5 }}>
+                      {guardando === v.id ? 'Guardando…' : 'Guardar'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filas.length > 5 && (
+            <button onClick={() => setTodas(t => !t)}
+              style={{ width: '100%', marginTop: 8, padding: 8, background: 'none', border: 'none', color: 'var(--marca-t)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              {todas ? 'Ver menos' : `Ver las ${filas.length}`}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Ventas de tienda, una por renglón; se abre para ver los artículos.
+function ListaVentasTienda({ ventas }) {
+  const [abierta, setAbierta] = useState(null)
+  const [visibles, setVisibles] = useState(25)
+  return (
+    <div>
+      <div style={tarjeta}>
+        {ventas.slice(0, visibles).map((t, i) => {
+          const open = abierta === i
+          const piezas = t.articulos.reduce((s, a) => s + a.cantidad, 0)
+          return (
+            <div key={t.pago_id} style={{ borderTop: i ? '1px solid var(--w05)' : 'none' }}>
+              <div onClick={() => setAbierta(open ? null : i)}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer', background: open ? 'var(--w03)' : 'transparent' }}>
+                <div style={{ width: 84, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  <div style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 700 }}>{hora(t.creado_en)}</div>
+                  <div style={{ color: 'var(--w35)', fontSize: 10.5 }}>{diaCorto(t.creado_en)}</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: 'var(--w70)', fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.articulos.map(a => `${a.cantidad > 1 ? a.cantidad + '× ' : ''}${a.nombre}`).join(', ')}
+                  </div>
+                  <div style={{ color: 'var(--w38)', fontSize: 11, marginTop: 3 }}>
+                    {t.vendedor} · {piezas} {piezas === 1 ? 'pieza' : 'piezas'} · {t.metodo}
+                  </div>
+                </div>
+                <div className="monto" style={{ color: 'var(--verde)', fontSize: 16, fontWeight: 800, flexShrink: 0 }}>{fmt(t.total)}</div>
+              </div>
+              {open && (
+                <div style={{ padding: '2px 16px 14px 112px' }}>
+                  {t.articulos.map((a, j) => (
+                    <div key={j} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, padding: '3px 0' }}>
+                      <span style={{ color: 'var(--w60)' }}>{a.cantidad > 1 ? `${a.cantidad}× ` : ''}{a.nombre}</span>
+                      <span className="monto" style={{ color: 'var(--w45)', flexShrink: 0 }}>{fmt(a.cantidad * a.precio)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {ventas.length > visibles && (
+        <button onClick={() => setVisibles(n => n + 25)}
+          style={{ width: '100%', marginTop: 10, padding: 11, borderRadius: 11, cursor: 'pointer', border: '1px solid var(--w10)', background: 'transparent', color: 'var(--marca-t)', fontSize: 12.5, fontWeight: 700 }}>
+          Ver 25 más · quedan {ventas.length - visibles}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Pedidos: lo que entró por encargos y anticipos ───────────────────────────
+// Una visita = lo que pasó con una persona en un momento. En la base son varios
+// renglones sueltos; aquí vuelve a ser una sola transacción, como en el mostrador.
+function PedidosVista({ g, claveLista, pedidosTotal }) {
+  const [seg, setSeg] = useState('todas')
+  const esPedido = (v) => v.entregas > 0 || v.anticipos > 0 || v.sinCobro || (v.recogio && v.recogio.length > 0)
+  const delSeg = (v, s) => {
+    if (s === 'recogieron') return v.entregas > 0 || v.sinCobro || (v.recogio && v.recogio.length > 0)
+    if (s === 'anticipos') return v.anticipos > 0
+    if (s === 'pagado') return v.sinCobro
+    return true
+  }
+  const pedidos = (g.visitas || []).filter(esPedido)
+  const SEGS = [['todas', 'Todas'], ['recogieron', '📦 Recogieron su encargo'], ['anticipos', '💳 Anticipos'], ['pagado', 'Ya estaba pagado']]
+  const filtradas = pedidos.filter(v => delSeg(v, seg))
+  const valorYaPagado = pedidos.filter(v => v.sinCobro).reduce((s, v) => s + Number(v.valorRecogido || 0), 0)
+  const clientesRecogieron = pedidos.filter(v => delSeg(v, 'recogieron')).length
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={tarjeta}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, padding: '20px 22px' }}>
+          <div>
+            <div style={rotulo}>Cobrado por pedidos</div>
+            <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>Entregas + anticipos{g.ingresos.envios > 0 ? ' + envíos' : ''}</div>
+          </div>
+          <div className="monto" style={{ color: 'var(--marca-t)', fontSize: 40, fontWeight: 900, letterSpacing: -1.5, lineHeight: 1 }}>{fmt(pedidosTotal)}</div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', borderTop: '1px solid var(--w06)' }}>
+          <Celda rotulo="Entregas cobradas" valor={fmt(g.ingresos.entregas)} sub={`${clientesRecogieron} ${clientesRecogieron === 1 ? 'visita' : 'visitas'} a recoger`} />
+          <Celda rotulo="Anticipos" valor={fmt(g.ingresos.anticipos)} />
+          {g.ingresos.envios > 0 && <Celda rotulo="Envíos" valor={fmt(g.ingresos.envios)} />}
+          <Celda rotulo="Ya estaba pagado" valor={fmt(valorYaPagado)} sub="mercancía entregada sin cobro" />
+        </div>
+      </div>
+
+      {pedidos.length === 0 ? (
+        <div style={{ ...tarjeta, padding: 40, textAlign: 'center', color: 'var(--w35)', fontSize: 13 }}>
+          No hubo entregas ni anticipos en este periodo
+        </div>
+      ) : (
+        <div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            {SEGS.map(([k, t]) => {
+              const activo = seg === k
+              const n = pedidos.filter(v => delSeg(v, k)).length
+              return (
+                <button key={k} onClick={() => setSeg(k)}
+                  style={{ cursor: 'pointer', border: `1px solid ${activo ? 'var(--marca)' : 'var(--w10)'}`, background: activo ? 'rgba(193,85,58,0.1)' : 'var(--w03)', color: activo ? 'var(--marca-t)' : 'var(--w45)', borderRadius: 20, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {t}<span style={{ color: activo ? 'var(--marca-t)' : 'var(--w30)', fontWeight: 800 }}>{n}</span>
+                </button>
+              )
+            })}
+          </div>
+          <p style={{ color: 'var(--w40)', fontSize: 12, marginBottom: 12 }}>
+            {filtradas.length} {filtradas.length === 1 ? 'visita' : 'visitas'} · toca una para ver qué se llevó
+          </p>
+          <ListaVisitas key={`${claveLista}-${seg}`} visitas={filtradas} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ListaVisitas({ visitas }) {
+  const [abierta, setAbierta] = useState(null)
+  const [visibles, setVisibles] = useState(25)
+  if (!visitas.length) {
+    return <div style={{ ...tarjeta, padding: 24, textAlign: 'center', color: 'var(--w30)', fontSize: 12 }}>Nada en este segmento durante el periodo</div>
+  }
+  return (
+    <div>
+      <div style={tarjeta}>
+        {visitas.slice(0, visibles).map((v, i) => {
+          const open = abierta === i
+          const mixta = v.tienda > 0 && (v.entregas > 0 || v.anticipos > 0)
+          return (
+            <div key={i} style={{ borderTop: i ? '1px solid var(--w05)' : 'none' }}>
+              <div onClick={() => setAbierta(open ? null : i)}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', cursor: 'pointer', background: open ? 'var(--w03)' : 'transparent' }}>
+                <div style={{ width: 84, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  <div style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 700 }}>{hora(v.desde)}</div>
+                  <div style={{ color: 'var(--w35)', fontSize: 10.5 }}>{diaCorto(v.desde)}</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 700 }}>{v.nombre}</span>
+                    {mixta && <span style={{ background: 'var(--marca)', color: 'var(--sup)', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 5, letterSpacing: 0.3 }}>ENCARGO + TIENDA</span>}
+                    {v.sinCobro && <span style={{ border: '1px solid var(--w14)', color: 'var(--w45)', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 5, letterSpacing: 0.3 }}>YA ESTABA PAGADO</span>}
+                  </div>
+                  <div style={{ color: 'var(--w38)', fontSize: 11, marginTop: 3 }}>
+                    {v.sinCobro
+                      ? `recogió ${fmt(v.valorRecogido)} en mercancía · no se cobró nada`
+                      : [
+                        v.entregas > 0 && `encargo ${fmt(v.entregas)}`,
+                        v.tienda > 0 && `tienda ${fmt(v.tienda)}`,
+                        v.anticipos > 0 && `anticipo ${fmt(v.anticipos)}`,
+                        v.otros > 0 && `otros ${fmt(v.otros)}`,
+                      ].filter(Boolean).join(' + ')}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                    {Object.entries(v.metodos).map(([m, monto]) => (
+                      <span key={m} style={{ border: '1px solid var(--w10)', borderRadius: 20, padding: '2px 9px', fontSize: 10.5, color: 'var(--w50)' }}>
+                        {m} <b className="monto" style={{ color: 'var(--w70)' }}>{fmt(monto)}</b>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="monto" style={{ color: v.sinCobro ? 'var(--w30)' : 'var(--marca-t)', fontSize: 17, fontWeight: 800, flexShrink: 0 }}>{fmt(v.total)}</div>
+              </div>
+
+              {open && (
+                <div style={{ padding: '0 16px 15px 112px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 18 }}>
+                  <div>
+                    <div style={{ ...rotulo, marginBottom: 7 }}>Recogió de su encargo</div>
+                    {v.recogio.length === 0
+                      ? <div style={{ color: 'var(--w30)', fontSize: 12 }}>Nada marcado como entregado</div>
+                      : v.recogio.map((a, j) => (
+                        <div key={j} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, padding: '3px 0' }}>
+                          <span style={{ color: 'var(--w60)' }}>{a.cantidad > 1 ? `${a.cantidad}× ` : ''}{a.descripcion}</span>
+                          <span className="monto" style={{ color: 'var(--w45)', flexShrink: 0 }}>{fmt(a.precio)}</span>
+                        </div>
+                      ))}
+                  </div>
+                  <div>
+                    <div style={{ ...rotulo, marginBottom: 7 }}>Se llevó de la tienda</div>
+                    {v.articulos.length === 0
+                      ? <div style={{ color: 'var(--w30)', fontSize: 12 }}>Nada</div>
+                      : v.articulos.map((a, j) => (
+                        <div key={j} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, padding: '3px 0' }}>
+                          <span style={{ color: 'var(--w60)' }}>
+                            {a.cantidad > 1 ? `${a.cantidad}× ` : ''}{a.nombre}
+                            {a.manual && <span style={{ color: 'var(--ambar)', fontSize: 10, marginLeft: 5 }}>monto libre</span>}
+                          </span>
+                          <span className="monto" style={{ color: 'var(--w45)', flexShrink: 0 }}>{fmt(a.importe)}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {visitas.length > visibles && (
+        <button onClick={() => setVisibles(n => n + 25)}
+          style={{ width: '100%', marginTop: 10, padding: 11, borderRadius: 11, cursor: 'pointer', border: '1px solid var(--w10)', background: 'transparent', color: 'var(--marca-t)', fontSize: 12.5, fontWeight: 700 }}>
+          Ver 25 más · quedan {visitas.length - visibles}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Por entrega ──────────────────────────────────────────────────────────────
+function EntregaVista({ m, peds, porCliente, categorias, filtroCat, setFiltroCat }) {
+  const [segCliente, setSegCliente] = useState('todos')
+  const [todosClientes, setTodosClientes] = useState(false)
+
+  const agrupar = (campo, vacio) => {
+    const acc = {}
+    peds.forEach(p => {
+      const k = p[campo] || vacio
+      if (!acc[k]) acc[k] = { venta: 0, utilidad: 0, count: 0 }
+      acc[k].venta += p.precio_venta || 0
+      acc[k].utilidad += p.utilidad || 0
+      acc[k].count++
+    })
+    return Object.entries(acc)
+  }
+  const filasDe = (entradas, orden) => entradas.sort(orden).map(([k, d]) => ({
+    clave: k, etiqueta: k, valor: d.venta, texto: fmt(d.venta),
+    sub: `util. ${fmt(d.utilidad)} · ${d.count} ped.`,
+  }))
+  const porCat = filasDe(agrupar('categoria', 'Sin categoría'), (a, b) => b[1].venta - a[1].venta)
+  const porTienda = filasDe(agrupar('lugar_compra', 'Sin tienda'), (a, b) => b[1].venta - a[1].venta)
+  const porDia = filasDe(agrupar('fecha_compra', 'Sin fecha'), (a, b) => a[0].localeCompare(b[0]))
+
+  const pctCobrado = m.ventaTotal > 0 ? Math.min(100, Math.max(0, (m.cobradoTotal / m.ventaTotal) * 100)) : 0
+  const conSaldo = porCliente.filter(c => c.venta - c.cobrado > 0)
+  const liquidados = porCliente.filter(c => c.venta - c.cobrado <= 0)
+  const clientesVis = segCliente === 'saldo' ? conSaldo : segCliente === 'liquidados' ? liquidados : porCliente
+  const clientesMostrados = todosClientes ? clientesVis : clientesVis.slice(0, 12)
+
+  const pedsCat = filtroCat ? peds.filter(p => p.categoria === filtroCat) : []
+  const vCat = pedsCat.reduce((s, p) => s + (p.precio_venta || 0), 0)
+  const uCat = pedsCat.reduce((s, p) => s + (p.utilidad || 0), 0)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+      {/* Lo vendido y cuánto ya se cobró */}
+      <div style={tarjeta}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, padding: '20px 22px' }}>
+          <div>
+            <div style={rotulo}>Vendido en esta entrega</div>
+            <div style={{ color: 'var(--w40)', fontSize: 11.5, marginTop: 6 }}>{m.totalPedidos} pedidos · {m.clientesUnicos} clientes</div>
+          </div>
+          <div className="monto" style={{ color: 'var(--marca-t)', fontSize: 40, fontWeight: 900, letterSpacing: -1.5, lineHeight: 1 }}>{fmt(m.ventaTotal)}</div>
+        </div>
+
+        <div style={{ padding: '0 22px 18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, marginBottom: 7 }}>
+            <span style={{ color: 'var(--w50)' }}>Cobrado <b className="monto" style={{ color: 'var(--tinta)' }}>{fmt(m.cobradoTotal)}</b></span>
+            <span style={{ color: m.pendiente > 0 ? 'var(--rojo-t)' : 'var(--verde)', fontWeight: 700 }}>
+              {m.pendiente > 0 ? `faltan ${fmt(m.pendiente)}` : 'liquidada'}
+            </span>
+          </div>
+          <div style={{ height: 10, background: 'var(--w06)', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ width: `${pctCobrado}%`, height: '100%', background: 'var(--verde)', borderRadius: 6 }} />
+          </div>
+          <div style={{ color: 'var(--w35)', fontSize: 10.5, marginTop: 6 }}>{pctCobrado.toFixed(0)}% cobrado · anticipos {fmt(m.totalAnticipos)}</div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', borderTop: '1px solid var(--w06)' }}>
+          <Celda rotulo="Utilidad" valor={fmt(m.utilidadTotal)} color="var(--verde)" sub={`margen ${m.margen.toFixed(1)}%`} />
+          <Celda rotulo="Costo" valor={fmt(m.costoTotal)} />
+          <Celda rotulo="Cobrado" valor={fmt(m.cobradoTotal)} />
+          <Celda rotulo="Por cobrar" valor={fmt(Math.max(0, m.pendiente))} color={m.pendiente > 0 ? 'var(--rojo-t)' : 'var(--verde)'} sub={`${conSaldo.length} ${conSaldo.length === 1 ? 'cliente' : 'clientes'} con saldo`} />
+        </div>
+      </div>
+
+      {/* Filtro de categoría */}
+      {categorias.length > 0 && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--w40)', fontSize: 11 }}>Mirar solo una categoría:</span>
+            {[['', 'Todas'], ...categorias.map(c => [c.nombre, c.nombre])].map(([val, t]) => {
+              const act = filtroCat === val
+              return (
+                <button key={val || 'todas'} onClick={() => setFiltroCat(val)}
+                  style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${act ? 'rgba(193,85,58,0.5)' : 'var(--w10)'}`, background: act ? 'rgba(193,85,58,0.15)' : 'var(--w03)', color: act ? 'var(--marca-t)' : 'var(--w40)' }}>{t}</button>
+              )
+            })}
+          </div>
+          {filtroCat && (
+            <div style={{ ...tarjeta, marginTop: 10, background: 'rgba(193,85,58,0.06)', border: '1px solid rgba(193,85,58,0.18)' }}>
+              <div style={{ padding: '10px 18px', color: 'var(--marca-t)', fontSize: 12, fontWeight: 700 }}>{filtroCat} · {pedsCat.length} pedidos</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: '1px solid var(--w06)' }}>
+                <Celda rotulo="Venta" valor={fmt(vCat)} />
+                <Celda rotulo="Utilidad" valor={fmt(uCat)} color="var(--verde)" />
+                <Celda rotulo="Margen" valor={vCat > 0 ? `${((uCat / vCat) * 100).toFixed(1)}%` : '—'} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ¿En qué? ¿Dónde? ¿Cuándo? */}
+      {peds.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, alignItems: 'start' }}>
+          <Bloque titulo="Por categoría" nota="venta"><Ranking tono="var(--marca)" limite={6} filas={porCat} /></Bloque>
+          <Bloque titulo="Por tienda de compra" nota="venta"><Ranking tono="var(--azul)" limite={6} filas={porTienda} /></Bloque>
+          <Bloque titulo="Por día de compra" nota="venta"><Ranking tono="var(--ambar)" limite={6} filas={porDia} /></Bloque>
+        </div>
+      )}
+
+      {/* Por cliente */}
+      {porCliente.length > 0 && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+            <h3 style={{ ...rotulo, margin: 0 }}>Por cliente</h3>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[['todos', 'Todos', porCliente.length], ['saldo', 'Con saldo', conSaldo.length], ['liquidados', 'Liquidados', liquidados.length]].map(([k, t, n]) => {
+                const act = segCliente === k
+                return (
+                  <button key={k} onClick={() => { setSegCliente(k); setTodosClientes(false) }}
+                    style={{ cursor: 'pointer', border: `1px solid ${act ? 'var(--marca)' : 'var(--w10)'}`, background: act ? 'rgba(193,85,58,0.1)' : 'var(--w03)', color: act ? 'var(--marca-t)' : 'var(--w45)', borderRadius: 20, padding: '5px 12px', fontSize: 11.5, fontWeight: 700 }}>
+                    {t} <span style={{ fontWeight: 800 }}>{n}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div style={tarjeta}>
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{ minWidth: 420 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '9px 16px', background: 'var(--w02)' }}>
+                  {['Cliente', 'Venta', 'Utilidad', 'Estado'].map((h, i) => (
+                    <span key={i} style={{ ...rotulo, fontSize: 9.5, textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
+                  ))}
+                </div>
+                {clientesMostrados.map((c, i) => {
+                  const pendiente = c.venta - c.cobrado
+                  return (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '10px 16px', borderTop: '1px solid var(--w04)', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 600 }}>{c.nombre}</span>
+                      <span className="monto" style={{ color: 'var(--tinta)', fontSize: 13, textAlign: 'right' }}>{fmt(c.venta)}</span>
+                      <span className="monto" style={{ color: 'var(--verde)', fontSize: 13, textAlign: 'right' }}>{fmt(c.utilidad)}</span>
+                      <div style={{ textAlign: 'right' }}>
+                        {pendiente <= 0
+                          ? <span style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px', color: 'var(--verde)', fontSize: 10.5 }}>✓ Liquidado</span>
+                          : <span className="monto" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 20, padding: '2px 8px', color: 'var(--rojo-t)', fontSize: 10.5, fontWeight: 700 }}>debe {fmt(pendiente)}</span>}
+                      </div>
+                    </div>
+                  )
+                })}
+                {clientesVis.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--w30)', fontSize: 12 }}>Nadie en este grupo</div>}
+              </div>
+            </div>
+          </div>
+          {clientesVis.length > 12 && (
+            <button onClick={() => setTodosClientes(t => !t)}
+              style={{ width: '100%', marginTop: 10, padding: 11, borderRadius: 11, cursor: 'pointer', border: '1px solid var(--w10)', background: 'transparent', color: 'var(--marca-t)', fontSize: 12.5, fontWeight: 700 }}>
+              {todosClientes ? 'Ver menos' : `Ver los ${clientesVis.length} clientes`}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1528,15 +1407,9 @@ function Barra({ titulo, total, partes, fmt }) {
   )
 }
 
-// Desglose por magnitud, sin color de identidad.
-//
-// Cuando en la misma pantalla hay dos desgloses distintos del mismo total
-// (de dónde vino el dinero, y con qué se pagó), pintarlos con la misma paleta
-// hace que el ojo los empareje: se lee "entregas = efectivo" aunque no tengan
-// relación. Aquí sólo uno lleva color de identidad — el origen, donde importa
-// distinguir negocios — y el otro se resuelve con longitud y un solo tono.
-// Escala mejor además: si mañana hay seis métodos, siguen siendo seis
-// renglones legibles y no seis colores nuevos que inventar.
+// Desglose por magnitud, sin color de identidad. En una misma pantalla solo un
+// desglose lleva paleta categórica (el origen); los demás se resuelven con
+// longitud y un solo tono, para que el ojo no empareje lo que no tiene relación.
 function Desglose({ titulo, total, partes, fmt }) {
   const vivas = partes.filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])
   if (!total || !vivas.length) return null

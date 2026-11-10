@@ -26,7 +26,7 @@ export async function GET(req) {
     const manana = sumarDias(hoy, 1)
 
     const [pagosR, ventasR, vend30R, gastosR] = await Promise.all([
-      supabase.from('pagos').select('monto, tipo, metodo, creado_en, vendedor_id')
+      supabase.from('pagos').select('monto, tipo, metodo, creado_en, vendedor_id, entrega_id')
         .gte('creado_en', `${desde14}T00:00:00`).lt('creado_en', `${manana}T00:00:00`).neq('metodo', 'Ajuste histórico').limit(10000),
       supabase.from('ventas_tienda').select('producto_id, nombre_producto, cantidad, precio_unitario, costo_unitario, vendedor_id, creado_en')
         .gte('creado_en', `${desde30}T00:00:00`).lt('creado_en', `${manana}T00:00:00`).limit(20000),
@@ -48,6 +48,9 @@ export async function GET(req) {
       semana: suma(desde7, hoy), semana_anterior: suma(sumarDias(desde7, -7), sumarDias(hoy, -7)),
       // mismo día de la semana pasada, para comparar peras con peras
       ayer_semana_pasada: suma(sumarDias(ayer, -7), sumarDias(ayer, -7)),
+      // Dos negocios distintos: pagos sin entrega = venta de mostrador (tienda); con entrega = encargos (anticipos, liquidaciones, envíos)
+      hoy_tienda: suma(hoy, hoy, p => !p.entrega_id), hoy_encargos: suma(hoy, hoy, p => !!p.entrega_id),
+      ayer_tienda: suma(ayer, ayer, p => !p.entrega_id), ayer_encargos: suma(ayer, ayer, p => !!p.entrega_id),
     }
     const semanaPagos = pagos.filter(p => String(p.creado_en).slice(0, 10) >= desde7)
     const porMetodo = {}, porTipo = {}

@@ -42,7 +42,7 @@ const OPCIONES = [
 ]
 
 // ── Colaborador: una tarjeta por cliente ─────────────────────────────────
-export function PanelConfirmar({ seguim, tarjeta, alTerminar }) {
+export function PanelConfirmar({ seguim, tarjeta, alTerminar, meta, restan }) {
   const cliente = seguim?.clientes?.[0]
   const [dec, setDec] = useState({})
   const [foto, setFoto] = useState('')
@@ -80,9 +80,8 @@ export function PanelConfirmar({ seguim, tarjeta, alTerminar }) {
   return (
     <div style={{ ...tarjeta, marginBottom: 14 }}>
       <Ampliada url={ampliada} cerrar={() => setAmpliada('')} />
-      <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.5, opacity: .55 }}>📦 CONFIRMA PEDIDOS EN TIENDA</div>
-      <div style={{ fontSize: 13, fontWeight: 700, opacity: .7, margin: '4px 0 12px' }}>
-        Faltan {seguim.total_esperando} {seguim.total_esperando === 1 ? 'cliente' : 'clientes'}. Ve a la tienda y revisa si su bolsa sigue ahí.
+      <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.5, opacity: .55, marginBottom: 10 }}>
+        📦 CLIENTE {Math.max(1, (meta || 3) - (restan ?? 0) + 1)} DE {meta || 3}
       </div>
 
       <div style={{ border: '2px solid rgba(42,33,24,0.10)', borderRadius: 16, padding: 12 }}>
@@ -90,6 +89,14 @@ export function PanelConfirmar({ seguim, tarjeta, alTerminar }) {
           <div style={{ fontWeight: 900, fontSize: 18 }}>🧑 {nom(cliente.nombre)}</div>
           <div style={{ fontSize: 12, fontWeight: 800, color: cliente.dias > 60 ? ROJO : '#b45309' }}>hace {cliente.dias} días</div>
         </div>
+
+        {cliente.entregas.length > 1 && (
+          <button type="button" onClick={() => setDec(Object.fromEntries(cliente.entregas.map(e => [e.entrega_id, 'en_tienda'])))}
+            style={{ width: '100%', marginTop: 12, padding: '12px 8px', borderRadius: 14, cursor: 'pointer', fontWeight: 900, fontSize: 15,
+              border: `3px solid ${VERDE}`, background: '#fff', color: VERDE, boxShadow: `0 3px 0 ${VERDE}55` }}>
+            ✅ Todas siguen en tienda ({cliente.entregas.length})
+          </button>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
           {cliente.entregas.map(e => {
@@ -107,7 +114,7 @@ export function PanelConfirmar({ seguim, tarjeta, alTerminar }) {
                 </div>
 
                 <div style={{ padding: '4px 12px' }}>
-                  {e.items.map((it, i) => (
+                  {e.items.slice(0, 2).map((it, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: i ? '1px solid rgba(42,33,24,0.08)' : 0 }}>
                       <FotoPedido url={it.imagen} descripcion={it.descripcion} tam={52} onAmpliar={it.imagen ? () => setAmpliada(it.imagen) : undefined} />
                       <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, lineHeight: 1.25 }}>{it.descripcion}</div>
@@ -116,6 +123,7 @@ export function PanelConfirmar({ seguim, tarjeta, alTerminar }) {
                       </div>
                     </div>
                   ))}
+                  {e.items.length > 2 && <div style={{ fontSize: 12, fontWeight: 800, opacity: .6, padding: '4px 0 6px' }}>+ {e.items.length - 2} más</div>}
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, padding: 12, paddingTop: 6 }}>

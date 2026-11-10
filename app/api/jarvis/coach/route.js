@@ -89,17 +89,19 @@ export async function GET(req) {
         const equipo = []
         for (const uid of uids) {
           const h = await hechosDia(supabase, uid, ayer, plantillas, horarios.filter(x => x.usuario_id === uid))
-          equipo.push({ nombre: cl?.find(c => c.id === uid)?.nombre, ayer: h })
+          equipo.push({ nombre: cl?.find(c => c.id === uid)?.nombre, ayer: h || 'sin turno ayer (no trabajó, no es falta ni baja)' })
         }
         return {
           nombre: 'Lalo', hoy: fecha, hora_actual: hhmm, dia_semana: DIAS[dowDe(fecha) - 1],
-          dinero_entrado: r.dinero,
-          tienda: { hoy: r.tienda?.hoy, ayer: r.tienda?.ayer, semana: r.tienda?.semana, semana_anterior: r.tienda?.semana_anterior, piezas_semana: r.tienda?.piezas_semana },
-          top_productos: r.top, por_resurtir: r.resurtir,
+          // Cada cifra lleva su periodo en el nombre para que la IA no las confunda.
+          ventas_tienda_pesos: { hoy: r.tienda?.hoy, ayer: r.tienda?.ayer, ultimos_7_dias: r.tienda?.semana, los_7_dias_anteriores: r.tienda?.semana_anterior, piezas_ultimos_7_dias: r.tienda?.piezas_semana },
+          cobros_de_encargos_pesos: { hoy: r.dinero?.hoy_encargos, ayer: r.dinero?.ayer_encargos },
+          top_productos_tienda_ultimos_7_dias: r.top, productos_por_resurtir: r.resurtir,
           requiere_atencion: (r.atencion || []).map(a => ({ tema: a.t, cantidad: a.n })),
           equipo,
         }
       })
+      if (m.contenido?.ia !== false) await supabase.from('jarvis_mensajes').update({ leido_en: new Date().toISOString() }).eq('usuario_id', sesion.id).eq('tipo', 'admin_manana').eq('fecha', fecha).is('leido_en', null)
       return NextResponse.json({ ok: true, admin_manana: m.contenido, creado_en: m.creado_en })
     }
 
@@ -118,6 +120,10 @@ export async function GET(req) {
     const out = { ok: true, arranque: null, cierre: null }
     if (enTurno) out.arranque = (await obtener(supabase, sesion.id, 'arranque', fecha, contexto)).contenido
     if (casiFin) out.cierre = (await obtener(supabase, sesion.id, 'cierre', fecha, contexto)).contenido
+    if (out.arranque || out.cierre) {
+      const tipos = [out.arranque && 'arranque', out.cierre && 'cierre'].filter(Boolean)
+      await supabase.from('jarvis_mensajes').update({ leido_en: new Date().toISOString() }).eq('usuario_id', sesion.id).eq('fecha', fecha).in('tipo', tipos).is('leido_en', null)
+    }
     return NextResponse.json(out)
   } catch (e) {
     return NextResponse.json({ ok: false, mensaje: e.message })

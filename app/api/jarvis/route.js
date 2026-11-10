@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
 import { supabaseConSesion } from '@/lib/auth/supabaseConSesion'
+import { cargarPuntuales, cargarVentaDelDia, ordenarTareas } from '@/lib/jarvis/plan'
 
 export const dynamic = 'force-dynamic'
 
@@ -157,11 +158,12 @@ export async function GET(req) {
     const deDia = (f) => hechas.filter(h => h.fecha === f)
     const estadoDe = (f, plantillaId) => deDia(f).find(h => h.plantilla_id === plantillaId)?.estado || 'pendiente'
 
-    const tareas = tareasHoy.map(t => {
+    const puntuales = esAdmin ? [] : await cargarPuntuales(supabase, sesion.id, fecha)
+    const tareasFijas = tareasHoy.map(t => {
       const estado = estadoDe(fecha, t.id)
       return {
         id: t.id, titulo: t.titulo, detalle: t.detalle, emoji: t.emoji,
-        hora: hm(t.hora), xp: t.xp, enlace: t.enlace, estado,
+        hora: hm(t.hora), xp: t.xp, enlace: t.enlace, estado, es_venta: !!t.es_venta,
         toca: hm(t.hora) <= hhmm,
         modo: t.verif === 'foto' ? 'foto' : t.verif === 'visita' ? 'visita' : t.verif ? 'auto' : 'manual',
         auto: !!t.verif && t.verif !== 'foto' && t.verif !== 'visita',
@@ -170,8 +172,12 @@ export async function GET(req) {
         actual: t.verif ? Math.min(Number(progreso[t.verif] || 0), t.meta) : null,
       }
     })
+    // Las tareas del plan (puntuales) y las de venta van primero; ver lib/jarvis/plan.js
+    const tareas = ordenarTareas([...puntuales, ...tareasFijas])
     const hechasHoy = tareas.filter(t => t.estado === 'hecha').length
     const xpHoy = deDia(fecha).filter(h => esAdmin || h.usuario_id === sesion.id).reduce((n, h) => n + h.xp, 0)
+      + puntuales.reduce((n, t) => n + (t.xp_ganado || 0), 0)
+    const venta = await cargarVentaDelDia(supabase, sesion.id, fecha)
 
     // Día anterior con turno, para "mejor que ayer"
     const resumenDe = (f) => {
@@ -204,7 +210,7 @@ export async function GET(req) {
       usuario: { id: sesion.id, nombre: sesion.nombre, rol: sesion.rol },
       fecha, ahora: hhmm,
       turno: horarioHoy ? { desde: hm(horarioHoy.desde), hasta: hm(horarioHoy.hasta) } : null,
-      tareas,
+      tareas, venta,
       resumen: { hechas: hechasHoy, total: tareas.length, xp_hoy: xpHoy, meta: Math.ceil(tareas.length * META) },
       ayer, racha,
       retro_hecha: !!retro,
@@ -231,6 +237,36 @@ export async function POST(req) {
       }, { onConflict: 'fecha,usuario_id' })
       if (error) throw new Error(error.message)
       return NextResponse.json({ ok: true })
+    }
+
+    // Registro de uso: cada vez que alguien abre Jarvis (una vez por visita).
+    if (body.accion === 'abrir') {
+      const ahora = new Date().toISOString()
+      const { data: ap } = await supabase.from('jarvis_aperturas').select('aperturas').eq('usuario_id', sesion.id).eq('fecha', fecha).maybeSingle()
+      const { error: ea } = ap
+        ? await supabase.from('jarvis_aperturas').update({ aperturas: (ap.aperturas || 0) + 1, ultima_en: ahora }).eq('usuario_id', sesion.id).eq('fecha', fecha)
+        : await supabase.from('jarvis_aperturas').insert({ usuario_id: sesion.id, fecha, aperturas: 1, primera_en: ahora, ultima_en: ahora })
+      if (ea) throw new Error(ea.message)
+      return NextResponse.json({ ok: true })
+    }
+
+    // Tareas puntuales del plan de trabajo (id "p:<uuid>"): se marcan por persona.
+    if (typeof body.plantilla_id === 'string' && body.plantilla_id.startsWith('p:')) {
+      if (esAdmin) return NextResponse.json({ ok: false, mensaje: 'Las tareas del plan son para los colaboradores' }, { status: 400 })
+      const { data: t, error: et } = await supabase.from('jarvis_tareas').select('*').eq('id', body.plantilla_id.slice(2)).eq('activa', true).maybeSingle()
+      if (et) throw new Error(et.message)
+      if (!t || (t.para_usuario && t.para_usuario !== sesion.id)) return NextResponse.json({ ok: false, mensaje: 'Esa tarea no te toca' }, { status: 400 })
+      if (body.accion === 'hecha') {
+        const { error } = await supabase.from('jarvis_tareas_hechas').upsert({ tarea_id: t.id, usuario_id: sesion.id, hecha_en: new Date().toISOString(), xp: t.xp }, { onConflict: 'tarea_id,usuario_id' })
+        if (error) throw new Error(error.message)
+        return NextResponse.json({ ok: true, xp: t.xp })
+      }
+      if (body.accion === 'deshacer') {
+        const { error } = await supabase.from('jarvis_tareas_hechas').delete().eq('tarea_id', t.id).eq('usuario_id', sesion.id)
+        if (error) throw new Error(error.message)
+        return NextResponse.json({ ok: true })
+      }
+      return NextResponse.json({ ok: false, mensaje: 'Las tareas del plan no se saltan: ¡a sacarlas!' }, { status: 400 })
     }
 
     const { plantillas, horarios } = await cargarBase(supabase, sesion.id)

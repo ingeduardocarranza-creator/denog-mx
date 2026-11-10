@@ -1,10 +1,14 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { PanelConfirmar, VistaEnTienda, subirFoto } from './EnTienda'
 import { VistaResumen } from './Resumen'
 import { TarjetaCoach, CierresEquipo } from './Coach'
+import MetaVenta from './MetaVenta'
+import AlertaInsistente from './Alerta'
+import VistaPlan from './Plan'
+import VistaEstadisticas from './Estadisticas'
 
 // Jarvis: el tablero de actividades del día. Una sola pantalla para el
 // colaborador (su turno) y para el admin (sus misiones + cómo va el equipo).
@@ -60,6 +64,7 @@ export default function JarvisPage() {
   const [seguim, setSeguim] = useState(null)
   const [relevos, setRelevos] = useState([])
   const [avisosAdmin, setAvisosAdmin] = useState(null)
+  const [verMas, setVerMas] = useState(false) // el colaborador ve una sola acción; lo demás queda en "Más"
 
   const cargar = useCallback(async () => {
     try {
@@ -100,6 +105,13 @@ export default function JarvisPage() {
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
+  // Uso de Jarvis: se cuenta una apertura por visita (el admin ve el resultado en 📊 Números).
+  const abrioRef = useRef(false)
+  useEffect(() => {
+    if (!datos || abrioRef.current) return
+    abrioRef.current = true
+    if (datos.usuario.rol !== 'admin') fetch('/api/jarvis', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'abrir' }) }).catch(() => {})
+  }, [datos])
   // Se refresca solo cada 15 segundos y al volver a la pestaña: así Jarvis detecta
   // lo que ya hiciste y te muestra lo siguiente sin que tengas que picar nada.
   useEffect(() => {
@@ -174,6 +186,7 @@ export default function JarvisPage() {
   const retroDone = datos.retro_hecha || retroEnviada
 
   const tarjeta = { background: 'var(--sup, #fff)', border: '2px solid rgba(42,33,24,0.10)', borderRadius: 20, padding: 16 }
+  const detalle = esAdmin || verMas
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto', padding: '20px 16px 80px', fontFamily: 'inherit', color: 'var(--tinta, #2a2118)' }}>
@@ -188,16 +201,18 @@ export default function JarvisPage() {
             <div style={{ fontSize: 20, fontWeight: 900, color: NARANJA }}>🔥 {datos.racha}</div>
             <div style={{ fontSize: 10, fontWeight: 800, opacity: .6 }}>RACHA</div>
           </div>
-          <div style={{ ...tarjeta, padding: '8px 12px', textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 900, color: AZUL }}>⚡ {resumen.xp_hoy}</div>
-            <div style={{ fontSize: 10, fontWeight: 800, opacity: .6 }}>XP HOY</div>
-          </div>
+          {esAdmin && (
+            <div style={{ ...tarjeta, padding: '8px 12px', textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 900, color: AZUL }}>⚡ {resumen.xp_hoy}</div>
+              <div style={{ fontSize: 10, fontWeight: 800, opacity: .6 }}>XP HOY</div>
+            </div>
+          )}
         </div>
       </div>
 
       {esAdmin && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          {[['dia', '🎯 Mi día'], ['resumen', '📈 Resumen'], ['equipo', '👥 Equipo'], ['comisiones', '💰 Comisiones'], ['avisos', `📣 Avisos${avisosAdmin?.pendientes?.length ? ` (${avisosAdmin.pendientes.length})` : ''}`], ['entienda', '📦 En tienda']].map(([k, t]) => (
+          {[['dia', '🎯 Mi día'], ['resumen', '📈 Resumen'], ['equipo', '👥 Equipo'], ['plan', '🗓️ Plan'], ['numeros', '📊 Números'], ['comisiones', '💰 Comisiones'], ['avisos', `📣 Avisos${avisosAdmin?.pendientes?.length ? ` (${avisosAdmin.pendientes.length})` : ''}`], ['entienda', '📦 En tienda']].map(([k, t]) => (
             <button key={k} onClick={() => setVista(k)} style={{
               flex: '1 1 30%', minHeight: 42, borderRadius: 12, fontWeight: 900, fontSize: 14, cursor: 'pointer',
               border: `2px solid ${vista === k ? AZUL : 'rgba(42,33,24,0.12)'}`,
@@ -214,6 +229,10 @@ export default function JarvisPage() {
         </>
       ) : vista === 'resumen' && esAdmin ? (
         <VistaResumen tarjeta={tarjeta} irA={setVista} />
+      ) : vista === 'plan' && esAdmin ? (
+        <VistaPlan tarjeta={tarjeta} />
+      ) : vista === 'numeros' && esAdmin ? (
+        <VistaEstadisticas tarjeta={tarjeta} />
       ) : vista === 'entienda' && esAdmin ? (
         <VistaEnTienda tarjeta={tarjeta} />
       ) : vista === 'avisos' && esAdmin ? (
@@ -222,7 +241,8 @@ export default function JarvisPage() {
         <VistaComisiones datos={comisiones} recargar={cargarComisiones} tarjeta={tarjeta} />
       ) : (
         <>
-          <TarjetaCoach esAdmin={esAdmin} />
+          <MetaVenta venta={datos.venta} esAdmin={esAdmin} irAPlan={() => setVista('plan')} />
+          {detalle && <TarjetaCoach esAdmin={esAdmin} />}
           {tareas.length === 0 ? (
             <div style={{ ...tarjeta, textAlign: 'center', padding: 28 }}>
               <div style={{ fontSize: 44 }}>🌴</div>
@@ -231,7 +251,7 @@ export default function JarvisPage() {
             </div>
           ) : (
             <>
-              {!esAdmin && monedero && (
+              {!esAdmin && verMas && monedero && (
                 <div style={{ ...tarjeta, marginBottom: 14, border: `2px solid ${NARANJA}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ fontSize: 34 }}>👛</div>
@@ -271,6 +291,7 @@ export default function JarvisPage() {
               ))}
 
               {/* Progreso + mejor que ayer */}
+              {detalle && (
               <div style={{ ...tarjeta, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
                 <Aro hechas={resumen.hechas} total={resumen.total} />
                 <div style={{ flex: 1 }}>
@@ -286,8 +307,9 @@ export default function JarvisPage() {
                   </div>
                 </div>
               </div>
+              )}
 
-              {atrasadas.length > 1 && !todoListo && (
+              {detalle && atrasadas.length > 1 && !todoListo && (
                 <div style={{ background: 'rgba(255,150,0,0.14)', border: '2px solid rgba(255,150,0,0.4)', borderRadius: 14, padding: '10px 14px', fontSize: 13, fontWeight: 800, marginBottom: 14 }}>
                   ⏰ Jarvis: llevas {atrasadas.length} actividades por hacer. Empieza por la de abajo.
                 </div>
@@ -297,12 +319,19 @@ export default function JarvisPage() {
               {siguiente && (
                 <div style={{ ...tarjeta, border: `2px solid ${siguiente.toca ? VERDE : 'rgba(42,33,24,0.12)'}`, boxShadow: `0 4px 0 ${siguiente.toca ? VERDE_SOMBRA : 'rgba(42,33,24,0.10)'}`, marginBottom: 14 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.5, color: siguiente.toca ? VERDE : undefined, opacity: siguiente.toca ? 1 : .55 }}>
-                    {siguiente.toca ? 'TOCA AHORA' : `SIGUIENTE · ${siguiente.hora}`}
+                    {siguiente.toca ? 'AHORA' : `SIGUE · ${siguiente.hora}`}
                   </div>
+                  {(siguiente.es_venta || (siguiente.puntual && siguiente.prioridad === 1) || siguiente.vencida) && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                      {siguiente.puntual && siguiente.prioridad === 1 && <span style={{ background: '#e5484d', color: '#fff', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 900 }}>🔴 PRIORIDAD ALTA</span>}
+                      {siguiente.es_venta && <span style={{ background: VERDE, color: '#fff', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 900 }}>💰 VENTA</span>}
+                      {siguiente.vencida && <span style={{ background: NARANJA, color: '#fff', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 900 }}>⏰ VENCIDA</span>}
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center', margin: '8px 0 12px' }}>
                     <div style={{ fontSize: 40 }}>{siguiente.emoji}</div>
                     <div>
-                      <div style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.2 }}>{siguiente.titulo}</div>
+                      <div style={{ fontSize: 24, fontWeight: 900, lineHeight: 1.2 }}>{siguiente.titulo}</div>
                       {siguiente.detalle && <div style={{ fontSize: 14, fontWeight: 600, opacity: .7, marginTop: 3, lineHeight: 1.35 }}>{siguiente.detalle}</div>}
                     </div>
                   </div>
@@ -313,7 +342,7 @@ export default function JarvisPage() {
                         <Boton color={AZUL} sombra="#1899d6" type="button">Ir a hacerlo</Boton>
                       </Link>
                     )}
-                    {siguiente.auto ? (
+                    {siguiente.auto && hayTareaSeguim && seguim?.clientes?.length > 0 ? null : siguiente.auto ? (
                       <div style={{ background: 'rgba(28,176,246,0.10)', border: '2px solid rgba(28,176,246,0.3)', borderRadius: 14, padding: '10px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 900 }}>
                           <span>🤖 Jarvis lo revisa solo</span>
@@ -322,35 +351,58 @@ export default function JarvisPage() {
                         <div style={{ height: 10, borderRadius: 5, background: 'rgba(42,33,24,0.10)', margin: '8px 0 6px', overflow: 'hidden' }}>
                           <div style={{ width: `${Math.round((siguiente.actual / siguiente.meta) * 100)}%`, height: 10, background: AZUL, transition: 'width .5s' }} />
                         </div>
-                        <div style={{ fontSize: 12, fontWeight: 700, opacity: .65 }}>Se marca sola (+{siguiente.xp} XP) cuando lo hagas de verdad.</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, opacity: .65 }}>Se marca sola cuando lo hagas.</div>
                       </div>
                     ) : siguiente.modo === 'foto' ? (
                       <label style={{ display: 'block' }}>
                         <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} disabled={guardando}
                           onChange={e => { subirPrueba(siguiente.id, e.target.files?.[0]); e.target.value = '' }} />
                         <div style={{ height: 52, borderRadius: 14, background: VERDE, boxShadow: `0 4px 0 ${VERDE_SOMBRA}`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 16, cursor: 'pointer', opacity: guardando ? .6 : 1 }}>
-                          {guardando ? 'Subiendo…' : `📸 Tomar foto y listo (+${siguiente.xp} XP)`}
+                          {guardando ? 'Subiendo…' : '📸 Tomar foto'}
                         </div>
                       </label>
                     ) : siguiente.modo === 'visita' ? (
                       <div style={{ background: 'rgba(28,176,246,0.10)', border: '2px solid rgba(28,176,246,0.3)', borderRadius: 14, padding: '10px 14px', fontSize: 13, fontWeight: 800 }}>
-                        👀 Se marca sola cuando abras la pantalla (+{siguiente.xp} XP)
+                        👀 Se marca sola al abrir la pantalla
                       </div>
                     ) : (
-                      <Boton disabled={guardando} onClick={() => marcar(siguiente.id, 'hecha')}>¡Listo! +{siguiente.xp} XP</Boton>
+                      <Boton disabled={guardando} onClick={() => marcar(siguiente.id, 'hecha')}>Listo</Boton>
                     )}
-                    <button disabled={guardando} onClick={() => marcar(siguiente.id, 'saltada')}
-                      style={{ height: 40, border: 0, background: 'transparent', color: AZUL, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
-                      Saltar por ahora
-                    </button>
+                    {!siguiente.puntual && !(hayTareaSeguim && seguim?.clientes?.length > 0) && (
+                      <button disabled={guardando} onClick={() => marcar(siguiente.id, 'saltada')}
+                        style={{ height: 40, border: 0, background: 'transparent', color: AZUL, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+                        Saltar por ahora
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
 
               {hayTareaSeguim && seguim && seguim.clientes.length > 0 && (
-                <PanelConfirmar key={seguim.clientes[0].cliente_id} seguim={seguim} tarjeta={tarjeta} alTerminar={() => Promise.all([cargarSeguim(), cargar()])} />
+                <PanelConfirmar key={seguim.clientes[0].cliente_id} seguim={seguim} tarjeta={tarjeta} meta={siguiente?.meta} restan={siguiente ? siguiente.meta - siguiente.actual : 0} alTerminar={() => Promise.all([cargarSeguim(), cargar()])} />
               )}
 
+              {!esAdmin && (
+                <>
+                  {todoListo && (
+                    <div style={{ ...tarjeta, textAlign: 'center', padding: 24, border: `2px solid ${VERDE}` }}>
+                      <div style={{ fontSize: 44 }}>🎉</div>
+                      <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4 }}>Terminaste por hoy</div>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 6, margin: '16px 0 6px', flexWrap: 'wrap' }}>
+                    {tareas.map(t => (
+                      <span key={t.id} title={t.titulo} style={{ width: 11, height: 11, borderRadius: 6, background: t.estado === 'hecha' ? VERDE : t.estado === 'saltada' ? 'rgba(42,33,24,0.25)' : t === siguiente ? AZUL : 'rgba(42,33,24,0.12)' }} />
+                    ))}
+                  </div>
+                  <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, opacity: .65 }}>{resumen.hechas} de {resumen.total} hechas</div>
+                  <button onClick={() => setVerMas(v => !v)} style={{ display: 'block', margin: '14px auto 4px', border: 0, background: 'transparent', color: AZUL, fontWeight: 900, fontSize: 14, cursor: 'pointer', minHeight: 40 }}>
+                    {verMas ? 'Ocultar' : 'Más'}
+                  </button>
+                </>
+              )}
+
+              {detalle && (<>
               {/* Ruta del día */}
               <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.5, opacity: .55, margin: '18px 0 8px' }}>TU RUTA DE HOY</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -364,7 +416,9 @@ export default function JarvisPage() {
                         color: hecha ? '#fff' : 'inherit',
                       }}>{hecha ? '✓' : t.emoji}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, textDecoration: hecha ? 'line-through' : 'none' }}>{t.titulo}</div>
+                        <div style={{ fontSize: 14, fontWeight: 800, textDecoration: hecha ? 'line-through' : 'none' }}>
+                          {t.puntual && t.prioridad === 1 ? '🔴 ' : ''}{t.es_venta ? '💰 ' : ''}{t.titulo}
+                        </div>
                         <div style={{ fontSize: 12, fontWeight: 700, opacity: .55 }}>
                           {t.hora} · {t.xp} XP{saltada ? ' · saltada' : ''}{t.auto && !hecha ? ` · 🤖 ${t.actual}/${t.meta}` : ''}{t.auto && hecha ? ' · 🤖 comprobada' : ''}{t.modo === 'foto' && hecha ? ' · 📸 con foto' : ''}{t.modo === 'visita' && hecha ? ' · 👀 revisada' : ''}
                           {t.estado === 'pendiente' && t.toca && t !== siguiente ? ' · ⏰ pendiente' : ''}
@@ -382,8 +436,9 @@ export default function JarvisPage() {
                   )
                 })}
               </div>
+              </>)}
 
-              {!esAdmin && <PanelAvisar tarjeta={tarjeta} alEnviar={cargar} />}
+              {!esAdmin && verMas && <PanelAvisar tarjeta={tarjeta} alEnviar={cargar} />}
 
               {/* Mini retro: 2 preguntas al terminar */}
               {!esAdmin && (todoListo || pendientesLuego.length === 0) && !retroDone && (
@@ -413,6 +468,8 @@ export default function JarvisPage() {
           )}
         </>
       )}
+
+      {!esAdmin && vista === 'dia' && <AlertaInsistente tareas={tareas} onIr={() => window.scrollTo({ top: 0, behavior: 'smooth' })} />}
 
       {festejo && (
         <div style={{ position: 'fixed', left: '50%', top: '38%', transform: 'translateX(-50%)', background: VERDE, color: '#fff', padding: '14px 28px', borderRadius: 999, fontSize: 26, fontWeight: 900, boxShadow: '0 6px 0 ' + VERDE_SOMBRA, zIndex: 50 }}>

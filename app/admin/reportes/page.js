@@ -633,168 +633,7 @@ export default function Reportes() {
         )}
 
         {/* ═══════════════════ CONTROL ═══════════════════ */}
-        {vista === 'control' && !cargandoGeneral && g && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-
-            <CuadreCard g={g} />
-            <Senales g={g} fmt={fmt} />
-
-            {/* Cada corte contra lo que sigue registrado: detecta dinero que se
-                anotó y después desapareció (así se destapó el bug de los
-                anticipos borrados, tres semanas tarde). */}
-            {g.cuadreCortes?.length > 0 && (
-              <div style={tarjeta}>
-                <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--w06)' }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                    <span style={rotulo}>Cada corte contra lo registrado</span>
-                    {g.alertaCortes?.descuadrados > 0 ? (
-                      <span className="monto" style={{ color: 'var(--rojo-t)', fontSize: 13, fontWeight: 800 }}>
-                        {g.alertaCortes.descuadrados} descuadrado{g.alertaCortes.descuadrados !== 1 ? 's' : ''} · {fmt(g.alertaCortes.monto)}
-                      </span>
-                    ) : g.alertaCortes?.revisados > 0 ? (
-                      <span style={{ color: 'var(--verde)', fontSize: 13, fontWeight: 700 }}>Todos cuadran</span>
-                    ) : null}
-                  </div>
-                  <div style={{ color: 'var(--w55)', fontSize: 12.5, marginTop: 6, maxWidth: 620, lineHeight: 1.5 }}>
-                    Lo que el corte anotó por método contra lo que sigue registrado en ese mismo periodo. Si el corte contó más, algo se borró o se canceló después.
-                    {g.alertaCortes?.sin_periodo > 0 && ` ${g.alertaCortes.sin_periodo} corte${g.alertaCortes.sin_periodo !== 1 ? 's' : ''} no se puede${g.alertaCortes.sin_periodo !== 1 ? 'n' : ''} cuadrar: son anteriores al cambio que guarda el periodo.`}
-                  </div>
-                </div>
-                <div>
-                  {g.cuadreCortes.map((c) => {
-                    const cuando = new Date(c.creado_en).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ })
-                    if (!c.conciliable) {
-                      return (
-                        <div key={c.id} style={{ padding: '11px 22px', borderTop: '1px solid var(--w04)', display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                          <span style={{ color: 'var(--w55)', fontSize: 12.5, minWidth: 130 }}>{cuando}</span>
-                          <span style={{ color: 'var(--w50)', fontSize: 12 }}>{c.quien}</span>
-                          <span style={{ color: 'var(--w50)', fontSize: 12.5, marginLeft: 'auto' }}>{c.motivo || 'No conciliable'}</span>
-                        </div>
-                      )
-                    }
-                    const mal = Math.abs(c.descuadre) > 0.5
-                    return (
-                      <div key={c.id} style={{ padding: '13px 22px', borderTop: '1px solid var(--w04)', background: mal ? 'rgba(var(--rojo-rgb),0.07)' : 'transparent' }}>
-                        <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                          <span style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600, minWidth: 130 }}>{cuando}</span>
-                          <span style={{ color: 'var(--w55)', fontSize: 12 }}>{c.quien}</span>
-                          <span className="monto" style={{ marginLeft: 'auto', fontSize: 13.5, fontWeight: 800, color: mal ? 'var(--rojo-t)' : 'var(--verde)' }}>
-                            {!mal ? 'cuadra' : c.descuadre > 0 ? `faltan ${fmt(c.descuadre)}` : `sobran ${fmt(-c.descuadre)}`}
-                          </span>
-                        </div>
-                        {mal && (
-                          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 8 }}>
-                            {c.metodos.filter(m => Math.abs(m.diferencia) > 0.5).map(m => (
-                              <div key={m.metodo} style={{ fontSize: 12.5, color: 'var(--w55)' }}>
-                                <span style={{ fontWeight: 600, color: 'var(--w60)' }}>{m.metodo}:</span>{' '}
-                                anotó <span className="monto">{fmt(m.anoto)}</span>, hay <span className="monto">{fmt(m.hay)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Por colaborador */}
-            {g.control.length > 0 && (
-              <div>
-                <h3 style={{ ...rotulo, marginBottom: 10 }}>Por colaborador</h3>
-                <div style={tarjeta}>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 720 }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid var(--w08)' }}>
-                          <th style={th}>Persona</th>
-                          <th style={{ ...th, textAlign: 'center' }}>Cortes</th>
-                          <th style={{ ...th, textAlign: 'right' }}>Diferencia acumulada</th>
-                          <th style={{ ...th, textAlign: 'right' }}>Peor corte</th>
-                          <th style={{ ...th, textAlign: 'right' }}>Vendió</th>
-                          <th style={{ ...th, textAlign: 'right' }}>Monto libre</th>
-                          <th style={{ ...th, textAlign: 'right' }}>Descuentos</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {g.control.map(c => (
-                          <tr key={c.id} style={{ borderBottom: '1px solid var(--w04)' }}>
-                            <td style={{ ...td, fontWeight: 700, color: 'var(--tinta)' }}>{c.nombre}</td>
-                            <td style={{ ...td, textAlign: 'center', color: 'var(--w55)' }}>{c.cortes || '—'}</td>
-                            <td className="monto" style={{ ...td, textAlign: 'right', fontWeight: 800, color: c.diferencia < -0.5 ? 'var(--rojo-t)' : c.diferencia > 0.5 ? 'var(--ambar)' : 'var(--verde)' }}>
-                              {c.cortes ? `${c.diferencia > 0 ? '+' : ''}${fmt(c.diferencia)}` : '—'}
-                            </td>
-                            <td className="monto" style={{ ...td, textAlign: 'right', color: 'var(--w55)' }}>{c.peorDiferencia ? fmt(c.peorDiferencia) : '—'}</td>
-                            <td className="monto" style={{ ...td, textAlign: 'right', color: 'var(--w55)' }}>{fmt(c.montoVendido)}</td>
-                            <td style={{ ...td, textAlign: 'right' }}>
-                              {c.manuales > 0 ? (
-                                <span>
-                                  <span className="monto" style={{ color: c.pctManual >= 20 ? 'var(--rojo-t)' : c.pctManual >= 10 ? 'var(--ambar)' : 'var(--w55)', fontWeight: 700 }}>{fmt(c.montoManual)}</span>
-                                  <span style={{ color: 'var(--w50)', fontSize: 11.5, marginLeft: 5 }}>{c.pctManual}%</span>
-                                </span>
-                              ) : <span style={{ color: 'var(--w50)' }}>—</span>}
-                            </td>
-                            <td className="monto" style={{ ...td, textAlign: 'right', color: c.montoDescuento > 0 ? 'var(--ambar)' : 'var(--w25)' }}>
-                              {c.montoDescuento > 0 ? fmt(c.montoDescuento) : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <p style={{ color: 'var(--w50)', fontSize: 12, marginTop: 9, lineHeight: 1.5 }}>
-                  La diferencia acumulada suma todos los cortes del periodo. Un faltante aislado casi siempre es error de captura; lo que hay que mirar es el patrón — la misma persona cerrando corto una y otra vez. "Monto libre" son ventas tecleadas sin producto del catálogo: por encima del 20% de lo que vende alguien, vale la pena revisar.
-                </p>
-              </div>
-            )}
-
-            {/* Retiros y cancelaciones */}
-            {(g.retiros.length > 0 || g.cancelados.length > 0) ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
-                {g.retiros.length > 0 && (
-                  <div>
-                    <h3 style={{ ...rotulo, marginBottom: 10 }}>Retiros de caja · {fmt(retirosTotal)}</h3>
-                    <div style={tarjeta}>
-                      {g.retiros.map((r, i) => (
-                        <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '11px 14px', borderBottom: i < g.retiros.length - 1 ? '1px solid var(--w04)' : 'none' }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600 }}>{r.motivo || 'Sin motivo'}</div>
-                            <div style={{ color: r.admin_id ? 'var(--w35)' : 'var(--rojo-t)', fontSize: 11.5 }}>
-                              {r.admin_id ? r.quien : 'sin responsable registrado'} · {String(r.creado_en).slice(0, 10)}
-                            </div>
-                          </div>
-                          <span className="monto" style={{ color: 'var(--ambar)', fontWeight: 800, fontSize: 13 }}>{fmt(r.monto)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {g.cancelados.length > 0 && (
-                  <div>
-                    <h3 style={{ ...rotulo, marginBottom: 10 }}>Pagos cancelados · {fmt(canceladosTotal)}</h3>
-                    <div style={tarjeta}>
-                      {g.cancelados.map((c, i) => (
-                        <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '11px 14px', borderBottom: i < g.cancelados.length - 1 ? '1px solid var(--w04)' : 'none' }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ color: 'var(--tinta)', fontSize: 12.5, fontWeight: 600 }}>{c.cliente}</div>
-                            <div style={{ color: 'var(--w50)', fontSize: 11.5 }}>{c.cancelado_motivo} · {c.quien}</div>
-                          </div>
-                          <span className="monto" style={{ color: 'var(--rojo-t)', fontWeight: 800, fontSize: 13 }}>{fmt(c.monto)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ ...tarjeta, padding: '16px 22px', color: 'var(--w55)', fontSize: 12.5 }}>
-                Sin retiros de caja ni pagos cancelados en este periodo.
-              </div>
-            )}
-          </div>
-        )}
+        {vista === 'control' && !cargandoGeneral && g && <ControlVista g={g} />}
 
       </div>
     </div>
@@ -1242,6 +1081,261 @@ function ListaTickets({ tickets }) {
           Ver 24 más · quedan {tickets.length - visibles}
         </button>
       )}
+    </div>
+  )
+}
+
+// ── Control ─────────────────────────────────────────────────────────────────
+// Responde: ¿hay algo raro? Primero el estado general, luego el detalle:
+// cortes de caja, personas, y el dinero que salió (retiros y cancelaciones).
+function ControlVista({ g }) {
+  const [seg, setSeg] = useState(null)
+  const [visibles, setVisibles] = useState(12)
+
+  const cortes = g.cuadreCortes || []
+  const malos = cortes.filter(c => c.conciliable && Math.abs(c.descuadre) > 0.5)
+  const buenos = cortes.filter(c => c.conciliable && Math.abs(c.descuadre) <= 0.5)
+  const sinPeriodo = cortes.filter(c => !c.conciliable)
+  const activo = seg ?? (malos.length ? 'mal' : 'todos')
+  const lista = activo === 'mal' ? malos : activo === 'bien' ? buenos : cortes
+
+  const d = g.cuadre.diferencia
+  const retirosTotal = g.retiros.reduce((s, r) => s + Number(r.monto || 0), 0)
+  const canceladosTotal = g.cancelados.reduce((s, c) => s + Number(c.monto || 0), 0)
+  const personasMonto = g.control.filter(c => c.pctManual >= 20)
+
+  // Lo que sí hay que mirar. Los retiros son operación normal: no cuentan.
+  const pendientes = [
+    Math.abs(d) > 0.5 && 'el efectivo no cuadra',
+    malos.length > 0 && `${malos.length} ${malos.length === 1 ? 'corte descuadrado' : 'cortes descuadrados'}`,
+    g.cancelados.length > 0 && `${g.cancelados.length} ${g.cancelados.length === 1 ? 'pago cancelado' : 'pagos cancelados'}`,
+    personasMonto.length > 0 && `monto libre alto (${personasMonto.map(c => c.nombre.split(' ')[0]).join(', ')})`,
+  ].filter(Boolean)
+  const enOrden = pendientes.length === 0
+
+  const colorDif = (v) => v < -0.5 ? 'var(--rojo-t)' : v > 0.5 ? 'var(--ambar)' : 'var(--verde)'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+      {/* Estado general */}
+      <div style={{ ...tarjeta, border: `1px solid ${enOrden ? 'var(--verde-borde)' : 'rgba(var(--rojo-rgb),0.3)'}` }}>
+        <div style={{ padding: '18px 22px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <span style={{ fontSize: 22, lineHeight: 1 }}>{enOrden ? '✅' : '🔴'}</span>
+          <div>
+            <div style={{ color: enOrden ? 'var(--verde)' : 'var(--rojo-t)', fontSize: 17, fontWeight: 800, letterSpacing: -0.3 }}>
+              {enOrden ? 'Todo en orden en este periodo' : 'Hay cosas por revisar'}
+            </div>
+            <div style={{ color: 'var(--w55)', fontSize: 13, marginTop: 3 }}>
+              {enOrden ? 'El efectivo cuadra y no hay cortes descuadrados ni pagos cancelados.' : `Revisa: ${pendientes.join(' · ')}.`}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', borderTop: '1px solid var(--w06)' }}>
+          <Celda rotulo="Cuadre de efectivo" valor={`${d > 0 ? '+' : ''}${fmt(d)}`} color={colorDif(d)}
+            sub={`esperado ${fmt(g.cuadre.esperado)} · contado ${fmt(g.cuadre.contado)}`} />
+          <Celda rotulo="Cortes que no cuadran" valor={`${malos.length} de ${malos.length + buenos.length}`}
+            color={malos.length ? 'var(--rojo-t)' : 'var(--verde)'} sub={malos.length ? fmt(g.alertaCortes?.monto) : 'todos coinciden'} />
+          <Celda rotulo="Pagos cancelados" valor={fmt(canceladosTotal)} color={g.cancelados.length ? 'var(--rojo-t)' : undefined}
+            sub={`${g.cancelados.length} en el periodo`} />
+          <Celda rotulo="Retiros de caja" valor={fmt(retirosTotal)} sub={`${g.retiros.length} en el periodo`} />
+          <Celda rotulo="Ventas por monto libre" valor={fmt(g.tienda.montoManual)} sub={`${g.tienda.manuales} ${g.tienda.manuales === 1 ? 'venta' : 'ventas'} sin producto del catálogo`} />
+        </div>
+        {g.cuadre.sin_verificar > 0 && (
+          <div style={{ padding: '10px 22px', borderTop: '1px solid var(--w07)', background: 'rgba(245,158,11,0.08)', color: 'var(--ambar-t)', fontSize: 12.5, fontWeight: 600 }}>
+            ⚠️ {g.cuadre.sin_verificar} {g.cuadre.sin_verificar === 1 ? 'corte se cerró' : 'cortes se cerraron'} sin poder calcular sus totales por método — revísalos a mano contra los pagos.
+          </div>
+        )}
+      </div>
+
+      {/* Cortes de caja */}
+      {cortes.length > 0 && (
+        <div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ color: 'var(--tinta)', fontSize: 17, fontWeight: 800, letterSpacing: -0.3 }}>Cortes de caja</div>
+            <div style={{ color: 'var(--w55)', fontSize: 13, marginTop: 2, maxWidth: 640, lineHeight: 1.45 }}>
+              Compara lo que la persona anotó al cerrar contra lo que sigue registrado en ese mismo periodo. Si no coinciden, hay que revisar qué pasó.
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+            {[['mal', 'No cuadran', malos.length], ['bien', 'Cuadran', buenos.length], ['todos', 'Todos', cortes.length]].map(([k, t, n]) => {
+              const act = activo === k
+              const rojo = k === 'mal' && n > 0
+              return (
+                <button key={k} onClick={() => { setSeg(k); setVisibles(12) }}
+                  style={{ cursor: 'pointer', border: `1px solid ${act ? (rojo ? 'var(--rojo)' : 'var(--marca)') : 'var(--w10)'}`, background: act ? (rojo ? 'rgba(var(--rojo-rgb),0.1)' : 'rgba(193,85,58,0.1)') : 'var(--w03)', color: act ? (rojo ? 'var(--rojo-t)' : 'var(--marca-t)') : 'var(--w55)', borderRadius: 20, padding: '6px 13px', fontSize: 12.5, fontWeight: 700, display: 'flex', gap: 6 }}>
+                  {t}<span style={{ fontWeight: 800 }}>{n}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {lista.length === 0 ? (
+            <div style={{ ...tarjeta, padding: 28, textAlign: 'center', color: 'var(--w55)', fontSize: 13 }}>
+              {activo === 'mal' ? '✅ Ningún corte descuadrado en este periodo' : 'Nada en este grupo'}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 14 }}>
+              {lista.slice(0, visibles).map(c => <CorteCard key={c.id} c={c} />)}
+            </div>
+          )}
+          {lista.length > visibles && (
+            <button onClick={() => setVisibles(n => n + 12)}
+              style={{ width: '100%', marginTop: 12, padding: 12, borderRadius: 11, cursor: 'pointer', border: '1px solid var(--w10)', background: 'var(--sup)', color: 'var(--marca-t)', fontSize: 13, fontWeight: 700 }}>
+              Ver 12 más · quedan {lista.length - visibles}
+            </button>
+          )}
+          {sinPeriodo.length > 0 && activo !== 'mal' && activo !== 'bien' && (
+            <div style={{ color: 'var(--w50)', fontSize: 12.5, marginTop: 10 }}>
+              {sinPeriodo.length} {sinPeriodo.length === 1 ? 'corte no se puede' : 'cortes no se pueden'} comparar porque no guardaron el periodo que cubren.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Por colaborador */}
+      {g.control.length > 0 && (
+        <div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ color: 'var(--tinta)', fontSize: 17, fontWeight: 800, letterSpacing: -0.3 }}>Por colaborador</div>
+            <div style={{ color: 'var(--w55)', fontSize: 13, marginTop: 2, maxWidth: 680, lineHeight: 1.45 }}>
+              Un faltante aislado casi siempre es error de captura; lo que importa es el patrón: la misma persona cerrando corto una y otra vez.
+              "Monto libre" son ventas tecleadas sin producto del catálogo; arriba del 20% de lo que vende alguien, conviene revisar.
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 14 }}>
+            {g.control.map(c => {
+              const colorManual = c.pctManual >= 20 ? 'var(--rojo-t)' : c.pctManual >= 10 ? 'var(--ambar)' : 'var(--tinta)'
+              return (
+                <div key={c.id} style={{ ...tarjeta, padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                    <span style={{ width: 38, height: 38, borderRadius: 19, background: 'var(--w06)', color: 'var(--tinta)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, flexShrink: 0 }}>
+                      {String(c.nombre || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ color: 'var(--tinta)', fontSize: 14.5, fontWeight: 800, lineHeight: 1.25 }}>{c.nombre}</div>
+                      <div style={{ color: 'var(--w55)', fontSize: 12.5, marginTop: 2 }}>{c.cortes ? `${c.cortes} ${c.cortes === 1 ? 'corte' : 'cortes'} de caja` : 'sin cortes en el periodo'}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px' }}>
+                    <Dato rotulo="Vendió" valor={fmt(c.montoVendido)} />
+                    <Dato rotulo="Diferencia acumulada" valor={c.cortes ? `${c.diferencia > 0 ? '+' : ''}${fmt(c.diferencia)}` : '—'} color={c.cortes ? colorDif(c.diferencia) : undefined} />
+                    <Dato rotulo="Monto libre" valor={c.manuales > 0 ? fmt(c.montoManual) : '—'} color={c.manuales > 0 ? colorManual : undefined}
+                      sub={c.manuales > 0 ? `${c.pctManual}% de lo que vendió` : null} />
+                    <Dato rotulo="Peor corte" valor={c.peorDiferencia ? fmt(c.peorDiferencia) : '—'} />
+                    {c.montoDescuento > 0 && <Dato rotulo="Descuentos" valor={fmt(c.montoDescuento)} color="var(--ambar)" />}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Dinero que salió */}
+      {(g.retiros.length > 0 || g.cancelados.length > 0) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 18, alignItems: 'start' }}>
+          {g.retiros.length > 0 && (
+            <Bloque titulo="Retiros de caja" nota={`${g.retiros.length} · ${fmt(retirosTotal)}`}>
+              {g.retiros.map((r, i) => (
+                <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '11px 0', borderTop: i ? '1px solid var(--w05)' : 'none' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: 'var(--tinta)', fontSize: 13.5, fontWeight: 700 }}>{r.motivo || 'Sin motivo'}</div>
+                    <div style={{ color: r.admin_id ? 'var(--w55)' : 'var(--rojo-t)', fontSize: 12.5, marginTop: 2 }}>
+                      {r.admin_id ? r.quien : 'sin responsable registrado'} · {diaCorto(r.creado_en)}
+                    </div>
+                  </div>
+                  <span className="monto" style={{ color: 'var(--tinta)', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>{fmt(r.monto)}</span>
+                </div>
+              ))}
+            </Bloque>
+          )}
+          {g.cancelados.length > 0 && (
+            <Bloque titulo="Pagos cancelados" nota={`${g.cancelados.length} · ${fmt(canceladosTotal)}`}>
+              {g.cancelados.map((c, i) => (
+                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '11px 0', borderTop: i ? '1px solid var(--w05)' : 'none' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: 'var(--tinta)', fontSize: 13.5, fontWeight: 700 }}>{c.cliente && c.cliente !== '—' ? c.cliente : 'Venta sin cliente'}</div>
+                    <div style={{ color: 'var(--w55)', fontSize: 12.5, marginTop: 2 }}>{c.cancelado_motivo} · {c.quien}</div>
+                  </div>
+                  <span className="monto" style={{ color: 'var(--rojo-t)', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>{fmt(c.monto)}</span>
+                </div>
+              ))}
+            </Bloque>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Un corte de caja como ticket: quién, cuándo, y si coincide o no.
+function CorteCard({ c }) {
+  const cuando = `${diaCorto(c.creado_en)} · ${hora(c.creado_en)}`
+  if (!c.conciliable) {
+    return (
+      <div style={{ ...tarjeta, borderTop: `4px solid ${C_GRIS}`, padding: '12px 16px 14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ background: `${C_GRIS}1f`, color: C_GRIS, fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', padding: '3px 9px', borderRadius: 6 }}>Sin comparar</span>
+          <span style={{ color: 'var(--w60)', fontSize: 12.5, fontWeight: 600 }}>{cuando}</span>
+        </div>
+        <div style={{ color: 'var(--tinta)', fontSize: 15.5, fontWeight: 800, marginTop: 10 }}>{c.quien}</div>
+        <div style={{ color: 'var(--w55)', fontSize: 12.5, marginTop: 6, lineHeight: 1.4 }}>{c.motivo || 'No se puede comparar este corte.'}</div>
+      </div>
+    )
+  }
+  const mal = Math.abs(c.descuadre) > 0.5
+  const acento = mal ? '#c0392b' : C_TIENDA
+  return (
+    <div style={{ ...tarjeta, borderTop: `4px solid ${acento}`, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '12px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ background: `${acento}1f`, color: acento, fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', padding: '3px 9px', borderRadius: 6 }}>{mal ? 'No cuadra' : 'Cuadra'}</span>
+          <span style={{ color: 'var(--w60)', fontSize: 12.5, fontWeight: 600 }}>{cuando}</span>
+        </div>
+        <div style={{ color: 'var(--tinta)', fontSize: 15.5, fontWeight: 800, marginTop: 10, lineHeight: 1.25 }}>{c.quien}</div>
+      </div>
+
+      {mal ? (
+        <>
+          <div style={{ borderTop: '1px dashed var(--w18)', padding: '10px 16px' }}>
+            {c.metodos.filter(m => Math.abs(m.diferencia) > 0.5).map(m => (
+              <div key={m.metodo} style={{ padding: '4px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13 }}>
+                  <span style={{ color: 'var(--tinta)', fontWeight: 700 }}>{m.metodo}</span>
+                  <span className="monto" style={{ color: 'var(--rojo-t)', fontWeight: 800 }}>{m.diferencia > 0 ? '+' : ''}{fmt(m.diferencia)}</span>
+                </div>
+                <div style={{ color: 'var(--w55)', fontSize: 12.5, marginTop: 1 }}>
+                  El corte anotó <b className="monto">{fmt(m.anoto)}</b> · hay registrado <b className="monto">{fmt(m.hay)}</b>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ borderTop: '1px dashed var(--w18)', padding: '11px 16px 13px', background: 'rgba(var(--rojo-rgb),0.06)', marginTop: 'auto' }}>
+            <div className="monto" style={{ color: 'var(--rojo-t)', fontSize: 19, fontWeight: 900, letterSpacing: -0.4 }}>
+              {c.descuadre > 0 ? `Faltan ${fmt(c.descuadre)}` : `Sobran ${fmt(-c.descuadre)}`}
+            </div>
+            <div style={{ color: 'var(--w55)', fontSize: 12.5, marginTop: 2, lineHeight: 1.4 }}>
+              {c.descuadre > 0 ? 'El corte contó más de lo que hay registrado.' : 'Hay más registrado de lo que el corte contó.'}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div style={{ borderTop: '1px dashed var(--w18)', padding: '10px 16px 12px', background: 'var(--w02)', color: 'var(--w55)', fontSize: 12.5, marginTop: 'auto' }}>
+          Lo que anotó el corte coincide con lo registrado.
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Un dato suelto: rótulo chico arriba, cifra abajo.
+function Dato({ rotulo: r, valor, sub, color }) {
+  return (
+    <div>
+      <div style={{ color: 'var(--w50)', fontSize: 11, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase' }}>{r}</div>
+      <div className="monto" style={{ color: color || 'var(--tinta)', fontSize: 17, fontWeight: 800, marginTop: 3, letterSpacing: -0.3 }}>{valor}</div>
+      {sub && <div style={{ color: 'var(--w55)', fontSize: 11.5, marginTop: 1 }}>{sub}</div>}
     </div>
   )
 }

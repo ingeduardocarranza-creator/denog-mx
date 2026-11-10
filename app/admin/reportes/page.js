@@ -33,10 +33,10 @@ const campoR = { background: 'var(--w03)', border: '1px solid var(--w10)', borde
 
 const VISTAS = [
   ['resumen', 'Resumen'],
-  ['tienda', '🏪 Tienda'],
-  ['pedidos', '📦 Pedidos'],
-  ['entrega', '🚚 Por entrega'],
-  ['control', '🔎 Control'],
+  ['tienda', 'Tienda'],
+  ['pedidos', 'Pedidos'],
+  ['entrega', 'Por entrega'],
+  ['control', 'Control'],
 ]
 
 export default function Reportes() {
@@ -391,10 +391,12 @@ export default function Reportes() {
           )}
         </div>
 
-        {/* Vistas */}
-        <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--w04)', border: '1px solid var(--w06)', borderRadius: 14, overflowX: 'auto', marginBottom: 14 }}>
+        {/* Pestañas y periodo */}
+        <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--w04)', border: '1px solid var(--w06)', borderRadius: 14, overflowX: 'auto', marginBottom: 10 }}>
           {VISTAS.map(([k, t]) => {
             const activa = vista === k
+            const montoTab = k === 'tienda' ? (cargandoTienda ? 0 : analisisTienda.totalVendido) : k === 'pedidos' && g && !cargandoGeneral ? pedidosTotal : 0
             return (
               <button key={k} onClick={() => setVista(k)}
                 style={{
@@ -405,6 +407,7 @@ export default function Reportes() {
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                 }}>
                 {t}
+                {montoTab > 0 && <span className="monto" style={{ fontSize: 11, fontWeight: 700, color: activa ? 'var(--w50)' : 'var(--w35)' }}>{fmt(montoTab)}</span>}
                 {k === 'control' && hayAlertaControl && <span style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--rojo)' }} />}
               </button>
             )
@@ -413,7 +416,7 @@ export default function Reportes() {
 
         {/* Periodo (no aplica a "Por entrega") */}
         {vista !== 'entrega' && (
-          <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
             {[['hoy', 'Hoy'], ['dia', 'Un día'], ['7', 'Últimos 7 días'], ['mes', 'Mes en curso'], ['rango', 'Entre fechas']].map(([v, t]) => (
               <button key={v} onClick={() => setRango(v)}
                 style={{
@@ -434,6 +437,8 @@ export default function Reportes() {
             )}
           </div>
         )}
+
+        </div>
 
         {/* Error / carga de las vistas que dependen de "general" */}
         {['resumen', 'pedidos', 'control'].includes(vista) && (
@@ -473,14 +478,14 @@ export default function Reportes() {
               {/* Los dos negocios, lado a lado: tocar uno abre su vista */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, padding: '0 22px 20px' }}>
                 <Pilar
-                  tono="#0f8a63" titulo="🏪 Tienda" monto={g.ingresos.tienda} total={g.total}
+                  tono="#0f8a63" titulo="Tienda" monto={g.ingresos.tienda} total={g.total}
                   lineas={[
                     `${g.tienda.articulos} ${g.tienda.articulos === 1 ? 'artículo' : 'artículos'}`,
                     g.tienda.ventaConCosto > 0 ? `utilidad ${fmt(g.tienda.utilidad)} (${((g.tienda.utilidad / g.tienda.ventaConCosto) * 100).toFixed(0)}%)` : 'utilidad sin calcular',
                   ]}
                   onClick={() => setVista('tienda')} />
                 <Pilar
-                  tono="#c1553a" titulo="📦 Pedidos" monto={pedidosTotal} total={g.total}
+                  tono="#c1553a" titulo="Pedidos" monto={pedidosTotal} total={g.total}
                   lineas={[
                     `entregas ${fmt(g.ingresos.entregas)} · anticipos ${fmt(g.ingresos.anticipos)}`,
                     g.ingresos.envios > 0 ? `envíos ${fmt(g.ingresos.envios)}` : null,
@@ -488,15 +493,7 @@ export default function Reportes() {
                   onClick={() => setVista('pedidos')} />
               </div>
 
-              <div style={{ padding: '0 22px 20px', borderTop: '1px solid var(--w06)', paddingTop: 18 }}>
-                <Barra titulo="Por origen" total={g.total} partes={[
-                  ['Entregas', g.ingresos.entregas, '#c1553a'],
-                  ['Anticipos', g.ingresos.anticipos, '#2563eb'],
-                  ['Tienda', g.ingresos.tienda, '#0f8a63'],
-                  ['Envíos', g.ingresos.envios || 0, '#a06d14'],
-                  ['Otros', g.ingresos.otros, '#8a8178'],
-                ]} fmt={fmt} />
-                <div style={{ height: 20 }} />
+              <div style={{ padding: '18px 22px 20px', borderTop: '1px solid var(--w06)' }}>
                 <Desglose titulo="Por método de cobro" total={g.total} partes={[
                   ['Efectivo', g.porMetodo.Efectivo],
                   ['Transferencia', g.porMetodo.Transferencia],
@@ -568,21 +565,21 @@ export default function Reportes() {
 
               {analisisTienda.topProductos.length > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 18, alignItems: 'start' }}>
-                  <Bloque titulo="🏆 Lo que más se vende" nota="por importe">
+                  <Bloque titulo="Lo que más se vende" nota="por importe">
                     <Ranking tono="var(--verde)" limite={8} filas={analisisTienda.topProductos.map(p => ({
                       clave: p.nombre, etiqueta: p.nombre, sub: `${p.cantidad} ${p.cantidad === 1 ? 'pieza' : 'piezas'}${p.categoria ? ' · ' + p.categoria : ''}`,
                       valor: p.revenue, texto: fmt(p.revenue),
                     }))} />
                   </Bloque>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                    <Bloque titulo="📂 Por categoría" nota="por importe">
+                    <Bloque titulo="Por categoría" nota="por importe">
                       <Ranking tono="var(--ambar)" limite={6} filas={analisisTienda.porCategoria.map(c => ({
                         clave: c.categoria, etiqueta: c.categoria, sub: `${c.cantidad} ${c.cantidad === 1 ? 'pieza' : 'piezas'}`,
                         valor: c.revenue, texto: fmt(c.revenue),
                         pct: analisisTienda.totalVendido > 0 ? Math.round((c.revenue / analisisTienda.totalVendido) * 100) : null,
                       }))} />
                     </Bloque>
-                    <Bloque titulo="👤 Por vendedor">
+                    <Bloque titulo="Por vendedor">
                       <Ranking tono="var(--marca)" filas={analisisTienda.porVendedor.map(v => ({
                         clave: v.nombre, etiqueta: v.nombre, sub: `${v.articulos} ${v.articulos === 1 ? 'artículo' : 'artículos'}`,
                         valor: v.total, texto: fmt(v.total),
@@ -834,6 +831,15 @@ function CuadreCard({ g, compacto, onVer }) {
           </div>
         </div>
       </div>
+      {compacto && g.alertaCortes?.descuadrados > 0 && (
+        <button onClick={onVer} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 'none', borderTop: '1px solid rgba(var(--rojo-rgb),0.25)', background: 'rgba(var(--rojo-rgb),0.08)', padding: '11px 22px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13 }}>🔴</span>
+          <span style={{ color: 'var(--rojo-t)', fontSize: 12.5, fontWeight: 700 }}>
+            {g.alertaCortes.descuadrados} {g.alertaCortes.descuadrados === 1 ? 'corte no cuadra' : 'cortes no cuadran'} contra lo registrado · {fmt(g.alertaCortes.monto)}
+          </span>
+          <span style={{ color: 'var(--rojo-t)', fontSize: 12, fontWeight: 700, marginLeft: 'auto' }}>Ver →</span>
+        </button>
+      )}
       {g.cuadre.sin_verificar > 0 && (
         <div style={{ padding: '10px 22px', borderTop: '1px solid var(--w07)', background: 'rgba(245,158,11,0.08)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 13 }}>⚠️</span>
@@ -877,14 +883,17 @@ function Pilar({ tono, titulo, monto, total, lineas, onClick }) {
   const pct = total > 0 ? Math.round((monto / total) * 100) : 0
   return (
     <button onClick={onClick}
-      style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--w03)', border: '1px solid var(--w07)', borderLeft: `4px solid ${tono}`, borderRadius: 12, padding: '14px 16px', display: 'block' }}>
+      style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--w03)', border: '1px solid var(--w07)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'stretch' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
         <span style={{ color: 'var(--tinta)', fontSize: 13.5, fontWeight: 800 }}>{titulo}</span>
         <span style={{ color: 'var(--w35)', fontSize: 11 }}>{pct}% del total</span>
       </div>
-      <div className="monto" style={{ color: 'var(--tinta)', fontSize: 26, fontWeight: 900, letterSpacing: -0.8, margin: '6px 0 8px' }}>{fmt(monto)}</div>
+      <div className="monto" style={{ color: 'var(--tinta)', fontSize: 26, fontWeight: 900, letterSpacing: -0.8, margin: '6px 0 10px' }}>{fmt(monto)}</div>
+      <div style={{ height: 6, background: 'var(--w06)', borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
+        <div style={{ width: `${Math.max(pct, monto > 0 ? 2 : 0)}%`, height: '100%', background: tono, borderRadius: 3 }} />
+      </div>
       {lineas.map((l, i) => <div key={i} style={{ color: 'var(--w45)', fontSize: 11.5, marginTop: 2 }}>{l}</div>)}
-      <div style={{ color: 'var(--marca-t)', fontSize: 11.5, fontWeight: 700, marginTop: 10 }}>Ver detalle →</div>
+      <div style={{ color: 'var(--marca-t)', fontSize: 11.5, fontWeight: 700, marginTop: 'auto', paddingTop: 10 }}>Ver detalle →</div>
     </button>
   )
 }
@@ -924,18 +933,20 @@ function Ranking({ filas, tono = 'var(--marca)', limite = 0, extraTitulo }) {
   return (
     <div>
       {visibles.map((f, i) => (
-        <div key={f.clave + i} style={{ padding: '9px 0', borderTop: i ? '1px solid var(--w04)' : 'none' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span style={{ color: 'var(--w30)', fontSize: 11, width: 16, flexShrink: 0, fontWeight: 700 }}>{i + 1}</span>
-            <span style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.etiqueta}</span>
-            <span className="monto" style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 800, flexShrink: 0 }}>{f.texto}</span>
-            {f.pct != null && <span style={{ color: 'var(--w32)', fontSize: 10.5, width: 30, textAlign: 'right', flexShrink: 0 }}>{f.pct}%</span>}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 5, paddingLeft: 26 }}>
-            <div style={{ flex: 1, height: 5, background: 'var(--w06)', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ width: `${Math.max(2, (Math.abs(f.valor) / mayor) * 100)}%`, height: '100%', background: tono, opacity: 0.55, borderRadius: 3 }} />
+        <div key={f.clave + i} style={{ padding: '10px 0', borderTop: i ? '1px solid var(--w04)' : 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <span style={{ color: 'var(--w30)', fontSize: 11, width: 16, flexShrink: 0, fontWeight: 700, paddingTop: 2 }}>{i + 1}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.etiqueta}</div>
+              {f.sub && <div style={{ color: 'var(--w38)', fontSize: 10.5, marginTop: 2 }}>{f.sub}</div>}
             </div>
-            {f.sub && <span style={{ color: 'var(--w38)', fontSize: 10.5, flexShrink: 0, maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.sub}</span>}
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div className="monto" style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 800 }}>{f.texto}</div>
+              {f.pct != null && <div style={{ color: 'var(--w32)', fontSize: 10.5, marginTop: 2 }}>{f.pct}%</div>}
+            </div>
+          </div>
+          <div style={{ height: 4, background: 'var(--w06)', borderRadius: 2, overflow: 'hidden', marginTop: 7, marginLeft: 26 }}>
+            <div style={{ width: `${Math.max(2, (Math.abs(f.valor) / mayor) * 100)}%`, height: '100%', background: tono, opacity: 0.6, borderRadius: 2 }} />
           </div>
         </div>
       ))}
@@ -945,6 +956,27 @@ function Ranking({ filas, tono = 'var(--marca)', limite = 0, extraTitulo }) {
           {todos ? 'Ver menos' : `Ver los ${filas.length}`}
         </button>
       )}
+    </div>
+  )
+}
+
+// Columnas en orden cronológico: para ver cómo se repartió la venta en el tiempo.
+function Columnas({ datos }) {
+  if (!datos.length) return <div style={{ color: 'var(--w30)', fontSize: 12, padding: '14px 0' }}>Sin datos</div>
+  const mayor = Math.max(...datos.map(d => d.valor), 1)
+  const corto = (n) => n >= 1000 ? `$${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : fmt(n)
+  const alto = 120
+  return (
+    <div style={{ overflowX: 'auto', padding: '10px 0 4px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, minWidth: datos.length * 52 }}>
+        {datos.map(d => (
+          <div key={d.clave} title={`${d.etiqueta}: ${d.texto} · ${d.sub}`} style={{ flex: 1, minWidth: 44, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="monto" style={{ color: 'var(--tinta)', fontSize: 11, fontWeight: 800, marginBottom: 4 }}>{corto(d.valor)}</div>
+            <div style={{ width: '100%', maxWidth: 46, height: Math.max(4, (d.valor / mayor) * alto), background: 'var(--ambar)', opacity: 0.65, borderRadius: '5px 5px 2px 2px' }} />
+            <div style={{ color: 'var(--w45)', fontSize: 10.5, marginTop: 7, whiteSpace: 'nowrap' }}>{d.etiqueta}</div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -1075,7 +1107,7 @@ function PedidosVista({ g, claveLista, pedidosTotal }) {
     return true
   }
   const pedidos = (g.visitas || []).filter(esPedido)
-  const SEGS = [['todas', 'Todas'], ['recogieron', '📦 Recogieron su encargo'], ['anticipos', '💳 Anticipos'], ['pagado', 'Ya estaba pagado']]
+  const SEGS = [['todas', 'Todas'], ['recogieron', 'Recogieron su encargo'], ['anticipos', 'Anticipos'], ['pagado', 'Ya estaba pagado']]
   const filtradas = pedidos.filter(v => delSeg(v, seg))
   const valorYaPagado = pedidos.filter(v => v.sinCobro).reduce((s, v) => s + Number(v.valorRecogido || 0), 0)
   const clientesRecogieron = pedidos.filter(v => delSeg(v, 'recogieron')).length
@@ -1220,6 +1252,7 @@ function ListaVisitas({ visitas }) {
 function EntregaVista({ m, peds, porCliente, categorias, filtroCat, setFiltroCat }) {
   const [segCliente, setSegCliente] = useState('todos')
   const [todosClientes, setTodosClientes] = useState(false)
+  const [buscar, setBuscar] = useState('')
 
   const agrupar = (campo, vacio) => {
     const acc = {}
@@ -1238,13 +1271,18 @@ function EntregaVista({ m, peds, porCliente, categorias, filtroCat, setFiltroCat
   }))
   const porCat = filasDe(agrupar('categoria', 'Sin categoría'), (a, b) => b[1].venta - a[1].venta)
   const porTienda = filasDe(agrupar('lugar_compra', 'Sin tienda'), (a, b) => b[1].venta - a[1].venta)
-  const porDia = filasDe(agrupar('fecha_compra', 'Sin fecha'), (a, b) => a[0].localeCompare(b[0]))
+  const etiquetaDia = (k) => /^\d{4}-\d{2}-\d{2}$/.test(k) ? new Date(k + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }).replace('.', '') : k
+  const porDia = agrupar('fecha_compra', 'Sin fecha').sort((a, b) => a[0].localeCompare(b[0])).map(([k, d]) => ({
+    clave: k, etiqueta: etiquetaDia(k), valor: d.venta, texto: fmt(d.venta), sub: `util. ${fmt(d.utilidad)} · ${d.count} ped.`,
+  }))
 
   const pctCobrado = m.ventaTotal > 0 ? Math.min(100, Math.max(0, (m.cobradoTotal / m.ventaTotal) * 100)) : 0
   const conSaldo = porCliente.filter(c => c.venta - c.cobrado > 0)
   const liquidados = porCliente.filter(c => c.venta - c.cobrado <= 0)
-  const clientesVis = segCliente === 'saldo' ? conSaldo : segCliente === 'liquidados' ? liquidados : porCliente
-  const clientesMostrados = todosClientes ? clientesVis : clientesVis.slice(0, 12)
+  const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const base = segCliente === 'saldo' ? conSaldo : segCliente === 'liquidados' ? liquidados : porCliente
+  const clientesVis = buscar.trim() ? base.filter(c => norm(c.nombre).includes(norm(buscar))) : base
+  const clientesMostrados = todosClientes || buscar.trim() ? clientesVis : clientesVis.slice(0, 12)
 
   const pedsCat = filtroCat ? peds.filter(p => p.categoria === filtroCat) : []
   const vCat = pedsCat.reduce((s, p) => s + (p.precio_venta || 0), 0)
@@ -1315,7 +1353,9 @@ function EntregaVista({ m, peds, porCliente, categorias, filtroCat, setFiltroCat
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, alignItems: 'start' }}>
           <Bloque titulo="Por categoría" nota="venta"><Ranking tono="var(--marca)" limite={6} filas={porCat} /></Bloque>
           <Bloque titulo="Por tienda de compra" nota="venta"><Ranking tono="var(--azul)" limite={6} filas={porTienda} /></Bloque>
-          <Bloque titulo="Por día de compra" nota="venta"><Ranking tono="var(--ambar)" limite={6} filas={porDia} /></Bloque>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <Bloque titulo="Por día de compra" nota="venta · pasa el cursor para ver la utilidad"><Columnas datos={porDia} /></Bloque>
+          </div>
         </div>
       )}
 
@@ -1328,7 +1368,7 @@ function EntregaVista({ m, peds, porCliente, categorias, filtroCat, setFiltroCat
               {[['todos', 'Todos', porCliente.length], ['saldo', 'Con saldo', conSaldo.length], ['liquidados', 'Liquidados', liquidados.length]].map(([k, t, n]) => {
                 const act = segCliente === k
                 return (
-                  <button key={k} onClick={() => { setSegCliente(k); setTodosClientes(false) }}
+                  <button key={k} onClick={() => { setSegCliente(k); setTodosClientes(false); setBuscar('') }}
                     style={{ cursor: 'pointer', border: `1px solid ${act ? 'var(--marca)' : 'var(--w10)'}`, background: act ? 'rgba(193,85,58,0.1)' : 'var(--w03)', color: act ? 'var(--marca-t)' : 'var(--w45)', borderRadius: 20, padding: '5px 12px', fontSize: 11.5, fontWeight: 700 }}>
                     {t} <span style={{ fontWeight: 800 }}>{n}</span>
                   </button>
@@ -1336,20 +1376,23 @@ function EntregaVista({ m, peds, porCliente, categorias, filtroCat, setFiltroCat
               })}
             </div>
           </div>
+          <input type="search" value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar cliente…"
+            style={{ ...campoR, width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 12, marginBottom: 10, background: 'var(--sup)' }} />
           <div style={tarjeta}>
             <div style={{ overflowX: 'auto' }}>
-              <div style={{ minWidth: 420 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '9px 16px', background: 'var(--w02)' }}>
-                  {['Cliente', 'Venta', 'Utilidad', 'Estado'].map((h, i) => (
+              <div style={{ minWidth: 520 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.2fr', padding: '9px 16px', background: 'var(--w02)' }}>
+                  {['Cliente', 'Venta', 'Cobrado', 'Utilidad', 'Estado'].map((h, i) => (
                     <span key={i} style={{ ...rotulo, fontSize: 9.5, textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
                   ))}
                 </div>
                 {clientesMostrados.map((c, i) => {
                   const pendiente = c.venta - c.cobrado
                   return (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '10px 16px', borderTop: '1px solid var(--w04)', alignItems: 'center' }}>
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.2fr', padding: '10px 16px', borderTop: '1px solid var(--w04)', alignItems: 'center' }}>
                       <span style={{ color: 'var(--tinta)', fontSize: 13, fontWeight: 600 }}>{c.nombre}</span>
                       <span className="monto" style={{ color: 'var(--tinta)', fontSize: 13, textAlign: 'right' }}>{fmt(c.venta)}</span>
+                      <span className="monto" style={{ color: c.cobrado > 0 ? 'var(--w70)' : 'var(--w28)', fontSize: 13, textAlign: 'right' }}>{c.cobrado > 0 ? fmt(c.cobrado) : '—'}</span>
                       <span className="monto" style={{ color: 'var(--verde)', fontSize: 13, textAlign: 'right' }}>{fmt(c.utilidad)}</span>
                       <div style={{ textAlign: 'right' }}>
                         {pendiente <= 0
@@ -1363,7 +1406,7 @@ function EntregaVista({ m, peds, porCliente, categorias, filtroCat, setFiltroCat
               </div>
             </div>
           </div>
-          {clientesVis.length > 12 && (
+          {clientesVis.length > 12 && !buscar.trim() && (
             <button onClick={() => setTodosClientes(t => !t)}
               style={{ width: '100%', marginTop: 10, padding: 11, borderRadius: 11, cursor: 'pointer', border: '1px solid var(--w10)', background: 'transparent', color: 'var(--marca-t)', fontSize: 12.5, fontWeight: 700 }}>
               {todosClientes ? 'Ver menos' : `Ver los ${clientesVis.length} clientes`}
@@ -1371,38 +1414,6 @@ function EntregaVista({ m, peds, porCliente, categorias, filtroCat, setFiltroCat
           )}
         </div>
       )}
-    </div>
-  )
-}
-
-// Barra apilada de composición. Cada parte lleva etiqueta y monto: el color
-// acompaña la lectura, nunca es el único portador del dato. Paleta validada
-// para daltonismo en ese orden fijo (terracota, azul, verde, gris).
-function Barra({ titulo, total, partes, fmt }) {
-  const vivas = partes.filter(([, v]) => v > 0)
-  if (!total || !vivas.length) return null
-  return (
-    <div>
-      <div style={{ color: 'rgba(var(--base),0.55)', fontSize: 11.5, fontWeight: 600, marginBottom: 8 }}>{titulo}</div>
-      <div style={{ display: 'flex', gap: 2, height: 12 }}>
-        {vivas.map(([et, v, tono], i) => (
-          <div key={et} title={`${et}: ${fmt(v)}`} style={{
-            width: `${(v / total) * 100}%`, background: tono,
-            borderTopLeftRadius: i === 0 ? 6 : 2, borderBottomLeftRadius: i === 0 ? 6 : 2,
-            borderTopRightRadius: i === vivas.length - 1 ? 6 : 2, borderBottomRightRadius: i === vivas.length - 1 ? 6 : 2,
-          }} />
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
-        {vivas.map(([et, v, tono]) => (
-          <div key={et} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: tono, flexShrink: 0 }} />
-            <span style={{ color: 'rgba(var(--base),0.45)', fontSize: 11.5 }}>{et}</span>
-            <span className="monto" style={{ color: 'rgba(var(--base),0.8)', fontSize: 12, fontWeight: 700 }}>{fmt(v)}</span>
-            <span style={{ color: 'rgba(var(--base),0.32)', fontSize: 10.5 }}>{((v / total) * 100).toFixed(0)}%</span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }

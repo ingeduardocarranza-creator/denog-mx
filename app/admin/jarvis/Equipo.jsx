@@ -74,7 +74,7 @@ function Editor({ p, otros, alGuardar }) {
     if (arrastrando === null || arrastrando === i) { setArrastrando(null); return }
     const n = [...lista]; const [x] = n.splice(arrastrando, 1); n.splice(i, 0, x); setArrastrando(null); poner(n)
   }
-  const abrir = (t) => { setConf(null); setAbierto(abierto === t.id ? null : t.id); setForm({ titulo: t.titulo, detalle: t.detalle || '', hora: t.puntual ? '' : t.hora, requiere_foto: !!t.requiere_foto }) }
+  const abrir = (t) => { setConf(null); setAbierto(abierto === t.id ? null : t.id); setForm({ titulo: t.titulo, detalle: t.detalle || '', hora: t.puntual ? '' : t.hora, requiere_foto: !!t.requiere_foto, meta: t.meta ? String(t.meta) : '' }) }
 
   return (
     <div style={{ marginTop: 14 }}>
@@ -108,6 +108,13 @@ function Editor({ p, otros, alGuardar }) {
             <div style={{ margin: '8px 0 4px 28px', display: 'flex', flexDirection: 'column', gap: 6 }}>
               <input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} maxLength={120} placeholder="Nombre de la actividad" style={campo} />
               <input value={form.detalle} onChange={e => setForm({ ...form, detalle: e.target.value })} maxLength={300} placeholder="Detalle (opcional)" style={campo} />
+              {!t.puntual && t.meta > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
+                  Cantidad que debe hacer
+                  <input type="number" min="1" max="50" value={form.meta} style={{ ...campo, width: 80 }}
+                    onChange={e => { const v = e.target.value.replace(/[^\d]/g, ''); setForm({ ...form, meta: v, titulo: v ? form.titulo.replace(/\d+/, v) : form.titulo }) }} />
+                </label>
+              )}
               {!t.puntual && <input type="time" value={form.hora} onChange={e => setForm({ ...form, hora: e.target.value })} style={campo} aria-label="Hora" />}
               {t.puntual && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>

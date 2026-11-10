@@ -59,6 +59,11 @@ export async function POST(req) {
           if (!HORA.test(String(body.hora))) return mal('Hora no válida')
           cambios.hora = `${body.hora}:00`
         }
+        if (body.meta !== undefined && body.meta !== null && body.meta !== '') {
+          const meta = Math.round(Number(body.meta))
+          if (!Number.isFinite(meta) || meta < 1 || meta > 50) return mal('La cantidad debe estar entre 1 y 50')
+          cambios.meta = meta
+        }
         const { error } = await supabase.from('jarvis_plantillas').update(cambios).eq('id', id).eq('para', 'colaborador')
         if (error) throw new Error(error.message)
       }

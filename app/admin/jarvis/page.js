@@ -9,6 +9,8 @@ import MetaVenta from './MetaVenta'
 import AlertaInsistente from './Alerta'
 import VistaPlan from './Plan'
 import VistaEstadisticas from './Estadisticas'
+import VistaEquipoNueva from './Equipo'
+import MiRetro from './MiRetro'
 
 // Jarvis: el tablero de actividades del día. Una sola pantalla para el
 // colaborador (su turno) y para el admin (sus misiones + cómo va el equipo).
@@ -53,8 +55,7 @@ export default function JarvisPage() {
   const [datos, setDatos] = useState(null)
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [vista, setVista] = useState('dia') // dia | equipo
-  const [equipo, setEquipo] = useState(null)
+  const [vistaElegida, setVista] = useState('inicio') // el admin arranca en Equipo y el colaborador en Mi día
   const [festejo, setFestejo] = useState('')
   const [retro, setRetro] = useState({ animo: 0, dificil: '', ayuda: '' })
   const [retroEnviada, setRetroEnviada] = useState(false)
@@ -73,10 +74,7 @@ export default function JarvisPage() {
     } catch { setError('Sin conexión') }
   }, [])
 
-  const cargarEquipo = useCallback(async () => {
-    const res = await fetch('/api/jarvis?equipo=1').then(r => r.json()).catch(() => null)
-    if (res?.ok) setEquipo(res)
-  }, [])
+  const vista = vistaElegida === 'inicio' ? (datos?.usuario?.rol === 'admin' ? 'equipo' : 'dia') : vistaElegida
 
   const cargarMonedero = useCallback(async () => {
     const res = await fetch('/api/jarvis/comisiones').then(r => r.json()).catch(() => null)
@@ -115,14 +113,13 @@ export default function JarvisPage() {
   // Se refresca solo cada 15 segundos y al volver a la pestaña: así Jarvis detecta
   // lo que ya hiciste y te muestra lo siguiente sin que tengas que picar nada.
   useEffect(() => {
-    const refrescar = () => { cargar(); if (vista === 'equipo') cargarEquipo(); if (vista === 'comisiones') cargarComisiones() }
+    const refrescar = () => { cargar(); if (vista === 'comisiones') cargarComisiones() }
     const t = setInterval(refrescar, 15000)
     const alVolver = () => { if (document.visibilityState === 'visible') refrescar() }
     document.addEventListener('visibilitychange', alVolver)
     window.addEventListener('focus', alVolver)
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', alVolver); window.removeEventListener('focus', alVolver) }
-  }, [cargar, cargarEquipo, cargarComisiones, vista])
-  useEffect(() => { if (vista === 'equipo') cargarEquipo() }, [vista, cargarEquipo])
+  }, [cargar, cargarComisiones, vista])
   useEffect(() => { if (vista === 'comisiones') cargarComisiones() }, [vista, cargarComisiones])
   useEffect(() => { if (datos && datos.usuario.rol !== 'admin') cargarMonedero() }, [datos, cargarMonedero])
   useEffect(() => { if (datos && datos.usuario.rol !== 'admin') cargarRelevos() }, [datos, cargarRelevos])
@@ -196,7 +193,7 @@ export default function JarvisPage() {
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.5, opacity: .55 }}>{esAdmin ? 'MIS MISIONES' : 'MI TURNO'}{datos.turno ? ` · ${datos.turno.desde}–${datos.turno.hasta}` : ''}</div>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900 }}>Hola, {nombre} 👋</h1>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: esAdmin && vista !== 'dia' ? 'none' : 'flex', gap: 8 }}>
           <div style={{ ...tarjeta, padding: '8px 12px', textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 900, color: NARANJA }}>🔥 {datos.racha}</div>
             <div style={{ fontSize: 10, fontWeight: 800, opacity: .6 }}>RACHA</div>
@@ -211,22 +208,33 @@ export default function JarvisPage() {
       </div>
 
       {esAdmin && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          {[['dia', '🎯 Mi día'], ['resumen', '📈 Resumen'], ['equipo', '👥 Equipo'], ['plan', '🗓️ Plan'], ['numeros', '📊 Números'], ['comisiones', '💰 Comisiones'], ['avisos', `📣 Avisos${avisosAdmin?.pendientes?.length ? ` (${avisosAdmin.pendientes.length})` : ''}`], ['entienda', '📦 En tienda']].map(([k, t]) => (
-            <button key={k} onClick={() => setVista(k)} style={{
-              flex: '1 1 30%', minHeight: 42, borderRadius: 12, fontWeight: 900, fontSize: 14, cursor: 'pointer',
-              border: `2px solid ${vista === k ? AZUL : 'rgba(42,33,24,0.12)'}`,
-              background: vista === k ? 'rgba(28,176,246,0.12)' : 'var(--sup, #fff)', color: 'inherit',
-            }}>{t}</button>
-          ))}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          {[['equipo', '👥 Equipo'], ['plan', '🗓️ Plan'], ['avisos', `📣 Avisos${avisosAdmin?.pendientes?.length ? ` (${avisosAdmin.pendientes.length})` : ''}`], ['mas', '⋯ Más']].map(([k, t]) => {
+            const activo = vista === k || (k === 'mas' && ['dia', 'resumen', 'numeros', 'comisiones', 'entienda', 'cierres'].includes(vista))
+            return (
+              <button key={k} onClick={() => setVista(k)} style={{
+                flex: 1, minHeight: 46, borderRadius: 12, fontWeight: 900, fontSize: 14, cursor: 'pointer',
+                border: `2px solid ${activo ? AZUL : 'rgba(42,33,24,0.12)'}`,
+                background: activo ? 'rgba(28,176,246,0.12)' : 'var(--sup, #fff)', color: 'inherit',
+              }}>{t}</button>
+            )
+          })}
         </div>
       )}
 
       {vista === 'equipo' && esAdmin ? (
-        <>
-          <VistaEquipo equipo={equipo} tarjeta={tarjeta} />
-          <CierresEquipo tarjeta={tarjeta} />
-        </>
+        <VistaEquipoNueva tarjeta={tarjeta} />
+      ) : vista === 'mas' && esAdmin ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {[['dia', '🎯', 'Mis misiones'], ['resumen', '📈', 'Resumen del negocio'], ['numeros', '📊', 'Números y uso'], ['comisiones', '💰', 'Comisiones'], ['entienda', '📦', 'En tienda'], ['cierres', '🧾', 'Cierres de turno']].map(([k, e, t]) => (
+            <button key={k} onClick={() => setVista(k)} style={{ ...tarjeta, cursor: 'pointer', textAlign: 'center', padding: '18px 10px', color: 'inherit' }}>
+              <div style={{ fontSize: 30 }}>{e}</div>
+              <div style={{ fontSize: 14, fontWeight: 900, marginTop: 4 }}>{t}</div>
+            </button>
+          ))}
+        </div>
+      ) : vista === 'cierres' && esAdmin ? (
+        <CierresEquipo tarjeta={tarjeta} />
       ) : vista === 'resumen' && esAdmin ? (
         <VistaResumen tarjeta={tarjeta} irA={setVista} />
       ) : vista === 'plan' && esAdmin ? (
@@ -241,6 +249,7 @@ export default function JarvisPage() {
         <VistaComisiones datos={comisiones} recargar={cargarComisiones} tarjeta={tarjeta} />
       ) : (
         <>
+          {!esAdmin && <MiRetro tarjeta={tarjeta} />}
           <MetaVenta venta={datos.venta} esAdmin={esAdmin} irAPlan={() => setVista('plan')} />
           {detalle && <TarjetaCoach esAdmin={esAdmin} />}
           {tareas.length === 0 ? (
@@ -477,81 +486,6 @@ export default function JarvisPage() {
         </div>
       )}
       {error && datos && <div style={{ marginTop: 12, fontSize: 13, color: '#b91c1c', fontWeight: 800 }}>{error}</div>}
-    </div>
-  )
-}
-
-function VistaEquipo({ equipo, tarjeta }) {
-  if (!equipo) return <div style={{ opacity: .6 }}>Cargando equipo…</div>
-  const dia = (f) => ['D', 'L', 'M', 'M', 'J', 'V', 'S'][new Date(`${f}T12:00:00Z`).getUTCDay()]
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {equipo.equipo.map(p => {
-        const pct = p.hoy.total ? Math.round((p.hoy.hechas / p.hoy.total) * 100) : 0
-        return (
-          <div key={p.usuario_id} style={tarjeta}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontSize: 17, fontWeight: 900 }}>{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
-              <div style={{ fontSize: 12, fontWeight: 800, opacity: .6 }}>
-                {p.trabaja_hoy ? `Turno ${p.horario_hoy.desde}–${p.horario_hoy.hasta}` : 'Hoy descansa'}
-              </div>
-            </div>
-            {p.trabaja_hoy && (
-              <>
-                <div style={{ height: 14, borderRadius: 7, background: 'rgba(42,33,24,0.10)', margin: '10px 0 6px', overflow: 'hidden' }}>
-                  <div style={{ width: `${pct}%`, height: 14, background: VERDE, transition: 'width .5s' }} />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 800 }}>
-                  {p.hoy.hechas}/{p.hoy.total} hechas · {p.hoy.xp} XP
-                  {p.hoy.atrasadas > 0 && <span style={{ color: '#b45309' }}> · ⏰ {p.hoy.atrasadas} atrasadas</span>}
-                </div>
-                <div style={{ fontSize: 12, opacity: .6, fontWeight: 700, marginTop: 2 }}>
-                  {p.hoy.ultima ? `Última actividad: ${new Date(p.hoy.ultima).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Hermosillo' })}` : 'Aún no marca nada hoy'}
-                </div>
-              </>
-            )}
-            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-              {p.semana.map(d => {
-                const r = d.total ? d.hechas / d.total : null
-                const color = r === null ? 'rgba(42,33,24,0.06)' : r >= 0.7 ? VERDE : r > 0 ? NARANJA : '#e5a09a'
-                return (
-                  <div key={d.fecha} style={{ flex: 1, textAlign: 'center' }}>
-                    <div style={{ height: 28, borderRadius: 8, background: color, color: '#fff', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {r === null ? '' : `${d.hechas}/${d.total}`}
-                    </div>
-                    <div style={{ fontSize: 10, fontWeight: 800, opacity: .55, marginTop: 2 }}>{dia(d.fecha)}</div>
-                  </div>
-                )
-              })}
-            </div>
-            {p.fotos?.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 900, opacity: .55, letterSpacing: 1, marginBottom: 6 }}>📸 FOTOS DE HOY</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {p.fotos.map((f, i) => (
-                    <a key={i} href={f.foto_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit', width: 84 }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.foto_url} alt={f.titulo} style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 10, display: 'block' }} />
-                      <div style={{ fontSize: 10, fontWeight: 800, opacity: .65, marginTop: 2, lineHeight: 1.2 }}>{f.titulo}</div>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-            {p.retros.length > 0 && (
-              <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.45 }}>
-                <div style={{ fontWeight: 900, opacity: .55, letterSpacing: 1, marginBottom: 4 }}>LO QUE DICE DE SU TURNO</div>
-                {p.retros.slice(0, 3).map(r => (
-                  <div key={r.id} style={{ marginBottom: 4 }}>
-                    {['', '😟', '😐', '😀'][r.animo || 0]} <span style={{ opacity: .5 }}>{r.fecha.slice(5)}</span>
-                    {r.dificil ? ` · Difícil: ${r.dificil}` : ''}{r.ayuda ? ` · Ayudaría: ${r.ayuda}` : ''}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
     </div>
   )
 }

@@ -257,7 +257,9 @@ export async function POST(req) {
       if (et) throw new Error(et.message)
       if (!t || (t.para_usuario && t.para_usuario !== sesion.id)) return NextResponse.json({ ok: false, mensaje: 'Esa tarea no te toca' }, { status: 400 })
       if (body.accion === 'hecha') {
-        const { error } = await supabase.from('jarvis_tareas_hechas').upsert({ tarea_id: t.id, usuario_id: sesion.id, hecha_en: new Date().toISOString(), xp: t.xp }, { onConflict: 'tarea_id,usuario_id' })
+        const foto = String(body.foto_url || '')
+        if (t.requiere_foto && !/^https:\/\//.test(foto)) return NextResponse.json({ ok: false, mensaje: 'Esta tarea necesita foto de evidencia' }, { status: 400 })
+        const { error } = await supabase.from('jarvis_tareas_hechas').upsert({ tarea_id: t.id, usuario_id: sesion.id, hecha_en: new Date().toISOString(), xp: t.xp, foto_url: /^https:\/\//.test(foto) ? foto : null }, { onConflict: 'tarea_id,usuario_id' })
         if (error) throw new Error(error.message)
         return NextResponse.json({ ok: true, xp: t.xp })
       }

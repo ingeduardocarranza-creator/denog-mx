@@ -28,7 +28,7 @@ export async function GET(req) {
     const ids = [...new Set((horR.data || []).map(h => h.usuario_id))]
     const [{ data: cl }, { data: hs }] = await Promise.all([
       supabase.from('clientes').select('id, nombre').in('id', ids.length ? ids : [NADIE]),
-      supabase.from('jarvis_tareas_hechas').select('tarea_id, usuario_id, hecha_en').in('tarea_id', tareas.length ? tareas.map(t => t.id) : [NADIE]),
+      supabase.from('jarvis_tareas_hechas').select('tarea_id, usuario_id, hecha_en, foto_url').in('tarea_id', tareas.length ? tareas.map(t => t.id) : [NADIE]),
     ])
     const colaboradores = (cl || []).map(c => ({ id: c.id, nombre: c.nombre }))
 
@@ -46,7 +46,7 @@ export async function GET(req) {
         ...t,
         avance: colaboradores
           .filter(c => !t.para_usuario || t.para_usuario === c.id)
-          .map(c => ({ usuario_id: c.id, nombre: c.nombre, hecha_en: (hs || []).find(h => h.tarea_id === t.id && h.usuario_id === c.id)?.hecha_en || null })),
+          .map(c => ({ usuario_id: c.id, nombre: c.nombre, hecha_en: (hs || []).find(h => h.tarea_id === t.id && h.usuario_id === c.id)?.hecha_en || null, foto_url: (hs || []).find(h => h.tarea_id === t.id && h.usuario_id === c.id)?.foto_url || null })),
       })),
     })
   } catch (e) {
@@ -71,7 +71,7 @@ export async function POST(req) {
         if (!h?.length) return NextResponse.json({ ok: false, mensaje: 'Esa persona no es colaborador de Jarvis' }, { status: 400 })
       }
       const { data, error } = await supabase.from('jarvis_tareas').insert({
-        titulo, detalle: limpio(body.detalle, 300) || null, prioridad, es_venta: !!body.es_venta,
+        titulo, detalle: limpio(body.detalle, 300) || null, prioridad, es_venta: !!body.es_venta, requiere_foto: !!body.requiere_foto,
         para_usuario: para, fecha_limite: fecha, xp: XP_POR_PRIORIDAD[prioridad], creada_por: sesion.id,
       }).select('id').single()
       if (error) throw new Error(error.message)

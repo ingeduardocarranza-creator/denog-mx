@@ -24,7 +24,7 @@ export default function VistaPlan({ tarjeta }) {
   const [msg, setMsg] = useState('')
   const [ocupado, setOcupado] = useState(false)
   const [meta, setMeta] = useState('')
-  const vacio = { titulo: '', detalle: '', para_usuario: '', prioridad: 2, fecha_limite: '', es_venta: false }
+  const vacio = { titulo: '', detalle: '', para_usuario: '', prioridad: 2, fecha_limite: '', es_venta: false, requiere_foto: false }
   const [f, setF] = useState(vacio)
 
   const [tick, setTick] = useState(0) // subirlo vuelve a cargar el plan
@@ -91,6 +91,10 @@ export default function VistaPlan({ tarjeta }) {
           <input type="checkbox" checked={f.es_venta} onChange={e => setF({ ...f, es_venta: e.target.checked })} style={{ width: 20, height: 20 }} />
           💰 Es de venta (sale primero en su lista)
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800, fontSize: 14, marginBottom: 12, cursor: 'pointer' }}>
+          <input type="checkbox" checked={f.requiere_foto} onChange={e => setF({ ...f, requiere_foto: e.target.checked })} style={{ width: 20, height: 20 }} />
+          📸 Pedir foto de evidencia (no la pueden marcar sin foto)
+        </label>
         <button disabled={ocupado || !f.titulo.trim()} onClick={async () => { if (await accion({ accion: 'crear', ...f }, 'Tarea creada ✓')) setF(vacio) }}
           style={{ width: '100%', height: 48, border: 0, borderRadius: 14, background: VERDE, boxShadow: `0 4px 0 ${VERDE_SOMBRA}`, color: '#fff', fontWeight: 900, fontSize: 16, cursor: 'pointer', opacity: ocupado || !f.titulo.trim() ? .55 : 1 }}>
           Mandar al equipo
@@ -128,12 +132,24 @@ export default function VistaPlan({ tarjeta }) {
                     {[1, 2, 3].map(p => <option key={p} value={p}>{PRIO[p].e} {PRIO[p].t}</option>)}
                   </select>
                   {t.fecha_limite && <span style={{ fontSize: 12, fontWeight: 800, opacity: .65 }}>📅 {t.fecha_limite.slice(8, 10)}/{t.fecha_limite.slice(5, 7)}</span>}
+                  {t.requiere_foto && <span style={{ fontSize: 12, fontWeight: 800, opacity: .65 }}>📸 con foto</span>}
                   {t.avance.map(a => (
                     <span key={a.usuario_id} style={{ fontSize: 12, fontWeight: 800, padding: '3px 8px', borderRadius: 999, background: a.hecha_en ? `${VERDE}22` : 'rgba(42,33,24,0.07)', color: a.hecha_en ? VERDE_SOMBRA : 'inherit' }}>
                       {a.hecha_en ? '✅' : '⏳'} {String(a.nombre).split(' ')[0]}
                     </span>
                   ))}
                 </div>
+                {t.avance.some(a => a.foto_url) && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                    {t.avance.filter(a => a.foto_url).map(a => (
+                      <a key={a.usuario_id} href={a.foto_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit', textAlign: 'center' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={a.foto_url} alt={`Evidencia de ${a.nombre}`} style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 10, border: '2px solid rgba(42,33,24,0.12)', display: 'block' }} />
+                        <div style={{ fontSize: 11, fontWeight: 800, opacity: .7, marginTop: 2 }}>{String(a.nombre).split(' ')[0]}</div>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}

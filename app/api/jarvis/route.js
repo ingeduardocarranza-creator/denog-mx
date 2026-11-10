@@ -308,6 +308,9 @@ export async function POST(req) {
     if (body.accion === 'hecha' && tarea.verif) {
       return NextResponse.json({ ok: false, mensaje: 'Esta actividad se marca sola cuando la hagas de verdad.' }, { status: 400 })
     }
+    if (body.accion === 'saltada' && tarea.verif) {
+      return NextResponse.json({ ok: false, mensaje: 'Esta actividad no se salta: se marca sola cuando la hagas.' }, { status: 400 })
+    }
     if (!['hecha', 'saltada'].includes(body.accion)) {
       return NextResponse.json({ ok: false, mensaje: 'Acción no válida' }, { status: 400 })
     }

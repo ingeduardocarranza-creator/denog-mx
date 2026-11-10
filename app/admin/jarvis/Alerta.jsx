@@ -8,8 +8,8 @@ const CADA_MIN = 10 // cada cuánto vuelve a insistir si la dejan para después
 // Insiste hasta que lo urgente se haga: tareas de prioridad alta, de venta, o
 // cualquier tarea que ya pasó de su hora. Si dicen "ahorita", vuelve a los 10 min.
 export default function AlertaInsistente({ tareas, onIr }) {
-  const urgentes = tareas.filter(t => t.estado === 'pendiente' && t.toca && (t.es_venta || (t.puntual && t.prioridad === 1) || t.vencida))
-  const otras = tareas.filter(t => t.estado === 'pendiente' && t.toca).length
+  const urgentes = tareas.filter(t => t.estado !== 'hecha' && t.toca && (t.es_venta || (t.puntual && t.prioridad === 1) || t.vencida))
+  const otras = tareas.filter(t => t.estado !== 'hecha' && t.toca).length
   const [pospuesta, setPospuesta] = useState(0)
   const [ahora, setAhora] = useState(() => Date.now())
   const vistaUna = useRef(false)
@@ -31,7 +31,7 @@ export default function AlertaInsistente({ tareas, onIr }) {
   }, [visible])
 
   if (!visible) return null
-  const primera = urgentes[0] || tareas.find(t => t.estado === 'pendiente' && t.toca)
+  const primera = urgentes[0] || tareas.find(t => t.estado !== 'hecha' && t.toca)
   const etiqueta = urgentes.length
     ? `${urgentes.length} ${urgentes.length === 1 ? 'tarea urgente' : 'tareas urgentes'}`
     : `${otras} actividades esperando`

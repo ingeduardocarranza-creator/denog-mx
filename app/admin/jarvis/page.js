@@ -174,9 +174,10 @@ export default function JarvisPage() {
 
   const esAdmin = datos.usuario.rol === 'admin'
   const { tareas, resumen } = datos
-  const siguiente = tareas.find(t => t.estado === 'pendiente' && t.toca) || tareas.find(t => t.estado === 'pendiente')
+  // Lo saltado no cuenta como hecho: vuelve a salir cuando ya no queda nada pendiente.
+  const siguiente = tareas.find(t => t.estado === 'pendiente' && t.toca) || tareas.find(t => t.estado === 'pendiente') || tareas.find(t => t.estado === 'saltada')
   const pendientesLuego = tareas.filter(t => t.estado === 'pendiente' && t !== siguiente)
-  const todoListo = tareas.length > 0 && tareas.every(t => t.estado !== 'pendiente')
+  const todoListo = tareas.length > 0 && tareas.every(t => t.estado === 'hecha')
   const nombre = (datos.usuario.nombre || '').split(' ')[0]
   const ayer = datos.ayer
   const vsAyer = ayer ? resumen.xp_hoy - ayer.xp : null
@@ -377,7 +378,7 @@ export default function JarvisPage() {
                     ) : (
                       <Boton disabled={guardando} onClick={() => marcar(siguiente.id, 'hecha')}>Listo</Boton>
                     )}
-                    {!siguiente.puntual && !(hayTareaSeguim && seguim?.clientes?.length > 0) && (
+                    {!siguiente.puntual && !siguiente.verif && siguiente.estado !== 'saltada' && !(hayTareaSeguim && seguim?.clientes?.length > 0) && (
                       <button disabled={guardando} onClick={() => marcar(siguiente.id, 'saltada')}
                         style={{ height: 40, border: 0, background: 'transparent', color: AZUL, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
                         Saltar por ahora

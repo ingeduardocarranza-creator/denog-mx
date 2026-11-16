@@ -45,6 +45,7 @@ const grupos = [
       { label: 'Cotizador',         icon: '🧮', href: '/admin/cotizador' },
       { label: 'Tendencias',        icon: '📈', href: '/admin/tendencias' },
       { label: 'Marketplace',       icon: '🛍️', href: '/admin/marketplace' },
+      { label: 'Reenvío WhatsApp',  icon: '📲', href: '/admin/reenvio-whatsapp' },
     ],
   },
   {

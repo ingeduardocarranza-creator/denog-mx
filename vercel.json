@@ -24,6 +24,14 @@
     {
       "path": "/api/cron/ml-guardian",
       "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron/whatsapp-catalogo",
+      "schedule": "30 15 * * *"
+    },
+    {
+      "path": "/api/cron/whatsapp-catalogo",
+      "schedule": "30 3 * * *"
     }
   ]
 }

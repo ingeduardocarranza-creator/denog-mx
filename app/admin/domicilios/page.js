@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import SelectorCliente from '../../components/domicilios/SelectorCliente'
 import EntregaCard from '../../components/domicilios/EntregaCard'
 import ListaPreparacion from '../../components/domicilios/ListaPreparacion'
+import PrepararDomicilio from '../../components/domicilios/PrepararDomicilio'
 import ResumenDomicilio from '../../components/domicilios/ResumenDomicilio'
 import CamposRutaDomicilio from '../../components/domicilios/CamposRutaDomicilio'
 
@@ -10,6 +11,7 @@ export default function Domicilios() {
   const [domicilios, setDomicilios] = useState([])
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
   const [cargando, setCargando] = useState(true)
+  const [prep, setPrep] = useState({})   // { [domicilio_id]: { items, preparado } }
   const [cobrando, setCobrando] = useState(null)
   const [modalMetodo1, setModalMetodo1] = useState('Efectivo')
   const [modalMonto1, setModalMonto1] = useState('')
@@ -119,6 +121,19 @@ export default function Domicilios() {
     const data = await res.json()
     if (data.ok) setDomicilios(data.domicilios)
     setCargando(false)
+    try {
+      const c = await fetch(`/api/domicilios/carga?fecha=${fecha}`).then(r => r.json())
+      if (c.ok) setPrep(Object.fromEntries(c.domicilios.map(x => [x.id, { items: x.items, preparado: x.preparado }])))
+    } catch {}
+  }
+
+  const marcarPreparado = async (id, valor) => {
+    setPrep(p => ({ ...p, [id]: { ...p[id], preparado: valor } }))
+    const r = await fetch('/api/domicilios/carga', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domicilio_id: id, preparado: valor }),
+    }).then(r => r.json()).catch(() => ({ ok: false }))
+    if (!r.ok) setPrep(p => ({ ...p, [id]: { ...p[id], preparado: !valor } }))
   }
 
   const cargarDireccionesCliente = async (cliente_id) => {
@@ -501,6 +516,9 @@ const horariosDelDia = (fecha) => {
   const fmt = (n) => `$${(n || 0).toLocaleString('es-MX')}`
   const totalRepartidor = domicilios.filter(d => d.costo_envio && d.estado !== 'cancelado').reduce((s, d) => s + (d.costo_envio || 0), 0)
   const pendientes = domicilios.filter(d => d.estado === 'pendiente').length
+  const activosPrep = domicilios.filter(d => ['pendiente', 'confirmado', 'en_camino'].includes(d.estado) && prep[d.id])
+  const preparados = activosPrep.filter(d => prep[d.id].preparado).length
+  const porPreparar = activosPrep.length - preparados
   const metodos = ['Efectivo', 'Transferencia', 'Terminal']
   const subtotalSeleccionado = entregasSeleccionadas.reduce((s, e) => s + e.total, 0)
 
@@ -647,6 +665,8 @@ const horariosDelDia = (fecha) => {
             <div style={{ color: 'var(--tinta)', fontSize: 22, fontWeight: 700 }}>🚚 Domicilios</div>
             <div style={{ color: 'var(--w40)', fontSize: 13, marginTop: 2 }}>
               {pendientes > 0 && <span style={{ color: 'var(--ambar)' }}>{pendientes} por confirmar · </span>}
+              {porPreparar > 0 && <span style={{ color: 'var(--ambar)' }}>{porPreparar} por preparar · </span>}
+              {preparados > 0 && <span style={{ color: 'var(--verde)' }}>{preparados} preparado{preparados !== 1 ? 's' : ''} · </span>}
               {domicilios.length} domicilio{domicilios.length !== 1 ? 's' : ''} este día
             </div>
           </div>
@@ -875,6 +895,10 @@ const horariosDelDia = (fecha) => {
                   {d.total && <div style={{ color: 'var(--tinta)', fontSize: 15, fontWeight: 800 }}>{fmt(getTotalAPagar(d))} por pagar</div>}
                 </div>
               </div>
+
+              {['pendiente', 'confirmado', 'en_camino'].includes(d.estado) && prep[d.id] && (
+                <PrepararDomicilio preparado={!!prep[d.id].preparado} items={prep[d.id].items} onMarcar={(v) => marcarPreparado(d.id, v)} />
+              )}
 
               {d.estado === 'pendiente' && (
                 <div style={{ marginBottom: 8 }}>

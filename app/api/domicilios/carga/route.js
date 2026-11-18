@@ -23,7 +23,7 @@ export async function GET(req) {
 
   const { data: doms, error } = await supabase
     .from('domicilios')
-    .select('id, cliente_id, entrega_ids, es_externo, items_tienda, carga_ok')
+    .select('id, cliente_id, entrega_ids, es_externo, items_tienda, carga_ok, preparado')
     .eq('fecha_preferida', fecha)
     .in('estado', ['pendiente', 'confirmado', 'en_camino'])
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })
@@ -72,7 +72,7 @@ export async function GET(req) {
       })
     }
 
-    resultado.push({ id: d.id, items, marcadas: Array.isArray(d.carga_ok) ? d.carga_ok : [] })
+    resultado.push({ id: d.id, items, marcadas: Array.isArray(d.carga_ok) ? d.carga_ok : [], preparado: !!d.preparado })
   }
 
   return NextResponse.json({ ok: true, domicilios: resultado })
@@ -82,7 +82,13 @@ export async function GET(req) {
 export async function POST(req) {
   if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   try {
-    const { domicilio_id, clave, marcado } = await req.json()
+    const { domicilio_id, clave, marcado, preparado } = await req.json()
+    // Marcar / desmarcar el domicilio completo como preparado.
+    if (domicilio_id && typeof preparado === 'boolean') {
+      const { error: e0 } = await supabase.from('domicilios').update({ preparado, preparado_en: preparado ? new Date().toISOString() : null }).eq('id', domicilio_id)
+      if (e0) return NextResponse.json({ ok: false, mensaje: e0.message })
+      return NextResponse.json({ ok: true })
+    }
     if (!domicilio_id || !clave) return NextResponse.json({ ok: false, mensaje: 'Faltan datos' })
     const { data, error } = await supabase.from('domicilios').select('carga_ok').eq('id', domicilio_id).single()
     if (error) return NextResponse.json({ ok: false, mensaje: error.message })

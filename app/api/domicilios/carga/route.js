@@ -36,7 +36,7 @@ export async function GET(req) {
       // Mismo criterio que /api/domicilios/listar: sin borradores ni descartados.
       const { data: pedidos } = await supabase
         .from('pedidos')
-        .select('id, descripcion, cantidad, apartado_fragil, estado, imagen_url')
+        .select('id, descripcion, cantidad, apartado_fragil, estado, imagen_url, entrega_id, entregas(fecha_entrega)')
         .eq('cliente_id', d.cliente_id)
         .in('entrega_id', d.entrega_ids)
         .eq('pendiente_aprobacion', false)
@@ -46,6 +46,7 @@ export async function GET(req) {
       for (const p of filas) {
         items.push({
           clave: `p:${p.id}`,
+          entrega_fecha: p.entregas?.fecha_entrega || null,
           nombre: p.descripcion,
           cantidad: p.cantidad || 1,
           fragil: !!p.apartado_fragil,
@@ -62,13 +63,13 @@ export async function GET(req) {
       .neq('estado', 'cancelado')
     for (const m of mercadito || []) {
       ;(Array.isArray(m.items) ? m.items : []).forEach((it, n) => {
-        items.push({ clave: `m:${m.id}:${n}`, nombre: it.nombre, cantidad: it.cantidad || 1, fragil: !!it.apartado_fragil, empacado: true, foto: null })
+        items.push({ clave: `m:${m.id}:${n}`, nombre: it.nombre, cantidad: it.cantidad || 1, fragil: !!it.apartado_fragil, empacado: true, foto: null, origen: 'mercadito' })
       })
     }
 
     if (Array.isArray(d.items_tienda)) {
       d.items_tienda.forEach((it, n) => {
-        items.push({ clave: `t:${n}`, nombre: it.nombre, cantidad: it.cantidad || 1, fragil: false, empacado: true, foto: null })
+        items.push({ clave: `t:${n}`, nombre: it.nombre, cantidad: it.cantidad || 1, fragil: false, empacado: true, foto: null, origen: 'tienda' })
       })
     }
 

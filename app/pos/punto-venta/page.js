@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import TiendaTienda from '../../components/pos/TiendaTienda';
+import CamposRutaDomicilio from '../../components/domicilios/CamposRutaDomicilio';
 import EncargosEntrega from '../../components/pos/EncargosEntrega';
 import { calcularTotalesCarrito, evaluarDescuento } from '../../../lib/pos/tiendaUtils';
 
@@ -39,7 +40,7 @@ export default function PuntoDeVenta() {
   const [pagoDomicilio, setPagoDomicilio] = useState({ metodo1: 'Efectivo', monto1: '', recibido1: '', metodo2: 'Transferencia', mostrar2: false, recibido2: '' })
   const [domiciliosBadge, setDomiciliosBadge] = useState(0)
   const [mostrarFormDom, setMostrarFormDom] = useState(false)
-  const [formNuevo, setFormNuevo] = useState({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '' })
+  const [formNuevo, setFormNuevo] = useState({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', hora_exacta: '', direccion_id: '' })
   // Direcciones guardadas del cliente elegido -- mismo criterio que
   // app/admin/domicilios/page.js, para que las dos pantallas de agendar un
   // domicilio se vean y se comporten igual ("no debe ser diferente").
@@ -203,12 +204,14 @@ const horariosDelDia = (f) => {
       ...f,
       direccion: d.direccion || '', colonia: d.colonia || '', referencias: d.referencias || '',
       celular_contacto: d.celular_contacto || f.celular_contacto,
+      entre_calles: d.entre_calles || '', recibe_nombre: d.recibe_nombre || '', instrucciones_acceso: d.instrucciones_acceso || '',
+      direccion_id: d.id,
     }))
   }
 
   const elegirDireccionNuevaDom = () => {
     setDireccionSeleccionadaIdDom('nueva')
-    setFormNuevo(f => ({ ...f, direccion: '', colonia: '', referencias: '' }))
+    setFormNuevo(f => ({ ...f, direccion: '', colonia: '', referencias: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', direccion_id: '' }))
   }
 
   const crearDomicilio = async () => {
@@ -225,6 +228,9 @@ const horariosDelDia = (f) => {
         direccion: formNuevo.direccion, colonia: formNuevo.colonia,
         referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto, celular_contacto_adicional: formNuevo.celular_contacto_adicional,
         fecha_preferida: formNuevo.fecha_preferida, horario: formNuevo.horario,
+        hora_exacta: formNuevo.hora_exacta || null,
+        entre_calles: formNuevo.entre_calles, recibe_nombre: formNuevo.recibe_nombre, instrucciones_acceso: formNuevo.instrucciones_acceso,
+        direccion_id: formNuevo.direccion_id || null,
         notas: formNuevo.notas, subtotal, total: null, costo_envio: null, estado: 'pendiente'
       })
     })
@@ -239,13 +245,14 @@ const horariosDelDia = (f) => {
         body: JSON.stringify({
           cliente_id: formNuevo.cliente_id, direccion: formNuevo.direccion, colonia: formNuevo.colonia,
           referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto,
+          entre_calles: formNuevo.entre_calles, recibe_nombre: formNuevo.recibe_nombre, instrucciones_acceso: formNuevo.instrucciones_acceso,
         })
       })
     }
     setGuardandoDom(false)
     setMostrarFormDom(false)
     setEntregasSeleccionadasDom([])
-    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '' })
+    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', hora_exacta: '', direccion_id: '' })
     setPedidosClienteDom([])
     setAnticiposClienteDom([])
     setDireccionesClienteDom([])
@@ -1642,6 +1649,7 @@ const horariosDelDia = (f) => {
                                 style={iStyle} />
                             </div>
                           </div>
+                          <CamposRutaDomicilio form={formNuevo} onChange={(p) => setFormNuevo(f => ({ ...f, ...p }))} />
                           <div style={{ display:'flex', gap:8 }}>
                             <button onClick={crearDomicilio} disabled={guardandoDom}
                               style={{ flex:1, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', borderRadius:10, padding:'10px', color: 'var(--marca)', fontSize:13, fontWeight:600, cursor:'pointer', opacity: guardandoDom ? 0.6 : 1 }}>

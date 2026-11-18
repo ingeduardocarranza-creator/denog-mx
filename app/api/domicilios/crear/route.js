@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff, requerirDuenoOStaff } from '@/lib/auth/session'
 import { registrarComisionDomicilio } from '@/lib/jarvis/comisiones'
+import { geocodificar, dentroDeHermosillo } from '@/lib/domicilios/geocodificar'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -31,7 +32,21 @@ export async function POST(req) {
       items_tienda, forma_pago_ext, pago_anticipado_ext, metodo_pago_ext,
       // El colaborador marcó que este domicilio es de un cliente suyo (comisión).
       venta_propia, comision_para,
+      // Ruta: datos de acceso, hora exacta y dirección guardada usada.
+      hora_exacta, recibe_nombre, entre_calles, instrucciones_acceso, direccion_id,
+      // Coordenadas si ya vienen resueltas (pin pegado); si no, se geocodifica aquí.
+      lat: latBody, lng: lngBody,
     } = body
+
+    // Ubicación: pin enviado o geocodificación en el servidor. Si falla, el
+    // domicilio se crea igual (lat/lng quedan null y la ruta lo marca "sin ubicar").
+    let lat = null, lng = null
+    if (typeof latBody === 'number' && typeof lngBody === 'number' && dentroDeHermosillo(latBody, lngBody)) {
+      lat = latBody; lng = lngBody
+    } else {
+      const geo = await geocodificar({ direccion, colonia, entre_calles })
+      if (geo) { lat = geo.lat; lng = geo.lng }
+    }
 
     // For external orders, deduct stock immediately
     if (es_externo && items_tienda?.length) {
@@ -52,6 +67,12 @@ export async function POST(req) {
         celular_contacto_adicional,
         fecha_preferida, horario, notas, distancia_km, costo_envio,
         subtotal, total,
+        hora_exacta: hora_exacta || null,
+        recibe_nombre: recibe_nombre || null,
+        entre_calles: entre_calles || null,
+        instrucciones_acceso: instrucciones_acceso || null,
+        direccion_id: direccion_id || null,
+        lat, lng, geocodificado_en: lat != null ? new Date().toISOString() : null,
         // External fields
         es_externo: !!es_externo,
         nombre_externo: es_externo ? nombre_externo : null,

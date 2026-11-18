@@ -50,13 +50,13 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const { cliente_id, alias, direccion, colonia, referencias, celular_contacto } = await req.json()
+  const { cliente_id, alias, direccion, colonia, referencias, celular_contacto, entre_calles, recibe_nombre, instrucciones_acceso } = await req.json()
   if (!requerirDuenoOStaff(req, String(cliente_id))) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   if (!direccion?.trim() || !colonia?.trim()) return NextResponse.json({ ok: false, mensaje: 'Dirección y colonia son obligatorias' })
 
   const { data, error } = await supabase
     .from('direcciones_clientes')
-    .insert({ cliente_id, alias: alias?.trim() || null, direccion: direccion.trim(), colonia: colonia.trim(), referencias: referencias?.trim() || null, celular_contacto: celular_contacto?.trim() || null })
+    .insert({ cliente_id, alias: alias?.trim() || null, direccion: direccion.trim(), colonia: colonia.trim(), referencias: referencias?.trim() || null, celular_contacto: celular_contacto?.trim() || null, entre_calles: entre_calles?.trim() || null, recibe_nombre: recibe_nombre?.trim() || null, instrucciones_acceso: instrucciones_acceso?.trim() || null })
     .select().single()
 
   if (error) return NextResponse.json({ ok: false, mensaje: error.message })

@@ -709,6 +709,10 @@ const horariosDelDia = (fecha) => {
             <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
               style={{ background: 'transparent', border: 'none', color: 'var(--tinta)', fontSize: 13, outline: 'none', cursor: 'pointer' }} />
           </div>
+          <a href="/admin/domicilios/ruta"
+            style={{ background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 12, padding: '10px 18px', color: 'var(--tinta)', fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+            🗺️ Ruta del día
+          </a>
           <button onClick={() => { setMostrarNuevo(!mostrarNuevo); setEntregasSeleccionadas([]); setPedidosCliente([]); setAnticiposCliente([]); setDireccionesCliente([]); setDireccionSeleccionadaId(null) }}
             style={{ background: 'var(--marca)', border: 'none', borderRadius: 12, padding: '10px 18px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + Nuevo domicilio

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import CamposRutaDomicilio from '../../components/domicilios/CamposRutaDomicilio'
+import BuscadorDireccion from '../../components/domicilios/BuscadorDireccion'
 
 export default function Domicilios() {
   const [domicilios, setDomicilios] = useState([])
@@ -28,7 +29,7 @@ export default function Domicilios() {
     cliente_id: '', direccion: '', colonia: '',
     referencias: '', celular_contacto: '', celular_contacto_adicional: '',
     fecha_preferida: '', horario: '', notas: '',
-    entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', hora_exacta: '', direccion_id: ''
+    entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', hora_exacta: '', direccion_id: '', lat: '', lng: '', lat_ok: ''
   })
   const [guardando, setGuardando] = useState(false)
   const [ticketListoDomicilio, setTicketListoDomicilio] = useState(null) // { transaccionId, clienteId, nombre }
@@ -139,12 +140,13 @@ export default function Domicilios() {
       celular_contacto: d.celular_contacto || f.celular_contacto,
       entre_calles: d.entre_calles || '', recibe_nombre: d.recibe_nombre || '', instrucciones_acceso: d.instrucciones_acceso || '',
       direccion_id: d.id,
+      lat: d.lat ?? '', lng: d.lng ?? '', lat_ok: d.lat != null ? `${d.direccion || ''}|${d.colonia || ''}` : '',
     }))
   }
 
   const elegirDireccionNueva = () => {
     setDireccionSeleccionadaId('nueva')
-    setFormNuevo(f => ({ ...f, direccion: '', colonia: '', referencias: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', direccion_id: '' }))
+    setFormNuevo(f => ({ ...f, direccion: '', colonia: '', referencias: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', direccion_id: '', lat: '', lng: '', lat_ok: '' }))
   }
 
   const cargarPedidosCliente = async (cliente_id) => {
@@ -448,6 +450,8 @@ const horariosDelDia = (fecha) => {
         hora_exacta: formNuevo.hora_exacta || null,
         entre_calles: formNuevo.entre_calles, recibe_nombre: formNuevo.recibe_nombre, instrucciones_acceso: formNuevo.instrucciones_acceso,
         direccion_id: formNuevo.direccion_id || null,
+        lat: formNuevo.lat_ok === `${formNuevo.direccion}|${formNuevo.colonia}` && formNuevo.lat !== '' ? Number(formNuevo.lat) : null,
+        lng: formNuevo.lat_ok === `${formNuevo.direccion}|${formNuevo.colonia}` && formNuevo.lng !== '' ? Number(formNuevo.lng) : null,
         notas: formNuevo.notas,
         distancia_km: null,
         costo_envio: null,
@@ -475,13 +479,15 @@ const horariosDelDia = (fecha) => {
           referencias: formNuevo.referencias,
           celular_contacto: formNuevo.celular_contacto,
           entre_calles: formNuevo.entre_calles, recibe_nombre: formNuevo.recibe_nombre, instrucciones_acceso: formNuevo.instrucciones_acceso,
+          lat: formNuevo.lat_ok === `${formNuevo.direccion}|${formNuevo.colonia}` && formNuevo.lat !== '' ? Number(formNuevo.lat) : null,
+          lng: formNuevo.lat_ok === `${formNuevo.direccion}|${formNuevo.colonia}` && formNuevo.lng !== '' ? Number(formNuevo.lng) : null,
         })
       })
     }
     setGuardando(false)
     setMostrarNuevo(false)
     setEntregasSeleccionadas([])
-    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', hora_exacta: '', direccion_id: '' })
+    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', hora_exacta: '', direccion_id: '', lat: '', lng: '', lat_ok: '' })
     setPedidosCliente([])
     setAnticiposCliente([])
     setDireccionesCliente([])
@@ -841,6 +847,7 @@ const horariosDelDia = (fecha) => {
                   </div>
                 )}
 
+                <BuscadorDireccion onSelect={(l) => setFormNuevo(f => ({ ...f, direccion: l.direccion || f.direccion, colonia: l.colonia || f.colonia, lat: l.lat, lng: l.lng, lat_ok: `${l.direccion || f.direccion}|${l.colonia || f.colonia}` }))} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   {[
                     { label: 'Calle y número *', key: 'direccion', placeholder: 'Blvd. Morelos #432' },

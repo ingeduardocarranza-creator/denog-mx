@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff } from '@/lib/auth/session'
-import { geocodificar, ORIGEN_TIENDA } from '@/lib/domicilios/geocodificar'
+import { geocodificar, dentroDeHermosillo } from '@/lib/domicilios/geocodificar'
 import { haversineKm, ordenarRuta, estimarHoras } from '@/lib/domicilios/ruta'
 
 const supabase = createClient(
@@ -23,10 +23,14 @@ async function origenTienda() {
 export async function POST(req) {
   if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   try {
-    const { direccion, colonia, entre_calles, fecha_preferida, horario, hora_exacta } = await req.json()
+    const { direccion, colonia, entre_calles, fecha_preferida, horario, hora_exacta, lat: latPin, lng: lngPin } = await req.json()
     if (!direccion || !colonia || !fecha_preferida || !horario) return NextResponse.json({ ok: false, mensaje: 'Faltan datos' })
 
-    const [geo, origen] = await Promise.all([geocodificar({ direccion, colonia, entre_calles }), origenTienda()])
+    const pinValido = typeof latPin === 'number' && typeof lngPin === 'number' && dentroDeHermosillo(latPin, lngPin)
+    const [geo, origen] = await Promise.all([
+      pinValido ? Promise.resolve({ lat: latPin, lng: lngPin, preciso: true }) : geocodificar({ direccion, colonia, entre_calles }),
+      origenTienda(),
+    ])
     if (!geo) return NextResponse.json({ ok: true, ubicada: false })
 
     const { data: dia } = await supabase

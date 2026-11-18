@@ -12,7 +12,8 @@ export default function CamposRutaDomicilio({ form, onChange }) {
   const [resultado, setResultado] = useState(null)   // { clave, datos }
   const { direccion, colonia, fecha_preferida, horario, hora_exacta } = form
   const completo = !!(direccion && colonia && fecha_preferida && horario)
-  const clave = [direccion, colonia, form.entre_calles, fecha_preferida, horario, hora_exacta].join('|')
+  const pin = form.lat_ok === `${direccion}|${colonia}` && form.lat !== '' && form.lng !== '' ? { lat: Number(form.lat), lng: Number(form.lng) } : null
+  const clave = [direccion, colonia, form.entre_calles, fecha_preferida, horario, hora_exacta, pin?.lat].join('|')
 
   useEffect(() => {
     if (!completo) return
@@ -20,13 +21,13 @@ export default function CamposRutaDomicilio({ form, onChange }) {
       try {
         const res = await fetch('/api/domicilios/cercania', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ direccion, colonia, entre_calles: form.entre_calles, fecha_preferida, horario, hora_exacta }),
+          body: JSON.stringify({ direccion, colonia, entre_calles: form.entre_calles, fecha_preferida, horario, hora_exacta, lat: pin?.lat, lng: pin?.lng }),
         }).then((r) => r.json())
         if (res.ok) setResultado({ clave, datos: res })
       } catch {}
     }, 800)
     return () => clearTimeout(t)
-  }, [clave, completo, direccion, colonia, form.entre_calles, fecha_preferida, horario, hora_exacta])
+  }, [clave, completo, direccion, colonia, form.entre_calles, fecha_preferida, horario, hora_exacta, pin?.lat, pin?.lng])
 
   // Solo se muestra el aviso si corresponde a lo que hay escrito ahora.
   const aviso = completo && resultado?.clave === clave ? resultado.datos : null

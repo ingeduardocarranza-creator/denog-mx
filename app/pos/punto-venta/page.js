@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import TiendaTienda from '../../components/pos/TiendaTienda';
 import CamposRutaDomicilio from '../../components/domicilios/CamposRutaDomicilio';
+import BuscadorDireccion from '../../components/domicilios/BuscadorDireccion';
 import EncargosEntrega from '../../components/pos/EncargosEntrega';
 import { calcularTotalesCarrito, evaluarDescuento } from '../../../lib/pos/tiendaUtils';
 
@@ -40,7 +41,7 @@ export default function PuntoDeVenta() {
   const [pagoDomicilio, setPagoDomicilio] = useState({ metodo1: 'Efectivo', monto1: '', recibido1: '', metodo2: 'Transferencia', mostrar2: false, recibido2: '' })
   const [domiciliosBadge, setDomiciliosBadge] = useState(0)
   const [mostrarFormDom, setMostrarFormDom] = useState(false)
-  const [formNuevo, setFormNuevo] = useState({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', hora_exacta: '', direccion_id: '' })
+  const [formNuevo, setFormNuevo] = useState({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', hora_exacta: '', direccion_id: '', lat: '', lng: '', lat_ok: '' })
   // Direcciones guardadas del cliente elegido -- mismo criterio que
   // app/admin/domicilios/page.js, para que las dos pantallas de agendar un
   // domicilio se vean y se comporten igual ("no debe ser diferente").
@@ -206,12 +207,13 @@ const horariosDelDia = (f) => {
       celular_contacto: d.celular_contacto || f.celular_contacto,
       entre_calles: d.entre_calles || '', recibe_nombre: d.recibe_nombre || '', instrucciones_acceso: d.instrucciones_acceso || '',
       direccion_id: d.id,
+      lat: d.lat ?? '', lng: d.lng ?? '', lat_ok: d.lat != null ? `${d.direccion || ''}|${d.colonia || ''}` : '',
     }))
   }
 
   const elegirDireccionNuevaDom = () => {
     setDireccionSeleccionadaIdDom('nueva')
-    setFormNuevo(f => ({ ...f, direccion: '', colonia: '', referencias: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', direccion_id: '' }))
+    setFormNuevo(f => ({ ...f, direccion: '', colonia: '', referencias: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', direccion_id: '', lat: '', lng: '', lat_ok: '' }))
   }
 
   const crearDomicilio = async () => {
@@ -231,6 +233,8 @@ const horariosDelDia = (f) => {
         hora_exacta: formNuevo.hora_exacta || null,
         entre_calles: formNuevo.entre_calles, recibe_nombre: formNuevo.recibe_nombre, instrucciones_acceso: formNuevo.instrucciones_acceso,
         direccion_id: formNuevo.direccion_id || null,
+        lat: formNuevo.lat_ok === `${formNuevo.direccion}|${formNuevo.colonia}` && formNuevo.lat !== '' ? Number(formNuevo.lat) : null,
+        lng: formNuevo.lat_ok === `${formNuevo.direccion}|${formNuevo.colonia}` && formNuevo.lng !== '' ? Number(formNuevo.lng) : null,
         notas: formNuevo.notas, subtotal, total: null, costo_envio: null, estado: 'pendiente'
       })
     })
@@ -246,13 +250,15 @@ const horariosDelDia = (f) => {
           cliente_id: formNuevo.cliente_id, direccion: formNuevo.direccion, colonia: formNuevo.colonia,
           referencias: formNuevo.referencias, celular_contacto: formNuevo.celular_contacto,
           entre_calles: formNuevo.entre_calles, recibe_nombre: formNuevo.recibe_nombre, instrucciones_acceso: formNuevo.instrucciones_acceso,
+          lat: formNuevo.lat_ok === `${formNuevo.direccion}|${formNuevo.colonia}` && formNuevo.lat !== '' ? Number(formNuevo.lat) : null,
+          lng: formNuevo.lat_ok === `${formNuevo.direccion}|${formNuevo.colonia}` && formNuevo.lng !== '' ? Number(formNuevo.lng) : null,
         })
       })
     }
     setGuardandoDom(false)
     setMostrarFormDom(false)
     setEntregasSeleccionadasDom([])
-    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', hora_exacta: '', direccion_id: '' })
+    setFormNuevo({ cliente_id: '', direccion: '', colonia: '', referencias: '', celular_contacto: '', celular_contacto_adicional: '', fecha_preferida: '', horario: '', notas: '', entre_calles: '', recibe_nombre: '', instrucciones_acceso: '', hora_exacta: '', direccion_id: '', lat: '', lng: '', lat_ok: '' })
     setPedidosClienteDom([])
     setAnticiposClienteDom([])
     setDireccionesClienteDom([])
@@ -1611,6 +1617,7 @@ const horariosDelDia = (f) => {
                             </div>
                           )}
 
+                          <BuscadorDireccion onSelect={(l) => setFormNuevo(f => ({ ...f, direccion: l.direccion || f.direccion, colonia: l.colonia || f.colonia, lat: l.lat, lng: l.lng, lat_ok: `${l.direccion || f.direccion}|${l.colonia || f.colonia}` }))} />
                           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
                             {[
                               { label:'Calle y número *', key:'direccion', placeholder:'Blvd. Morelos #432' },

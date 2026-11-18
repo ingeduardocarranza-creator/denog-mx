@@ -12,7 +12,7 @@ export default function CamposRutaDomicilio({ form, onChange }) {
   const [resultado, setResultado] = useState(null)   // { clave, datos }
   const { direccion, colonia, fecha_preferida, horario, hora_exacta } = form
   const completo = !!(direccion && colonia && fecha_preferida && horario)
-  const clave = [direccion, colonia, fecha_preferida, horario, hora_exacta].join('|')
+  const clave = [direccion, colonia, form.entre_calles, fecha_preferida, horario, hora_exacta].join('|')
 
   useEffect(() => {
     if (!completo) return
@@ -20,13 +20,13 @@ export default function CamposRutaDomicilio({ form, onChange }) {
       try {
         const res = await fetch('/api/domicilios/cercania', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ direccion, colonia, fecha_preferida, horario, hora_exacta }),
+          body: JSON.stringify({ direccion, colonia, entre_calles: form.entre_calles, fecha_preferida, horario, hora_exacta }),
         }).then((r) => r.json())
         if (res.ok) setResultado({ clave, datos: res })
       } catch {}
     }, 800)
     return () => clearTimeout(t)
-  }, [clave, completo, direccion, colonia, fecha_preferida, horario, hora_exacta])
+  }, [clave, completo, direccion, colonia, form.entre_calles, fecha_preferida, horario, hora_exacta])
 
   // Solo se muestra el aviso si corresponde a lo que hay escrito ahora.
   const aviso = completo && resultado?.clave === clave ? resultado.datos : null
@@ -37,6 +37,9 @@ export default function CamposRutaDomicilio({ form, onChange }) {
     if (!aviso.ubicada) {
       color = 'rgba(251,191,36,0.12)'; borde = 'rgba(251,191,36,0.3)'
       texto = 'No pude ubicar la dirección en el mapa. Revisa calle, número y colonia; si no, el domicilio se guarda pero saldrá como "sin ubicar" en la ruta.'
+    } else if (!aviso.preciso) {
+      color = 'rgba(251,191,36,0.12)'; borde = 'rgba(251,191,36,0.3)'
+      texto = 'Google solo ubicó la colonia, no la calle exacta. Revisa el número o llena "Entre calles" para que la ruta sea precisa.'
     } else if (!aviso.alcanza) {
       color = 'rgba(248,113,113,0.12)'; borde = 'rgba(248,113,113,0.3)'
       texto = aviso.tarde_nueva

@@ -23,10 +23,10 @@ async function origenTienda() {
 export async function POST(req) {
   if (!requerirStaff(req)) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   try {
-    const { direccion, colonia, fecha_preferida, horario, hora_exacta } = await req.json()
+    const { direccion, colonia, entre_calles, fecha_preferida, horario, hora_exacta } = await req.json()
     if (!direccion || !colonia || !fecha_preferida || !horario) return NextResponse.json({ ok: false, mensaje: 'Faltan datos' })
 
-    const [geo, origen] = await Promise.all([geocodificar({ direccion, colonia }), origenTienda()])
+    const [geo, origen] = await Promise.all([geocodificar({ direccion, colonia, entre_calles }), origenTienda()])
     if (!geo) return NextResponse.json({ ok: true, ubicada: false })
 
     const { data: dia } = await supabase

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { minutosATexto } from '../../../../lib/domicilios/horarios'
+import ListaCarga from '../../../components/domicilios/ListaCarga'
 
 const hoyHermosillo = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Hermosillo' }).format(new Date())
 const fmt = (n) => `$${(Number(n) || 0).toLocaleString('es-MX')}`
@@ -13,6 +14,7 @@ export default function RutaDelDia() {
   const [guardando, setGuardando] = useState(false)
   const [enlacePin, setEnlacePin] = useState({})   // { [id]: texto }
   const [msg, setMsg] = useState('')
+  const [carga, setCarga] = useState({})   // { [domicilio_id]: { items, marcadas } }
 
   const [recarga, setRecarga] = useState(0)
   const cargar = () => setRecarga((n) => n + 1)
@@ -20,13 +22,15 @@ export default function RutaDelDia() {
   useEffect(() => {
     let vivo = true
     ;(async () => {
-      const [lista, r] = await Promise.all([
+      const [lista, r, c] = await Promise.all([
         fetch(`/api/domicilios/listar?fecha=${fecha}`).then((x) => x.json()),
         fetch(`/api/domicilios/ruta?fecha=${fecha}`).then((x) => x.json()),
+        fetch(`/api/domicilios/carga?fecha=${fecha}`).then((x) => x.json()).catch(() => ({ ok: false })),
       ])
       if (!vivo) return
       if (lista.ok) setDomicilios(lista.domicilios)
       if (r.ok) setRuta(r)
+      if (c.ok) setCarga(Object.fromEntries(c.domicilios.map((x) => [x.id, { items: x.items, marcadas: x.marcadas }])))
       setCargando(false)
     })()
     return () => { vivo = false }
@@ -66,6 +70,21 @@ export default function RutaDelDia() {
     }).then((r) => r.json())
     if (!res.ok) setMsg(res.mensaje || 'No se pudo ubicar')
     cargar()
+  }
+
+  // Marca o desmarca un producto como cargado: se ve al instante y se guarda en segundo plano.
+  const marcarCarga = (id, clave, marcado) => {
+    setCarga((prev) => {
+      const c = prev[id]
+      if (!c) return prev
+      const set = new Set(c.marcadas)
+      if (marcado) set.add(clave); else set.delete(clave)
+      return { ...prev, [id]: { ...c, marcadas: [...set] } }
+    })
+    fetch('/api/domicilios/carga', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domicilio_id: id, clave, marcado }),
+    }).then((r) => r.json()).then((r) => { if (!r.ok) { setMsg(r.mensaje || 'No se pudo guardar la palomita'); cargar() } }).catch(() => { setMsg('No se pudo guardar la palomita'); cargar() })
   }
 
   const hayManual = ruta.paradas.some((p) => p.manual)
@@ -108,6 +127,10 @@ export default function RutaDelDia() {
             </div>
             {ruta.enlaces.length > 1 && <div style={{ color: 'var(--w40)', fontSize: 11, marginTop: 8 }}>Google Maps acepta hasta 10 paradas por enlace; abre los tramos en orden.</div>}
           </div>
+
+          <ListaCarga
+            paradas={[...ruta.paradas, ...ruta.sin_ubicar.map((id) => ({ id }))]}
+            porId={porId} carga={carga} nombre={nombre} onToggle={marcarCarga} />
 
           {ruta.paradas.map((p, i) => {
             const d = porId[p.id]

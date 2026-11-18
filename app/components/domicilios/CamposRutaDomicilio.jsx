@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 
 // Campos extra del formulario de agendar domicilio (compartidos por admin y POS):
-// entre calles, quién recibe, instrucciones de acceso, hora exacta y el aviso
+// entre calles, instrucciones de acceso, hora exacta y el aviso
 // de cercanía/capacidad. `form` es el formNuevo de la pantalla; `onChange`
 // recibe un parche { campo: valor }.
 const lbl = { color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }
@@ -56,6 +56,8 @@ export default function CamposRutaDomicilio({ form, onChange }) {
     caja = <div style={{ gridColumn: '1 / -1', background: color, border: `1px solid ${borde}`, borderRadius: 10, padding: '8px 12px', fontSize: 11, color: 'var(--tinta)' }}>{texto}</div>
   }
 
+  const exige = !!form.exige_hora || !!form.hora_exacta
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
       <div>
@@ -63,16 +65,18 @@ export default function CamposRutaDomicilio({ form, onChange }) {
         <input type="text" value={form.entre_calles || ''} onChange={(e) => onChange({ entre_calles: e.target.value })} placeholder="Pino y Cedro" style={inp} />
       </div>
       <div>
-        <label style={lbl}>Quién recibe</label>
-        <input type="text" value={form.recibe_nombre || ''} onChange={(e) => onChange({ recibe_nombre: e.target.value })} placeholder="Nombre de quien recibe" style={inp} />
-      </div>
-      <div>
-        <label style={lbl}>Hora exacta (solo si el cliente la exige)</label>
-        <input type="time" value={form.hora_exacta || ''} onChange={(e) => onChange({ hora_exacta: e.target.value })} style={inp} />
-      </div>
-      <div>
         <label style={lbl}>Instrucciones de acceso</label>
         <input type="text" value={form.instrucciones_acceso || ''} onChange={(e) => onChange({ instrucciones_acceso: e.target.value })} placeholder="Portón negro, tocar timbre" style={inp} />
+      </div>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--w60)', fontSize: 12, cursor: 'pointer' }}>
+          <input type="checkbox" checked={exige}
+            onChange={(e) => onChange(e.target.checked ? { exige_hora: true } : { exige_hora: false, hora_exacta: '' })} />
+          El cliente exige hora exacta
+        </label>
+        {exige && (
+          <input type="time" value={form.hora_exacta || ''} onChange={(e) => onChange({ hora_exacta: e.target.value })} style={{ ...inp, maxWidth: 180, marginTop: 8 }} />
+        )}
       </div>
       {caja}
     </div>

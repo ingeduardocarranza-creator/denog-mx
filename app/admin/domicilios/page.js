@@ -1,5 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
+import ListaPreparacion from '../../components/domicilios/ListaPreparacion'
+import ResumenDomicilio from '../../components/domicilios/ResumenDomicilio'
 import CamposRutaDomicilio from '../../components/domicilios/CamposRutaDomicilio'
 import BuscadorDireccion from '../../components/domicilios/BuscadorDireccion'
 
@@ -783,12 +785,7 @@ const horariosDelDia = (fecha) => {
                           <span style={{ color: seleccionada ? 'var(--ambar)' : 'var(--w50)', fontSize: 12, fontWeight: 700 }}>{fmt(entrega.total)}</span>
                         </div>
                         <div style={{ paddingLeft: 28 }}>
-                          {entrega.productos.map(p => (
-                            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--w04)' }}>
-                              <span style={{ color: 'var(--w45)', fontSize: 10 }}>{p.descripcion}</span>
-                              <span style={{ color: 'var(--w50)', fontSize: 10 }}>{fmt(p.precio_venta)}</span>
-                            </div>
-                          ))}
+                          {/* la lista de productos se ve abajo, en Lista de preparación */}
                           {anticiposEntrega.length > 0 && (
                             <div style={{ marginTop: 5, paddingTop: 4, borderTop: '1px solid rgba(16,185,129,0.15)' }}>
                               <div style={{ color: 'rgba(16,185,129,0.6)', fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 }}>✅ Anticipos</div>
@@ -820,6 +817,7 @@ const horariosDelDia = (fecha) => {
                     <span style={{ color: 'var(--ambar)', fontSize: 13, fontWeight: 700 }}>{fmt(subtotalSeleccionado)}</span>
                   </div>
                 )}
+                <ListaPreparacion productos={entregasSeleccionadas.flatMap(e => e.productos)} />
               </div>
             )}
 
@@ -888,6 +886,7 @@ const horariosDelDia = (fecha) => {
                   </div>
                 </div>
                 <CamposRutaDomicilio form={formNuevo} onChange={(p) => setFormNuevo(f => ({ ...f, ...p }))} />
+                <div style={{ marginBottom: 12 }}><ResumenDomicilio direccion={formNuevo.direccion} colonia={formNuevo.colonia} entregas={entregasSeleccionadas} anticipos={anticiposCliente} /></div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={crearDomicilio} disabled={guardando}
                     style={{ flex: 1, background: 'var(--marca)', border: 'none', borderRadius: 10, padding: '10px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: guardando ? 0.6 : 1 }}>

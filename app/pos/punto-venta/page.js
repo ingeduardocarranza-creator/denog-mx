@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import TiendaTienda from '../../components/pos/TiendaTienda';
+import ListaPreparacion from '../../components/domicilios/ListaPreparacion'
+import ResumenDomicilio from '../../components/domicilios/ResumenDomicilio'
 import CamposRutaDomicilio from '../../components/domicilios/CamposRutaDomicilio';
 import BuscadorDireccion from '../../components/domicilios/BuscadorDireccion';
 import EncargosEntrega from '../../components/pos/EncargosEntrega';
@@ -1558,12 +1560,7 @@ const horariosDelDia = (f) => {
                                   <span style={{ color: selec ? 'var(--ambar-t)' : 'var(--w50)', fontSize:12, fontWeight:700 }}>{fmtDom(entrega.total)}</span>
                                 </div>
                                 <div style={{ paddingLeft:26 }}>
-                                  {entrega.productos.map(p => (
-                                    <div key={p.id} style={{ display:'flex', justifyContent:'space-between', padding:'2px 0', borderBottom: '1px solid var(--w04)' }}>
-                                      <span style={{ color: 'var(--w40)', fontSize:10 }}>{p.descripcion}</span>
-                                      <span style={{ color: 'var(--w45)', fontSize:10 }}>{fmtDom(p.precio_venta)}</span>
-                                    </div>
-                                  ))}
+                                  {/* la lista de productos se ve abajo, en Lista de preparación */}
                                   {antEnt.length > 0 && (
                                     <div style={{ marginTop:4, paddingTop:3, borderTop: '1px solid rgba(16,185,129,0.15)' }}>
                                       {antEnt.map((a,i) => (
@@ -1589,6 +1586,7 @@ const horariosDelDia = (f) => {
                               <span style={{ color: 'var(--ambar-t)', fontSize:13, fontWeight:700 }}>{fmtDom(subtotalSel)}</span>
                             </div>
                           )}
+                <ListaPreparacion productos={entregasSeleccionadasDom.flatMap(e => e.productos)} />
                         </div>
                       )}
 
@@ -1657,6 +1655,7 @@ const horariosDelDia = (f) => {
                             </div>
                           </div>
                           <CamposRutaDomicilio form={formNuevo} onChange={(p) => setFormNuevo(f => ({ ...f, ...p }))} />
+                <div style={{ marginBottom: 12 }}><ResumenDomicilio direccion={formNuevo.direccion} colonia={formNuevo.colonia} entregas={entregasSeleccionadasDom} anticipos={anticiposClienteDom} /></div>
                           <div style={{ display:'flex', gap:8 }}>
                             <button onClick={crearDomicilio} disabled={guardandoDom}
                               style={{ flex:1, background: 'rgba(193,85,58,0.2)', border: '1px solid rgba(193,85,58,0.3)', borderRadius:10, padding:'10px', color: 'var(--marca)', fontSize:13, fontWeight:600, cursor:'pointer', opacity: guardandoDom ? 0.6 : 1 }}>

@@ -1,15 +1,20 @@
 'use client'
 import { useEffect, useState } from 'react'
+import BuscadorDireccion from './BuscadorDireccion'
+import FechaHorario from './FechaHorario'
 
-// Campos extra del formulario de agendar domicilio (compartidos por admin y POS):
-// entre calles, instrucciones de acceso, hora exacta y el aviso
-// de cercanía/capacidad. `form` es el formNuevo de la pantalla; `onChange`
-// recibe un parche { campo: valor }.
+// Datos de entrega del domicilio, ordenados en grupos (compartido por admin y
+// POS): buscador de dirección, calle y colonia, referencias, contacto, día y
+// horario, hora exacta, notas y el aviso de cercanía/capacidad. `form` es el
+// formNuevo de la pantalla; `onChange` recibe un parche { campo: valor }.
 const lbl = { color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }
-const inp = { width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }
+const inp = { width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }
+const grupo = { color: 'var(--tinta)', fontSize: 12, fontWeight: 700, margin: '14px 0 8px', paddingBottom: 5, borderBottom: '1px solid var(--w06)' }
+const par = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 10 }
 
 export default function CamposRutaDomicilio({ form, onChange }) {
   const [resultado, setResultado] = useState(null)   // { clave, datos }
+  const [otroCel, setOtroCel] = useState(false)
   const { direccion, colonia, fecha_preferida, horario, hora_exacta } = form
   const completo = !!(direccion && colonia && fecha_preferida && horario)
   const pin = form.lat_ok === `${direccion}|${colonia}` && form.lat !== '' && form.lng !== '' ? { lat: Number(form.lat), lng: Number(form.lng) } : null
@@ -53,32 +58,56 @@ export default function CamposRutaDomicilio({ form, onChange }) {
         (aviso.cercanos > 0 ? ` (${aviso.cercanos} a menos de 2 km)` : aviso.mas_cercano_km != null ? ` (el más cercano a ${aviso.mas_cercano_km} km)` : '') +
         '. Sí cabe en el horario.'
     }
-    caja = <div style={{ gridColumn: '1 / -1', background: color, border: `1px solid ${borde}`, borderRadius: 10, padding: '8px 12px', fontSize: 11, color: 'var(--tinta)' }}>{texto}</div>
+    caja = <div style={{ background: color, border: `1px solid ${borde}`, borderRadius: 10, padding: '9px 12px', fontSize: 12, color: 'var(--tinta)', marginBottom: 10 }}>{texto}</div>
   }
 
   const exige = !!form.exige_hora || !!form.hora_exacta
+  const campo = (etiqueta, key, placeholder) => (
+    <div>
+      <label style={lbl}>{etiqueta}</label>
+      <input type="text" value={form[key] || ''} placeholder={placeholder} onChange={(e) => onChange({ [key]: e.target.value })} style={inp} />
+    </div>
+  )
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-      <div>
-        <label style={lbl}>Entre calles</label>
-        <input type="text" value={form.entre_calles || ''} onChange={(e) => onChange({ entre_calles: e.target.value })} placeholder="Pino y Cedro" style={inp} />
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ ...grupo, marginTop: 4 }}>📍 Dirección</div>
+      <BuscadorDireccion onSelect={(l) => onChange({
+        direccion: l.direccion || direccion, colonia: l.colonia || colonia, lat: l.lat, lng: l.lng,
+        lat_ok: `${l.direccion || direccion}|${l.colonia || colonia}`,
+      })} />
+      <div style={par}>
+        {campo('Calle y número *', 'direccion', 'Blvd. Morelos #432')}
+        {campo('Colonia *', 'colonia', 'Villa del Real')}
+        {campo('Entre calles', 'entre_calles', 'Pino y Cedro')}
+        {campo('Referencias', 'referencias', 'Casa azul, portón negro')}
       </div>
-      <div>
-        <label style={lbl}>Instrucciones de acceso</label>
-        <input type="text" value={form.instrucciones_acceso || ''} onChange={(e) => onChange({ instrucciones_acceso: e.target.value })} placeholder="Portón negro, tocar timbre" style={inp} />
+      {campo('Instrucciones de acceso', 'instrucciones_acceso', 'Tocar timbre, dejar con el guardia…')}
+
+      <div style={grupo}>📞 Contacto</div>
+      <div style={par}>
+        {campo('Celular', 'celular_contacto', '662 000 0000')}
+        {(otroCel || form.celular_contacto_adicional)
+          ? campo('Celular adicional', 'celular_contacto_adicional', '662 000 0001')
+          : <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button type="button" onClick={() => setOtroCel(true)} style={{ background: 'transparent', border: '1px dashed var(--w20)', borderRadius: 10, padding: '9px 12px', color: 'var(--w50)', fontSize: 12, cursor: 'pointer', width: '100%' }}>+ Otro celular</button>
+            </div>}
       </div>
-      <div style={{ gridColumn: '1 / -1' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--w60)', fontSize: 12, cursor: 'pointer' }}>
-          <input type="checkbox" checked={exige}
-            onChange={(e) => onChange(e.target.checked ? { exige_hora: true } : { exige_hora: false, hora_exacta: '' })} />
-          El cliente exige hora exacta
-        </label>
-        {exige && (
-          <input type="time" value={form.hora_exacta || ''} onChange={(e) => onChange({ hora_exacta: e.target.value })} style={{ ...inp, maxWidth: 180, marginTop: 8 }} />
-        )}
+
+      <div style={grupo}>🗓️ Cuándo</div>
+      <div style={{ marginBottom: 6 }}>
+        <FechaHorario form={form} onChange={onChange} />
       </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--w60)', fontSize: 12, cursor: 'pointer', margin: '6px 0' }}>
+        <input type="checkbox" checked={exige}
+          onChange={(e) => onChange(e.target.checked ? { exige_hora: true } : { exige_hora: false, hora_exacta: '' })} />
+        El cliente exige hora exacta
+      </label>
+      {exige && <input type="time" value={hora_exacta || ''} onChange={(e) => onChange({ hora_exacta: e.target.value })} style={{ ...inp, maxWidth: 180, marginBottom: 10 }} />}
       {caja}
+
+      <div style={grupo}>📝 Notas</div>
+      <input type="text" value={form.notas || ''} placeholder="Algo más que se deba saber de esta entrega…" onChange={(e) => onChange({ notas: e.target.value })} style={inp} />
     </div>
   )
 }

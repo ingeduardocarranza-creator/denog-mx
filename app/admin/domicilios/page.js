@@ -1,9 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
+import SelectorCliente from '../../components/domicilios/SelectorCliente'
+import EntregaCard from '../../components/domicilios/EntregaCard'
 import ListaPreparacion from '../../components/domicilios/ListaPreparacion'
 import ResumenDomicilio from '../../components/domicilios/ResumenDomicilio'
 import CamposRutaDomicilio from '../../components/domicilios/CamposRutaDomicilio'
-import BuscadorDireccion from '../../components/domicilios/BuscadorDireccion'
 
 export default function Domicilios() {
   const [domicilios, setDomicilios] = useState([])
@@ -733,8 +734,8 @@ const horariosDelDia = (fecha) => {
 
             <div style={{ marginBottom: 14 }}>
               <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>① Cliente *</label>
-              <select value={formNuevo.cliente_id}
-                onChange={e => {
+              <SelectorCliente clientes={clientes} valor={formNuevo.cliente_id}
+                onSelect={(__id) => { const e = { target: { value: __id } };
                   const c = clientes.find(cl => String(cl.id) === e.target.value)
                   setFormNuevo({
                     ...formNuevo,
@@ -747,11 +748,7 @@ const horariosDelDia = (fecha) => {
                   setDireccionSeleccionadaId(null)
                   cargarPedidosCliente(e.target.value)
                   cargarDireccionesCliente(e.target.value)
-                }}
-                style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 12, outline: 'none' }}>
-                <option value="">-- Elige un cliente --</option>
-                {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
+                }} />
             </div>
 
             {formNuevo.cliente_id && (
@@ -763,51 +760,13 @@ const horariosDelDia = (fecha) => {
                   </div>
                 ) : (
                   entregasCliente.map((entrega, index) => {
-                    const seleccionada = entregasSeleccionadas.find(e => e.fecha === entrega.fecha)
-                    const anteriorSeleccionada = index === 0 || entregasSeleccionadas.find(e => e.fecha === entregasCliente[index - 1].fecha)
-                    const bloqueada = !anteriorSeleccionada && !seleccionada
-                    const anticiposEntrega = anticiposCliente.filter(a => a.entrega_id === entrega.entrega_id)
-                    const totalAnticiposEntrega = anticiposEntrega.reduce((s, a) => s + (a.monto || 0), 0)
-                    const porPagar = Math.max(0, entrega.total - totalAnticiposEntrega)
-
+                    const seleccionada = !!entregasSeleccionadas.find(e => e.fecha === entrega.fecha)
+                    const anteriorSeleccionada = index === 0 || !!entregasSeleccionadas.find(e => e.fecha === entregasCliente[index - 1].fecha)
                     return (
-                      <div key={entrega.fecha}
-                        onClick={() => !bloqueada && toggleEntregaNuevo(entrega, index)}
-                        style={{ background: seleccionada ? 'rgba(245,158,11,0.06)' : bloqueada ? 'var(--w02)' : 'var(--w03)', border: `1px solid ${seleccionada ? 'rgba(245,158,11,0.35)' : bloqueada ? 'var(--w04)' : 'var(--w08)'}`, borderRadius: 14, padding: 12, marginBottom: 8, cursor: bloqueada ? 'not-allowed' : 'pointer', opacity: bloqueada ? 0.35 : 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${seleccionada ? 'var(--ambar)' : bloqueada ? 'var(--w10)' : 'var(--w20)'}`, background: seleccionada ? 'rgba(245,158,11,0.15)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: seleccionada ? 'var(--ambar)' : 'var(--w30)', flexShrink: 0 }}>
-                              {seleccionada ? '✓' : bloqueada ? '🔒' : ''}
-                            </div>
-                            <span style={{ color: seleccionada ? 'var(--ambar)' : 'var(--w70)', fontSize: 12, fontWeight: 600 }}>📅 {formatearFecha(entrega.fecha)}</span>
-                            {index === 0 && <span style={{ background: 'rgba(239,68,68,0.12)', color: 'var(--rojo-t)', fontSize: 9, padding: '2px 6px', borderRadius: 10 }}>⚠️ Más antigua</span>}
-                          </div>
-                          <span style={{ color: seleccionada ? 'var(--ambar)' : 'var(--w50)', fontSize: 12, fontWeight: 700 }}>{fmt(entrega.total)}</span>
-                        </div>
-                        <div style={{ paddingLeft: 28 }}>
-                          {/* la lista de productos se ve abajo, en Lista de preparación */}
-                          {anticiposEntrega.length > 0 && (
-                            <div style={{ marginTop: 5, paddingTop: 4, borderTop: '1px solid rgba(16,185,129,0.15)' }}>
-                              <div style={{ color: 'rgba(16,185,129,0.6)', fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 }}>✅ Anticipos</div>
-                              {anticiposEntrega.map((a, i) => (
-                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                  <span style={{ color: 'var(--w30)', fontSize: 9 }}>• {formatearFechaCorta(a.creado_en)}</span>
-                                  <span style={{ color: 'var(--verde)', fontSize: 9, fontWeight: 600 }}>-{fmt(a.monto)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5, paddingTop: 4, borderTop: '1px solid var(--w06)' }}>
-                            <span style={{ color: 'var(--w30)', fontSize: 10 }}>Por pagar</span>
-                            <span style={{ color: 'var(--rojo-t)', fontSize: 10, fontWeight: 600 }}>{fmt(porPagar)}</span>
-                          </div>
-                          {bloqueada && (
-                            <div style={{ marginTop: 6, padding: '3px 8px', background: 'var(--w02)', borderRadius: 6, textAlign: 'center', color: 'var(--w20)', fontSize: 9 }}>
-                              🔒 Selecciona primero la entrega anterior
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      <EntregaCard key={entrega.fecha} entrega={entrega} esPrimera={index === 0}
+                        seleccionada={seleccionada} bloqueada={!anteriorSeleccionada && !seleccionada}
+                        anticipos={anticiposCliente.filter(a => a.entrega_id === entrega.entrega_id)}
+                        onToggle={() => toggleEntregaNuevo(entrega, index)} />
                     )
                   })
                 )}
@@ -845,46 +804,6 @@ const horariosDelDia = (fecha) => {
                   </div>
                 )}
 
-                <BuscadorDireccion onSelect={(l) => setFormNuevo(f => ({ ...f, direccion: l.direccion || f.direccion, colonia: l.colonia || f.colonia, lat: l.lat, lng: l.lng, lat_ok: `${l.direccion || f.direccion}|${l.colonia || f.colonia}` }))} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                  {[
-                    { label: 'Calle y número *', key: 'direccion', placeholder: 'Blvd. Morelos #432' },
-                    { label: 'Colonia *', key: 'colonia', placeholder: 'Villa del Real' },
-                    { label: 'Referencias', key: 'referencias', placeholder: 'Casa azul, cerca de...' },
-                    { label: 'Celular', key: 'celular_contacto', placeholder: '662 000 0000' },
-                    { label: 'Celular adicional (opcional)', key: 'celular_contacto_adicional', placeholder: '662 000 0001' },
-                  ].map(campo => (
-                    <div key={campo.key}>
-                      <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>{campo.label}</label>
-                      <input type="text" value={formNuevo[campo.key]} onChange={e => setFormNuevo({ ...formNuevo, [campo.key]: e.target.value })}
-                        placeholder={campo.placeholder}
-                        style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-                    </div>
-                  ))}
-                  <div>
-                    <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>Fecha *</label>
-                    <input type="date" value={formNuevo.fecha_preferida}
-                      onChange={e => setFormNuevo({ ...formNuevo, fecha_preferida: e.target.value, horario: '' })}
-                      style={{ width: '100%', background: 'var(--w05)', border: `1px solid ${esDomingo(formNuevo.fecha_preferida) ? 'rgba(239,68,68,0.4)' : 'var(--w10)'}`, borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-                    {esDomingo(formNuevo.fecha_preferida) && <div style={{ color: 'var(--rojo-t)', fontSize: 10, marginTop: 4 }}>⚠️ No hay servicio de domicilio los domingos</div>}
-                  </div>
-                  <div>
-                    <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>Horario *</label>
-                    <select value={formNuevo.horario} onChange={e => setFormNuevo({ ...formNuevo, horario: e.target.value })}
-                      style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 12, outline: 'none' }}>
-                      <option value="">-- Elige horario --</option>
-                      {horariosDelDia(formNuevo.fecha_preferida).map(h => (
-                        <option key={h} value={h}>{h}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 5 }}>Notas</label>
-                    <input type="text" value={formNuevo.notas} onChange={e => setFormNuevo({ ...formNuevo, notas: e.target.value })}
-                      placeholder="Instrucciones especiales..."
-                      style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-                  </div>
-                </div>
                 <CamposRutaDomicilio form={formNuevo} onChange={(p) => setFormNuevo(f => ({ ...f, ...p }))} />
                 <div style={{ marginBottom: 12 }}><ResumenDomicilio direccion={formNuevo.direccion} colonia={formNuevo.colonia} entregas={entregasSeleccionadas} anticipos={anticiposCliente} /></div>
                 <div style={{ display: 'flex', gap: 8 }}>

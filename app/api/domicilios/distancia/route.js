@@ -27,7 +27,7 @@ export async function POST(req) {
 
     const distanciaKm = elemento.distance.value / 1000
     const dentroCobertura = distanciaKm <= LIMITE_KM
-    const costoEnvio = distanciaKm < 7 ? 50 : 70
+    const costoEnvio = distanciaKm <= 5 ? 50 : 70
 
     return NextResponse.json({
       ok: true,

@@ -1,3 +1,4 @@
+import { calcularDistanciaTienda } from '@/lib/domicilios/distancia'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requerirStaff, requerirDuenoOStaff } from '@/lib/auth/session'
@@ -57,6 +58,14 @@ export async function POST(req) {
       }
     }
 
+    // Distancia desde la tienda: si no viene calculada, se calcula aquí para que
+    // la tarjeta del domicilio ya muestre los km y el costo sugerido.
+    let distanciaFinal = distancia_km
+    if (distanciaFinal == null && direccion && colonia) {
+      const dist = await calcularDistanciaTienda({ direccion, colonia, lat, lng })
+      if (dist) distanciaFinal = dist.km
+    }
+
     const { data, error } = await supabase
       .from('domicilios')
       .insert([{
@@ -65,7 +74,7 @@ export async function POST(req) {
         direccion, colonia, referencias,
         celular_contacto: es_externo ? telefono_externo : celular_contacto,
         celular_contacto_adicional,
-        fecha_preferida, horario, notas, distancia_km, costo_envio,
+        fecha_preferida, horario, notas, distancia_km: distanciaFinal, costo_envio,
         subtotal, total,
         hora_exacta: hora_exacta || null,
         recibe_nombre: recibe_nombre || null,

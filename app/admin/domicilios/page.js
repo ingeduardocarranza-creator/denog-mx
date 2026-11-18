@@ -903,14 +903,19 @@ const horariosDelDia = (fecha) => {
               {d.estado === 'pendiente' && (
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ color: 'var(--w40)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Elige el costo de envío</div>
+                  {d.distancia_km != null && (
+                    <div style={{ fontSize: 12, marginBottom: 8, color: Number(d.distancia_km) > 15 ? 'var(--rojo-t)' : 'var(--tinta)' }}>
+                      📏 {Number(d.distancia_km)} km desde la tienda · {Number(d.distancia_km) > 15 ? 'fuera de la zona de cobertura' : <>sugerido <strong>{Number(d.distancia_km) <= 5 ? '$50' : '$70'}</strong></>}
+                    </div>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     <button onClick={() => confirmarCosto(d, 50)}
-                      style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '12px', cursor: 'pointer' }}>
+                      style={{ background: 'rgba(16,185,129,0.1)', border: d.distancia_km != null && Number(d.distancia_km) <= 5 ? '2px solid var(--verde)' : '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '12px', cursor: 'pointer' }}>
                       <div style={{ color: 'var(--verde)', fontSize: 20, fontWeight: 800 }}>$50</div>
                       <div style={{ color: 'var(--w40)', fontSize: 10 }}>Zona corta · 0-5 km</div>
                     </button>
                     <button onClick={() => confirmarCosto(d, 70)}
-                      style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '12px', cursor: 'pointer' }}>
+                      style={{ background: 'rgba(99,102,241,0.1)', border: d.distancia_km != null && Number(d.distancia_km) > 5 && Number(d.distancia_km) <= 15 ? '2px solid #818cf8' : '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '12px', cursor: 'pointer' }}>
                       <div style={{ color: '#818cf8', fontSize: 20, fontWeight: 800 }}>$70</div>
                       <div style={{ color: 'var(--w40)', fontSize: 10 }}>Zona larga · 5.1+ km</div>
                     </button>

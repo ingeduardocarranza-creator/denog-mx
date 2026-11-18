@@ -805,8 +805,9 @@ const horariosDelDia = (fecha) => {
                 )}
 
                 <CamposRutaDomicilio form={formNuevo} onChange={(p) => setFormNuevo(f => ({ ...f, ...p }))} />
-                <div style={{ marginBottom: 12 }}><ResumenDomicilio direccion={formNuevo.direccion} colonia={formNuevo.colonia} entregas={entregasSeleccionadas} anticipos={anticiposCliente} /></div>
-                <div style={{ display: 'flex', gap: 8 }}>
+<div style={{ position: 'sticky', bottom: 0, zIndex: 5, margin: '12px -4px 0', padding: '10px 4px 12px', background: 'linear-gradient(180deg, rgba(245,236,223,0) 0%, #f5ecdf 20%)', borderTop: '1px solid var(--w06)' }}>
+<div style={{ marginBottom: 10 }}><ResumenDomicilio direccion={formNuevo.direccion} colonia={formNuevo.colonia} entregas={entregasSeleccionadas} anticipos={anticiposCliente}  compacto /></div>
+<div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={crearDomicilio} disabled={guardando}
                     style={{ flex: 1, background: 'var(--marca)', border: 'none', borderRadius: 10, padding: '10px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: guardando ? 0.6 : 1 }}>
                     {guardando ? 'Guardando...' : '✓ Crear domicilio'}
@@ -816,6 +817,7 @@ const horariosDelDia = (fecha) => {
                     Cancelar
                   </button>
                 </div>
+</div>
               </div>
             )}
 

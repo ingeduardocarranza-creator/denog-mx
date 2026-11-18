@@ -39,7 +39,7 @@ const money = (n) => `$${Math.round(n || 0).toLocaleString('es-MX')}`
 const fk = { fontFamily: 'var(--font-baloo2)' }
 const inputStyle = { width: '100%', background: 'rgba(0,0,0,0.03)', border: '1.5px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '12px 14px', color: '#2a2118', fontSize: 14.5, marginBottom: 12, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
 
-const FORM_VACIO = { alias: '', calle: '', colonia: '', referencias: '', celular: '' }
+const FORM_VACIO = { alias: '', calle: '', colonia: '', entre_calles: '', referencias: '', instrucciones_acceso: '', celular: '' }
 
 export default function Domicilio() {
   const [cliente, setCliente] = useState(null)
@@ -161,7 +161,7 @@ export default function Domicilio() {
       const res = await fetch('/api/clientes/direcciones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: cliente.id, alias: form.alias || null, direccion: form.calle, colonia: form.colonia, referencias: form.referencias, celular_contacto: form.celular }),
+        body: JSON.stringify({ cliente_id: cliente.id, alias: form.alias || null, direccion: form.calle, colonia: form.colonia, entre_calles: form.entre_calles, referencias: form.referencias, instrucciones_acceso: form.instrucciones_acceso, celular_contacto: form.celular }),
       }).then(r => r.json())
       if (res.ok) {
         const nuevas = [res.direccion, ...direcciones]
@@ -177,7 +177,7 @@ export default function Domicilio() {
 
   const iniciarEdicion = (d) => {
     setEditandoId(d.id)
-    setFormEditar({ alias: d.alias || '', calle: d.direccion, colonia: d.colonia, referencias: d.referencias || '', celular: d.celular_contacto || '' })
+    setFormEditar({ alias: d.alias || '', calle: d.direccion, colonia: d.colonia, entre_calles: d.entre_calles || '', referencias: d.referencias || '', instrucciones_acceso: d.instrucciones_acceso || '', celular: d.celular_contacto || '' })
     setMostrarFormNueva(false)
     setError('')
   }
@@ -189,7 +189,7 @@ export default function Domicilio() {
       const res = await fetch('/api/clientes/direcciones', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editandoId, cliente_id: cliente.id, alias: formEditar.alias || null, direccion: formEditar.calle, colonia: formEditar.colonia, referencias: formEditar.referencias, celular_contacto: formEditar.celular }),
+        body: JSON.stringify({ id: editandoId, cliente_id: cliente.id, alias: formEditar.alias || null, direccion: formEditar.calle, colonia: formEditar.colonia, entre_calles: formEditar.entre_calles, referencias: formEditar.referencias, instrucciones_acceso: formEditar.instrucciones_acceso, celular_contacto: formEditar.celular }),
       }).then(r => r.json())
       if (res.ok) {
         setDirecciones(direcciones.map(d => d.id === editandoId ? res.direccion : d))
@@ -226,7 +226,7 @@ export default function Domicilio() {
         cliente_id: cliente.id,
         entrega_ids: entregasSeleccionadas.map(e => e.entrega_id),
         direccion: dir.direccion, colonia: dir.colonia,
-        referencias: dir.referencias || '', celular_contacto: dir.celular_contacto || '',
+        referencias: dir.referencias || '', entre_calles: dir.entre_calles || '', instrucciones_acceso: dir.instrucciones_acceso || '', direccion_id: dir.id, lat: typeof dir.lat === 'number' ? dir.lat : null, lng: typeof dir.lng === 'number' ? dir.lng : null, celular_contacto: dir.celular_contacto || '',
         fecha_preferida: fechaSeleccionada || null,
         horario: HORARIOS.find(h => h.value === horario)?.label || horario,
         notas, distancia_km: null, costo_envio: null, subtotal: seleccionTotal, total: null,
@@ -600,8 +600,12 @@ export default function Domicilio() {
                     <input value={formEditar.calle} onChange={e => setFormEditar(f => ({...f, calle: e.target.value}))} placeholder="Ej: Blvd. Morelos #432" style={inputStyle} />
                     <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Colonia *</div>
                     <input value={formEditar.colonia} onChange={e => setFormEditar(f => ({...f, colonia: e.target.value}))} placeholder="Ej: Villa del Real" style={inputStyle} />
+                    <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Entre calles</div>
+                    <input value={formEditar.entre_calles} onChange={e => setFormEditar(f => ({...f, entre_calles: e.target.value}))} placeholder="Ej: Pino y Cedro" style={inputStyle} />
                     <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Referencias</div>
                     <input value={formEditar.referencias} onChange={e => setFormEditar(f => ({...f, referencias: e.target.value}))} placeholder="Color de casa, cerca de..." style={inputStyle} />
+                    <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Instrucciones para llegar</div>
+                    <input value={formEditar.instrucciones_acceso} onChange={e => setFormEditar(f => ({...f, instrucciones_acceso: e.target.value}))} placeholder="Ej: Tocar timbre, portón negro" style={inputStyle} />
                     <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Celular</div>
                     <input value={formEditar.celular} onChange={e => setFormEditar(f => ({...f, celular: e.target.value}))} placeholder="662 000 0000" style={{ ...inputStyle, marginBottom: 16 }} />
                     <button onClick={guardarEdicion} disabled={guardando}
@@ -616,7 +620,9 @@ export default function Domicilio() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {d.alias && <div style={{ fontSize: 13, fontWeight: 800, color: '#2a2118', marginBottom: 2 }}>{d.alias}</div>}
                       <div style={{ fontSize: 14, color: '#2a2118', lineHeight: 1.6 }}>{d.direccion}, {d.colonia}</div>
+                      {d.entre_calles && <div style={{ fontSize: 12, color: 'rgba(42,33,24,0.5)', marginTop: 2 }}>Entre {d.entre_calles}</div>}
                       {d.referencias && <div style={{ fontSize: 12, color: 'rgba(42,33,24,0.5)', marginTop: 2 }}>{d.referencias}</div>}
+                      {d.instrucciones_acceso && <div style={{ fontSize: 12, color: 'rgba(42,33,24,0.5)' }}>Acceso: {d.instrucciones_acceso}</div>}
                       {d.celular_contacto && <div style={{ fontSize: 12, color: 'rgba(42,33,24,0.5)' }}>Cel: {d.celular_contacto}</div>}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
@@ -648,8 +654,12 @@ export default function Domicilio() {
                 <input value={form.calle} onChange={e => setForm(f => ({...f, calle: e.target.value}))} placeholder="Ej: Blvd. Morelos #432" style={inputStyle} />
                 <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Colonia *</div>
                 <input value={form.colonia} onChange={e => setForm(f => ({...f, colonia: e.target.value}))} placeholder="Ej: Villa del Real" style={inputStyle} />
+                <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Entre calles</div>
+                <input value={form.entre_calles} onChange={e => setForm(f => ({...f, entre_calles: e.target.value}))} placeholder="Ej: Pino y Cedro" style={inputStyle} />
                 <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Referencias</div>
                 <input value={form.referencias} onChange={e => setForm(f => ({...f, referencias: e.target.value}))} placeholder="Color de casa, cerca de..." style={inputStyle} />
+                <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Instrucciones para llegar</div>
+                <input value={form.instrucciones_acceso} onChange={e => setForm(f => ({...f, instrucciones_acceso: e.target.value}))} placeholder="Ej: Tocar timbre, portón negro" style={inputStyle} />
                 <div style={{ color: 'rgba(42,33,24,0.55)', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Celular</div>
                 <input value={form.celular} onChange={e => setForm(f => ({...f, celular: e.target.value}))} placeholder="662 000 0000" style={{ ...inputStyle, marginBottom: 16 }} />
                 <button onClick={guardarNuevaDireccion} disabled={guardando}

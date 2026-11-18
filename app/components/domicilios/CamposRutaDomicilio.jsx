@@ -12,7 +12,7 @@ const inp = { width: '100%', background: 'var(--w05)', border: '1px solid var(--
 const grupo = { color: 'var(--tinta)', fontSize: 12, fontWeight: 700, margin: '14px 0 8px', paddingBottom: 5, borderBottom: '1px solid var(--w06)' }
 const par = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 10 }
 
-export default function CamposRutaDomicilio({ form, onChange }) {
+export default function CamposRutaDomicilio({ form, onChange, ocultarContacto = false, ocultarNotas = false }) {
   const [resultado, setResultado] = useState(null)   // { clave, datos }
   const [otroCel, setOtroCel] = useState(false)
   const { direccion, colonia, fecha_preferida, horario, hora_exacta } = form
@@ -84,6 +84,7 @@ export default function CamposRutaDomicilio({ form, onChange }) {
       </div>
       {campo('Instrucciones de acceso', 'instrucciones_acceso', 'Tocar timbre, dejar con el guardia…')}
 
+      {!ocultarContacto && (<>
       <div style={grupo}>📞 Contacto</div>
       <div style={par}>
         {campo('Celular', 'celular_contacto', '662 000 0000')}
@@ -93,6 +94,8 @@ export default function CamposRutaDomicilio({ form, onChange }) {
               <button type="button" onClick={() => setOtroCel(true)} style={{ background: 'transparent', border: '1px dashed var(--w20)', borderRadius: 10, padding: '9px 12px', color: 'var(--w50)', fontSize: 12, cursor: 'pointer', width: '100%' }}>+ Otro celular</button>
             </div>}
       </div>
+
+      </>)}
 
       <div style={grupo}>🗓️ Cuándo</div>
       <div style={{ marginBottom: 6 }}>
@@ -106,8 +109,10 @@ export default function CamposRutaDomicilio({ form, onChange }) {
       {exige && <input type="time" value={hora_exacta || ''} onChange={(e) => onChange({ hora_exacta: e.target.value })} style={{ ...inp, maxWidth: 180, marginBottom: 10 }} />}
       {caja}
 
+      {!ocultarNotas && (<>
       <div style={grupo}>📝 Notas</div>
       <input type="text" value={form.notas || ''} placeholder="Algo más que se deba saber de esta entrega…" onChange={(e) => onChange({ notas: e.target.value })} style={inp} />
+      </>)}
     </div>
   )
 }

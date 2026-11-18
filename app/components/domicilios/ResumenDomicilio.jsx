@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react'
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })}`
 const fila = { display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, padding: '5px 0' }
 
-export default function ResumenDomicilio({ direccion, colonia, entregas, anticipos }) {
+export default function ResumenDomicilio({ direccion, colonia, entregas, anticipos, compacto = false }) {
   const [res, setRes] = useState(null)   // { clave, datos }
   const clave = `${direccion || ''}|${colonia || ''}`
   const listo = (direccion || '').trim().length >= 4 && (colonia || '').trim().length >= 2
@@ -39,6 +39,24 @@ export default function ResumenDomicilio({ direccion, colonia, entregas, anticip
   if (listo && !dist) textoDist = 'calculando…'
   else if (dist && !dist.ok) textoDist = 'sin calcular'
   else if (dist?.ok) textoDist = `${dist.distanciaKm} km`
+
+  if (compacto) {
+    const celda = (t, v, color) => (
+      <div style={{ flex: '1 1 90px', minWidth: 0 }}>
+        <div style={{ color: 'var(--w40)', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 0.8 }}>{t}</div>
+        <div style={{ color: color || 'var(--tinta)', fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>{v}</div>
+      </div>
+    )
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+        {celda('Distancia', textoDist)}
+        {celda('Envío', envio != null ? fmt(envio) : '—')}
+        {celda('Productos', fmt(porPagar))}
+        {celda('Cobrar al entregar', envio != null ? fmt(porPagar + envio) : fmt(porPagar), 'var(--ambar)')}
+        {dist?.ok && !dist.dentroCobertura && <div style={{ flexBasis: '100%', fontSize: 11, color: 'var(--rojo-t)' }}>Fuera de la zona de cobertura (más de 15 km).</div>}
+      </div>
+    )
+  }
 
   return (
     <div style={{ background: 'var(--w03)', border: '1px solid var(--w08)', borderRadius: 14, padding: '12px 14px' }}>

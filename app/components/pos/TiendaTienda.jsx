@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import CamposRutaDomicilio from '../domicilios/CamposRutaDomicilio'
+import { useEffect, useMemo, useState } from 'react';
 import {
   crearLineaCatalogo,
   crearLineaMonto,
@@ -123,10 +124,27 @@ export default function TiendaTienda({
   const [clientePickerOpen, setClientePickerOpen] = useState(false);
   const [clienteQuery, setClienteQuery] = useState('');
 
-  const domFormVacio = { nombre: '', telefono: '', direccion: '', colonia: '', referencias: '', fecha_preferida: '', horario: '', costo_envio: '', forma_pago: 'contra_entrega', pago_anticipado: '', metodo_pago_ant: 'Transferencia', notas: '' }
+  const domFormVacio = { nombre: '', telefono: '', direccion: '', colonia: '', referencias: '', entre_calles: '', instrucciones_acceso: '', exige_hora: false, hora_exacta: '', lat: '', lng: '', lat_ok: '', fecha_preferida: '', horario: '', costo_envio: '', forma_pago: 'contra_entrega', pago_anticipado: '', metodo_pago_ant: 'Transferencia', notas: '' }
   const [modalDom, setModalDom] = useState(false)
   const [domForm, setDomForm] = useState(domFormVacio)
   const [agendando, setAgendando] = useState(false)
+  const [distDom, setDistDom] = useState(null)
+
+  // Envío sugerido: distancia tienda → dirección ($50 hasta 5 km, $70 después).
+  useEffect(() => {
+    if (!modalDom || !domForm.direccion || !domForm.colonia) return
+    const t = setTimeout(async () => {
+      try {
+        const d = await fetch('/api/domicilios/distancia', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ direccion: domForm.direccion, colonia: domForm.colonia }),
+        }).then(r => r.json())
+        setDistDom(d?.ok ? d : null)
+        if (d?.ok && d.costoEnvio) setDomForm(p => ({ ...p, costo_envio: String(d.costoEnvio) }))
+      } catch { setDistDom(null) }
+    }, 900)
+    return () => clearTimeout(t)
+  }, [modalDom, domForm.direccion, domForm.colonia])
 
   const horariosDom = (fecha) => {
     if (!fecha) return []
@@ -164,6 +182,11 @@ export default function TiendaTienda({
         direccion: domForm.direccion,
         colonia: domForm.colonia,
         referencias: domForm.referencias,
+        entre_calles: domForm.entre_calles,
+        instrucciones_acceso: domForm.instrucciones_acceso,
+        hora_exacta: domForm.exige_hora ? (domForm.hora_exacta || null) : null,
+        lat: domForm.lat_ok === `${domForm.direccion}|${domForm.colonia}` && domForm.lat !== '' ? Number(domForm.lat) : null,
+        lng: domForm.lat_ok === `${domForm.direccion}|${domForm.colonia}` && domForm.lng !== '' ? Number(domForm.lng) : null,
         fecha_preferida: domForm.fecha_preferida,
         horario: domForm.horario,
         notas: domForm.notas,
@@ -688,11 +711,8 @@ export default function TiendaTienda({
               {[
                 { label: 'Nombre *', key: 'nombre', placeholder: 'Nombre completo' },
                 { label: 'Teléfono *', key: 'telefono', placeholder: '662 000 0000' },
-                { label: 'Calle y número *', key: 'direccion', placeholder: 'Blvd. Morelos #432' },
-                { label: 'Colonia *', key: 'colonia', placeholder: 'Villa del Real' },
-                { label: 'Referencias', key: 'referencias', placeholder: 'Casa azul, cerca de...' },
               ].map(f => (
-                <div key={f.key} style={{ gridColumn: f.key === 'referencias' ? '1 / -1' : undefined }}>
+                <div key={f.key}>
                   <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>{f.label}</label>
                   <input type="text" value={domForm[f.key]} onChange={e => setDomForm(p => ({ ...p, [f.key]: e.target.value }))}
                     placeholder={f.placeholder}
@@ -701,30 +721,12 @@ export default function TiendaTienda({
               ))}
             </div>
 
-            {/* Fecha y horario */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Fecha *</label>
-                <input type="date" value={domForm.fecha_preferida}
-                  onChange={e => setDomForm(p => ({ ...p, fecha_preferida: e.target.value, horario: '' }))}
-                  style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-                {domForm.fecha_preferida && new Date(domForm.fecha_preferida + 'T12:00:00').getDay() === 0 && (
-                  <div style={{ color: 'var(--rojo-t)', fontSize: 11, marginTop: 4 }}>⚠️ No hay servicio los domingos</div>
-                )}
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Horario *</label>
-                <select value={domForm.horario} onChange={e => setDomForm(p => ({ ...p, horario: e.target.value }))}
-                  style={{ width: '100%', background: 'var(--w05)', border: '1px solid var(--w10)', borderRadius: 10, padding: '9px 12px', color: 'var(--tinta)', fontSize: 13, outline: 'none' }}>
-                  <option value="">-- Horario --</option>
-                  {horariosDom(domForm.fecha_preferida).map(h => <option key={h} value={h} style={{ background: 'var(--sup-2)' }}>{h}</option>)}
-                </select>
-              </div>
-            </div>
+            {/* Dirección y fecha/horario: mismos campos que en el admin */}
+            <CamposRutaDomicilio form={domForm} onChange={(p) => setDomForm(f => ({ ...f, ...p }))} ocultarContacto ocultarNotas />
 
             {/* Costo de envío */}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Costo de envío *</label>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--w40)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Costo de envío *{distDom && domForm.direccion && domForm.colonia ? <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 600, color: distDom.dentroCobertura ? 'var(--verde)' : 'var(--rojo-t)', marginLeft: 8 }}>{distDom.dentroCobertura ? `${distDom.distanciaKm} km desde la tienda` : `${distDom.distanciaKm} km: fuera de cobertura`}</span> : null}</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {[50, 70, 100].map(n => (
                   <button key={n} type="button" onClick={() => setDomForm(p => ({ ...p, costo_envio: String(n) }))}

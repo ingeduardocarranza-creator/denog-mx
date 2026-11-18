@@ -64,13 +64,13 @@ export async function POST(req) {
 }
 
 export async function PATCH(req) {
-  const { id, cliente_id, alias, direccion, colonia, referencias, celular_contacto } = await req.json()
+  const { id, cliente_id, alias, direccion, colonia, referencias, celular_contacto, entre_calles, instrucciones_acceso } = await req.json()
   if (!requerirDuenoOStaff(req, String(cliente_id))) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   if (!direccion?.trim() || !colonia?.trim()) return NextResponse.json({ ok: false, mensaje: 'Dirección y colonia son obligatorias' })
 
   const { data, error } = await supabase
     .from('direcciones_clientes')
-    .update({ alias: alias?.trim() || null, direccion: direccion.trim(), colonia: colonia.trim(), referencias: referencias?.trim() || null, celular_contacto: celular_contacto?.trim() || null })
+    .update({ alias: alias?.trim() || null, direccion: direccion.trim(), colonia: colonia.trim(), referencias: referencias?.trim() || null, celular_contacto: celular_contacto?.trim() || null, entre_calles: entre_calles?.trim() || null, instrucciones_acceso: instrucciones_acceso?.trim() || null })
     .eq('id', id)
     .eq('cliente_id', cliente_id)
     .select().single()

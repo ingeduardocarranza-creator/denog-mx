@@ -261,7 +261,7 @@ export default function MenuLateral({ grupos, children }) {
       </div>
 
       {/* ── Contenido principal ────────────────────────────────────── */}
-      <div style={{ marginLeft: isMobile ? 0 : 220, paddingTop: isMobile ? 56 : 0, flex: 1, minWidth: 0, overflowX: 'hidden' }}>
+      <div style={{ marginLeft: isMobile ? 0 : 220, paddingTop: isMobile ? 56 : 0, flex: 1, minWidth: 0, overflowX: 'clip' }}>
         {children}
       </div>
 

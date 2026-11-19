@@ -32,15 +32,34 @@ export async function POST(req) {
   if (!sesion) return NextResponse.json({ ok: false, mensaje: 'No autorizado' }, { status: 401 })
   const supabase = supabaseConSesion(sesion)
 
-  const { cliente_id, entrega_ids, paqueteria, numero_guia, costo_envio, skydropx_shipment_id, notas } = await req.json()
+  const { cliente_id, entrega_ids, pedido_ids, paqueteria, numero_guia, costo_envio, skydropx_shipment_id, notas } = await req.json()
 
   if (!cliente_id) return NextResponse.json({ ok: false, mensaje: 'Falta el cliente' })
+
+  // Si el envío trae piezas, se valida que sigan siendo del cliente y estén
+  // empacadas, que no viajen ya en otro envío activo, y las entregas que
+  // cubre se calculan de las piezas (no se confía en lo que mande el cliente).
+  let entregasDePiezas = Array.isArray(entrega_ids) ? entrega_ids : []
+  const piezas = Array.isArray(pedido_ids) ? pedido_ids : []
+  if (piezas.length > 0) {
+    const { data: filas } = await supabase.from('pedidos').select('id, cliente_id, estado, entrega_id').in('id', piezas)
+    if ((filas || []).length !== piezas.length || filas.some(f => f.cliente_id !== cliente_id || f.estado !== 'empacado')) {
+      return NextResponse.json({ ok: false, mensaje: 'Alguna pieza ya no está empacada o no es de este cliente. Recarga la lista.' })
+    }
+    const { data: activos } = await supabase.from('envios_foraneos').select('pedido_ids').in('estado', ['borrador', 'aprobado', 'notificado'])
+    const ocupadas = new Set((activos || []).flatMap(a => a.pedido_ids || []))
+    if (piezas.some(id => ocupadas.has(id))) {
+      return NextResponse.json({ ok: false, mensaje: 'Alguna pieza ya va en otro envío. Recarga la lista.' })
+    }
+    entregasDePiezas = [...new Set(filas.map(f => f.entrega_id).filter(Boolean))]
+  }
 
   const { data, error } = await supabase
     .from('envios_foraneos')
     .insert({
       cliente_id,
-      entrega_ids: Array.isArray(entrega_ids) ? entrega_ids : [],
+      entrega_ids: entregasDePiezas,
+      pedido_ids: piezas,
       paqueteria: paqueteria || null,
       numero_guia: numero_guia || null,
       costo_envio: Number(costo_envio || 0),

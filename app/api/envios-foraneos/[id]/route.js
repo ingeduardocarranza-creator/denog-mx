@@ -21,7 +21,7 @@ export async function PATCH(req, { params }) {
 
   const body = await req.json()
   const campos = {}
-  for (const k of ['entrega_ids', 'paqueteria', 'numero_guia', 'costo_envio', 'skydropx_shipment_id', 'notas']) {
+  for (const k of ['entrega_ids', 'pedido_ids', 'paqueteria', 'numero_guia', 'costo_envio', 'skydropx_shipment_id', 'notas']) {
     if (k in body) campos[k] = body[k]
   }
   if (campos.costo_envio != null) campos.costo_envio = Number(campos.costo_envio)

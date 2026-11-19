@@ -84,7 +84,6 @@ export default function EnviosForaneos() {
   const [pendientes, setPendientes] = useState([])
   const [cargandoPend, setCargandoPend] = useState(true)
   const [busqueda, setBusqueda] = useState('')
-  const [soloListos, setSoloListos] = useState(false)
   const [clienteSel, setClienteSel] = useState(null)
   const [marcadas, setMarcadas] = useState(() => new Set())
   const [form, setForm] = useState(FORM_VACIO)
@@ -160,12 +159,11 @@ export default function EnviosForaneos() {
 
   const visibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
+    if (!q) return []
     return pendientes.filter(c => {
-      if (soloListos && c.faltan > 0) return false
-      if (!q) return true
       return String(c.nombre || '').toLowerCase().includes(q) || String(c.telefono || '').includes(q)
     })
-  }, [pendientes, busqueda, soloListos])
+  }, [pendientes, busqueda])
 
   const piezas = clienteSel?.piezas || []
   const todasMarcadas = piezas.length > 0 && marcadas.size === piezas.length
@@ -336,18 +334,19 @@ export default function EnviosForaneos() {
                 <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--w25)', fontSize: 13 }}>⌕</span>
                 <input placeholder="Buscar cliente por nombre o teléfono…" value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...input, paddingLeft: 30 }} autoFocus />
               </div>
-              {[[false, 'Todos'], [true, 'Con todo listo']].map(([v, t]) => (
-                <button key={t} className="chip" onClick={() => setSoloListos(v)}
-                  style={{ border: `1px solid ${soloListos === v ? 'rgba(193,85,58,0.5)' : 'var(--w09)'}`, background: soloListos === v ? 'rgba(193,85,58,0.16)' : 'var(--w025)', color: soloListos === v ? 'var(--marca-t)' : 'var(--w45)' }}>{t}</button>
-              ))}
-              <span style={{ color: tenue, fontSize: 12 }}>{visibles.length} {visibles.length === 1 ? 'cliente' : 'clientes'}</span>
             </div>
 
             {cargandoPend ? (
               <div style={{ ...card, padding: 34, textAlign: 'center', color: 'var(--w30)', fontSize: 13 }}>Cargando…</div>
+            ) : !busqueda.trim() ? (
+              <div style={{ ...card, padding: 34, textAlign: 'center', color: tenue, fontSize: 13.5 }}>
+                {pendientes.length === 0
+                  ? 'No hay clientes con piezas empacadas pendientes de enviar.'
+                  : `Escribe el nombre o teléfono del cliente. Hay ${pendientes.length} clientes con piezas listas para enviar.`}
+              </div>
             ) : visibles.length === 0 ? (
-              <div style={{ ...card, padding: 44, textAlign: 'center', color: 'var(--w28)', fontSize: 13 }}>
-                {pendientes.length === 0 ? 'No hay clientes con piezas empacadas pendientes de enviar.' : 'Nadie coincide con este filtro.'}
+              <div style={{ ...card, padding: 34, textAlign: 'center', color: 'var(--w28)', fontSize: 13 }}>
+                Nadie con piezas listas coincide con esa búsqueda.
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 10 }}>

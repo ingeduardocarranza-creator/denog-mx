@@ -6,6 +6,7 @@ import { crearLineaCatalogo, crearLineaMonto, calcularTotalesCarrito } from '../
 import Foto from './ProductoFoto';
 import DescuentoForm from './DescuentoForm';
 import { clay } from '../../../lib/theme/colors';
+import { calcularCuentaEntrega, indicePrimerBloqueCobrable } from '../../../lib/pos/cuentaEntrega';
 
 const money = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const money2 = (n) => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -390,17 +391,27 @@ export default function EncargosEntrega({
           // sumar. El servidor rechaza el cobro de todos modos; esto evita que
           // alguien llegue siquiera a intentarlo.
           const bloqueada = bloque.bloqueada;
-          const anticiposDeEsteBloque = listaAnticipos.filter((ant) => ant.entrega_id === bloque.entrega.id);
-          if (idx === 0 && !bloqueada) {
-            const anticiposGenerales = listaAnticipos.filter((ant) => !ant.entrega_id);
-            anticiposDeEsteBloque.push(...anticiposGenerales);
-          }
           const subtotalArticulos = bloque.pedidos.reduce(
             (acc, p) => acc + (productosSeleccionados[p.id] ? Number(p.precio_venta) : 0),
             0
           );
-          const totalDescuentoAnticipos = anticiposDeEsteBloque.reduce((acc, a) => acc + Number(a.monto), 0);
-          const subtotalFinalEntrega = Math.max(0, subtotalArticulos - totalDescuentoAnticipos);
+          // La cuenta de la entrega completa (lo ya entregado y lo ya pagado),
+          // no solo lo que se lleva ahora: ver lib/pos/cuentaEntrega.js. Antes
+          // aquí se restaba la lista de anticipos entera, y una entrega que ya
+          // se había cobrado en una primera vuelta descontaba su anticipo dos
+          // veces (saldo $0 con mercancía por cobrar).
+          const generalesDeEsteBloque = (!bloqueada && idx === indicePrimerBloqueCobrable(bloquesEntregas))
+            ? listaAnticipos.filter((ant) => !ant.entrega_id).reduce((acc, a) => acc + Number(a.monto), 0)
+            : 0;
+          const cuentaEntrega = calcularCuentaEntrega({
+            entrega: bloque.entrega, subtotalArticulos, generales: generalesDeEsteBloque,
+          });
+          const subtotalFinalEntrega = cuentaEntrega.neto;
+          // Una entrega todavía bloqueada no se cobra: solo se muestran, de
+          // referencia, los anticipos que ya recibió.
+          const anticiposDeEsteBloque = bloqueada
+            ? listaAnticipos.filter((ant) => ant.entrega_id === bloque.entrega.id)
+            : [];
           const tipoEmpaqueBloque = bloque.pedidos.find((p) => p.tipo_empaque)?.tipo_empaque || null;
 
           return (
@@ -538,6 +549,23 @@ export default function EncargosEntrega({
                     </div>
                   );
                 })}
+                {!bloqueada && cuentaEntrega.descuentoAhora > 0 && (
+                  <div
+                    className="flex justify-between py-3 text-xs font-medium"
+                    style={{ color: 'var(--verde)', borderTop: '1px solid var(--w04)' }}
+                  >
+                    <span>↓ Anticipos y abonos aplicados</span>
+                    <span className="tabular-nums font-bold">-${Math.round(cuentaEntrega.descuentoAhora)}</span>
+                  </div>
+                )}
+                {!bloqueada && cuentaEntrega.descuentoAhora === 0 && cuentaEntrega.yaEntregado > 0 && (
+                  <div
+                    className="py-3 text-xs font-medium"
+                    style={{ color: 'var(--w60)', borderTop: '1px solid var(--w04)' }}
+                  >
+                    Lo que se entregó antes (${money(cuentaEntrega.yaEntregado)}) ya está pagado; esto es una segunda vuelta de la misma entrega.
+                  </div>
+                )}
                 {anticiposDeEsteBloque.map((anticipo, aIdx) => (
                   <div
                     key={anticipo.id || aIdx}

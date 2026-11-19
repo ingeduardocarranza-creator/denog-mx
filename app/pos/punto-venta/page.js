@@ -8,6 +8,7 @@ import ListaPreparacion from '../../components/domicilios/ListaPreparacion'
 import ResumenDomicilio from '../../components/domicilios/ResumenDomicilio'
 import CamposRutaDomicilio from '../../components/domicilios/CamposRutaDomicilio';
 import EncargosEntrega from '../../components/pos/EncargosEntrega';
+import { calcularCuentaEntrega, indicePrimerBloqueCobrable } from '../../../lib/pos/cuentaEntrega';
 import { calcularTotalesCarrito, evaluarDescuento } from '../../../lib/pos/tiendaUtils';
 
 const formatearFecha = (fecha) => {
@@ -607,14 +608,13 @@ const horariosDelDia = (f) => {
   bloquesEntregas.forEach((b, idx) => {
     let subtotalArticulos = 0;
     b.pedidos.forEach(p => { if (productosSeleccionados[p.id]) subtotalArticulos += Number(p.precio_venta) || 0; });
-    const yaEntregado = Number(b.entrega.ya_entregado || 0);
-    const yaPagado = Number(b.entrega.pagado || 0);
-    // Los anticipos sin entrega se ofrecen al bloque mas viejo, igual que en el servidor.
-    const generales = idx === 0
+    // Los anticipos sin entrega se ofrecen al primer bloque cobrable, igual que en el servidor.
+    const generales = (!b.bloqueada && idx === indicePrimerBloqueCobrable(bloquesEntregas))
       ? listaAnticipos.filter(a => !a.entrega_id).reduce((acc, a) => acc + Number(a.monto), 0)
       : 0;
-    const subtotalNetoEntrega = Math.max(0, yaEntregado + subtotalArticulos - yaPagado - generales);
-    const descuento = (yaEntregado + subtotalArticulos) - subtotalNetoEntrega;
+    const cuenta = calcularCuentaEntrega({ entrega: b.entrega, subtotalArticulos, generales });
+    const subtotalNetoEntrega = cuenta.neto;
+    const descuento = cuenta.descuentoAhora;
     if (subtotalArticulos > 0 || descuento > 0) {
       desgloseTicketEncargos.push({ fecha: b.entrega.fecha_entrega, montoNeto: subtotalNetoEntrega });
       sumaEncargosTotalNeto += subtotalNetoEntrega;

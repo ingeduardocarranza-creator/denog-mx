@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import TiendaTienda from '../../components/pos/TiendaTienda';
 import EncargosEntrega from '../../components/pos/EncargosEntrega';
+import { calcularCuentaEntrega, indicePrimerBloqueCobrable } from '../../../lib/pos/cuentaEntrega';
 import { calcularTotalesCarrito, evaluarDescuento } from '../../../lib/pos/tiendaUtils';
 
 async function cargarDatosIniciales() {
@@ -238,16 +239,15 @@ export default function PuntoDeVenta() {
       }
     });
 
-    const anticiposDeEsteBloque = listaAnticipos.filter(ant => ant.entrega_id === b.entrega.id);
-    if (idx === 0) {
-      const anticiposGenerales = listaAnticipos.filter(ant => !ant.entrega_id);
-      anticiposDeEsteBloque.push(...anticiposGenerales);
-    }
+    // Cuenta de la entrega completa (lo ya entregado y lo ya pagado), igual
+    // que el servidor y el POS del colaborador: ver lib/pos/cuentaEntrega.js.
+    const generales = (!b.bloqueada && idx === indicePrimerBloqueCobrable(bloquesEntregas))
+      ? listaAnticipos.filter(ant => !ant.entrega_id).reduce((acc, a) => acc + Number(a.monto), 0)
+      : 0;
+    const cuenta = calcularCuentaEntrega({ entrega: b.entrega, subtotalArticulos, generales });
+    const subtotalNetoEntrega = cuenta.neto;
 
-    const totalDescuentoAnticipos = anticiposDeEsteBloque.reduce((acc, a) => acc + Number(a.monto), 0);
-    const subtotalNetoEntrega = Math.max(0, subtotalArticulos - totalDescuentoAnticipos);
-
-    if (subtotalArticulos > 0 || totalDescuentoAnticipos > 0) {
+    if (subtotalArticulos > 0 || cuenta.descuentoAhora > 0) {
       desgloseTicketEncargos.push({
         fecha: b.entrega.fecha_entrega,
         montoNeto: subtotalNetoEntrega

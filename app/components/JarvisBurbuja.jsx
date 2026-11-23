@@ -121,7 +121,7 @@ export default function JarvisBurbuja() {
   }
 
   return (
-    <div style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, maxWidth: 'calc(100vw - 32px)' }}>
+    <div style={{ position: 'fixed', right: 16, bottom: 'calc(16px + var(--barra-inf, 0px))', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, maxWidth: 'calc(100vw - 32px)' }}>
       {toast && (
         <div onClick={() => router.push('/admin/jarvis')} style={{ background: '#fff', border: `2px solid ${color}`, borderRadius: 14, padding: '10px 14px', fontSize: 14, fontWeight: 800, color: '#2a2118', boxShadow: '0 6px 20px rgba(0,0,0,.18)', maxWidth: 320, cursor: 'pointer' }}>
           {toast}

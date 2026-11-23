@@ -6,8 +6,14 @@ import { crearEscaner } from '@/lib/bodega/escaner'
 // Reutiliza el mismo lector de la sección Bodega. Cada lectura llama a
 // onLeer(textos); después hace una pausa corta para que el colaborador
 // mueva el producto (si lleva 2 piezas, el mismo código se escanea 2 veces).
-export default function CamaraLector({ onLeer, pausa = 1800, ayuda = 'Apunta al código de barras' }) {
-  const [abierta, setAbierta] = useState(false)
+export default function CamaraLector({ onLeer, pausa = 1800, ayuda = 'Apunta al código de barras', cerrarAlLeer = false, etiqueta = '', claseBoton = '', claseCerrar = '', abiertaExterna, alCambiar }) {
+  // Normalmente la cámara se abre con su propio botón. Si la pantalla pasa
+  // abiertaExterna/alCambiar, ella controla el botón (por ejemplo uno chico
+  // junto a un buscador) y este componente solo muestra la cámara.
+  const [abiertaInt, setAbiertaInt] = useState(false)
+  const controlado = abiertaExterna !== undefined
+  const abierta = controlado ? abiertaExterna : abiertaInt
+  const setAbierta = (v) => { setAbiertaInt(v); alCambiar?.(v) }
   const [error, setError] = useState('')
   const [hayLinterna, setHayLinterna] = useState(false)
   const [linterna, setLinterna] = useState(false)
@@ -31,7 +37,7 @@ export default function CamaraLector({ onLeer, pausa = 1800, ayuda = 'Apunta al 
             const textos = (codigos || []).map(c => c.texto).filter(Boolean)
             if (!textos.length) return
             bloqueoRef.current = true
-            Promise.resolve(onLeerRef.current(textos)).catch(() => {}).finally(() => {
+            Promise.resolve(onLeerRef.current(textos)).then(r => { if (cerrarAlLeer && r === true) setAbierta(false) }).catch(() => {}).finally(() => {
               setTimeout(() => { bloqueoRef.current = false }, pausa)
             })
           },
@@ -52,7 +58,7 @@ export default function CamaraLector({ onLeer, pausa = 1800, ayuda = 'Apunta al 
       escanerRef.current = null
       setHayLinterna(false); setLinterna(false)
     }
-  }, [abierta, pausa])
+  }, [abierta, pausa, cerrarAlLeer])
 
   async function alternarLinterna() {
     const nuevo = await escanerRef.current?.linterna(!linterna)
@@ -60,11 +66,12 @@ export default function CamaraLector({ onLeer, pausa = 1800, ayuda = 'Apunta al 
   }
 
   if (!abierta) {
+    if (controlado) return error ? <div style={{ marginTop: 8, color: '#C8362C', fontWeight: 700, fontSize: 14 }}>{error}</div> : null
     return (
       <div>
-        <button onClick={() => setAbierta(true)}
-          style={{ width: '100%', minHeight: 64, borderRadius: 14, border: '3px dashed #466D9B', background: 'transparent', color: '#466D9B', fontSize: 20, fontWeight: 800, cursor: 'pointer' }}>
-          📷 Escanear con la cámara del celular
+        <button onClick={() => setAbierta(true)} className={claseBoton || undefined}
+          style={claseBoton ? { width: '100%' } : { width: '100%', minHeight: 64, borderRadius: 14, border: '3px dashed #466D9B', background: 'transparent', color: '#466D9B', fontSize: 20, fontWeight: 800, cursor: 'pointer' }}>
+          {etiqueta || '📷 Escanear con la cámara del celular'}
         </button>
         {error && <div style={{ marginTop: 8, color: '#C8362C', fontWeight: 700, fontSize: 15 }}>{error}</div>}
       </div>
@@ -85,8 +92,8 @@ export default function CamaraLector({ onLeer, pausa = 1800, ayuda = 'Apunta al 
           </button>
         )}
       </div>
-      <button onClick={() => setAbierta(false)}
-        style={{ marginTop: 10, minHeight: 44, padding: '0 18px', borderRadius: 12, border: '2px solid #C9A98F', background: 'transparent', color: 'inherit', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+      <button onClick={() => setAbierta(false)} className={claseCerrar || undefined}
+        style={claseCerrar ? { marginTop: 10, width: '100%' } : { marginTop: 10, minHeight: 44, padding: '0 18px', borderRadius: 12, border: '2px solid #C9A98F', background: 'transparent', color: 'inherit', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
         Cerrar cámara
       </button>
     </div>

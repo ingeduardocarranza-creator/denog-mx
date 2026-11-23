@@ -16,6 +16,7 @@ const grupos = [
     label: 'OPERACIONES',
     items: [
       { label: 'Punto de venta', icon: '🏪', href: '/admin/punto-venta' },
+      { label: 'Apartados',      icon: '🛍️', href: '/admin/apartados' },
       { label: 'Domicilios',     icon: '🚚', href: '/admin/domicilios', badgeKey: 'domicilios' },
       { label: 'Envíos foráneos', icon: '📦', href: '/admin/envios-foraneos' },
       { label: 'Caja',           icon: '💰', href: '/admin/caja' },
